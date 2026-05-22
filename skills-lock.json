@@ -19,6 +19,12 @@
       "skillPath": "plugins/creating-reanimated-animations/skills/creating-reanimated-animations/SKILL.md",
       "computedHash": "5406c06d9f9462e0562d419db34d75eeb0ae1e42fe34660a4a425e04acbbae91"
     },
+    "impeccable": {
+      "source": "pbakaus/impeccable",
+      "sourceType": "github",
+      "skillPath": "skill/SKILL.md",
+      "computedHash": "34e59a34b9705187e87039faa5d9585aebe0056ef657f761b905afef276a3362"
+    },
     "react-native-design": {
       "source": "wshobson/agents",
       "sourceType": "github",

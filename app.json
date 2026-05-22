@@ -1,28 +1,34 @@
 {
   "expo": {
-    "name": "minimal",
-    "slug": "minimal",
+    "name": "Ark",
+    "slug": "ark",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "minimal",
+    "scheme": "ark",
     "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/images/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#000000"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Allow Ark to protect your offline vault with Face ID.",
+        "NSMotionUsageDescription": "Allow Ark to use motion sensors for compass, level, and survival tools.",
+        "NSLocationWhenInUseUsageDescription": "Allow Ark to save your position and offline map regions."
+      },
+      "bundleIdentifier": "app.ark.offline"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      }
+        "backgroundColor": "#000000"
+      },
+      "package": "app.ark.offline",
+      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION", "ACTIVITY_RECOGNITION"]
     },
     "web": {
       "bundler": "metro",
@@ -30,7 +36,33 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow Ark to protect your offline vault with Face ID."
+        }
+      ],
+      [
+        "expo-sqlite",
+        {
+          "enableFTS": true,
+          "useSQLCipher": true
+        }
+      ],
+      [
+        "expo-sensors",
+        {
+          "motionPermission": "Allow Ark to use motion sensors for compass, level, and survival tools."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow Ark to save your position and offline map regions."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

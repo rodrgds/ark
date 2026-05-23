@@ -84,7 +84,7 @@ export default function MapsOnboardingScreen() {
       hideBranding
       arkyPose="navigator"
       step={4}
-      totalSteps={7}
+      totalSteps={8}
       onNext={startDownloads}>
       <View className="gap-4">
         <Text className="text-foreground leading-6">
@@ -133,7 +133,8 @@ function MapPresetCard({
 }) {
   return (
     <Pressable onPress={onToggle}>
-      <Card className={`flex-row items-center gap-3 p-4 ${selected ? 'border-primary/50 bg-primary/5' : ''}`}>
+      <Card
+        className={`flex-row items-center gap-3 p-4 ${selected ? 'border-primary/50 bg-primary/5' : ''}`}>
         <View
           className={`h-10 w-10 items-center justify-center rounded-xl ${
             selected ? 'bg-primary/20' : 'bg-muted'

@@ -9,7 +9,7 @@ function parseLabelColorMap(value: string | null): LabelColorMap {
     if (!parsed || typeof parsed !== 'object') return {};
     return Object.fromEntries(
       Object.entries(parsed).filter(([, color]) => typeof color === 'string' && color.trim())
-    );
+    ) as LabelColorMap;
   } catch {
     return {};
   }

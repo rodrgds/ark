@@ -54,7 +54,7 @@ export default function SecurityScreen() {
       hideBranding
       arkyPose="secure"
       step={2}
-      totalSteps={7}
+      totalSteps={8}
       onNext={initialize}>
       <View className="gap-4">
         <Text className="text-foreground leading-6">

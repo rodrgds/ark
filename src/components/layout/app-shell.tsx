@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { ArkMark } from '@/components/brand/ark-logo';
 import { FunctionSearchButton } from '@/components/layout/function-search';
+import { ModalFrame } from '@/components/ui/modal-frame';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { useAuthStore } from '@/stores/auth-store';
@@ -8,7 +9,7 @@ import { VaultService } from '@/services/security/vault.service';
 import NetInfo from '@react-native-community/netinfo';
 import { Lock, Unlock } from 'lucide-react-native';
 import * as React from 'react';
-import { Animated, View, Easing, Modal, Pressable} from 'react-native';
+import { Animated, View, Easing, Modal, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export function LockStateBar() {
@@ -98,22 +99,22 @@ export function LockStateBar() {
         visible={confirmLockOpen}
         animationType="fade"
         onRequestClose={() => setConfirmLockOpen(false)}>
-        <Pressable className="flex-1 bg-black/50" onPress={() => setConfirmLockOpen(false)}>
-          <View className="flex-1 items-center justify-center p-4">
-            <Pressable onPress={(event) => event.stopPropagation()}>
-              <Pressable onPress={runLockAnimation} disabled={locking} hitSlop={12}>
-                <Animated.View
-                  className="bg-card border-border h-28 w-28 items-center justify-center rounded-full border-2"
-                  style={{ transform: [{ scale }, { rotate }] }}>
-                  <Icon
-                    as={locking ? Lock : Unlock}
-                    className={locking ? 'text-primary size-10' : 'text-muted-foreground size-10'}
-                  />
-                </Animated.View>
-              </Pressable>
-            </Pressable>
-          </View>
-        </Pressable>
+        <ModalFrame
+          onDismiss={() => setConfirmLockOpen(false)}
+          position="center"
+          containerClassName="items-center justify-center"
+          surfaceClassName="w-auto border-0 bg-transparent">
+          <Pressable onPress={runLockAnimation} disabled={locking} hitSlop={12}>
+            <Animated.View
+              className="bg-card border-border h-28 w-28 items-center justify-center rounded-full border-2"
+              style={{ transform: [{ scale }, { rotate }] }}>
+              <Icon
+                as={locking ? Lock : Unlock}
+                className={locking ? 'text-primary size-10' : 'text-muted-foreground size-10'}
+              />
+            </Animated.View>
+          </Pressable>
+        </ModalFrame>
       </Modal>
     </SafeAreaView>
   );

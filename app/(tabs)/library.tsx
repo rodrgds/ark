@@ -612,10 +612,43 @@ export default function LibraryScreen() {
                     </Button>
                   </View>
                 ) : pack.installStatus === 'verifying' ? (
-                  <Button disabled>
-                    <ActivityIndicator />
-                    <Text>Verifying</Text>
-                  </Button>
+                  <View className="flex-row gap-2">
+                    <Button className="flex-1" disabled>
+                      <ActivityIndicator />
+                      <Text>Verifying</Text>
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      disabled={workingId === pack.id}
+                      onPress={() =>
+                        Alert.alert('Cancel verification?', pack.title, [
+                          { text: 'Keep', style: 'cancel' },
+                          {
+                            text: 'Cancel',
+                            style: 'destructive',
+                            onPress: async () => {
+                              setWorkingId(pack.id);
+                              setError(null);
+                              try {
+                                await ContentPackService.cancelPackDownload(pack.id);
+                                await load();
+                              } catch (cancelError) {
+                                setError(
+                                  cancelError instanceof Error
+                                    ? cancelError.message
+                                    : 'Unable to cancel verification.'
+                                );
+                              } finally {
+                                setWorkingId(null);
+                              }
+                            },
+                          },
+                        ])
+                      }>
+                      <Icon as={Trash2} className="size-4" />
+                    </Button>
+                  </View>
                 ) : pack.installStatus === 'paused' ? (
                   <View className="flex-row gap-2">
                     <Button

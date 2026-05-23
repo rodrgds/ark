@@ -132,6 +132,7 @@ export default function NoteEditorScreen() {
         <ConfirmModal
           visible={confirmDiscardOpen}
           title="Discard changes?"
+          description="Your edits have not been saved to the vault."
           confirmVariant="destructive"
           onCancel={() => {
             pendingLeaveActionRef.current = null;

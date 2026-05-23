@@ -1,11 +1,13 @@
-import { Screen } from '@/components/layout/screen';
 import { Text } from '@/components/ui/text';
+import { NAV_COLORS } from '@/constants/theme';
 import { useSensorSubscription } from '@/hooks/use-sensor-subscription';
+import { hexToRgba } from '@/lib/colors';
 import { CompassService } from '@/services/sensors/compass.service';
 import { useSensorStore } from '@/stores/sensor-store';
+import { useThemeStore } from '@/stores/theme-store';
 import * as React from 'react';
 import { useEffect, useRef, useMemo } from 'react';
-import { Animated, Dimensions, StyleSheet, View } from 'react-native';
+import { Animated, Dimensions, Easing, StyleSheet, View } from 'react-native';
 import Svg, {
   Circle,
   Defs,
@@ -17,6 +19,8 @@ import Svg, {
   LinearGradient,
   Text as SvgText,
 } from 'react-native-svg';
+
+type ToolPalette = (typeof NAV_COLORS)[keyof typeof NAV_COLORS];
 
 const W         = Dimensions.get('window').width;
 const SIZE      = W - 48;     
@@ -38,14 +42,13 @@ const TICKS = Array.from({ length: 72 }, (_, i) => {
   const is10   = deg % 10 === 0 && !isMaj && !isMid;
   const len    = isMaj ? 20 : isMid ? 14 : is10 ? 10 : 5;
   const sw     = isMaj ? 2.5 : isMid ? 1.8 : is10 ? 1.2 : 0.7;
-  const color  = isMaj ? '#ffffff' : isMid ? '#cccccc' : is10 ? '#888888' : '#444444';
   const r1     = TICK_OR;
   const r2     = TICK_OR - len;
   return {
     deg,
     x1: CX + r1 * Math.cos(rad), y1: CY + r1 * Math.sin(rad),
     x2: CX + r2 * Math.cos(rad), y2: CY + r2 * Math.sin(rad),
-    sw, color,
+    sw,
   };
 });
 
@@ -61,13 +64,13 @@ const DEG_LABELS = Array.from({ length: 12 }, (_, i) => {
 });
 
 const CARDINALS = [
-  { label: 'N', deg: 0,   color: '#ff6b30', size: 20 },
-  { label: 'S', deg: 180, color: '#ffffff', size: 20 },
-  { label: 'E', deg: 90,  color: '#ffffff', size: 20 },
-  { label: 'W', deg: 270, color: '#ffffff', size: 20 },
-].map(({ label, deg, color, size }) => {
+  { label: 'N', deg: 0, size: 20 },
+  { label: 'S', deg: 180, size: 20 },
+  { label: 'E', deg: 90, size: 20 },
+  { label: 'W', deg: 270, size: 20 },
+].map(({ label, deg, size }) => {
   const rad = (deg - 90) * (Math.PI / 180);
-  return { label, color, size, x: CX + CARD_R * Math.cos(rad), y: CY + CARD_R * Math.sin(rad) + size * 0.36 };
+  return { label, size, x: CX + CARD_R * Math.cos(rad), y: CY + CARD_R * Math.sin(rad) + size * 0.36 };
 });
 
 const INTERCARDINALS = [
@@ -99,20 +102,47 @@ function arcPath(heading: number): string {
 const ARROW_TIP_Y = CY - ARC_R + 2;
 const ARROW = `${CX},${ARROW_TIP_Y + 12} ${CX - 7},${ARROW_TIP_Y + 22} ${CX + 7},${ARROW_TIP_Y + 22}`;
 
-const Bezel = React.memo(() => (
+const Bezel = React.memo(({ palette }: { palette: ToolPalette }) => (
   <Svg
     width={SIZE} height={SIZE}
     viewBox={`0 0 ${SIZE} ${SIZE}`}
     style={StyleSheet.absoluteFillObject}
   >
-    <Circle cx={CX} cy={CY} r={BEZEL_R - 1} fill="#1a1a1a" stroke="#333333" strokeWidth={1} />
-    <Circle cx={CX} cy={CY} r={DIAL_R} fill="#111111" />
-    <Line x1={CX - 36} y1={CY} x2={CX + 36} y2={CY} stroke="#444" strokeWidth={1} />
-    <Line x1={CX} y1={CY - 36} x2={CX} y2={CY + 36} stroke="#444" strokeWidth={1} />
+    <Circle
+      cx={CX}
+      cy={CY}
+      r={BEZEL_R - 1}
+      fill={palette.card}
+      stroke={palette.border}
+      strokeWidth={1}
+    />
+    <Circle cx={CX} cy={CY} r={DIAL_R} fill={hexToRgba(palette.background, 0.62)} />
+    <Line
+      x1={CX - 36}
+      y1={CY}
+      x2={CX + 36}
+      y2={CY}
+      stroke={hexToRgba(palette.foreground, 0.18)}
+      strokeWidth={1}
+    />
+    <Line
+      x1={CX}
+      y1={CY - 36}
+      x2={CX}
+      y2={CY + 36}
+      stroke={hexToRgba(palette.foreground, 0.18)}
+      strokeWidth={1}
+    />
   </Svg>
 ));
 
-const RotatingDial = React.memo(({ rotate }: { rotate: Animated.AnimatedInterpolation<string> }) => (
+const RotatingDial = React.memo(({
+  rotate,
+  palette,
+}: {
+  rotate: Animated.AnimatedInterpolation<string>;
+  palette: ToolPalette;
+}) => (
   <Animated.View style={[StyleSheet.absoluteFillObject, { transform: [{ rotate }] }]}>
     <Svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`}>
       <Defs>
@@ -122,14 +152,31 @@ const RotatingDial = React.memo(({ rotate }: { rotate: Animated.AnimatedInterpol
         </LinearGradient>
       </Defs>
 
-      {TICKS.map(({ deg, x1, y1, x2, y2, sw, color }) => (
-        <Line key={deg} x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth={sw} strokeLinecap="round" />
+      {TICKS.map(({ deg, x1, y1, x2, y2, sw }) => (
+        <Line
+          key={deg}
+          x1={x1}
+          y1={y1}
+          x2={x2}
+          y2={y2}
+          stroke={
+            deg % 90 === 0
+              ? palette.foreground
+              : deg % 45 === 0
+                ? hexToRgba(palette.foreground, 0.74)
+                : deg % 10 === 0
+                  ? hexToRgba(palette.foreground, 0.48)
+                  : hexToRgba(palette.foreground, 0.24)
+          }
+          strokeWidth={sw}
+          strokeLinecap="round"
+        />
       ))}
 
       {DEG_LABELS.map(({ deg, label, x, y }) => (
         <SvgText
           key={deg} x={x} y={y + 5}
-          textAnchor="middle" fill={deg === 0 ? '#ff6b30' : '#aaaaaa'}
+          textAnchor="middle" fill={deg === 0 ? palette.primary : palette.mutedForeground}
           fontSize={deg % 90 === 0 ? 14 : 11}
           fontWeight={deg % 90 === 0 ? '700' : '400'}
           fontFamily="Helvetica Neue, Helvetica, Arial, sans-serif"
@@ -138,8 +185,8 @@ const RotatingDial = React.memo(({ rotate }: { rotate: Animated.AnimatedInterpol
         </SvgText>
       ))}
 
-      {CARDINALS.map(({ label, x, y, color, size }) => (
-        <SvgText key={label} x={x} y={y} textAnchor="middle" fill={color}
+      {CARDINALS.map(({ label, x, y, size }) => (
+        <SvgText key={label} x={x} y={y} textAnchor="middle" fill={label === 'N' ? palette.primary : palette.foreground}
           fontSize={size} fontWeight="700"
           fontFamily="Helvetica Neue, Helvetica, Arial, sans-serif">
           {label}
@@ -147,7 +194,7 @@ const RotatingDial = React.memo(({ rotate }: { rotate: Animated.AnimatedInterpol
       ))}
 
       {INTERCARDINALS.map(({ label, x, y }) => (
-        <SvgText key={label} x={x} y={y} textAnchor="middle" fill="#666666"
+        <SvgText key={label} x={x} y={y} textAnchor="middle" fill={hexToRgba(palette.foreground, 0.42)}
           fontSize={12} fontWeight="500"
           fontFamily="Helvetica Neue, Helvetica, Arial, sans-serif">
           {label}
@@ -157,7 +204,7 @@ const RotatingDial = React.memo(({ rotate }: { rotate: Animated.AnimatedInterpol
   </Animated.View>
 ));
 
-const ArcOverlay = React.memo(({ heading }: { heading: number }) => {
+const ArcOverlay = React.memo(({ heading, palette }: { heading: number; palette: ToolPalette }) => {
   const d     = arcPath(heading);
   const endRad = (heading - 90) * (Math.PI / 180);
   const tipX  = CX + ARC_R * Math.cos(endRad);
@@ -171,23 +218,25 @@ const ArcOverlay = React.memo(({ heading }: { heading: number }) => {
       style={StyleSheet.absoluteFillObject}
       pointerEvents="none"
     >
-      <Path d={d} fill="none" stroke="#ff6b30" strokeWidth={4} strokeLinecap="round" />
+      <Path d={d} fill="none" stroke={palette.primary} strokeWidth={4} strokeLinecap="round" />
 
       <Line
         x1={CX} y1={CY - ARC_R + 4}
         x2={CX} y2={CY - ARC_R + 16}
-        stroke="#ffffff" strokeWidth={2.5} strokeLinecap="round"
+        stroke={palette.foreground} strokeWidth={2.5} strokeLinecap="round"
       />
 
-      <Polygon points={arrowPts} fill="#ff6b30" />
+      <Polygon points={arrowPts} fill={palette.primary} />
 
-      <Circle cx={CX} cy={CY} r={12} fill="#1c1c1e" stroke="#555" strokeWidth={1.5} />
-      <Circle cx={CX} cy={CY} r={4}  fill="#888888" />
+      <Circle cx={CX} cy={CY} r={12} fill={palette.card} stroke={palette.border} strokeWidth={1.5} />
+      <Circle cx={CX} cy={CY} r={4}  fill={palette.mutedForeground} />
     </Svg>
   );
 });
 
 export default function CompassTool() {
+  const theme = useThemeStore((state) => state.effectiveTheme);
+  const palette = NAV_COLORS[theme];
   const setStoreHeading = useSensorStore((state) => state.setHeading);
   const { available, value: heading } = useSensorSubscription(CompassService, setStoreHeading);
 
@@ -205,12 +254,11 @@ export default function CompassTool() {
     const next = lastHeading.current + delta;
     lastHeading.current = next;
 
-    Animated.spring(rotateAnim, {
+    Animated.timing(rotateAnim, {
       toValue: -next,
-      tension: 120,
-      friction: 14,
+      duration: 80,
+      easing: Easing.out(Easing.quad),
       useNativeDriver: true,
-      overshootClamping: true,
     }).start();
   }, [heading]);
 
@@ -225,19 +273,19 @@ export default function CompassTool() {
   const cardinal = heading === null ? '---' : getCardinal(liveHeading);
 
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, { backgroundColor: palette.background }]}>
       <View style={styles.readoutRow}>
-        <Text style={styles.degText}>{displayDeg}</Text>
-        <Text style={styles.cardText}>{cardinal}</Text>
+        <Text style={[styles.degText, { color: palette.foreground }]}>{displayDeg}</Text>
+        <Text style={[styles.cardText, { color: palette.primary }]}>{cardinal}</Text>
       </View>
 
       <View style={[styles.compassWrap, { width: SIZE, height: SIZE }]}>
-        <Bezel />
-        <RotatingDial rotate={rotate} />
-        <ArcOverlay heading={liveHeading} />
+        <Bezel palette={palette} />
+        <RotatingDial rotate={rotate} palette={palette} />
+        <ArcOverlay heading={liveHeading} palette={palette} />
       </View>
 
-      <Text style={styles.hint}>
+      <Text style={[styles.hint, { color: palette.mutedForeground }]}>
         {available === false
           ? 'Magnetometer is not available on this device.'
           : 'Move in a figure-eight pattern if readings drift.'}
@@ -249,7 +297,6 @@ export default function CompassTool() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#000000',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
@@ -263,14 +310,12 @@ const styles = StyleSheet.create({
   degText: {
     fontSize: 72,
     fontWeight: '700',
-    color: '#ffffff',
-    letterSpacing: -2,
+    letterSpacing: 0,
     lineHeight: 76,
   },
   cardText: {
     fontSize: 28,
     fontWeight: '600',
-    color: '#ff6b30',
     letterSpacing: 3,
     paddingBottom: 8,
   },
@@ -279,7 +324,6 @@ const styles = StyleSheet.create({
   },
   hint: {
     fontSize: 13,
-    color: '#636366',
     textAlign: 'center',
     lineHeight: 19,
   },

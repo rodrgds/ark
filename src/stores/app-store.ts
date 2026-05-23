@@ -3,6 +3,7 @@ import { DatabaseClient } from '@/services/db/client';
 import { SettingsRepository } from '@/services/db/repositories/settings.repo';
 import { ContentRepository } from '@/services/db/repositories/content.repo';
 import { FileSystemService } from '@/services/files/filesystem.service';
+import { DownloadManagerService } from '@/services/files/download-manager.service';
 import { AuthoredGuideSeedService } from '@/services/content/authored-guide-seed.service';
 import { useThemeStore } from '@/stores/theme-store';
 import type { OnboardingState, VaultState } from '@/types/db';
@@ -28,6 +29,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       await FileSystemService.ensureAppDirectories();
       await ContentRepository.seedStarterPacks();
       await AuthoredGuideSeedService.seed();
+      await DownloadManagerService.recoverPendingDownloads();
       await useThemeStore.getState().init();
       const [onboarding, vault] = await Promise.all([
         SettingsRepository.getOnboardingState(),

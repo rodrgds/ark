@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
+import { ModalFrame } from '@/components/ui/modal-frame';
 import { Text } from '@/components/ui/text';
 import { type Href, router } from 'expo-router';
 import {
@@ -7,7 +8,6 @@ import {
   BookOpen,
   Compass,
   Home,
-  Lock,
   Map,
   NotebookPen,
   Search,
@@ -61,14 +61,8 @@ const FUNCTIONS: FunctionItem[] = [
     icon: Compass,
   },
   {
-    label: 'Security',
-    description: 'Vault, theme, and diagnostics settings',
-    href: '/(tabs)/settings',
-    icon: Lock,
-  },
-  {
     label: 'Settings',
-    description: 'Preferences and system status',
+    description: 'Vault, theme, diagnostics, and system status',
     href: '/(tabs)/settings',
     icon: Settings,
   },
@@ -98,43 +92,38 @@ export function FunctionSearchButton() {
         visible={open}
         animationType="fade"
         onRequestClose={() => setOpen(false)}>
-        <Pressable className="flex-1 bg-black/60" onPress={() => setOpen(false)}>
-          <View className="flex-1 justify-start px-4 pt-16">
-            <Pressable
-              className="border-border bg-card max-h-[78%] w-full gap-2 rounded-2xl border p-3"
-              onPress={(event) => event.stopPropagation()}>
-              <View className="flex-row items-center gap-2 px-1 pb-2">
-                <Icon as={Search} className="text-muted-foreground size-4" />
-                <Text className="font-semibold">Function search</Text>
-              </View>
-
-              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-                <View className="gap-1">
-                  {FUNCTIONS.map((item) => (
-                    <Pressable
-                      key={item.label}
-                      accessibilityRole="button"
-                      onPress={() => openFunction(item.href)}
-                      className="active:bg-accent flex-row items-center gap-3 rounded-xl p-3">
-                      <View className="bg-primary/10 h-10 w-10 items-center justify-center rounded-full">
-                        <Icon as={item.icon} className="text-primary size-5" />
-                      </View>
-                      <View className="min-w-0 flex-1">
-                        <Text className="font-semibold">{item.label}</Text>
-                        <Text
-                          variant="muted"
-                          className="leading-5"
-                          numberOfLines={2}>
-                          {item.description}
-                        </Text>
-                      </View>
-                    </Pressable>
-                  ))}
-                </View>
-              </ScrollView>
-            </Pressable>
+        <ModalFrame
+          onDismiss={() => setOpen(false)}
+          position="top"
+          containerClassName="px-4 pt-16"
+          surfaceClassName="max-h-[78%] gap-2 p-3">
+          <View className="flex-row items-center gap-2 px-1 pb-2">
+            <Icon as={Search} className="text-muted-foreground size-4" />
+            <Text className="font-semibold">Function search</Text>
           </View>
-        </Pressable>
+
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <View className="gap-1">
+              {FUNCTIONS.map((item) => (
+                <Pressable
+                  key={item.label}
+                  accessibilityRole="button"
+                  onPress={() => openFunction(item.href)}
+                  className="active:bg-accent flex-row items-center gap-3 rounded-lg p-3">
+                  <View className="bg-primary/10 h-10 w-10 items-center justify-center rounded-full">
+                    <Icon as={item.icon} className="text-primary size-5" />
+                  </View>
+                  <View className="min-w-0 flex-1">
+                    <Text className="font-semibold">{item.label}</Text>
+                    <Text variant="muted" className="leading-5" numberOfLines={2}>
+                      {item.description}
+                    </Text>
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+          </ScrollView>
+        </ModalFrame>
       </Modal>
     </>
   );

@@ -1,273 +1,193 @@
 import { Screen } from '@/components/layout/screen';
 import { Text } from '@/components/ui/text';
+import { NAV_COLORS } from '@/constants/theme';
 import { useSensorSubscription } from '@/hooks/use-sensor-subscription';
+import { hexToRgba } from '@/lib/colors';
 import { LevelService } from '@/services/sensors/level.service';
 import { useSensorStore } from '@/stores/sensor-store';
+import { useThemeStore } from '@/stores/theme-store';
 import * as React from 'react';
-import { Animated, Dimensions, Easing, StyleSheet, View } from 'react-native';
-import Svg, { Circle, Defs, Line, RadialGradient, Stop } from 'react-native-svg';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import Svg, { Circle, Line } from 'react-native-svg';
 
 type LevelValue = { pitch: number; roll: number };
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
-const DISC_SIZE    = SCREEN_WIDTH - 48;
-const DISC_R       = DISC_SIZE / 2;
-const BUBBLE_R     = DISC_SIZE * 0.18;
-const MAX_TRAVEL   = DISC_R - BUBBLE_R - 8;
-const RING_COUNT   = 8;
-
-function clamp(v: number, lo: number, hi: number) {
-  return Math.max(lo, Math.min(hi, v));
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
 }
 
 export default function LevelTool() {
+  const { width } = useWindowDimensions();
+  const theme = useThemeStore((state) => state.effectiveTheme);
+  const palette = NAV_COLORS[theme];
   const setStoreLevel = useSensorStore((state) => state.setLevel);
-  const publishLevel  = React.useCallback(
-    (v: LevelValue | null) =>
-      v ? setStoreLevel(v.pitch, v.roll) : setStoreLevel(null, null),
-    [setStoreLevel],
+  const publishLevel = React.useCallback(
+    (value: LevelValue | null) =>
+      value ? setStoreLevel(value.pitch, value.roll) : setStoreLevel(null, null),
+    [setStoreLevel]
   );
   const { available, value: level } = useSensorSubscription<LevelValue>(LevelService, publishLevel);
 
+  const size = Math.min(width - 48, 360);
+  const radius = size / 2;
+  const bubbleRadius = Math.max(22, size * 0.085);
+  const travel = radius - bubbleRadius - 18;
   const pitch = level?.pitch ?? 0;
-  const roll  = level?.roll  ?? 0;
+  const roll = level?.roll ?? 0;
+  const bubbleX = clamp(roll / 18, -1, 1) * travel;
+  const bubbleY = clamp(-pitch / 18, -1, 1) * travel;
+  const error = Math.hypot(pitch, roll);
+  const centered = error <= 1.5;
+  const near = error <= 4;
+  const signal = centered ? '#22c55e' : near ? '#f59e0b' : palette.primary;
+  const centerText = centered ? 'Level' : `${Math.round(error)}°`;
+  const centerLabel = centered ? 'centered' : 'off level';
 
-  // Phone lying flat (horizontal) → |pitch| is small (near 0)
-  // Phone standing up (vertical)  → |pitch| is large (near 90)
-  const isPhoneVertical = Math.abs(pitch) > 45;
-
-  const isCentered  = Math.abs(pitch) < 3  && Math.abs(roll) < 3;
-  const isNearLevel = Math.abs(pitch) < 10 && Math.abs(roll) < 10;
-
-  const bubbleColor = isCentered ? '#22c55e' : isNearLevel ? '#f97316' : '#ef4444';
-  const lineColor   = isCentered ? '#22c55e' : isNearLevel ? '#f97316' : '#ef4444';
-
-  const animBx      = React.useRef(new Animated.Value(0)).current;
-  const animBy      = React.useRef(new Animated.Value(0)).current;
-  const animHorizon = React.useRef(new Animated.Value(0)).current;
-  const animRoll    = React.useRef(new Animated.Value(0)).current;
-
-  React.useEffect(() => {
-    const cfg = { duration: 80, easing: Easing.out(Easing.quad), useNativeDriver: true };
-
-    if (!isPhoneVertical) {
-      // Flat/horizontal phone → bull's-eye bubble
-      const bx = clamp((-roll  / 45) * MAX_TRAVEL, -MAX_TRAVEL, MAX_TRAVEL);
-      const by = clamp(( pitch / 45) * MAX_TRAVEL, -MAX_TRAVEL, MAX_TRAVEL);
-      Animated.parallel([
-        Animated.timing(animBx, { toValue: bx, ...cfg }),
-        Animated.timing(animBy, { toValue: by, ...cfg }),
-      ]).start();
-    } else {
-      // Standing phone → horizon line
-      const shift = clamp((pitch / 90) * (DISC_R * 0.8), -DISC_R * 0.8, DISC_R * 0.8);
-      Animated.parallel([
-        Animated.timing(animHorizon, { toValue: shift, ...cfg }),
-        Animated.timing(animRoll,    { toValue: roll,  ...cfg }),
-      ]).start();
-    }
-  }, [pitch, roll, isPhoneVertical]);
-
-  const horizonRotate = animRoll.interpolate({
-    inputRange: [-90, 90],
-    outputRange: ['-90deg', '90deg'],
-  });
-
-  const DiscBackground = (
-    <Svg width={DISC_SIZE} height={DISC_SIZE} style={StyleSheet.absoluteFillObject}>
-      <Defs>
-        <RadialGradient id="discGrad" cx="50%" cy="50%" r="50%">
-          <Stop offset="0%"   stopColor="#1e1e1e" />
-          <Stop offset="100%" stopColor="#0a0a0a" />
-        </RadialGradient>
-      </Defs>
-      <Circle cx={DISC_R} cy={DISC_R} r={DISC_R} fill="url(#discGrad)" />
-      {Array.from({ length: RING_COUNT }, (_, i) => {
-        const rr      = (DISC_R * (i + 1)) / RING_COUNT;
-        const isOuter = i === RING_COUNT - 1;
-        return (
-          <Circle
-            key={i}
-            cx={DISC_R} cy={DISC_R} r={rr}
-            stroke={isOuter ? '#ffffff22' : '#ffffff0a'}
-            strokeWidth={isOuter ? 1.5 : 1}
-            fill="none"
-          />
-        );
-      })}
-      <Line x1={DISC_R} y1={0}      x2={DISC_R}    y2={DISC_SIZE} stroke="#ffffff0a" strokeWidth={1} />
-      <Line x1={0}      y1={DISC_R} x2={DISC_SIZE} y2={DISC_R}    stroke="#ffffff0a" strokeWidth={1} />
-      <Circle cx={DISC_R} cy={DISC_R} r={5}   stroke="#ffffff30" strokeWidth={1} fill="none" />
-      <Circle cx={DISC_R} cy={DISC_R} r={1.5} fill="#ffffff40" />
-    </Svg>
-  );
-
-  // ── Phone HORIZONTAL → Bull's-eye bubble view ─────────────────────────────
-  if (!isPhoneVertical) {
-    return (
-      <Screen style={styles.screen}>
-        <View style={styles.readout}>
-          <Text style={styles.bigDeg}>{Math.round(Math.abs(roll))}°</Text>
-          <Text style={styles.axisLabel}>Vertical</Text>
-        </View>
-
-        <View style={[styles.disc, { width: DISC_SIZE, height: DISC_SIZE, borderRadius: DISC_R }]}>
-          {DiscBackground}
-
-          <Animated.View
-            style={[
-              StyleSheet.absoluteFillObject,
-              { transform: [{ translateX: animBx }, { translateY: animBy }] },
-            ]}
-          >
-            <Svg width={DISC_SIZE} height={DISC_SIZE}>
-              <Circle
-                cx={DISC_R} cy={DISC_R} r={BUBBLE_R + 5}
-                fill="none" stroke={bubbleColor} strokeWidth={1} strokeOpacity={0.2}
-              />
-              <Circle
-                cx={DISC_R} cy={DISC_R} r={BUBBLE_R}
-                fill="none" stroke={bubbleColor} strokeWidth={3} strokeOpacity={0.95}
-              />
-              <Circle
-                cx={DISC_R} cy={DISC_R} r={BUBBLE_R - 3}
-                fill={bubbleColor} fillOpacity={0.07}
-              />
-            </Svg>
-          </Animated.View>
-        </View>
-
-        <View style={styles.readout}>
-          <Text style={styles.bigDeg}>{Math.round(Math.abs(pitch))}°</Text>
-          <Text style={styles.axisLabel}>Horizontal</Text>
-        </View>
-
-        {available === false && (
-          <Text style={styles.unavailable}>Accelerometer not available.</Text>
-        )}
-      </Screen>
-    );
-  }
-
-  // ── Phone VERTICAL → Horizon line view ───────────────────────────────────
   return (
-    <Screen style={styles.screen}>
+    <Screen
+      className="bg-background"
+      contentContainerStyle={styles.content}>
       <View style={styles.readout}>
-        <Text style={styles.bigDeg}>{Math.round(Math.abs(roll))}°</Text>
-        <Text style={styles.axisLabel}>Vertical</Text>
+        <Text variant="h1" className="font-mono">
+          {centerText}
+        </Text>
+        <Text variant="muted">{centerLabel}</Text>
       </View>
 
-      <View style={[styles.disc, { width: DISC_SIZE, height: DISC_SIZE, borderRadius: DISC_R }]}>
-        {DiscBackground}
+      <View
+        style={[
+          styles.disc,
+          {
+            width: size,
+            height: size,
+            borderRadius: radius,
+            backgroundColor: palette.card,
+            borderColor: palette.border,
+          },
+        ]}>
+        <Svg width={size} height={size} style={StyleSheet.absoluteFillObject}>
+          {[0.25, 0.5, 0.75, 1].map((scale) => (
+            <Circle
+              key={scale}
+              cx={radius}
+              cy={radius}
+              r={(radius - 12) * scale}
+              fill="none"
+              stroke={scale === 0.5 ? hexToRgba(signal, 0.48) : hexToRgba(palette.foreground, 0.12)}
+              strokeWidth={scale === 0.5 ? 2 : 1}
+            />
+          ))}
+          <Line
+            x1={radius}
+            y1={18}
+            x2={radius}
+            y2={size - 18}
+            stroke={hexToRgba(palette.foreground, 0.14)}
+            strokeWidth={1}
+          />
+          <Line
+            x1={18}
+            y1={radius}
+            x2={size - 18}
+            y2={radius}
+            stroke={hexToRgba(palette.foreground, 0.14)}
+            strokeWidth={1}
+          />
+          <Circle cx={radius} cy={radius} r={5} fill={hexToRgba(palette.foreground, 0.34)} />
+        </Svg>
 
-        <Animated.View
+        <View
           style={[
-            styles.horizonBand,
+            styles.bubble,
             {
-              width: DISC_SIZE * 2,
-              transform: [
-                { translateX: -DISC_SIZE / 2 },
-                { rotate: horizonRotate },
-                { translateY: animHorizon },
-              ],
+              width: bubbleRadius * 2,
+              height: bubbleRadius * 2,
+              borderRadius: bubbleRadius,
+              borderColor: signal,
+              backgroundColor: hexToRgba(signal, theme === 'light' ? 0.16 : 0.22),
+              transform: [{ translateX: bubbleX }, { translateY: bubbleY }],
             },
-          ]}
-        >
-          <View style={[styles.horizonFill, { backgroundColor: isCentered ? '#0d2a0d' : '#1a0d00' }]} />
-          <View style={[styles.horizonLine, { backgroundColor: lineColor }]} />
-        </Animated.View>
-
-        <View style={styles.crosshairFixed} pointerEvents="none">
-          <View style={[styles.crossH, { backgroundColor: '#ffffff20' }]} />
-          <View style={[styles.crossV, { backgroundColor: '#ffffff20' }]} />
-          <View style={styles.crossDot} />
+          ]}>
+          <View style={[styles.bubbleCore, { backgroundColor: signal }]} />
         </View>
       </View>
 
-      <View style={styles.readout}>
-        <Text style={styles.bigDeg}>{Math.round(Math.abs(pitch))}°</Text>
-        <Text style={styles.axisLabel}>Horizontal</Text>
+      <View style={styles.metrics}>
+        <Metric label="Pitch" value={pitch} palette={palette} />
+        <Metric label="Roll" value={roll} palette={palette} />
       </View>
 
-      {available === false && (
-        <Text style={styles.unavailable}>Accelerometer not available.</Text>
-      )}
+      <Text variant="muted" className="text-center">
+        {available === false
+          ? 'Accelerometer is not available on this device.'
+          : 'Place the phone flat. The bubble moves toward the high side.'}
+      </Text>
     </Screen>
   );
 }
 
+function Metric({
+  label,
+  value,
+  palette,
+}: {
+  label: string;
+  value: number;
+  palette: (typeof NAV_COLORS)[keyof typeof NAV_COLORS];
+}) {
+  return (
+    <View
+      style={[
+        styles.metric,
+        { backgroundColor: palette.card, borderColor: palette.border },
+      ]}>
+      <Text variant="muted">{label}</Text>
+      <Text className="font-mono text-xl font-semibold">{value.toFixed(1)}°</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: '#000000',
+  content: {
+    flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 28,
+    gap: 24,
     paddingHorizontal: 24,
+    paddingVertical: 24,
   },
   readout: {
     alignItems: 'center',
     gap: 4,
   },
-  bigDeg: {
-    fontSize: 52,
-    fontWeight: '700',
-    color: '#ffffff',
-    lineHeight: 56,
-    letterSpacing: -1,
-    fontVariant: ['tabular-nums'],
-  },
-  axisLabel: {
-    fontSize: 16,
-    color: '#8e8e93',
-    fontWeight: '400',
-  },
   disc: {
-    backgroundColor: '#0a0a0a',
-    overflow: 'hidden',
     alignItems: 'center',
-    justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#2a2a2a',
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
-  horizonBand: {
+  bubble: {
+    alignItems: 'center',
+    borderWidth: 2,
+    justifyContent: 'center',
     position: 'absolute',
-    top: 0,
-    bottom: 0,
   },
-  horizonFill: {
-    flex: 1,
+  bubbleCore: {
+    borderRadius: 5,
+    height: 10,
+    width: 10,
   },
-  horizonLine: {
-    height: 2.5,
+  metrics: {
+    flexDirection: 'row',
+    gap: 12,
     width: '100%',
   },
-  crosshairFixed: {
-    position: 'absolute',
-    width: 48,
-    height: 48,
+  metric: {
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  crossH: {
-    position: 'absolute',
-    width: 48,
-    height: 1,
-  },
-  crossV: {
-    position: 'absolute',
-    width: 1,
-    height: 48,
-  },
-  crossDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: '#ffffff40',
-  },
-  unavailable: {
-    fontSize: 13,
-    color: '#ff453a',
-    textAlign: 'center',
+    borderRadius: 12,
+    borderWidth: 1,
+    flex: 1,
+    gap: 6,
+    padding: 14,
   },
 });

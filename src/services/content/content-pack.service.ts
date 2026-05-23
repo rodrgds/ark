@@ -69,7 +69,7 @@ export class ContentPackService {
     }
     await ContentRepository.updateInstallStatus({
       id: pack.id,
-      status: 'downloading',
+      status: 'queued',
       progress: pack.progress,
       localUri: pack.localUri ?? download.localUri,
     });
@@ -208,16 +208,13 @@ export class ContentPackService {
     const pack = (await ContentRepository.list()).find((item) => item.id === packId);
     if (!pack) throw new Error('Content pack not found.');
     const downloads = await DownloadManagerService.listDownloads();
+    const activeStatuses = new Set(['queued', 'downloading', 'verifying', 'paused']);
     const download =
       downloads.find(
-        (item) =>
-          item.sourceUrl === pack.sourceUrl &&
-          (item.status === 'queued' || item.status === 'downloading' || item.status === 'paused')
+        (item) => item.sourceUrl === pack.sourceUrl && activeStatuses.has(item.status)
       ) ??
       downloads.find(
-        (item) =>
-          item.localUri === pack.localUri &&
-          (item.status === 'queued' || item.status === 'downloading' || item.status === 'paused')
+        (item) => item.localUri === pack.localUri && activeStatuses.has(item.status)
       ) ??
       null;
     return { pack, download };

@@ -43,3 +43,12 @@ export type SavedRoute = {
   createdAt: number;
   updatedAt: number;
 };
+
+export type OfflineMapSearchResult = {
+  id: string;
+  kind: 'spot' | 'region' | 'route';
+  title: string;
+  subtitle: string;
+  latitude?: number | null;
+  longitude?: number | null;
+};

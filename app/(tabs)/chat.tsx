@@ -4,10 +4,12 @@ import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
+import { Arky } from '@/components/brand/ark-logo';
 import { SAFETY_COPY } from '@/constants/app';
 import { AIService } from '@/services/ai/ai.service';
-import type { AiMessage } from '@/types/ai';
-import { Bot, Search, Send, StopCircle, Trash2 } from 'lucide-react-native';
+import type { AiCitation, AiMessage } from '@/types/ai';
+import { router } from 'expo-router';
+import { Bot, ExternalLink, Search, Send, StopCircle, Trash2 } from 'lucide-react-native';
 import * as React from 'react';
 import {
   ActivityIndicator,
@@ -17,6 +19,34 @@ import {
   Platform,
   View,
 } from 'react-native';
+
+function CitationItem({ citation }: { citation: AiCitation }) {
+  const location = [
+    citation.sectionTitle,
+    typeof citation.page === 'number' ? `page ${citation.page}` : null,
+  ]
+    .filter(Boolean)
+    .join(' - ');
+
+  return (
+    <View className="gap-1">
+      <Text variant="muted">
+        {citation.title}
+        {location ? `, ${location}` : ''}: {citation.snippet}
+      </Text>
+      {citation.targetHref ? (
+        <Button
+          size="sm"
+          variant="outline"
+          className="self-start"
+          onPress={() => router.push(citation.targetHref as never)}>
+          <Icon as={ExternalLink} className="size-4" />
+          <Text>Open source</Text>
+        </Button>
+      ) : null}
+    </View>
+  );
+}
 
 function MessageBubble({ message }: { message: AiMessage }) {
   const assistant = message.role === 'assistant';
@@ -31,7 +61,7 @@ function MessageBubble({ message }: { message: AiMessage }) {
         <Text
           variant="small"
           className={assistant ? 'text-primary uppercase' : 'text-primary-foreground uppercase'}>
-          {assistant ? 'Ark' : 'You'}
+          {assistant ? 'Arky' : 'You'}
         </Text>
         <Text selectable className={assistant ? undefined : 'text-primary-foreground'}>
           {message.content}
@@ -40,13 +70,27 @@ function MessageBubble({ message }: { message: AiMessage }) {
           <View className="border-border mt-1 gap-1 border-t pt-2">
             <Text variant="small">Sources</Text>
             {message.citations.map((citation) => (
-              <Text key={`${message.id}-${citation.sourceId}`} variant="muted">
-                {citation.title}: {citation.snippet}
-              </Text>
+              <CitationItem key={`${message.id}-${citation.sourceId}`} citation={citation} />
             ))}
           </View>
         ) : null}
       </Card>
+    </View>
+  );
+}
+
+function StreamingBubble({ content }: { content: string }) {
+  return (
+    <View className="items-start px-4 pb-2">
+      <View className="flex-row items-end gap-2">
+        <Arky pose="thinking" size={44} className="mb-1" />
+        <Card className="max-w-[85%] gap-2 rounded-lg">
+          <Text variant="small" className="text-primary uppercase">
+            Arky
+          </Text>
+          <Text selectable>{content || 'Thinking through local sources...'}</Text>
+        </Card>
+      </View>
     </View>
   );
 }
@@ -57,6 +101,7 @@ export default function ChatScreen() {
   const [content, setContent] = React.useState('');
   const [useRag, setUseRag] = React.useState(true);
   const [sending, setSending] = React.useState(false);
+  const [streamingText, setStreamingText] = React.useState('');
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -78,16 +123,21 @@ export default function ChatScreen() {
     const trimmed = content.trim();
     if (!trimmed || sending) return;
     setSending(true);
+    setStreamingText('');
     setError(null);
     setContent('');
     try {
-      const result = await AIService.sendMessage({ threadId, content: trimmed, useRag });
+      const result = await AIService.sendMessage(
+        { threadId, content: trimmed, useRag },
+        { onToken: setStreamingText }
+      );
       setThreadId(result.threadId);
       setMessages((current) => [...current, ...result.messages]);
     } catch (sendError) {
       setContent(trimmed);
       setError(sendError instanceof Error ? sendError.message : 'Unable to send message.');
     } finally {
+      setStreamingText('');
       setSending(false);
     }
   }
@@ -122,7 +172,7 @@ export default function ChatScreen() {
         <View className="flex-row items-start justify-between gap-3">
           <View className="min-w-0 flex-1 gap-1">
             <Text variant="h1" className="text-3xl">
-              Ask Ark
+              Ask Arky
             </Text>
             <Text variant="muted">Local answers with offline source retrieval.</Text>
           </View>
@@ -154,11 +204,9 @@ export default function ChatScreen() {
           <Text variant="muted">Loading local thread...</Text>
         </View>
       ) : messages.length === 0 ? (
-        <View className="flex-1 items-center justify-center gap-3 p-6">
-          <View className="bg-primary/15 size-14 items-center justify-center rounded-lg">
-            <Icon as={Bot} className="text-primary size-7" />
-          </View>
-          <Text variant="large">No messages yet</Text>
+        <View className="flex-1 items-center justify-center gap-4 p-6">
+          <Arky pose="scholar" size={160} />
+          <Text variant="h3">Ask Arky</Text>
           <Text variant="muted" className="text-center">
             Ask about downloaded guides, notes, or offline operating plans.
           </Text>
@@ -174,11 +222,13 @@ export default function ChatScreen() {
         />
       )}
 
+      {sending ? <StreamingBubble content={streamingText} /> : null}
+
       {sending ? (
         <View className="border-border flex-row items-center gap-3 border-t px-4 py-2">
           <ActivityIndicator />
           <Text variant="muted" className="min-w-0 flex-1">
-            Ark is checking local sources...
+            Arky is checking local sources...
           </Text>
           <Button size="sm" variant="outline" onPress={() => void stopResponse()}>
             <Icon as={StopCircle} className="size-4" />

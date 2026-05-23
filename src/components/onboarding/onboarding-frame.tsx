@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
-import { ArkBrandLockup } from '@/components/brand/ark-logo';
+import { ArkBrandLockup, Arky, ArkyPose } from '@/components/brand/ark-logo';
 import { APP_TAGLINE } from '@/constants/app';
 import { PreferencesService } from '@/services/preferences/preferences.service';
 import { type Href, router } from 'expo-router';
@@ -15,6 +15,7 @@ export function OnboardingFrame({
   nextLabel = 'Continue',
   onNext,
   hideBranding = false,
+  arkyPose,
 }: {
   title: string;
   children: React.ReactNode;
@@ -22,6 +23,7 @@ export function OnboardingFrame({
   nextLabel?: string;
   onNext?: () => Promise<boolean | void> | boolean | void;
   hideBranding?: boolean;
+  arkyPose?: ArkyPose;
 }) {
   const [motionEnabled, setMotionEnabled] = React.useState(true);
 
@@ -57,6 +59,16 @@ export function OnboardingFrame({
             <Text variant="muted" className="text-center font-medium">
               {APP_TAGLINE}
             </Text>
+          </Animated.View>
+        )}
+
+        {hideBranding && arkyPose && (
+          <Animated.View
+            className="items-center py-4"
+            entering={
+              motionEnabled ? FadeInDown.duration(400).easing(Easing.out(Easing.quad)) : undefined
+            }>
+            <Arky pose={arkyPose} size={160} />
           </Animated.View>
         )}
 

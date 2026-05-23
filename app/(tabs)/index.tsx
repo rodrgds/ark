@@ -1,5 +1,5 @@
 import { ActionCard } from '@/components/cards/action-card';
-import { ArkBrandLockup } from '@/components/brand/ark-logo';
+import { ArkBrandLockup, Arky } from '@/components/brand/ark-logo';
 import { Screen } from '@/components/layout/screen';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -65,6 +65,10 @@ export default function HomeScreen() {
       }>
       <ArkBrandLockup compact />
 
+      <View className="items-center py-2">
+        <Arky pose="normal" size={140} />
+      </View>
+
       <Card className="gap-3">
         <View className="flex-row flex-wrap gap-x-4 gap-y-3">
           <View className="min-w-[44%] flex-1 flex-row items-center gap-2">
@@ -92,7 +96,7 @@ export default function HomeScreen() {
       <Link href="/(tabs)/chat" asChild>
         <ActionCard
           icon={Bot}
-          title="Ask Ark"
+          title="Ask Arky"
           description="Query local notes and downloaded references."
         />
       </Link>

@@ -1,11 +1,13 @@
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { OnboardingFrame } from '@/components/onboarding/onboarding-frame';
 import * as Location from 'expo-location';
 import { View } from 'react-native';
 import * as React from 'react';
-import { LucideIcon, MapPin, CheckCircle2, Waves, Compass, Activity } from '@/components/ui/icon';
+import type { LucideIcon } from 'lucide-react-native';
+import { Activity, CheckCircle2, Compass, MapPin, Waves } from 'lucide-react-native';
 
 export default function PermissionsScreen() {
   const [locationStatus, setLocationStatus] = React.useState<Location.PermissionStatus | null>(null);
@@ -22,12 +24,19 @@ export default function PermissionsScreen() {
   const isLocationGranted = locationStatus === Location.PermissionStatus.GRANTED;
 
   return (
-    <OnboardingFrame title="Access & Sensors" nextHref="/onboarding/packs" hideBranding>
+    <OnboardingFrame
+      title="Access & Sensors"
+      nextHref={'/onboarding/power' as never}
+      hideBranding
+      arkyPose="navigator">
       <View className="gap-6">
         <Card className="gap-4 p-5">
           <View className="flex-row items-center gap-3">
             <View className={`h-10 w-10 items-center justify-center rounded-full ${isLocationGranted ? 'bg-primary/20' : 'bg-muted'}`}>
-              <MapPin size={20} className={isLocationGranted ? 'text-primary' : 'text-muted-foreground'} />
+              <Icon
+                as={MapPin}
+                className={isLocationGranted ? 'text-primary size-5' : 'text-muted-foreground size-5'}
+              />
             </View>
             <View className="flex-1">
               <Text variant="large">Location Services</Text>
@@ -47,7 +56,7 @@ export default function PermissionsScreen() {
           >
             {isLocationGranted ? (
               <>
-                <CheckCircle2 size={18} className="text-primary" />
+                <Icon as={CheckCircle2} className="text-primary size-4" />
                 <Text>Access Granted</Text>
               </>
             ) : (
@@ -82,10 +91,10 @@ export default function PermissionsScreen() {
   );
 }
 
-function SensorBadge({ icon: Icon, label }: { icon: LucideIcon, label: string }) {
+function SensorBadge({ icon, label }: { icon: LucideIcon, label: string }) {
   return (
     <View className="bg-muted flex-row items-center gap-2 rounded-full px-3 py-1.5">
-      <Icon size={14} className="text-muted-foreground" />
+      <Icon as={icon} className="text-muted-foreground size-3.5" />
       <Text className="text-muted-foreground text-xs font-medium">{label}</Text>
     </View>
   );

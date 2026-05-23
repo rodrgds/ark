@@ -37,7 +37,13 @@ export default function DiagnosticsTool() {
               SQLCipher/vault encryption: {report.sqlCipherActive ? 'active' : 'not active'}
             </Text>
             <Text variant="muted">{SQLCIPHER_NOTE}</Text>
+            <Text variant="muted">
+              Database key: {report.databaseEncryption.keyStored ? 'stored' : 'not created yet'} ·{' '}
+              {report.databaseEncryption.keyStrategy}
+            </Text>
+            <Text variant="muted">{report.databaseEncryption.migrationStatus}</Text>
             <Text>AI adapter: {report.aiAdapter}</Text>
+            <Text variant="muted">{report.aiStatusMessage}</Text>
           </Card>
           <Card className="gap-1">
             <Text variant="large">Storage directories</Text>

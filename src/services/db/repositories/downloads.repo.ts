@@ -14,7 +14,9 @@ function mapDownload(row: {
   downloaded_bytes: number | null;
   resume_data: string | null;
   expected_checksum_md5: string | null;
+  expected_checksum_sha256: string | null;
   checksum_md5: string | null;
+  checksum_sha256: string | null;
   error: string | null;
   created_at: number;
   updated_at: number;
@@ -31,7 +33,9 @@ function mapDownload(row: {
     downloadedBytes: row.downloaded_bytes,
     resumeData: row.resume_data,
     expectedChecksumMd5: row.expected_checksum_md5,
+    expectedChecksumSha256: row.expected_checksum_sha256,
     checksumMd5: row.checksum_md5,
+    checksumSha256: row.checksum_sha256,
     error: row.error,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -62,14 +66,15 @@ export class DownloadsRepository {
     sourceUrl?: string | null;
     localUri?: string | null;
     expectedChecksumMd5?: string | null;
+    expectedChecksumSha256?: string | null;
   }) {
     const db = await DatabaseClient.getDb();
     const timestamp = Date.now();
     const id = randomUUID();
     await db.runAsync(
       `INSERT INTO downloads
-        (id, kind, title, source_url, local_uri, status, progress, resume_data, expected_checksum_md5, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, 'queued', 0, NULL, ?, ?, ?)`,
+        (id, kind, title, source_url, local_uri, status, progress, resume_data, expected_checksum_md5, expected_checksum_sha256, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 'queued', 0, NULL, ?, ?, ?, ?)`,
       [
         id,
         input.kind,
@@ -77,6 +82,7 @@ export class DownloadsRepository {
         input.sourceUrl ?? null,
         input.localUri ?? null,
         input.expectedChecksumMd5 ?? null,
+        input.expectedChecksumSha256 ?? null,
         timestamp,
         timestamp,
       ]
@@ -146,6 +152,7 @@ export class DownloadsRepository {
     totalBytes?: number | null;
     downloadedBytes?: number | null;
     checksumMd5?: string | null;
+    checksumSha256?: string | null;
   }) {
     const db = await DatabaseClient.getDb();
     await db.runAsync(
@@ -156,6 +163,7 @@ export class DownloadsRepository {
            total_bytes = COALESCE(?, total_bytes),
            downloaded_bytes = COALESCE(?, downloaded_bytes),
            checksum_md5 = COALESCE(?, checksum_md5),
+           checksum_sha256 = COALESCE(?, checksum_sha256),
            error = NULL,
            updated_at = ?
        WHERE id = ?`,
@@ -164,6 +172,7 @@ export class DownloadsRepository {
         input.totalBytes ?? null,
         input.downloadedBytes ?? input.totalBytes ?? null,
         input.checksumMd5 ?? null,
+        input.checksumSha256 ?? null,
         Date.now(),
         input.id,
       ]

@@ -19,7 +19,9 @@ export type DownloadRow = {
   downloadedBytes?: number | null;
   resumeData?: string | null;
   expectedChecksumMd5?: string | null;
+  expectedChecksumSha256?: string | null;
   checksumMd5?: string | null;
+  checksumSha256?: string | null;
   error?: string | null;
   createdAt: number;
   updatedAt: number;

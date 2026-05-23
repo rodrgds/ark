@@ -35,6 +35,8 @@ export default function SecurityScreen() {
     <OnboardingFrame
       title="Create your vault"
       nextHref="/onboarding/permissions"
+      hideBranding
+      arkyPose="secure"
       onNext={initialize}>
       <Card className="gap-3">
         <Text variant="muted">

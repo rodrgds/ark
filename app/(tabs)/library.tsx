@@ -1,4 +1,5 @@
 import { Screen } from '@/components/layout/screen';
+import { Arky } from '@/components/brand/ark-logo';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
@@ -6,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
+import { ModelManagerService } from '@/services/ai/model-manager.service';
 import { ContentPackService } from '@/services/content/content-pack.service';
 import { ImportService } from '@/services/files/import.service';
 import { FileSystemService } from '@/services/files/filesystem.service';
@@ -59,11 +61,26 @@ function actionLabel(pack: ContentPack) {
   return 'Download';
 }
 
+function storageWarning(pack: ContentPack, freeBytes?: number | null) {
+  if (!pack.sizeBytes || freeBytes == null || pack.installed) return null;
+  const reserveBytes = Math.max(200 * 1024 * 1024, Math.round(pack.sizeBytes * 0.1));
+  if (freeBytes >= pack.sizeBytes + reserveBytes) return null;
+  return `Needs about ${FileSystemService.formatBytes(pack.sizeBytes)} plus working room. ${FileSystemService.formatBytes(
+    freeBytes
+  )} free.`;
+}
+
 export default function LibraryScreen() {
   const [packs, setPacks] = React.useState<ContentPack[]>([]);
   const [documents, setDocuments] = React.useState<ArkDocument[]>([]);
   const [rssOverview, setRssOverview] = React.useState<Awaited<
     ReturnType<typeof RssService.getOverview>
+  > | null>(null);
+  const [modelStatus, setModelStatus] = React.useState<Awaited<
+    ReturnType<typeof ModelManagerService.getStatus>
+  > | null>(null);
+  const [storageCapacity, setStorageCapacity] = React.useState<Awaited<
+    ReturnType<typeof FileSystemService.getDiskCapacity>
   > | null>(null);
   const [filter, setFilter] = React.useState<(typeof filters)[number]>('All');
   const [workingId, setWorkingId] = React.useState<string | null>(null);
@@ -75,14 +92,19 @@ export default function LibraryScreen() {
   const [modelChecksum, setModelChecksum] = React.useState('');
 
   async function load() {
-    const [nextPacks, nextDocuments, nextRssOverview] = await Promise.all([
-      ContentPackService.listPacks(),
-      ImportService.listDocuments(),
-      RssService.getOverview(),
-    ]);
+    const [nextPacks, nextDocuments, nextRssOverview, nextModelStatus, nextStorageCapacity] =
+      await Promise.all([
+        ContentPackService.listPacks(),
+        ImportService.listDocuments(),
+        RssService.getOverview(),
+        ModelManagerService.getStatus(),
+        FileSystemService.getDiskCapacity(),
+      ]);
     setPacks(nextPacks);
     setDocuments(nextDocuments);
     setRssOverview(nextRssOverview);
+    setModelStatus(nextModelStatus);
+    setStorageCapacity(nextStorageCapacity);
     setInitialLoading(false);
   }
 
@@ -129,11 +151,14 @@ export default function LibraryScreen() {
           }}
         />
       }>
-      <View className="gap-2">
-        <Text variant="h1">Library</Text>
-        <Text variant="muted">
-          Real offline packs from Kiwix, Hesperian, and public-domain survival archives.
-        </Text>
+      <View className="flex-row items-center justify-between">
+        <View className="flex-1 gap-2">
+          <Text variant="h1">Library</Text>
+          <Text variant="muted">
+            Real offline packs from Kiwix, Hesperian, and public-domain survival archives.
+          </Text>
+        </View>
+        <Arky pose="scholar" size={80} />
       </View>
 
       <Card className="gap-3">
@@ -155,6 +180,11 @@ export default function LibraryScreen() {
             <Text variant="h2">{documents.length}</Text>
           </View>
         </View>
+        {storageCapacity?.freeBytes != null ? (
+          <Text variant="small">
+            {FileSystemService.formatBytes(storageCapacity.freeBytes)} free for downloads
+          </Text>
+        ) : null}
         <Button
           variant="secondary"
           disabled={workingId === 'import'}
@@ -278,11 +308,27 @@ export default function LibraryScreen() {
             <View className="min-w-0 flex-1 gap-1">
               <Text variant="large">Local AI models</Text>
               <Text variant="muted">
-                Download a curated GGUF model or import your own. Runtime loading requires the
-                llama.rn development build.
+                Download a curated GGUF model or import your own. Ark will use it when the local
+                runtime is available in this build.
               </Text>
             </View>
           </View>
+          {modelStatus ? (
+            <View className="bg-muted/40 gap-1 rounded-md p-3">
+              <View className="flex-row flex-wrap gap-x-3 gap-y-1">
+                <Text variant="small">
+                  {modelStatus.installedModels}/{modelStatus.availableModels} installed
+                </Text>
+                <Text variant="small">
+                  {modelStatus.adapter === 'llama' ? 'Offline runtime ready' : 'Mock response mode'}
+                </Text>
+              </View>
+              {modelStatus.activeModelTitle ? (
+                <Text variant="muted">Active model: {modelStatus.activeModelTitle}</Text>
+              ) : null}
+              <Text variant="muted">{modelStatus.message}</Text>
+            </View>
+          ) : null}
           <Button
             variant="outline"
             disabled={workingId === 'model-import'}
@@ -319,7 +365,7 @@ export default function LibraryScreen() {
             <Input
               value={modelChecksum}
               onChangeText={setModelChecksum}
-              placeholder="MD5 checksum (optional)"
+              placeholder="Checksum (optional)"
               autoCapitalize="none"
               autoCorrect={false}
             />
@@ -333,7 +379,7 @@ export default function LibraryScreen() {
                   await ContentPackService.addModelUrl({
                     title: modelTitle,
                     sourceUrl: modelUrl,
-                    checksumMd5: modelChecksum,
+                    checksum: modelChecksum,
                   });
                   setModelTitle('');
                   setModelUrl('');
@@ -356,8 +402,8 @@ export default function LibraryScreen() {
             </Button>
           </View>
           <Text variant="small">
-            Prefer 1-2B Q4 models on phones. Add an MD5 when the source publishes one so Ark can
-            reject a corrupted download.
+            Prefer 1-2B Q4 models on phones. If the source publishes a checksum, paste it here so
+            Ark can reject corrupted downloads when verification is available.
           </Text>
         </Card>
       ) : null}
@@ -442,42 +488,57 @@ export default function LibraryScreen() {
       ) : null}
 
       {!initialLoading && showPacks
-        ? visible.map((pack) => (
-            <Card key={pack.id} className="gap-4">
-              <View className="flex-row gap-3">
-                <View className="bg-primary/15 size-11 items-center justify-center rounded-md">
-                  <Icon as={iconFor(pack)} className="text-primary size-6" />
-                </View>
-                <View className="min-w-0 flex-1 gap-1">
-                  <View className="flex-row items-start justify-between gap-3">
-                    <Text variant="large" className="min-w-0 flex-1">
-                      {pack.title}
-                    </Text>
-                    {pack.installed ? <Icon as={Check} className="text-primary size-5" /> : null}
+        ? visible.map((pack) => {
+            const packStorageWarning = storageWarning(pack, storageCapacity?.freeBytes);
+            return (
+              <Card key={pack.id} className="gap-4">
+                <View className="flex-row gap-3">
+                  <View className="bg-primary/15 size-11 items-center justify-center rounded-md">
+                    <Icon as={iconFor(pack)} className="text-primary size-6" />
                   </View>
-                  <Text variant="muted">{pack.description}</Text>
+                  <View className="min-w-0 flex-1 gap-1">
+                    <View className="flex-row items-start justify-between gap-3">
+                      <Text variant="large" className="min-w-0 flex-1">
+                        {pack.title}
+                      </Text>
+                      {pack.installed ? <Icon as={Check} className="text-primary size-5" /> : null}
+                    </View>
+                    <Text variant="muted">{pack.description}</Text>
+                  </View>
                 </View>
-              </View>
 
-              <View className="gap-2">
-                <View className="flex-row flex-wrap gap-x-3 gap-y-1">
-                  <Text variant="muted">
-                    {pack.category} - {pack.format.toUpperCase()} - {pack.estimatedSize}
+                <View className="gap-2">
+                  <View className="flex-row flex-wrap gap-x-3 gap-y-1">
+                    <Text variant="muted">
+                      {pack.category} - {pack.format.toUpperCase()} - {pack.estimatedSize}
+                    </Text>
+                    {pack.sourceLabel ? <Text variant="muted">{pack.sourceLabel}</Text> : null}
+                  </View>
+                  <Progress value={pack.progress} />
+                  <Text variant="small">
+                    {pack.installStatus === 'failed'
+                      ? 'Download failed. Check connection and retry.'
+                      : `${Math.round(pack.progress * 100)}% - ${pack.installStatus.replace('_', ' ')}`}
+                    {pack.checksumMd5 ? ' - MD5 verification enabled' : ''}
+                    {!pack.checksumMd5 && (pack.checksumSha256 || pack.checksumSha256Url)
+                      ? ' - SHA-256 published'
+                      : ''}
                   </Text>
-                  {pack.sourceLabel ? <Text variant="muted">{pack.sourceLabel}</Text> : null}
+                  {(pack.checksumSha256 || pack.checksumSha256Url) && !pack.checksumMd5 ? (
+                    <Text variant="small" className="text-muted-foreground">
+                      Ark stores the official SHA-256 and verifies downloads after completion.
+                    </Text>
+                  ) : null}
+                  {packStorageWarning ? (
+                    <Text variant="small" className="text-destructive">
+                      {packStorageWarning}
+                    </Text>
+                  ) : null}
                 </View>
-                <Progress value={pack.progress} />
-                <Text variant="small">
-                  {pack.installStatus === 'failed'
-                    ? 'Download failed. Check connection and retry.'
-                    : `${Math.round(pack.progress * 100)}% - ${pack.installStatus.replace('_', ' ')}`}
-                  {pack.checksumMd5 ? ' - MD5 verification enabled' : ''}
-                </Text>
-              </View>
 
-              {pack.disclaimer ? (
-                <Text className="text-destructive text-sm">{pack.disclaimer}</Text>
-              ) : null}
+                {pack.disclaimer ? (
+                  <Text className="text-destructive text-sm">{pack.disclaimer}</Text>
+                ) : null}
 
               {pack.installStatus === 'downloading' || pack.installStatus === 'queued' ? (
                 <View className="flex-row gap-2">
@@ -634,7 +695,7 @@ export default function LibraryScreen() {
               ) : (
                 <Button
                   variant={pack.installStatus === 'failed' ? 'outline' : 'default'}
-                  disabled={workingId === pack.id}
+                  disabled={workingId === pack.id || !!packStorageWarning}
                   onPress={async () => {
                     setWorkingId(pack.id);
                     setError(null);
@@ -659,8 +720,9 @@ export default function LibraryScreen() {
                   <Text>{actionLabel(pack)}</Text>
                 </Button>
               )}
-            </Card>
-          ))
+              </Card>
+            );
+          })
         : null}
     </Screen>
   );

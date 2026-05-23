@@ -1,7 +1,8 @@
-import { Card, CardHeader } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { OnboardingFrame } from '@/components/onboarding/onboarding-frame';
 import { SettingsRepository } from '@/services/db/repositories/settings.repo';
-import { Shield, HardDrive, Cpu, Compass } from '@/components/ui/icon';
+import { Icon } from '@/components/ui/icon';
+import { Compass, Cpu, HardDrive, Shield } from 'lucide-react-native';
 import { View } from 'react-native';
 import { Text } from '@/components/ui/text';
 
@@ -33,6 +34,8 @@ export default function IntroScreen() {
     <OnboardingFrame
       title="Offline Command Center"
       nextHref="/onboarding/security"
+      hideBranding
+      arkyPose="tactical"
       onNext={async () => {
         await SettingsRepository.updateOnboardingState({ hasSeenIntro: true });
       }}>
@@ -48,7 +51,7 @@ export default function IntroScreen() {
           {features.map((item) => (
             <Card key={item.title} className="flex-row items-center gap-4 p-4">
               <View className="bg-muted h-10 w-10 items-center justify-center rounded-xl">
-                <item.icon size={20} className="text-primary" />
+                <Icon as={item.icon} className="text-primary size-5" />
               </View>
               <View className="flex-1">
                 <Text className="font-bold">{item.title}</Text>

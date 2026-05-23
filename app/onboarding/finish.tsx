@@ -1,27 +1,26 @@
-import { Button } from '@/components/ui/button';
+import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { OnboardingFrame } from '@/components/onboarding/onboarding-frame';
-import { type Href, router } from 'expo-router';
+import { useAppStore } from '@/stores/app-store';
+import { router } from 'expo-router';
 import { View } from 'react-native';
-import { CheckCircle2, ShieldCheck, Zap, Download } from '@/components/ui/icon';
+import type { LucideIcon } from 'lucide-react-native';
+import { CheckCircle2, Download, ShieldCheck, Zap } from 'lucide-react-native';
 
 export default function FinishScreen() {
+  const completeOnboarding = useAppStore((state) => state.completeOnboarding);
+
   return (
     <OnboardingFrame
       title="Ready for deployment"
       nextLabel="Get Started"
       hideBranding
-      onNext={() => {
+      arkyPose="normal"
+      onNext={async () => {
+        await completeOnboarding();
         router.replace('/(tabs)');
       }}>
       <View className="gap-8 py-4">
-        <View className="items-center justify-center gap-4">
-          <View className="bg-primary/20 h-24 w-24 items-center justify-center rounded-full">
-            <CheckCircle2 size={48} className="text-primary" />
-          </View>
-          <Text variant="h3" className="text-center">Systems Online</Text>
-        </View>
-
         <View className="gap-6">
           <FeatureItem 
             icon={ShieldCheck} 
@@ -44,11 +43,19 @@ export default function FinishScreen() {
   );
 }
 
-function FeatureItem({ icon: Icon, title, description }: { icon: any, title: string, description: string }) {
+function FeatureItem({
+  icon,
+  title,
+  description,
+}: {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+}) {
   return (
     <View className="flex-row gap-4">
       <View className="bg-muted h-10 w-10 items-center justify-center rounded-xl">
-        <Icon size={20} className="text-primary" />
+        <Icon as={icon} className="text-primary size-5" />
       </View>
       <View className="flex-1">
         <Text className="font-bold">{title}</Text>

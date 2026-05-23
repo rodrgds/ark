@@ -48,3 +48,37 @@ export function ArkBrandLockup({
     </View>
   );
 }
+
+const ARKY_POSES = {
+  normal: require('@/assets/images/arky/normal.png'),
+  tactical: require('@/assets/images/arky/tactical.png'),
+  medic: require('@/assets/images/arky/medic.png'),
+  navigator: require('@/assets/images/arky/navigator.png'),
+  resourceful: require('@/assets/images/arky/resourceful.png'),
+  scholar: require('@/assets/images/arky/scholar.png'),
+  secure: require('@/assets/images/arky/secure.png'),
+  signal: require('@/assets/images/arky/signal.png'),
+  thinking: require('@/assets/images/arky/thinking.png'),
+} as const;
+
+export type ArkyPose = keyof typeof ARKY_POSES;
+
+export function Arky({
+  pose = 'normal',
+  size = 120,
+  className,
+}: {
+  pose?: ArkyPose;
+  size?: number;
+  className?: string;
+}) {
+  return (
+    <View className={cn('items-center justify-center', className)} style={{ width: size, height: size }}>
+      <Image
+        source={ARKY_POSES[pose]}
+        style={{ width: '100%', height: '100%' }}
+        contentFit="contain"
+      />
+    </View>
+  );
+}

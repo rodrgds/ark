@@ -106,6 +106,33 @@ const GUIDE_SECTIONS: Record<string, GuideSection[]> = {
       page: 255,
     },
   ],
+  'usda-special-forest-products-harvest': [
+    {
+      title: 'Why restraint matters',
+      detail: 'Wild foods can be a safety net, but gathering pressure can damage local plant populations.',
+      page: 13,
+    },
+    {
+      title: 'General harvest rules',
+      detail: 'Gather where plants are abundant, take only a little, rotate sites, and leave enough for wildlife and other people.',
+      page: 19,
+    },
+    {
+      title: 'Know what you gather',
+      detail: 'Use a regional field guide, avoid threatened plants, and do not rely on Ark for positive plant or mushroom identification.',
+      page: 19,
+    },
+    {
+      title: 'Do not ship mushroom ID',
+      detail: 'The report discusses mushrooms as forest products, but Ark treats mushroom identification as out of scope without expert local sources.',
+      page: 49,
+    },
+    {
+      title: 'Appendix guidelines',
+      detail: 'Harvest norms from field guides and gatherer research: minimize impact, gather selectively, rotate areas, and avoid fragile habitats.',
+      page: 53,
+    },
+  ],
 };
 
 export class GuideService {

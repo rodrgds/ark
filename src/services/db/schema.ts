@@ -1,5 +1,5 @@
 export const DB_NAME = 'ark.db';
-export const DB_VERSION = 5;
+export const DB_VERSION = 6;
 
 export let SQLCIPHER_ACTIVE = false;
 export const SQLCIPHER_NOTE =

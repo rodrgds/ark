@@ -1,3 +1,4 @@
+import { Arky } from '@/components/brand/ark-logo';
 import { Screen } from '@/components/layout/screen';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -8,11 +9,12 @@ import { Text } from '@/components/ui/text';
 import { MapService } from '@/services/maps/map.service';
 import type { MapLibreModule } from '@/services/maps/map.service';
 import { OfflineMapService } from '@/services/maps/offline-map.service';
-import type { MapMarker, MapRegion, SavedRoute } from '@/types/maps';
+import type { MapMarker, MapRegion, OfflineMapSearchResult, SavedRoute } from '@/types/maps';
 import * as Location from 'expo-location';
 import {
   Crosshair,
   Download,
+  LocateFixed,
   MapPinned,
   Plus,
   Route,
@@ -56,10 +58,21 @@ export default function MapScreen() {
   const [spotLatitude, setSpotLatitude] = React.useState('');
   const [spotLongitude, setSpotLongitude] = React.useState('');
   const [spotSearch, setSpotSearch] = React.useState('');
+  const [offlineSearch, setOfflineSearch] = React.useState('');
+  const [offlineResults, setOfflineResults] = React.useState<OfflineMapSearchResult[]>([]);
+  const [customRegionName, setCustomRegionName] = React.useState('');
+  const [customNorth, setCustomNorth] = React.useState('');
+  const [customSouth, setCustomSouth] = React.useState('');
+  const [customEast, setCustomEast] = React.useState('');
+  const [customWest, setCustomWest] = React.useState('');
+  const [customMinZoom, setCustomMinZoom] = React.useState('6');
+  const [customMaxZoom, setCustomMaxZoom] = React.useState('13');
   const [error, setError] = React.useState<string | null>(null);
   const [planningCurrentArea, setPlanningCurrentArea] = React.useState(false);
   const [maplibre, setMaplibre] = React.useState<MapLibreModule | null>(null);
-  const status = MapService.getRuntimeStatus();
+  const [maplibreChecked, setMaplibreChecked] = React.useState(false);
+  const status = MapService.getRuntimeStatus(maplibre, maplibreChecked);
+  const mapStyleUrl = MapService.getDefaultStyleUrl();
 
   async function load() {
     const [nextRegions, nextMarkers, nextRoutes] = await Promise.all([
@@ -74,7 +87,9 @@ export default function MapScreen() {
 
   React.useEffect(() => {
     load();
-    MapService.loadMapLibre().then(setMaplibre);
+    MapService.loadMapLibre()
+      .then(setMaplibre)
+      .finally(() => setMaplibreChecked(true));
   }, []);
 
   async function createRegion(input = recommendedRegions[0]) {
@@ -148,19 +163,74 @@ export default function MapScreen() {
     await load();
   }
 
+  async function createRegionFromSpots() {
+    if (markers.length < 2) {
+      setError('Save at least two spots before planning a map region.');
+      return;
+    }
+    setError(null);
+    await OfflineMapService.createRegionFromMarkers({
+      name: `Saved spots area ${new Date().toLocaleDateString()}`,
+      markers,
+      paddingKm: 5,
+    });
+    await load();
+  }
+
+  async function createCustomRegion() {
+    try {
+      setError(null);
+      await OfflineMapService.createRegionFromBounds({
+        name: customRegionName,
+        north: Number(customNorth),
+        south: Number(customSouth),
+        east: Number(customEast),
+        west: Number(customWest),
+        minZoom: Number(customMinZoom),
+        maxZoom: Number(customMaxZoom),
+      });
+      setCustomRegionName('');
+      setCustomNorth('');
+      setCustomSouth('');
+      setCustomEast('');
+      setCustomWest('');
+      setCustomMinZoom('6');
+      setCustomMaxZoom('13');
+      await load();
+    } catch (customError) {
+      setError(customError instanceof Error ? customError.message : 'Unable to plan custom region.');
+    }
+  }
+
   const visibleMarkers = markers.filter((marker) => {
     const query = spotSearch.trim().toLowerCase();
     if (!query) return true;
     return `${marker.title} ${marker.description ?? ''}`.toLowerCase().includes(query);
   });
 
+  React.useEffect(() => {
+    let canceled = false;
+    const timeout = setTimeout(() => {
+      OfflineMapService.searchOffline(offlineSearch).then((results) => {
+        if (!canceled) setOfflineResults(results);
+      });
+    }, 120);
+    return () => {
+      canceled = true;
+      clearTimeout(timeout);
+    };
+  }, [offlineSearch, markers.length, regions.length, routes.length]);
+
   return (
     <Screen>
-      <View className="gap-2">
-        <Text variant="h1">Map</Text>
-        <Text variant="muted">
-          Offline regions are planned here now. Native map rendering turns on in the dev build.
-        </Text>
+      <View className="flex-row items-center justify-between">
+        <View className="flex-1 gap-2">
+          <Text variant="h1">Map</Text>
+          <Text variant="muted">
+            Offline regions are planned here now. Native map rendering turns on in the dev build.
+          </Text>
+        </View>
+        <Arky pose="navigator" size={80} />
       </View>
 
       <Card className="gap-3">
@@ -171,9 +241,7 @@ export default function MapScreen() {
           <View className="min-w-0 flex-1 gap-1">
             <Text variant="large">Map engine</Text>
             <Text variant="muted">
-              {status.available
-                ? 'MapLibre is available for rendering and offline packs.'
-                : 'Expo Go cannot load MapLibre. Use the development build for vector map rendering and offline pack creation.'}
+              {status.reason}
             </Text>
           </View>
         </View>
@@ -181,11 +249,54 @@ export default function MapScreen() {
 
       {maplibre ? (
         <Card className="h-80 overflow-hidden p-0">
-          <maplibre.Map style={{ flex: 1 }} mapStyle="https://demotiles.maplibre.org/style.json">
+          <maplibre.Map style={{ flex: 1 }} mapStyle={mapStyleUrl}>
             <maplibre.Camera center={[-9.1393, 38.7223]} zoom={8} />
           </maplibre.Map>
         </Card>
       ) : null}
+
+      <Card className="gap-3">
+        <View className="flex-row items-center gap-2">
+          <Icon as={Search} className="text-primary size-5" />
+          <Text variant="large">Offline search</Text>
+        </View>
+        <Text variant="muted">
+          Search saved spots, planned map regions, and route drafts already stored on this device.
+        </Text>
+        <Input
+          value={offlineSearch}
+          onChangeText={setOfflineSearch}
+          placeholder="Search offline map data"
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+        {offlineSearch.trim().length >= 2 ? (
+          offlineResults.length ? (
+            <View className="border-border overflow-hidden rounded-md border">
+              {offlineResults.map((result) => (
+                <View
+                  key={`${result.kind}:${result.id}`}
+                  className="border-border gap-1 border-b p-3 last:border-b-0">
+                  <View className="flex-row items-center gap-2">
+                    <Icon as={iconForSearchResult(result.kind)} className="text-primary size-4" />
+                    <Text className="flex-1">{result.title}</Text>
+                  </View>
+                  <Text variant="small">
+                    {labelForSearchResult(result.kind)} · {result.subtitle}
+                  </Text>
+                  {result.latitude != null && result.longitude != null ? (
+                    <Text variant="small">
+                      {result.latitude.toFixed(5)}, {result.longitude.toFixed(5)}
+                    </Text>
+                  ) : null}
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Text variant="muted">No offline map data matches this search.</Text>
+          )
+        ) : null}
+      </Card>
 
       <Card className="gap-3">
         <View className="flex-row items-center gap-2">
@@ -217,6 +328,10 @@ export default function MapScreen() {
         <Button onPress={createMarker}>
           <Icon as={Plus} className="size-4" />
           <Text>Save Spot</Text>
+        </Button>
+        <Button variant="outline" disabled={markers.length < 2} onPress={createRegionFromSpots}>
+          <Icon as={Download} className="size-4" />
+          <Text>Plan Map From Spots</Text>
         </Button>
         {error ? <Text className="text-destructive">{error}</Text> : null}
         <View className="flex-row items-center gap-2">
@@ -349,6 +464,76 @@ export default function MapScreen() {
             </Button>
           </View>
         </Card>
+        <Card className="gap-3">
+          <View className="flex-row gap-3">
+            <View className="bg-muted size-10 items-center justify-center rounded-md">
+              <Icon as={MapPinned} className="text-primary size-5" />
+            </View>
+            <View className="min-w-0 flex-1 gap-1">
+              <Text variant="large">Custom bounds</Text>
+              <Text variant="muted">
+                Use this when you already know the north, south, east, and west edges.
+              </Text>
+            </View>
+          </View>
+          <Input
+            value={customRegionName}
+            onChangeText={setCustomRegionName}
+            placeholder="Region name"
+          />
+          <View className="flex-row gap-2">
+            <Input
+              className="flex-1"
+              value={customNorth}
+              onChangeText={setCustomNorth}
+              placeholder="North"
+              keyboardType="numeric"
+            />
+            <Input
+              className="flex-1"
+              value={customSouth}
+              onChangeText={setCustomSouth}
+              placeholder="South"
+              keyboardType="numeric"
+            />
+          </View>
+          <View className="flex-row gap-2">
+            <Input
+              className="flex-1"
+              value={customWest}
+              onChangeText={setCustomWest}
+              placeholder="West"
+              keyboardType="numeric"
+            />
+            <Input
+              className="flex-1"
+              value={customEast}
+              onChangeText={setCustomEast}
+              placeholder="East"
+              keyboardType="numeric"
+            />
+          </View>
+          <View className="flex-row gap-2">
+            <Input
+              className="flex-1"
+              value={customMinZoom}
+              onChangeText={setCustomMinZoom}
+              placeholder="Min zoom"
+              keyboardType="numeric"
+            />
+            <Input
+              className="flex-1"
+              value={customMaxZoom}
+              onChangeText={setCustomMaxZoom}
+              placeholder="Max zoom"
+              keyboardType="numeric"
+            />
+          </View>
+          <Button variant="outline" onPress={createCustomRegion}>
+            <Icon as={Download} className="size-4" />
+            <Text>Plan Custom Region</Text>
+          </Button>
+        </Card>
         {recommendedRegions.map((region) => (
           <Card key={region.name} className="gap-3">
             <View className="flex-row gap-3">
@@ -380,6 +565,12 @@ export default function MapScreen() {
           Protomaps PMTiles is the right storage model for full-file offline vector maps. The next
           native pass should render local file:// PMTiles through MapLibre and add place search.
         </Text>
+        {MapService.isDemoStyle(mapStyleUrl) ? (
+          <Text variant="small" className="text-muted-foreground">
+            Current preview style uses MapLibre demo tiles. Set EXPO_PUBLIC_ARK_MAP_STYLE_URL for a
+            production style before shipping map downloads.
+          </Text>
+        ) : null}
       </Card>
 
       {regions.map((region) => (
@@ -440,4 +631,16 @@ function boundsAround(latitude: number, longitude: number, radiusKm: number) {
     east: longitude + longitudeDelta,
     west: longitude - longitudeDelta,
   };
+}
+
+function iconForSearchResult(kind: OfflineMapSearchResult['kind']) {
+  if (kind === 'route') return Route;
+  if (kind === 'region') return MapPinned;
+  return LocateFixed;
+}
+
+function labelForSearchResult(kind: OfflineMapSearchResult['kind']) {
+  if (kind === 'route') return 'Route';
+  if (kind === 'region') return 'Region';
+  return 'Spot';
 }

@@ -1,3 +1,4 @@
+import { Arky } from '@/components/brand/ark-logo';
 import { Screen } from '@/components/layout/screen';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -159,24 +160,29 @@ export default function NotesScreen() {
   if (!unlocked) {
     return (
       <Screen>
-        <Card className="gap-3">
-          <Text variant="large">Vault locked</Text>
-          <Text variant="muted">
+        <Card className="items-center gap-4 py-8">
+          <Arky pose="secure" size={160} />
+          <Text variant="h2">Vault Locked</Text>
+          <Text variant="muted" className="text-center px-4">
             Secure notes and personal documents are inaccessible until the vault is unlocked.
           </Text>
-          <Input
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-            placeholder="Vault passphrase"
-          />
-          <Button onPress={unlock}>
-            <Text>Unlock with password</Text>
-          </Button>
-          <Button variant="outline" onPress={unlockBio}>
-            <Text>Unlock with biometrics</Text>
-          </Button>
-          {unlockError ? <Text className="text-destructive">{unlockError}</Text> : null}
+          <View className="w-full gap-3 mt-4">
+            <Input
+              secureTextEntry
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Vault passphrase"
+            />
+            <Button onPress={unlock} className="h-12">
+              <Text>Unlock with password</Text>
+            </Button>
+            <Button variant="outline" onPress={unlockBio} className="h-12">
+              <Text>Unlock with biometrics</Text>
+            </Button>
+            {unlockError ? (
+              <Text className="text-destructive text-center">{unlockError}</Text>
+            ) : null}
+          </View>
         </Card>
       </Screen>
     );
@@ -294,9 +300,7 @@ export default function NotesScreen() {
         </View>
       ) : notes.length === 0 ? (
         <Card className="items-center gap-3 py-8">
-          <View className="bg-primary/15 size-14 items-center justify-center rounded-lg">
-            <Icon as={FileText} className="text-primary size-7" />
-          </View>
+          <Arky pose="scholar" size={120} />
           <Text variant="large">{query ? 'No matching notes' : 'No notes yet'}</Text>
           <Text variant="muted" className="text-center">
             {query ? 'Try a different search term.' : 'Create a secure note to seed local RAG.'}

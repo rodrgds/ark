@@ -3,6 +3,9 @@ export type AiCitation = {
   title: string;
   snippet: string;
   sourceRef?: string;
+  sectionTitle?: string;
+  page?: number;
+  targetHref?: string;
 };
 
 export type AiMessage = {
@@ -20,7 +23,17 @@ export type AiSendMessageInput = {
   useRag: boolean;
 };
 
+export type AiSendMessageOptions = {
+  onToken?: (content: string) => void;
+};
+
 export type AiAdapterResponse = {
   content: string;
   citations: AiCitation[];
+};
+
+export type AiAdapterSendInput = {
+  content: string;
+  citations: AiCitation[];
+  onToken?: (content: string) => void;
 };

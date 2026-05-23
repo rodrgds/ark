@@ -3,7 +3,11 @@ import * as SecureStore from 'expo-secure-store';
 
 const PASSWORD_VERIFIER_KEY = 'ark.vault.passwordVerifier';
 const BIOMETRIC_TOKEN_KEY = 'ark.vault.biometricToken';
-const CURRENT_VERIFIER_PREFIX = 'ark-v2:sha512:5000:';
+const VERIFIER_V2_PREFIX = 'ark-v2:sha512:5000:';
+const CURRENT_VERIFIER = {
+  prefix: 'ark-v3:sha512:12000:',
+  iterations: 12000,
+};
 
 export class KeychainService {
   static async generateSalt() {
@@ -12,25 +16,41 @@ export class KeychainService {
   }
 
   static async derivePasswordVerifier(password: string, salt: string) {
+    return this.deriveSha512Verifier(
+      password,
+      salt,
+      CURRENT_VERIFIER.iterations,
+      CURRENT_VERIFIER.prefix
+    );
+  }
+
+  private static async deriveSha512Verifier(
+    password: string,
+    salt: string,
+    iterations: number,
+    prefix: string
+  ) {
     let digest = `${salt}:${password}`;
-    for (let i = 0; i < 5000; i += 1) {
+    for (let i = 0; i < iterations; i += 1) {
       digest = await Crypto.digestStringAsync(
         Crypto.CryptoDigestAlgorithm.SHA512,
         `${salt}:${i}:${digest}`
       );
     }
-    return `${CURRENT_VERIFIER_PREFIX}${digest}`;
+    return `${prefix}${digest}`;
   }
 
   static async verifyPassword(password: string, salt: string, expectedVerifier: string) {
-    const actual = expectedVerifier.startsWith(CURRENT_VERIFIER_PREFIX)
+    const actual = expectedVerifier.startsWith(CURRENT_VERIFIER.prefix)
       ? await this.derivePasswordVerifier(password, salt)
-      : await this.deriveLegacyPasswordVerifier(password, salt);
+      : expectedVerifier.startsWith(VERIFIER_V2_PREFIX)
+        ? await this.deriveSha512Verifier(password, salt, 5000, VERIFIER_V2_PREFIX)
+        : await this.deriveLegacyPasswordVerifier(password, salt);
     return actual === expectedVerifier;
   }
 
   static needsVerifierUpgrade(verifier: string) {
-    return !verifier.startsWith(CURRENT_VERIFIER_PREFIX);
+    return !verifier.startsWith(CURRENT_VERIFIER.prefix);
   }
 
   private static async deriveLegacyPasswordVerifier(password: string, salt: string) {

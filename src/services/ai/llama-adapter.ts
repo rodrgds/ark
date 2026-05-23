@@ -1,7 +1,7 @@
 import { SAFETY_COPY } from '@/constants/app';
 import { ContentPackService } from '@/services/content/content-pack.service';
 import type { AiAdapterResponse } from '@/types/ai';
-import type { AiCitation } from '@/types/ai';
+import type { AiAdapterSendInput } from '@/types/ai';
 
 type LlamaModule = typeof import('llama.rn');
 type LlamaContext = Awaited<ReturnType<LlamaModule['initLlama']>>;
@@ -24,10 +24,7 @@ export class LlamaAdapter {
     return !!module && !!model;
   }
 
-  async sendMessage(input: {
-    content: string;
-    citations: AiCitation[];
-  }): Promise<AiAdapterResponse> {
+  async sendMessage(input: AiAdapterSendInput): Promise<AiAdapterResponse> {
     const context = await getContext();
     if (!context) {
       return {
@@ -39,6 +36,16 @@ export class LlamaAdapter {
     const sourceText = input.citations.length
       ? input.citations
           .map((citation, index) => `${index + 1}. ${citation.title}: ${citation.snippet}`)
+          .map((line, index) => {
+            const citation = input.citations[index];
+            const location = [
+              citation.sectionTitle ? `section ${citation.sectionTitle}` : null,
+              typeof citation.page === 'number' ? `page ${citation.page}` : null,
+            ]
+              .filter(Boolean)
+              .join(', ');
+            return location ? `${line} (${location})` : line;
+          })
           .join('\n')
       : 'No retrieved sources.';
     let streamedText = '';
@@ -60,6 +67,7 @@ export class LlamaAdapter {
       },
       (data) => {
         streamedText = data.accumulated_text ?? `${streamedText}${data.token ?? ''}`;
+        if (streamedText) input.onToken?.(streamedText);
       }
     ).finally(() => {
       if (activeCompletionContext === context) activeCompletionContext = null;

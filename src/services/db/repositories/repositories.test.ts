@@ -8,6 +8,11 @@ mock.module('expo-sqlite', () => ({
 }));
 
 mock.module('expo-crypto', () => ({
+  CryptoDigestAlgorithm: {
+    SHA256: 'SHA-256',
+  },
+  digest: async (algorithm: AlgorithmIdentifier, data: Uint8Array) =>
+    crypto.subtle.digest(algorithm, data),
   getRandomBytesAsync: async (length: number) => crypto.getRandomValues(new Uint8Array(length)),
   randomUUID: () => crypto.randomUUID(),
 }));
@@ -111,18 +116,22 @@ beforeEach(async () => {
 describe('database migrations', () => {
   test('creates the current schema with FTS and resumable download columns', async () => {
     const version = await testDb.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
-    expect(version?.user_version).toBe(5);
+    expect(version?.user_version).toBe(6);
 
     const downloadColumns = await testDb.getAllAsync<{ name: string }>(
       'PRAGMA table_info(downloads)'
     );
     expect(downloadColumns.map((column) => column.name)).toContain('resume_data');
     expect(downloadColumns.map((column) => column.name)).toContain('expected_checksum_md5');
+    expect(downloadColumns.map((column) => column.name)).toContain('expected_checksum_sha256');
     expect(downloadColumns.map((column) => column.name)).toContain('checksum_md5');
+    expect(downloadColumns.map((column) => column.name)).toContain('checksum_sha256');
     const contentColumns = await testDb.getAllAsync<{ name: string }>(
       'PRAGMA table_info(content_packs)'
     );
     expect(contentColumns.map((column) => column.name)).toContain('checksum_md5');
+    expect(contentColumns.map((column) => column.name)).toContain('checksum_sha256');
+    expect(contentColumns.map((column) => column.name)).toContain('checksum_sha256_url');
 
     await testDb.runAsync(
       'INSERT INTO notes_fts (note_id, title, body, tags) VALUES (?, ?, ?, ?)',
@@ -189,6 +198,7 @@ describe('repositories', () => {
       sourceUrl: 'https://example.test/wiki.zim',
       localUri: 'file:///ark/content/wiki.zim',
       expectedChecksumMd5: 'abc123',
+      expectedChecksumSha256: 'a'.repeat(64),
     });
 
     await DownloadsRepository.updateProgress({
@@ -203,6 +213,7 @@ describe('repositories', () => {
     expect(row?.status).toBe('paused');
     expect(row?.resumeData).toBe('resume-token');
     expect(row?.expectedChecksumMd5).toBe('abc123');
+    expect(row?.expectedChecksumSha256).toBe('a'.repeat(64));
 
     await DownloadsRepository.complete({
       id,
@@ -210,10 +221,12 @@ describe('repositories', () => {
       totalBytes: 100,
       downloadedBytes: 100,
       checksumMd5: 'abc123',
+      checksumSha256: 'a'.repeat(64),
     });
     row = await DownloadsRepository.get(id);
     expect(row?.status).toBe('completed');
     expect(row?.checksumMd5).toBe('abc123');
+    expect(row?.checksumSha256).toBe('a'.repeat(64));
     expect(row?.progress).toBe(1);
   });
 

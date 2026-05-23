@@ -87,6 +87,8 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
           format TEXT NOT NULL,
           size_bytes INTEGER,
           checksum_md5 TEXT,
+          checksum_sha256 TEXT,
+          checksum_sha256_url TEXT,
           installed INTEGER DEFAULT 0,
           install_status TEXT DEFAULT 'not_installed',
           progress REAL DEFAULT 0,
@@ -106,7 +108,9 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
           downloaded_bytes INTEGER,
           resume_data TEXT,
           expected_checksum_md5 TEXT,
+          expected_checksum_sha256 TEXT,
           checksum_md5 TEXT,
+          checksum_sha256 TEXT,
           error TEXT,
           created_at INTEGER,
           updated_at INTEGER
@@ -309,6 +313,28 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
         await db.execAsync('ALTER TABLE downloads ADD COLUMN expected_checksum_md5 TEXT');
       }
       await db.runAsync('PRAGMA user_version = 5');
+    });
+  }
+
+  if (currentVersion < 6) {
+    await db.withTransactionAsync(async () => {
+      const downloadColumns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(downloads)');
+      if (!downloadColumns.some((column) => column.name === 'expected_checksum_sha256')) {
+        await db.execAsync('ALTER TABLE downloads ADD COLUMN expected_checksum_sha256 TEXT');
+      }
+      if (!downloadColumns.some((column) => column.name === 'checksum_sha256')) {
+        await db.execAsync('ALTER TABLE downloads ADD COLUMN checksum_sha256 TEXT');
+      }
+
+      const packColumns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(content_packs)');
+      if (!packColumns.some((column) => column.name === 'checksum_sha256')) {
+        await db.execAsync('ALTER TABLE content_packs ADD COLUMN checksum_sha256 TEXT');
+      }
+      if (!packColumns.some((column) => column.name === 'checksum_sha256_url')) {
+        await db.execAsync('ALTER TABLE content_packs ADD COLUMN checksum_sha256_url TEXT');
+      }
+
+      await db.runAsync('PRAGMA user_version = 6');
     });
   }
 }

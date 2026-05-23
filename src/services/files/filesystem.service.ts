@@ -30,6 +30,7 @@ export class FileSystemService {
 
   static async getStorageSummary() {
     const dirs = await this.ensureAppDirectories();
+    const capacity = await this.getDiskCapacity();
     let totalBytes = 0;
     const directorySizes: Record<string, number> = {};
     for (const [name, uri] of Object.entries(dirs)) {
@@ -41,8 +42,32 @@ export class FileSystemService {
       directories: dirs,
       directorySizes,
       totalBytes,
+      freeBytes: capacity.freeBytes,
+      totalDiskBytes: capacity.totalBytes,
       label: `${this.formatBytes(totalBytes)} stored offline`,
     };
+  }
+
+  static async ensureSpaceForDownload(sizeBytes?: number | null) {
+    if (!sizeBytes) return;
+    const capacity = await this.getDiskCapacity();
+    if (capacity.freeBytes == null) return;
+    const reserveBytes = Math.max(200 * 1024 * 1024, Math.round(sizeBytes * 0.1));
+    if (capacity.freeBytes < sizeBytes + reserveBytes) {
+      throw new Error(
+        `Not enough free storage. This download needs about ${this.formatBytes(
+          sizeBytes
+        )}, with room left for Ark to finish safely.`
+      );
+    }
+  }
+
+  static async getDiskCapacity() {
+    const [freeBytes, totalBytes] = await Promise.all([
+      FileSystem.getFreeDiskStorageAsync().catch(() => null),
+      FileSystem.getTotalDiskCapacityAsync().catch(() => null),
+    ]);
+    return { freeBytes, totalBytes };
   }
 
   private static async sizeOfDirectory(uri: string): Promise<number> {

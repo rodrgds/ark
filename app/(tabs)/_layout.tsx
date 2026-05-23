@@ -70,7 +70,7 @@ export default function TabsLayout() {
           },
         })}>
         <Tabs.Screen name="index" options={{ title: 'Home' }} />
-        <Tabs.Screen name="chat" options={{ title: 'Chat' }} />
+        <Tabs.Screen name="chat" options={{ title: 'Ask Arky' }} />
         <Tabs.Screen
           name="map"
           options={{ title: 'Map', tabBarBadge: plannedRegions || undefined }}

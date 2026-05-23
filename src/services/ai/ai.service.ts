@@ -5,7 +5,7 @@ import { RagService } from '@/services/ai/rag.service';
 import { LlamaAdapter } from '@/services/ai/llama-adapter';
 import { MockAIAdapter } from '@/services/ai/mock-ai-adapter';
 import { chatMessageSchema, parseOrThrow } from '@/lib/validation';
-import type { AiMessage, AiSendMessageInput } from '@/types/ai';
+import type { AiMessage, AiSendMessageInput, AiSendMessageOptions } from '@/types/ai';
 
 const mockAdapter = new MockAIAdapter();
 const llamaAdapter = new LlamaAdapter();
@@ -59,7 +59,7 @@ export class AIService {
     });
   }
 
-  static async sendMessage(input: AiSendMessageInput) {
+  static async sendMessage(input: AiSendMessageInput, options: AiSendMessageOptions = {}) {
     const validated = parseOrThrow(chatMessageSchema, input);
     const db = await DatabaseClient.getDb();
     const threadId = await this.ensureThread(
@@ -79,7 +79,11 @@ export class AIService {
       ? await RagService.search(validated.content, { limit: 4 })
       : [];
     const adapter = (await llamaAdapter.isAvailable()) ? llamaAdapter : mockAdapter;
-    const response = await adapter.sendMessage({ content: validated.content, citations });
+    const response = await adapter.sendMessage({
+      content: validated.content,
+      citations,
+      onToken: options.onToken,
+    });
     const assistantMessage: AiMessage = {
       id: randomUUID(),
       threadId,

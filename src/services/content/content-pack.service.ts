@@ -38,6 +38,9 @@ export class ContentPackService {
       sourceUrl: pack.sourceUrl,
       fileName: pack.fileName,
       expectedChecksumMd5: pack.checksumMd5,
+      expectedChecksumSha256: pack.checksumSha256,
+      expectedChecksumSha256Url: pack.checksumSha256Url,
+      expectedSizeBytes: pack.sizeBytes,
     });
   }
 
@@ -138,15 +141,31 @@ export class ContentPackService {
     return this.getPack(id);
   }
 
-  static async addModelUrl(input: { title: string; sourceUrl: string; checksumMd5?: string }) {
+  static async addModelUrl(input: {
+    title: string;
+    sourceUrl: string;
+    checksum?: string;
+    checksumMd5?: string;
+    checksumSha256?: string;
+  }) {
     const sourceUrl = input.sourceUrl.trim();
     if (!/^https?:\/\//i.test(sourceUrl)) throw new Error('Use an HTTPS model URL.');
     if (!sourceUrl.toLowerCase().split('?')[0].endsWith('.gguf')) {
       throw new Error('Model URL should point to a .gguf file.');
     }
+    const checksum = input.checksum?.trim().toLowerCase() || null;
     const checksumMd5 = input.checksumMd5?.trim().toLowerCase() || null;
+    const checksumSha256 = input.checksumSha256?.trim().toLowerCase() || null;
+    const detectedMd5 = checksum?.match(/^[a-f0-9]{32}$/) ? checksum : checksumMd5;
+    const detectedSha256 = checksum?.match(/^[a-f0-9]{64}$/) ? checksum : checksumSha256;
+    if (checksum && !detectedMd5 && !detectedSha256) {
+      throw new Error('Checksum must be a 32-character MD5 or 64-character SHA-256 value.');
+    }
     if (checksumMd5 && !/^[a-f0-9]{32}$/.test(checksumMd5)) {
       throw new Error('MD5 checksum must be 32 hexadecimal characters.');
+    }
+    if (checksumSha256 && !/^[a-f0-9]{64}$/.test(checksumSha256)) {
+      throw new Error('SHA-256 checksum must be 64 hexadecimal characters.');
     }
     const id = `custom-model-${randomUUID()}`;
     const fileName = sourceUrl.split('/').pop()?.split('?')[0] ?? `${id}.gguf`;
@@ -158,7 +177,8 @@ export class ContentPackService {
       format: 'gguf',
       sourceUrl,
       sizeBytes: null,
-      checksumMd5,
+      checksumMd5: detectedMd5,
+      checksumSha256: detectedSha256,
       installed: false,
       installStatus: 'not_installed',
       progress: 0,

@@ -27,6 +27,8 @@ function rowToPack(row: {
   format: ContentPack['format'];
   size_bytes: number | null;
   checksum_md5: string | null;
+  checksum_sha256: string | null;
+  checksum_sha256_url: string | null;
   installed: number;
   install_status: ContentPack['installStatus'];
   progress: number;
@@ -48,6 +50,8 @@ function rowToPack(row: {
     sourceLabel: manifest?.sourceLabel ?? (customModel ? 'Local model' : undefined),
     fileName: manifest?.fileName ?? row.local_uri?.split('/').pop(),
     checksumMd5: row.checksum_md5 ?? manifest?.checksumMd5 ?? null,
+    checksumSha256: row.checksum_sha256 ?? manifest?.checksumSha256 ?? null,
+    checksumSha256Url: row.checksum_sha256_url ?? manifest?.checksumSha256Url ?? null,
     localUri: row.local_uri,
     sizeBytes: row.size_bytes,
     installed: !!row.installed,
@@ -69,8 +73,8 @@ export class ContentRepository {
     for (const pack of STARTER_PACKS) {
       await db.runAsync(
         `INSERT OR IGNORE INTO content_packs
-          (id, title, description, category, language, source_url, format, checksum_md5, installed, install_status, progress, created_at, updated_at)
-         VALUES (?, ?, ?, ?, 'en', ?, ?, ?, 0, 'not_installed', 0, ?, ?)`,
+          (id, title, description, category, language, source_url, format, checksum_md5, checksum_sha256, checksum_sha256_url, installed, install_status, progress, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 'en', ?, ?, ?, ?, ?, 0, 'not_installed', 0, ?, ?)`,
         [
           pack.id,
           pack.title,
@@ -79,6 +83,8 @@ export class ContentRepository {
           pack.sourceUrl ?? null,
           pack.format,
           pack.checksumMd5 ?? null,
+          pack.checksumSha256 ?? null,
+          pack.checksumSha256Url ?? null,
           timestamp,
           timestamp,
         ]
@@ -92,6 +98,8 @@ export class ContentRepository {
              source_url = ?,
              format = ?,
              checksum_md5 = COALESCE(?, checksum_md5),
+             checksum_sha256 = COALESCE(?, checksum_sha256),
+             checksum_sha256_url = COALESCE(?, checksum_sha256_url),
              size_bytes = COALESCE(size_bytes, ?),
              updated_at = ?
          WHERE id = ?`,
@@ -102,6 +110,8 @@ export class ContentRepository {
           pack.sourceUrl ?? null,
           pack.format,
           pack.checksumMd5 ?? null,
+          pack.checksumSha256 ?? null,
+          pack.checksumSha256Url ?? null,
           pack.sizeBytes ?? null,
           timestamp,
           pack.id,
@@ -158,6 +168,8 @@ export class ContentRepository {
     localUri?: string | null;
     sizeBytes?: number | null;
     checksumMd5?: string | null;
+    checksumSha256?: string | null;
+    checksumSha256Url?: string | null;
     installed?: boolean;
     installStatus?: ContentPack['installStatus'];
     progress?: number;
@@ -166,8 +178,8 @@ export class ContentRepository {
     const timestamp = now();
     await db.runAsync(
       `INSERT OR REPLACE INTO content_packs
-        (id, title, description, category, language, source_url, local_uri, format, size_bytes, checksum_md5, installed, install_status, progress, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 'en', ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT created_at FROM content_packs WHERE id = ?), ?), ?)`,
+        (id, title, description, category, language, source_url, local_uri, format, size_bytes, checksum_md5, checksum_sha256, checksum_sha256_url, installed, install_status, progress, created_at, updated_at)
+       VALUES (?, ?, ?, ?, 'en', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT created_at FROM content_packs WHERE id = ?), ?), ?)`,
       [
         input.id,
         input.title,
@@ -178,6 +190,8 @@ export class ContentRepository {
         input.format,
         input.sizeBytes ?? null,
         input.checksumMd5 ?? null,
+        input.checksumSha256 ?? null,
+        input.checksumSha256Url ?? null,
         input.installed ? 1 : 0,
         input.installStatus ?? (input.installed ? 'installed' : 'not_installed'),
         input.progress ?? (input.installed ? 1 : 0),

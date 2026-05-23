@@ -1,4 +1,5 @@
 import { ActionCard } from '@/components/cards/action-card';
+import { Arky } from '@/components/brand/ark-logo';
 import { Screen } from '@/components/layout/screen';
 import { Card } from '@/components/ui/card';
 import { Text } from '@/components/ui/text';
@@ -28,9 +29,12 @@ export default function ToolsScreen() {
 
   return (
     <Screen>
-      <View className="gap-2">
-        <Text variant="h1">Tools</Text>
-        <Text variant="muted">Field tools that still make sense when service drops.</Text>
+      <View className="flex-row items-center justify-between">
+        <View className="flex-1 gap-2">
+          <Text variant="h1">Tools</Text>
+          <Text variant="muted">Field tools that still make sense when service drops.</Text>
+        </View>
+        <Arky pose="resourceful" size={80} />
       </View>
       <Card className="gap-2">
         <Text variant="large">Last live readings</Text>

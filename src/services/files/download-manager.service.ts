@@ -2,6 +2,7 @@ import { DownloadsRepository } from '@/services/db/repositories/downloads.repo';
 import { ContentRepository } from '@/services/db/repositories/content.repo';
 import { FileSystemService } from '@/services/files/filesystem.service';
 import { RagService } from '@/services/ai/rag.service';
+import { FileDigestService } from '@/services/files/file-digest.service';
 import type { AppDirectory } from '@/constants/app';
 import type { DownloadKind } from '@/types/downloads';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -42,17 +43,26 @@ export class DownloadManagerService {
     fileName?: string | null;
     directory?: AppDirectory;
     expectedChecksumMd5?: string | null;
+    expectedChecksumSha256?: string | null;
+    expectedChecksumSha256Url?: string | null;
+    expectedSizeBytes?: number | null;
   }) {
     await FileSystemService.ensureAppDirectories();
+    await FileSystemService.ensureSpaceForDownload(input.expectedSizeBytes);
     const directory = input.directory ?? defaultDirectory(input.kind);
     const fileName = input.fileName ?? inferFileName(input.sourceUrl, `${input.title}.bin`);
     const localUri = `${FileSystemService.dir(directory)}${fileName}`;
+    const expectedChecksumSha256 = await FileDigestService.resolveExpectedSha256({
+      checksumSha256: input.expectedChecksumSha256,
+      checksumSha256Url: input.expectedChecksumSha256Url,
+    });
     const id = await DownloadsRepository.create({
       kind: input.kind,
       title: input.title,
       sourceUrl: input.sourceUrl,
       localUri,
       expectedChecksumMd5: input.expectedChecksumMd5,
+      expectedChecksumSha256,
     });
     if (input.packId) {
       await ContentRepository.updateInstallStatus({
@@ -71,6 +81,7 @@ export class DownloadManagerService {
       sourceUrl: input.sourceUrl,
       localUri,
       expectedChecksumMd5: input.expectedChecksumMd5,
+      expectedChecksumSha256,
       resumeData: null,
     });
     return id;
@@ -84,6 +95,7 @@ export class DownloadManagerService {
     sourceUrl: string;
     localUri: string;
     expectedChecksumMd5?: string | null;
+    expectedChecksumSha256?: string | null;
     resumeData?: string | null;
   }) {
     let active: ActiveDownload | null = null;
@@ -158,12 +170,25 @@ export class DownloadManagerService {
       }
       const info = await FileSystem.getInfoAsync(result.uri);
       const sizeBytes = info.exists && 'size' in info ? info.size : null;
+      let checksumSha256: string | null = null;
+      if (input.expectedChecksumSha256) {
+        const digest = await FileDigestService.sha256FileIfReasonable(result.uri, sizeBytes);
+        checksumSha256 = digest.checksumSha256;
+        if (
+          checksumSha256 &&
+          checksumSha256.toLowerCase() !== input.expectedChecksumSha256.toLowerCase()
+        ) {
+          await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(() => undefined);
+          throw new Error('Downloaded file failed SHA-256 verification.');
+        }
+      }
       await DownloadsRepository.complete({
         id: input.id,
         localUri: result.uri,
         totalBytes: sizeBytes,
         downloadedBytes: sizeBytes,
         checksumMd5: result.md5 ?? null,
+        checksumSha256,
       });
       if (input.packId) {
         await ContentRepository.updateInstallStatus({
@@ -235,6 +260,7 @@ export class DownloadManagerService {
       sourceUrl: row.sourceUrl,
       localUri: row.localUri,
       expectedChecksumMd5: row.expectedChecksumMd5,
+      expectedChecksumSha256: row.expectedChecksumSha256,
       resumeData: row.resumeData,
     });
   }

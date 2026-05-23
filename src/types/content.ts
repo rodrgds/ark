@@ -21,6 +21,8 @@ export type ContentPackManifest = {
   sourceLabel?: string;
   fileName?: string;
   checksumMd5?: string | null;
+  checksumSha256?: string | null;
+  checksumSha256Url?: string | null;
   installed: boolean;
   disclaimer?: string;
 };

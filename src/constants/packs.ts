@@ -1,6 +1,10 @@
 import { SAFETY_COPY } from '@/constants/app';
 import type { ContentPackManifest } from '@/types/content';
 
+function kiwixSha256Url(sourceUrl: string) {
+  return `${sourceUrl}.sha256`;
+}
+
 export const STARTER_PACKS: ContentPackManifest[] = [
   {
     id: 'hesperian-first-aid',
@@ -30,6 +34,19 @@ export const STARTER_PACKS: ContentPackManifest[] = [
     installed: false,
   },
   {
+    id: 'usda-special-forest-products-harvest',
+    title: 'Wild Plant Harvest Safety',
+    description:
+      'USDA Forest Service guidance for sustainable wild-plant gathering and harvest restraint.',
+    category: 'Survival',
+    format: 'pdf',
+    estimatedSize: '58 pages',
+    sourceUrl: 'https://www.fs.usda.gov/nrs/pubs/gtr/gtr_nrs131.pdf',
+    sourceLabel: 'USDA Forest Service',
+    fileName: 'usda-special-forest-products-harvest.pdf',
+    installed: false,
+  },
+  {
     id: 'where-there-is-no-doctor-first-aid',
     title: 'Where There Is No Doctor: First Aid',
     description: 'Classic Hesperian first-aid chapter for low-resource primary care situations.',
@@ -52,6 +69,9 @@ export const STARTER_PACKS: ContentPackManifest[] = [
     estimatedSize: '937 MB',
     sizeBytes: 937 * 1024 * 1024,
     sourceUrl: 'https://download.kiwix.org/zim/wikipedia/wikipedia_en_simple_all_nopic_2026-05.zim',
+    checksumSha256Url: kiwixSha256Url(
+      'https://download.kiwix.org/zim/wikipedia/wikipedia_en_simple_all_nopic_2026-05.zim'
+    ),
     sourceLabel: 'Kiwix ZIM archive',
     fileName: 'wikipedia_en_simple_all_nopic_2026-05.zim',
     installed: false,
@@ -65,6 +85,9 @@ export const STARTER_PACKS: ContentPackManifest[] = [
     estimatedSize: '447 MB',
     sizeBytes: 447 * 1024 * 1024,
     sourceUrl: 'https://download.kiwix.org/zim/wikipedia/wikipedia_en_simple_all_mini_2026-05.zim',
+    checksumSha256Url: kiwixSha256Url(
+      'https://download.kiwix.org/zim/wikipedia/wikipedia_en_simple_all_mini_2026-05.zim'
+    ),
     sourceLabel: 'Kiwix ZIM archive',
     fileName: 'wikipedia_en_simple_all_mini_2026-05.zim',
     installed: false,
@@ -79,6 +102,9 @@ export const STARTER_PACKS: ContentPackManifest[] = [
     estimatedSize: '822 MB',
     sizeBytes: 822 * 1024 * 1024,
     sourceUrl: 'https://download.kiwix.org/zim/wikipedia/wikipedia_en_medicine_nopic_2026-04.zim',
+    checksumSha256Url: kiwixSha256Url(
+      'https://download.kiwix.org/zim/wikipedia/wikipedia_en_medicine_nopic_2026-04.zim'
+    ),
     sourceLabel: 'Kiwix ZIM archive',
     fileName: 'wikipedia_en_medicine_nopic_2026-04.zim',
     installed: false,
@@ -94,6 +120,9 @@ export const STARTER_PACKS: ContentPackManifest[] = [
     estimatedSize: '221 MB',
     sizeBytes: 221 * 1024 * 1024,
     sourceUrl: 'https://download.kiwix.org/zim/wikivoyage/wikivoyage_en_all_nopic_2026-03.zim',
+    checksumSha256Url: kiwixSha256Url(
+      'https://download.kiwix.org/zim/wikivoyage/wikivoyage_en_all_nopic_2026-03.zim'
+    ),
     sourceLabel: 'Kiwix ZIM archive',
     fileName: 'wikivoyage_en_all_nopic_2026-03.zim',
     installed: false,
@@ -107,6 +136,9 @@ export const STARTER_PACKS: ContentPackManifest[] = [
     estimatedSize: '13 MB',
     sizeBytes: 13 * 1024 * 1024,
     sourceUrl: 'https://download.kiwix.org/zim/wikipedia/wikipedia_en_100_nopic_2026-04.zim',
+    checksumSha256Url: kiwixSha256Url(
+      'https://download.kiwix.org/zim/wikipedia/wikipedia_en_100_nopic_2026-04.zim'
+    ),
     sourceLabel: 'Kiwix ZIM archive',
     fileName: 'wikipedia_en_100_nopic_2026-04.zim',
     installed: false,
@@ -124,6 +156,7 @@ export const STARTER_PACKS: ContentPackManifest[] = [
       'https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_0.gguf',
     sourceLabel: 'Hugging Face: Qwen',
     fileName: 'qwen2.5-1.5b-instruct-q4_0.gguf',
+    checksumSha256: 'dcd819ff094852c38faba6873d8ff0c9d51eadb2844539e52042ae5d647bbfdb',
     installed: false,
     disclaimer: SAFETY_COPY.ai,
   },
@@ -140,6 +173,7 @@ export const STARTER_PACKS: ContentPackManifest[] = [
       'https://huggingface.co/QuantFactory/SmolLM2-1.7B-Instruct-GGUF/resolve/main/SmolLM2-1.7B-Instruct.Q4_0.gguf',
     sourceLabel: 'Hugging Face: QuantFactory',
     fileName: 'SmolLM2-1.7B-Instruct.Q4_0.gguf',
+    checksumSha256: '0b1491225b73a81885bfc190d1416e366d6698195285fbd4458caffaac99820e',
     installed: false,
     disclaimer: SAFETY_COPY.ai,
   },

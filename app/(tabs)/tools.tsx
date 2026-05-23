@@ -17,6 +17,33 @@ import {
 } from 'lucide-react-native';
 import { View } from 'react-native';
 
+type Drain = 'low' | 'medium' | 'high';
+
+function DrainBadge({ level }: { level: Drain }) {
+  const colors: Record<Drain, { bg: string; text: string; label: string }> = {
+    low: { bg: '#0d2a0d', text: '#30d158', label: 'Low' },
+    medium: { bg: '#2a1f0d', text: '#f5a623', label: 'Med' },
+    high: { bg: '#2a0d0d', text: '#ff453a', label: 'High' },
+  };
+  const c = colors[level];
+  return (
+    <View
+      style={{
+        backgroundColor: c.bg,
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 6,
+        borderWidth: 1,
+        borderColor: c.text + '44',
+      }}
+    >
+      <Text style={{ fontSize: 10, fontWeight: '700', color: c.text, letterSpacing: 0.5 }}>
+        {c.label} drain
+      </Text>
+    </View>
+  );
+}
+
 const TOOL_ROUTES = {
   coordinates: '/tools/coordinates' as Href,
   weather: '/tools/weather' as Href,
@@ -40,6 +67,7 @@ export default function ToolsScreen() {
           icon={Compass}
           title="Compass"
           description="Magnetometer heading and cardinal direction."
+          right={<DrainBadge level="medium" />}
         />
       </Link>
       <Link href="/tools/barometer" asChild>
@@ -47,16 +75,23 @@ export default function ToolsScreen() {
           icon={Gauge}
           title="Barometer"
           description="hPa readings and pressure trend snapshots."
+          right={<DrainBadge level="low" />}
         />
       </Link>
       <Link href="/tools/level" asChild>
-        <ActionCard icon={Ruler} title="Level" description="Pitch and roll from accelerometer." />
+        <ActionCard
+          icon={Ruler}
+          title="Level"
+          description="Pitch and roll from accelerometer."
+          right={<DrainBadge level="low" />}
+        />
       </Link>
       <Link href="/tools/chronometer" asChild>
         <ActionCard
           icon={Timer}
           title="Chronometer"
           description="Stopwatch with lap times, works fully offline."
+          right={<DrainBadge level="low" />}
         />
       </Link>
       <Link href="/tools/light" asChild>
@@ -64,6 +99,7 @@ export default function ToolsScreen() {
           icon={Lightbulb}
           title="Light meter"
           description="Lux readings on supported devices."
+          right={<DrainBadge level="low" />}
         />
       </Link>
       <Link href={TOOL_ROUTES.coordinates} asChild>

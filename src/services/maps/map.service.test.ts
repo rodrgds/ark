@@ -24,8 +24,9 @@ describe('MapService runtime status', () => {
     expect(status.checking).toBe(false);
   });
 
-  test('marks the built-in style as development-only demo tiles', () => {
-    expect(MapService.isDemoStyle()).toBe(true);
+  test('does not use MapLibre demo tiles as the built-in style', () => {
+    expect(MapService.isDemoStyle()).toBe(false);
+    expect(MapService.isDemoStyle('https://demotiles.maplibre.org/style.json')).toBe(true);
     expect(MapService.isDemoStyle('https://example.test/style.json')).toBe(false);
   });
 });

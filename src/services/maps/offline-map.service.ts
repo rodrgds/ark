@@ -1,6 +1,7 @@
 import { MapsRepository } from '@/services/db/repositories/maps.repo';
+import { FileSystemService } from '@/services/files/filesystem.service';
 import { MapService } from '@/services/maps/map.service';
-import type { MapMarker, OfflineMapSearchResult, SavedRoutePoint } from '@/types/maps';
+import type { MapMarker, MapRegion, OfflineMapSearchResult, SavedRoutePoint } from '@/types/maps';
 
 export class OfflineMapService {
   static async createRegionDownload(input: {
@@ -26,7 +27,57 @@ export class OfflineMapService {
     return MapsRepository.listRegions();
   }
 
-  static deleteRegion(id: string) {
+  static async syncNativePacks() {
+    const maplibre = await MapService.loadMapLibre();
+    if (!maplibre) return;
+
+    const [regions, packs] = await Promise.all([
+      MapsRepository.listRegions(),
+      maplibre.OfflineManager.getPacks(),
+    ]);
+
+    await Promise.all(
+      regions.map(async (region) => {
+        const pack = packs.find((candidate) => isPackForRegion(candidate, region));
+        if (!pack) return;
+        const status = await pack.status().catch(() => null);
+        if (!status) return;
+
+        const isComplete = status.state === 'complete';
+        await MapsRepository.updateRegionStatus(region.id, {
+          status: isComplete ? 'downloaded' : 'downloading',
+          progress: Math.max(0, Math.min(1, status.percentage / 100)),
+          sizeBytes: status.completedResourceSize || status.completedTileSize || null,
+          offlinePackId: pack.id,
+        });
+
+        // Resume any pack that isn't complete so downloads continue after an app restart.
+        // MapLibre pauses packs when the app is killed; .resume() restarts them.
+        if (!isComplete) {
+          await pack.resume().catch(() => undefined);
+        }
+      })
+    );
+  }
+
+
+  static async deleteRegion(id: string) {
+    const region = await MapsRepository.getRegion(id);
+    if (!region) return;
+
+    const maplibre = await MapService.loadMapLibre();
+    if (maplibre) {
+      try {
+        const packs = await maplibre.OfflineManager.getPacks();
+        const pack = packs.find((candidate) => isPackForRegion(candidate, region));
+        if (pack) {
+          await maplibre.OfflineManager.deletePack(pack.id);
+        }
+      } catch (error) {
+        console.warn(error instanceof Error ? error.message : 'Unable to delete native map pack.');
+      }
+    }
+
     return MapsRepository.deleteRegion(id);
   }
 
@@ -47,11 +98,49 @@ export class OfflineMapService {
       return { ok: false, reason: 'MapLibre native module is unavailable in this build.' };
     }
 
+    const styleUrl = region.styleUrl ?? MapService.getDefaultStyleUrl();
+    const styleReachable = await MapService.canReachStyleUrl(styleUrl);
+    if (!styleReachable) {
+      await MapsRepository.updateRegionStatus(id, { status: 'failed', progress: 0 });
+      return {
+        ok: false,
+        reason:
+          'Map tile source is unreachable. Connect to the internet, then retry the offline download.',
+      };
+    }
+
     await MapsRepository.updateRegionStatus(id, { status: 'downloading', progress: 0 });
     try {
+      const existingPacks = await maplibre.OfflineManager.getPacks();
+      const existingPack = existingPacks.find((candidate) => isPackForRegion(candidate, region));
+      if (existingPack) {
+        const existingStatus = await existingPack.status().catch(() => null);
+        if (existingStatus?.state === 'complete') {
+          await MapsRepository.updateRegionStatus(id, {
+            status: 'downloaded',
+            progress: 1,
+            sizeBytes:
+              existingStatus.completedResourceSize || existingStatus.completedTileSize || null,
+            offlinePackId: existingPack.id,
+          });
+          return { ok: true };
+        }
+        await existingPack.resume().catch(() => undefined);
+        if (existingStatus) {
+          await MapsRepository.updateRegionStatus(id, {
+            status: 'downloading',
+            progress: Math.max(0, Math.min(1, existingStatus.percentage / 100)),
+            sizeBytes:
+              existingStatus.completedResourceSize || existingStatus.completedTileSize || null,
+            offlinePackId: existingPack.id,
+          });
+        }
+        return { ok: true };
+      }
+
       const pack = await maplibre.OfflineManager.createPack(
         {
-          mapStyle: region.styleUrl ?? MapService.getDefaultStyleUrl(),
+          mapStyle: styleUrl,
           bounds: [region.west, region.south, region.east, region.north],
           minZoom: region.minZoom ?? undefined,
           maxZoom: region.maxZoom ?? undefined,
@@ -62,6 +151,7 @@ export class OfflineMapService {
             status: status.state === 'complete' ? 'downloaded' : 'downloading',
             progress: Math.max(0, Math.min(1, status.percentage / 100)),
             sizeBytes: status.completedResourceSize || status.completedTileSize || null,
+            offlinePackId: _offlinePack.id,
           });
         },
         (_offlinePack, error) => {
@@ -69,9 +159,12 @@ export class OfflineMapService {
           console.warn(error.message);
         }
       );
+      await pack.resume().catch(() => undefined);
+      const status = await pack.status().catch(() => null);
       await MapsRepository.updateRegionStatus(id, {
-        status: 'downloaded',
-        progress: 1,
+        status: status?.state === 'complete' ? 'downloaded' : 'downloading',
+        progress: status ? Math.max(0, Math.min(1, status.percentage / 100)) : 0,
+        sizeBytes: status?.completedResourceSize || status?.completedTileSize || null,
         offlinePackId: pack.id,
       });
       return { ok: true };
@@ -93,6 +186,7 @@ export class OfflineMapService {
     description?: string | null;
     latitude: number;
     longitude: number;
+    photoUri?: string | null;
   }) {
     return MapsRepository.createMarker(input);
   }
@@ -103,6 +197,7 @@ export class OfflineMapService {
     paddingKm?: number;
     minZoom?: number;
     maxZoom?: number;
+    styleUrl?: string;
   }) {
     if (input.markers.length < 2) {
       throw new Error('Save at least two spots before planning a map region.');
@@ -112,6 +207,7 @@ export class OfflineMapService {
       bounds: boundsForMarkers(input.markers, input.paddingKm ?? 5),
       minZoom: input.minZoom ?? 8,
       maxZoom: input.maxZoom ?? 15,
+      styleUrl: input.styleUrl,
     });
   }
 
@@ -123,6 +219,7 @@ export class OfflineMapService {
     west: number;
     minZoom?: number;
     maxZoom?: number;
+    styleUrl?: string;
   }) {
     const bounds = validateBounds(input);
     const zoom = validateZoom(input.minZoom ?? 6, input.maxZoom ?? 13);
@@ -131,10 +228,14 @@ export class OfflineMapService {
       bounds,
       minZoom: zoom.minZoom,
       maxZoom: zoom.maxZoom,
+      styleUrl: input.styleUrl,
     });
   }
 
-  static deleteMarker(id: string) {
+  static async deleteMarker(id: string) {
+    const marker = await MapsRepository.getMarker(id);
+    if (marker?.photoUri)
+      await FileSystemService.deleteByUri(marker.photoUri).catch(() => undefined);
     return MapsRepository.deleteMarker(id);
   }
 
@@ -279,12 +380,7 @@ function centerForBounds(region: {
   east?: number | null;
   west?: number | null;
 }) {
-  if (
-    region.north == null ||
-    region.south == null ||
-    region.east == null ||
-    region.west == null
-  ) {
+  if (region.north == null || region.south == null || region.east == null || region.west == null) {
     return null;
   }
   return {
@@ -295,6 +391,18 @@ function centerForBounds(region: {
 
 function formatPoint(latitude: number, longitude: number) {
   return `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+}
+
+function isPackForRegion(
+  candidate: { id: string; metadata?: Record<string, unknown> },
+  region: MapRegion
+) {
+  const metadata = candidate.metadata ?? {};
+  return (
+    candidate.id === region.offlinePackId ||
+    metadata.regionId === region.id ||
+    metadata.name === region.name
+  );
 }
 
 function distance(a: SavedRoutePoint, b: SavedRoutePoint) {

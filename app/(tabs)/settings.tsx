@@ -15,9 +15,18 @@ import { Link } from 'expo-router';
 import * as React from 'react';
 import { ActivityIndicator, Alert, View } from 'react-native';
 
+type SettingsTab = 'appearance' | 'security' | 'storage';
+
+const SETTINGS_TABS: Array<{ value: SettingsTab; label: string }> = [
+  { value: 'appearance', label: 'Appearance' },
+  { value: 'security', label: 'Security' },
+  { value: 'storage', label: 'Storage' },
+];
+
 export default function SettingsScreen() {
   const preference = useThemeStore((state) => state.preference);
   const setPreference = useThemeStore((state) => state.setPreference);
+  const [activeTab, setActiveTab] = React.useState<SettingsTab>('appearance');
   const [autoLock, setAutoLock] = React.useState(5);
   const [currentPassword, setCurrentPassword] = React.useState('');
   const [nextPassword, setNextPassword] = React.useState('');
@@ -35,13 +44,15 @@ export default function SettingsScreen() {
 
   React.useEffect(() => {
     async function load() {
-      const [vault, biometricState, motionState, storageState, nextModelStatus] = await Promise.all([
-        SettingsRepository.getVaultState(),
-        VaultService.getBiometricsEnabled(),
-        PreferencesService.getMotionEnabled(),
-        FileSystemService.getStorageSummary(),
-        ModelManagerService.getStatus(),
-      ]);
+      const [vault, biometricState, motionState, storageState, nextModelStatus] = await Promise.all(
+        [
+          SettingsRepository.getVaultState(),
+          VaultService.getBiometricsEnabled(),
+          PreferencesService.getMotionEnabled(),
+          FileSystemService.getStorageSummary(),
+          ModelManagerService.getStatus(),
+        ]
+      );
       setAutoLock(vault.autoLockMinutes);
       setPasswordHint(vault.passwordHint ?? '');
       setBiometricsEnabled(biometricState);
@@ -99,143 +110,210 @@ export default function SettingsScreen() {
     await PreferencesService.setMotionEnabled(next);
   }
 
+  const currentTheme = THEME_OPTIONS.find((option) => option.value === preference);
+
   return (
     <Screen>
-      <View className="flex-row items-center justify-between">
-        <View className="flex-1 gap-2">
+      <View className="flex-row items-center justify-between gap-3">
+        <View className="min-w-0 flex-1 gap-1">
           <Text variant="h1">Settings</Text>
-          <Text variant="muted">Configure Arky for your specific offline needs.</Text>
+          <Text variant="muted">Device, vault, and offline runtime controls.</Text>
         </View>
-        <Arky pose="signal" size={80} />
+        <Arky pose="signal" size={52} />
       </View>
-      <Card className="gap-3">
-        <Text variant="large">Theme</Text>
-        {THEME_OPTIONS.map((option) => (
-          <View key={option.value} className="gap-2">
-            <Button
-              variant={preference === option.value ? 'default' : 'outline'}
-              onPress={() => setPreference(option.value)}>
-              <Text>{option.label}</Text>
-            </Button>
-            <Text variant="muted">{option.description}</Text>
-          </View>
-        ))}
-      </Card>
-      <Card className="gap-3">
-        <Text variant="large">Security</Text>
-        <Button
-          onPress={() =>
-            Alert.alert('Lock vault?', 'Secure notes will require unlock again.', [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Lock', style: 'destructive', onPress: () => VaultService.lock() },
-            ])
-          }>
-          <Text>Lock now</Text>
-        </Button>
-        <View className="gap-2">
-          <Input
-            value={currentPassword}
-            onChangeText={setCurrentPassword}
-            placeholder="Current passphrase"
-            secureTextEntry
-            autoCapitalize="none"
-          />
-          <Input
-            value={nextPassword}
-            onChangeText={setNextPassword}
-            placeholder="New passphrase"
-            secureTextEntry
-            autoCapitalize="none"
-          />
-          <Input value={passwordHint} onChangeText={setPasswordHint} placeholder="Password hint" />
+
+      <View className="border-border bg-card flex-row rounded-lg border p-1">
+        {SETTINGS_TABS.map((tab) => (
           <Button
-            variant="outline"
-            disabled={busy === 'password' || !currentPassword || !nextPassword}
-            onPress={changePassword}>
-            {busy === 'password' ? <ActivityIndicator /> : null}
-            <Text>Change Passphrase</Text>
+            key={tab.value}
+            className="flex-1"
+            size="sm"
+            variant={activeTab === tab.value ? 'default' : 'ghost'}
+            onPress={() => setActiveTab(tab.value)}>
+            <Text>{tab.label}</Text>
           </Button>
-        </View>
-        <Button variant="outline" disabled={busy === 'biometrics'} onPress={toggleBiometrics}>
-          {busy === 'biometrics' ? <ActivityIndicator /> : null}
-          <Text>{biometricsEnabled ? 'Disable Biometrics' : 'Enable Biometrics'}</Text>
-        </Button>
-        <Text variant="muted">Auto-lock after inactivity</Text>
-        <View className="flex-row flex-wrap gap-2">
-          {[1, 5, 15, 60].map((minutes) => (
-            <Button
-              key={minutes}
-              size="sm"
-              variant={autoLock === minutes ? 'default' : 'outline'}
-              onPress={() => setLockMinutes(minutes)}>
-              <Text>{minutes === 60 ? '1 hour' : `${minutes} min`}</Text>
+        ))}
+      </View>
+
+      {activeTab === 'appearance' ? (
+        <>
+          <Card className="gap-3">
+            <View className="gap-1">
+              <Text variant="large">Theme</Text>
+              <Text variant="muted">{currentTheme?.description}</Text>
+            </View>
+            <View className="flex-row flex-wrap gap-2">
+              {THEME_OPTIONS.map((option) => (
+                <Button
+                  key={option.value}
+                  className="min-w-20 flex-1"
+                  size="sm"
+                  variant={preference === option.value ? 'default' : 'outline'}
+                  onPress={() => setPreference(option.value)}>
+                  <Text>{option.label.replace(' (Recommended - saves battery)', '')}</Text>
+                </Button>
+              ))}
+            </View>
+          </Card>
+
+          <Card className="gap-3">
+            <View className="flex-row items-center justify-between gap-3">
+              <View className="min-w-0 flex-1 gap-1">
+                <Text variant="large">Motion</Text>
+                <Text variant="muted">Small transitions and interface feedback.</Text>
+              </View>
+              <Button
+                size="sm"
+                variant={motionEnabled ? 'default' : 'outline'}
+                onPress={toggleMotion}>
+                <Text>{motionEnabled ? 'On' : 'Off'}</Text>
+              </Button>
+            </View>
+          </Card>
+        </>
+      ) : null}
+
+      {activeTab === 'security' ? (
+        <>
+          <Card className="gap-3">
+            <View className="flex-row items-center justify-between gap-3">
+              <View className="min-w-0 flex-1 gap-1">
+                <Text variant="large">Vault</Text>
+                <Text variant="muted">Secure notes require an unlocked vault.</Text>
+              </View>
+              <Button
+                size="sm"
+                onPress={() =>
+                  Alert.alert('Lock vault?', 'Secure notes will require unlock again.', [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Lock', style: 'destructive', onPress: () => VaultService.lock() },
+                  ])
+                }>
+                <Text>Lock</Text>
+              </Button>
+            </View>
+
+            <View className="gap-2">
+              <Text variant="muted">Auto-lock</Text>
+              <View className="flex-row flex-wrap gap-2">
+                {[1, 5, 15, 60].map((minutes) => (
+                  <Button
+                    key={minutes}
+                    className="flex-1"
+                    size="sm"
+                    variant={autoLock === minutes ? 'default' : 'outline'}
+                    onPress={() => setLockMinutes(minutes)}>
+                    <Text>{minutes === 60 ? '1 hr' : `${minutes} min`}</Text>
+                  </Button>
+                ))}
+              </View>
+            </View>
+
+            <Button variant="outline" disabled={busy === 'biometrics'} onPress={toggleBiometrics}>
+              {busy === 'biometrics' ? <ActivityIndicator /> : null}
+              <Text>{biometricsEnabled ? 'Disable Biometrics' : 'Enable Biometrics'}</Text>
             </Button>
-          ))}
-        </View>
-        {securityMessage ? <Text className="text-destructive">{securityMessage}</Text> : null}
-        <Text variant="small" className="text-muted-foreground">
-          Device database encryption is a development-build task. Diagnostics shows the current
-          runtime state.
-        </Text>
-      </Card>
-      <Card className="gap-3">
-        <Text variant="large">Experience</Text>
-        <Button variant={motionEnabled ? 'default' : 'outline'} onPress={toggleMotion}>
-          <Text>{motionEnabled ? 'Subtle Motion On' : 'Subtle Motion Off'}</Text>
-        </Button>
-        <Text variant="muted">
-          Controls small transitions during onboarding and future interface changes.
-        </Text>
-      </Card>
-      <Card className="gap-3">
-        <Text variant="large">Management</Text>
-        <View className="gap-1">
-          <Text variant="muted">Offline storage</Text>
-          <Text variant="h3">{storage?.label ?? 'Calculating...'}</Text>
-          {storage?.freeBytes != null ? (
-            <Text variant="muted">
-              {FileSystemService.formatBytes(storage.freeBytes)} free on this device
+          </Card>
+
+          <Card className="gap-3">
+            <Text variant="large">Passphrase</Text>
+            <Input
+              value={currentPassword}
+              onChangeText={setCurrentPassword}
+              placeholder="Current passphrase"
+              secureTextEntry
+              autoCapitalize="none"
+            />
+            <Input
+              value={nextPassword}
+              onChangeText={setNextPassword}
+              placeholder="New passphrase"
+              secureTextEntry
+              autoCapitalize="none"
+            />
+            <Input
+              value={passwordHint}
+              onChangeText={setPasswordHint}
+              placeholder="Password hint"
+            />
+            <Button
+              variant="outline"
+              disabled={busy === 'password' || !currentPassword || !nextPassword}
+              onPress={changePassword}>
+              {busy === 'password' ? <ActivityIndicator /> : null}
+              <Text>Change Passphrase</Text>
+            </Button>
+            {securityMessage ? <Text className="text-destructive">{securityMessage}</Text> : null}
+            <Text variant="small" className="text-muted-foreground">
+              Database encryption is a development-build task.
             </Text>
-          ) : null}
-          {storage
-            ? Object.entries(storage.directorySizes).map(([name, bytes]) => (
-                <Text key={name} variant="muted">
-                  {name}: {FileSystemService.formatBytes(bytes)}
+          </Card>
+        </>
+      ) : null}
+
+      {activeTab === 'storage' ? (
+        <>
+          <Card className="gap-3">
+            <View className="gap-1">
+              <Text variant="muted">Offline storage</Text>
+              <Text variant="h3">{storage?.label ?? 'Calculating...'}</Text>
+              {storage?.freeBytes != null ? (
+                <Text variant="muted">
+                  {FileSystemService.formatBytes(storage.freeBytes)} free on this device
                 </Text>
-              ))
-            : null}
-        </View>
-        <Link href="/(tabs)/library" asChild>
-          <Button variant="outline">
-            <Text>Content packs</Text>
-          </Button>
-        </Link>
-        <View className="gap-1">
-          <Text variant="muted">Local AI</Text>
-          <Text>
-            {modelStatus
-              ? modelStatus.adapter === 'llama'
-                ? 'Offline model ready'
-                : `${modelStatus.installedModels} model file(s) installed`
-              : 'Checking model status...'}
-          </Text>
-          {modelStatus ? <Text variant="muted">{modelStatus.message}</Text> : null}
-        </View>
-        <Link href="/(tabs)/map" asChild>
-          <Button variant="outline">
-            <Text>Map regions</Text>
-          </Button>
-        </Link>
-        <Link href="/tools/diagnostics" asChild>
-          <Button variant="outline">
-            <Text>Diagnostics</Text>
-          </Button>
-        </Link>
-      </Card>
-      <Card className="gap-2">
-        <ArkBrandLockup compact />
-        <Text variant="muted">Version 1.0.0 MVP</Text>
-      </Card>
+              ) : null}
+            </View>
+            {storage ? (
+              <View className="border-border overflow-hidden rounded-md border">
+                {Object.entries(storage.directorySizes).map(([name, bytes]) => (
+                  <View
+                    key={name}
+                    className="border-border flex-row justify-between gap-3 border-b px-3 py-2 last:border-b-0">
+                    <Text className="capitalize">{name}</Text>
+                    <Text variant="muted">{FileSystemService.formatBytes(bytes)}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+          </Card>
+
+          <Card className="gap-3">
+            <View className="gap-1">
+              <Text variant="large">Local AI</Text>
+              <Text>
+                {modelStatus
+                  ? modelStatus.adapter === 'llama'
+                    ? 'Offline model ready'
+                    : `${modelStatus.installedModels} model file(s) installed`
+                  : 'Checking model status...'}
+              </Text>
+              {modelStatus ? <Text variant="muted">{modelStatus.message}</Text> : null}
+            </View>
+            <View className="flex-row flex-wrap gap-2">
+              <Link href="/(tabs)/library" asChild>
+                <Button className="flex-1" variant="outline">
+                  <Text>Content</Text>
+                </Button>
+              </Link>
+              <Link href="/(tabs)/map" asChild>
+                <Button className="flex-1" variant="outline">
+                  <Text>Maps</Text>
+                </Button>
+              </Link>
+              <Link href="/tools/diagnostics" asChild>
+                <Button className="flex-1" variant="outline">
+                  <Text>Diagnostics</Text>
+                </Button>
+              </Link>
+            </View>
+          </Card>
+
+          <Card className="gap-2">
+            <ArkBrandLockup compact />
+            <Text variant="muted">Version 1.0.0 MVP</Text>
+          </Card>
+        </>
+      ) : null}
     </Screen>
   );
 }

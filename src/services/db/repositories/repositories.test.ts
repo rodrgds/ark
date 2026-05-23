@@ -116,7 +116,7 @@ beforeEach(async () => {
 describe('database migrations', () => {
   test('creates the current schema with FTS and resumable download columns', async () => {
     const version = await testDb.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
-    expect(version?.user_version).toBe(6);
+    expect(version?.user_version).toBe(7);
 
     const downloadColumns = await testDb.getAllAsync<{ name: string }>(
       'PRAGMA table_info(downloads)'
@@ -132,6 +132,10 @@ describe('database migrations', () => {
     expect(contentColumns.map((column) => column.name)).toContain('checksum_md5');
     expect(contentColumns.map((column) => column.name)).toContain('checksum_sha256');
     expect(contentColumns.map((column) => column.name)).toContain('checksum_sha256_url');
+    const markerColumns = await testDb.getAllAsync<{ name: string }>(
+      'PRAGMA table_info(map_markers)'
+    );
+    expect(markerColumns.map((column) => column.name)).toContain('photo_uri');
 
     await testDb.runAsync(
       'INSERT INTO notes_fts (note_id, title, body, tags) VALUES (?, ?, ?, ?)',
@@ -271,8 +275,11 @@ describe('repositories', () => {
       title: 'Water source',
       latitude: 38.7,
       longitude: -9.1,
+      photoUri: 'file:///ark/maps/water.jpg',
     });
-    expect((await MapsRepository.listMarkers())[0]?.id).toBe(markerId);
+    const marker = (await MapsRepository.listMarkers())[0];
+    expect(marker?.id).toBe(markerId);
+    expect(marker?.photoUri).toBe('file:///ark/maps/water.jpg');
 
     const routeId = await MapsRepository.createRoute({
       title: 'Walk out',

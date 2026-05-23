@@ -141,6 +141,7 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
           description TEXT,
           latitude REAL NOT NULL,
           longitude REAL NOT NULL,
+          photo_uri TEXT,
           icon TEXT,
           color TEXT,
           created_at INTEGER,
@@ -318,7 +319,9 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
 
   if (currentVersion < 6) {
     await db.withTransactionAsync(async () => {
-      const downloadColumns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(downloads)');
+      const downloadColumns = await db.getAllAsync<{ name: string }>(
+        'PRAGMA table_info(downloads)'
+      );
       if (!downloadColumns.some((column) => column.name === 'expected_checksum_sha256')) {
         await db.execAsync('ALTER TABLE downloads ADD COLUMN expected_checksum_sha256 TEXT');
       }
@@ -326,7 +329,9 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
         await db.execAsync('ALTER TABLE downloads ADD COLUMN checksum_sha256 TEXT');
       }
 
-      const packColumns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(content_packs)');
+      const packColumns = await db.getAllAsync<{ name: string }>(
+        'PRAGMA table_info(content_packs)'
+      );
       if (!packColumns.some((column) => column.name === 'checksum_sha256')) {
         await db.execAsync('ALTER TABLE content_packs ADD COLUMN checksum_sha256 TEXT');
       }
@@ -335,6 +340,18 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
       }
 
       await db.runAsync('PRAGMA user_version = 6');
+    });
+  }
+
+  if (currentVersion < 7) {
+    await db.withTransactionAsync(async () => {
+      const markerColumns = await db.getAllAsync<{ name: string }>(
+        'PRAGMA table_info(map_markers)'
+      );
+      if (!markerColumns.some((column) => column.name === 'photo_uri')) {
+        await db.execAsync('ALTER TABLE map_markers ADD COLUMN photo_uri TEXT');
+      }
+      await db.runAsync('PRAGMA user_version = 7');
     });
   }
 }

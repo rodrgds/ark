@@ -36,13 +36,15 @@ describe('app route contracts', () => {
     const intro = readFileSync(join(appDir, 'onboarding/index.tsx'), 'utf8');
     const security = readFileSync(join(appDir, 'onboarding/security.tsx'), 'utf8');
     const permissions = readFileSync(join(appDir, 'onboarding/permissions.tsx'), 'utf8');
+    const maps = readFileSync(join(appDir, 'onboarding/maps.tsx'), 'utf8');
     const power = readFileSync(join(appDir, 'onboarding/power.tsx'), 'utf8');
     const packs = readFileSync(join(appDir, 'onboarding/packs.tsx'), 'utf8');
     const finish = readFileSync(join(appDir, 'onboarding/finish.tsx'), 'utf8');
 
     expect(intro).toContain('nextHref="/onboarding/security"');
     expect(security).toContain('nextHref="/onboarding/permissions"');
-    expect(permissions).toContain('/onboarding/power');
+    expect(permissions).toContain('/onboarding/maps');
+    expect(maps).toContain('nextHref="/onboarding/power"');
     expect(power).toContain('nextHref="/onboarding/packs"');
     expect(packs).toContain('nextHref="/onboarding/finish"');
     expect(finish).toContain("router.replace('/(tabs)')");

@@ -1,5 +1,34 @@
 import { DatabaseClient } from '@/services/db/client';
+import type { LabelColorMap } from '@/lib/label-colors';
 import type { OnboardingState, VaultState } from '@/types/db';
+
+function parseLabelColorMap(value: string | null): LabelColorMap {
+  if (!value) return {};
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>;
+    if (!parsed || typeof parsed !== 'object') return {};
+    return Object.fromEntries(
+      Object.entries(parsed).filter(([, color]) => typeof color === 'string' && color.trim())
+    );
+  } catch {
+    return {};
+  }
+}
+
+function parseLabelList(value: string | null) {
+  if (!value) return [] as string[];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return Array.from(
+      new Set(
+        parsed.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean)
+      )
+    ).sort((a, b) => a.localeCompare(b));
+  } catch {
+    return [];
+  }
+}
 
 export class SettingsRepository {
   static async get(key: string) {
@@ -19,6 +48,51 @@ export class SettingsRepository {
        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
       [key, value, Date.now()]
     );
+  }
+
+  static async getLabelColors() {
+    return parseLabelColorMap(await this.get('label.colors'));
+  }
+
+  static async getLabels() {
+    return parseLabelList(await this.get('label.registry'));
+  }
+
+  static async setLabels(labels: string[]) {
+    const normalized = Array.from(
+      new Set(labels.map((label) => label.trim()).filter(Boolean))
+    ).sort((a, b) => a.localeCompare(b));
+    await this.set('label.registry', JSON.stringify(normalized));
+    return normalized;
+  }
+
+  static async addLabel(label: string) {
+    const labels = await this.getLabels();
+    const next = Array.from(new Set([...labels, label.trim()].filter(Boolean))).sort((a, b) => a.localeCompare(b));
+    await this.set('label.registry', JSON.stringify(next));
+    return next;
+  }
+
+  static async deleteLabel(label: string) {
+    const labels = await this.getLabels();
+    const next = labels.filter((item) => item !== label);
+    await this.set('label.registry', JSON.stringify(next));
+    return next;
+  }
+
+  static async setLabelColor(label: string, color: string) {
+    const colors = await this.getLabelColors();
+    colors[label] = color;
+    await this.set('label.colors', JSON.stringify(colors));
+    return colors;
+  }
+
+  static async deleteLabelColor(label: string) {
+    const colors = await this.getLabelColors();
+    if (!(label in colors)) return colors;
+    delete colors[label];
+    await this.set('label.colors', JSON.stringify(colors));
+    return colors;
   }
 
   static async getOnboardingState(): Promise<OnboardingState> {

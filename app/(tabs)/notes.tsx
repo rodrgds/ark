@@ -2,103 +2,61 @@ import { Arky } from '@/components/brand/ark-logo';
 import { Screen } from '@/components/layout/screen';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
-import { RagService } from '@/services/ai/rag.service';
+import { getLabelColor, getLabelForegroundColor } from '@/lib/label-colors';
 import { NotesRepository } from '@/services/db/repositories/notes.repo';
+import { SettingsRepository } from '@/services/db/repositories/settings.repo';
 import { VaultService } from '@/services/security/vault.service';
 import { useAuthStore } from '@/stores/auth-store';
 import type { Note } from '@/types/db';
-import { format } from 'date-fns';
-import {
-  Bold,
-  Eye,
-  FileText,
-  Heading1,
-  Italic,
-  List,
-  PenLine,
-  Search,
-  Star,
-  Trash2,
-} from 'lucide-react-native';
+import { router, useFocusEffect } from 'expo-router';
+import { Plus, Star, Tag, Trash2 } from 'lucide-react-native';
 import * as React from 'react';
-import { Alert, View } from 'react-native';
+import { Modal, Pressable, View } from 'react-native';
 import { RefreshControl } from 'react-native';
-
-function parseTags(value: string) {
-  return value
-    .split(',')
-    .map((tag) => tag.trim())
-    .filter(Boolean);
-}
-
-function formatTimestamp(value: number) {
-  return format(new Date(value), 'MMM d, yyyy HH:mm');
-}
-
-function MarkdownPreview({ body }: { body: string }) {
-  const lines = body.split('\n');
-  if (!body.trim()) return <Text variant="muted">Nothing to preview yet.</Text>;
-  return (
-    <View className="gap-2">
-      {lines.map((line, index) => {
-        const key = `${index}-${line}`;
-        if (!line.trim()) return <View key={key} className="h-2" />;
-        if (line.startsWith('# ')) {
-          return (
-            <Text key={key} variant="h3">
-              {line.replace(/^#\s+/, '')}
-            </Text>
-          );
-        }
-        if (line.startsWith('- ')) {
-          return (
-            <View key={key} className="flex-row gap-2">
-              <Text>-</Text>
-              <Text className="flex-1">{line.replace(/^-\s+/, '')}</Text>
-            </View>
-          );
-        }
-        return (
-          <Text key={key} className="leading-6">
-            {line}
-          </Text>
-        );
-      })}
-    </View>
-  );
-}
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function NotesScreen() {
+  const insets = useSafeAreaInsets();
   const unlocked = useAuthStore((state) => state.unlocked);
   const [password, setPassword] = React.useState('');
   const [unlockError, setUnlockError] = React.useState<string | null>(null);
   const [notes, setNotes] = React.useState<Note[]>([]);
   const [query, setQuery] = React.useState('');
-  const [editingId, setEditingId] = React.useState<string | null>(null);
-  const [title, setTitle] = React.useState('');
-  const [body, setBody] = React.useState('');
-  const [tagsText, setTagsText] = React.useState('');
-  const [preview, setPreview] = React.useState(false);
   const [refreshing, setRefreshing] = React.useState(false);
   const [initialLoading, setInitialLoading] = React.useState(true);
 
-  const wordCount = body.trim() ? body.trim().split(/\s+/).length : 0;
-  const charCount = body.length;
-  const editingNote = notes.find((note) => note.id === editingId) ?? null;
+  const [actionNote, setActionNote] = React.useState<Note | null>(null);
+  const [confirmDeleteNote, setConfirmDeleteNote] = React.useState<Note | null>(null);
+  const [labelColors, setLabelColors] = React.useState<Record<string, string>>({});
+  const leftColumn = notes.filter((_, index) => index % 2 === 0);
+  const rightColumn = notes.filter((_, index) => index % 2 === 1);
 
   async function load(search = query) {
     if (!unlocked) return;
-    setNotes(await NotesRepository.list(search));
+    const [list, colors] = await Promise.all([NotesRepository.list(search), SettingsRepository.getLabelColors()]);
+    list.sort((a, b) => {
+      if (a.isFavorite !== b.isFavorite) return a.isFavorite ? -1 : 1;
+      return b.updatedAt - a.updatedAt;
+    });
+    setNotes(list);
+    setLabelColors(colors);
     setInitialLoading(false);
   }
 
   React.useEffect(() => {
     void load();
   }, [unlocked]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      void load();
+    }, [unlocked, query])
+  );
 
   async function unlock() {
     const result = await VaultService.unlockWithPassword(password);
@@ -110,51 +68,17 @@ export default function NotesScreen() {
     setUnlockError(result.ok ? null : (result.reason ?? 'Unable to unlock with biometrics.'));
   }
 
-  function resetEditor() {
-    setEditingId(null);
-    setTitle('');
-    setBody('');
-    setTagsText('');
-    setPreview(false);
+  async function toggleStar(note: Note) {
+    await NotesRepository.update(note.id, { isFavorite: !note.isFavorite });
+    setActionNote(null);
+    await load(query);
   }
 
-  function editNote(note: Note) {
-    setEditingId(note.id);
-    setTitle(note.title);
-    setBody(note.body);
-    setTagsText(note.tags.join(', '));
-    setPreview(false);
-  }
-
-  async function saveNote() {
-    if (!title.trim() && !body.trim()) return;
-    const tags = parseTags(tagsText);
-    const saved = editingId
-      ? await NotesRepository.update(editingId, { title, body, tags })
-      : await NotesRepository.create({ title, body, tags });
-    if (saved) await RagService.indexNote(saved.id);
-    resetEditor();
-    await load('');
-  }
-
-  function insertMarkdown(prefix: string, suffix = '') {
-    const insertion = body ? `\n${prefix}${suffix}` : `${prefix}${suffix}`;
-    setBody((current) => `${current}${insertion}`);
-  }
-
-  function confirmDelete(note: Note) {
-    Alert.alert('Delete note?', `"${note.title}" will be removed from local search.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          await NotesRepository.softDelete(note.id);
-          if (editingId === note.id) resetEditor();
-          await load();
-        },
-      },
-    ]);
+  async function deleteNote(note: Note) {
+    await NotesRepository.softDelete(note.id);
+    setActionNote(null);
+    setConfirmDeleteNote(null);
+    await load(query);
   }
 
   if (!unlocked) {
@@ -166,7 +90,7 @@ export default function NotesScreen() {
           <Text variant="muted" className="text-center px-4">
             Secure notes and personal documents are inaccessible until the vault is unlocked.
           </Text>
-          <View className="w-full gap-3 mt-4">
+          <View className="mt-4 w-full gap-3">
             <Input
               secureTextEntry
               value={password}
@@ -189,159 +113,184 @@ export default function NotesScreen() {
   }
 
   return (
-    <Screen
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={async () => {
-            setRefreshing(true);
-            try {
-              await load();
-            } finally {
-              setRefreshing(false);
-            }
-          }}
-        />
-      }>
-      <View className="gap-2">
-        <Text variant="h1">Notes</Text>
-        <Text variant="muted">Vault-gated field notes indexed for Ark search.</Text>
-      </View>
-
-      <Card className="gap-3">
-        <View className="flex-row items-center justify-between gap-3">
-          <View className="min-w-0 flex-1">
-            <Text variant="large">{editingId ? 'Edit note' : 'New secure note'}</Text>
-            {editingNote ? (
-              <Text variant="muted">
-                Updated {formatTimestamp(editingNote.updatedAt)} - Created{' '}
-                {formatTimestamp(editingNote.createdAt)}
-              </Text>
-            ) : null}
-          </View>
-          {editingId ? (
-            <Button size="sm" variant="ghost" onPress={resetEditor}>
-              <Text>Cancel</Text>
-            </Button>
-          ) : null}
-        </View>
-
-        <Input value={title} onChangeText={setTitle} placeholder="Title" />
-
-        <View className="flex-row flex-wrap gap-2">
-          <Button size="icon" variant="outline" onPress={() => insertMarkdown('# ')}>
-            <Icon as={Heading1} className="size-4" />
-          </Button>
-          <Button size="icon" variant="outline" onPress={() => insertMarkdown('**bold**')}>
-            <Icon as={Bold} className="size-4" />
-          </Button>
-          <Button size="icon" variant="outline" onPress={() => insertMarkdown('*italic*')}>
-            <Icon as={Italic} className="size-4" />
-          </Button>
-          <Button size="icon" variant="outline" onPress={() => insertMarkdown('- ')}>
-            <Icon as={List} className="size-4" />
-          </Button>
-          <Button
-            className="ml-auto"
-            size="sm"
-            variant={preview ? 'default' : 'outline'}
-            onPress={() => setPreview((value) => !value)}>
-            <Icon as={Eye} className="size-4" />
-            <Text>{preview ? 'Preview' : 'Edit'}</Text>
-          </Button>
-        </View>
-
-        {preview ? (
-          <Card className="bg-background min-h-56 gap-2">
-            <MarkdownPreview body={body} />
-          </Card>
-        ) : (
-          <Input
-            className="min-h-56 items-start py-3"
-            value={body}
-            onChangeText={setBody}
-            placeholder="Body"
-            multiline
-            textAlignVertical="top"
+    <View className="bg-background flex-1">
+      <Screen
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={async () => {
+              setRefreshing(true);
+              try {
+                await load();
+              } finally {
+                setRefreshing(false);
+              }
+            }}
           />
-        )}
-
-        <Input value={tagsText} onChangeText={setTagsText} placeholder="Tags, comma separated" />
-        <View className="flex-row justify-between gap-3">
-          <Text variant="muted">
-            {wordCount} words - {charCount} chars
-          </Text>
-          <Button onPress={saveNote} disabled={!title.trim() && !body.trim()}>
-            <Icon as={PenLine} className="size-4" />
-            <Text>{editingId ? 'Save' : 'Create'}</Text>
-          </Button>
-        </View>
-      </Card>
-
-      <Card className="gap-3">
-        <View className="flex-row items-center gap-2">
-          <Icon as={Search} className="text-primary size-5" />
-          <Text variant="large">Search</Text>
-        </View>
+        }>
         <Input
           value={query}
           onChangeText={(value) => {
             setQuery(value);
             void load(value);
           }}
-          placeholder="Search notes with FTS"
+          placeholder="Search notes"
         />
-      </Card>
 
-      {initialLoading ? (
-        <View className="gap-3">
-          <Skeleton className="h-24" />
-          <Skeleton className="h-24" />
-        </View>
-      ) : notes.length === 0 ? (
-        <Card className="items-center gap-3 py-8">
-          <Arky pose="scholar" size={120} />
-          <Text variant="large">{query ? 'No matching notes' : 'No notes yet'}</Text>
-          <Text variant="muted" className="text-center">
-            {query ? 'Try a different search term.' : 'Create a secure note to seed local RAG.'}
-          </Text>
-        </Card>
-      ) : (
-        notes.map((note) => (
-          <Card key={note.id} className="gap-3">
-            <View className="flex-row items-start justify-between gap-3">
-              <View className="min-w-0 flex-1 gap-1">
-                <Text variant="large">{note.title}</Text>
-                <Text variant="muted">
-                  Updated {formatTimestamp(note.updatedAt)}
-                  {note.tags.length ? ` - ${note.tags.join(', ')}` : ''}
-                </Text>
-              </View>
+        {initialLoading ? (
+          <View className="gap-3">
+            <Skeleton className="h-20" />
+            <Skeleton className="h-20" />
+            <Skeleton className="h-20" />
+          </View>
+        ) : notes.length === 0 ? (
+          <Card className="items-center gap-3 py-8">
+            <Arky pose="scholar" size={120} />
+            <Text variant="large">No notes yet</Text>
+            <Text variant="muted" className="text-center">
+              Create your first secure note.
+            </Text>
+          </Card>
+        ) : (
+          <View className="flex-row items-start gap-3">
+            <View className="flex-1 gap-3">
+              {leftColumn.map((note) => (
+                <Pressable
+                  key={note.id}
+                  onPress={() => router.push({ pathname: '/notes/editor', params: { id: note.id } })}
+                  onLongPress={() => setActionNote(note)}
+                  delayLongPress={220}>
+                  <Card className="gap-2">
+                    <View className="flex-row items-start justify-between gap-2">
+                      <Text variant="large" className="min-w-0 flex-1">
+                        {note.title}
+                      </Text>
+                      {note.isFavorite ? (
+                        <Icon as={Star} className="text-muted-foreground size-3.5" />
+                      ) : null}
+                    </View>
+                    <Text numberOfLines={3} variant="muted">
+                      {note.body || 'No content'}
+                    </Text>
+                    {note.tags.length ? (
+                      <View className="mt-1 flex-row flex-wrap gap-1.5">
+                        {note.tags.map((label) => (
+                          <View
+                            key={`${note.id}-${label}`}
+                            className="rounded-full px-2 py-0.5"
+                            style={{ backgroundColor: getLabelColor(label, labelColors) }}>
+                            <Text
+                              className="text-xs"
+                              style={{ color: getLabelForegroundColor(getLabelColor(label, labelColors)) }}>
+                              {label}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    ) : null}
+                  </Card>
+                </Pressable>
+              ))}
+            </View>
+            <View className="flex-1 gap-3">
+              {rightColumn.map((note) => (
+                <Pressable
+                  key={note.id}
+                  onPress={() => router.push({ pathname: '/notes/editor', params: { id: note.id } })}
+                  onLongPress={() => setActionNote(note)}
+                  delayLongPress={220}>
+                  <Card className="gap-2">
+                    <View className="flex-row items-start justify-between gap-2">
+                      <Text variant="large" className="min-w-0 flex-1">
+                        {note.title}
+                      </Text>
+                      {note.isFavorite ? (
+                        <Icon as={Star} className="text-muted-foreground size-3.5" />
+                      ) : null}
+                    </View>
+                    <Text numberOfLines={3} variant="muted">
+                      {note.body || 'No content'}
+                    </Text>
+                    {note.tags.length ? (
+                      <View className="mt-1 flex-row flex-wrap gap-1.5">
+                        {note.tags.map((label) => (
+                          <View
+                            key={`${note.id}-${label}`}
+                            className="rounded-full px-2 py-0.5"
+                            style={{ backgroundColor: getLabelColor(label, labelColors) }}>
+                            <Text
+                              className="text-xs"
+                              style={{ color: getLabelForegroundColor(getLabelColor(label, labelColors)) }}>
+                              {label}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    ) : null}
+                  </Card>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        )}
+      </Screen>
+
+      <Button
+        size="icon"
+        className="absolute bottom-6 right-6 h-14 w-14 rounded-full"
+        onPress={() => router.push('/notes/editor')}>
+        <Icon as={Plus} className="size-6" />
+      </Button>
+
+      <Modal transparent visible={!!actionNote} animationType="fade" onRequestClose={() => setActionNote(null)}>
+        <Pressable className="flex-1 bg-black/50" onPress={() => setActionNote(null)}>
+          <View className="flex-1 justify-end p-4" style={{ paddingBottom: Math.max(insets.bottom, 12) }}>
+            <Pressable className="bg-card border-border gap-1 rounded-2xl border px-2 py-2" onPress={() => {}}>
               <Button
-                size="icon"
-                variant={note.isFavorite ? 'default' : 'outline'}
-                onPress={async () => {
-                  await NotesRepository.update(note.id, { isFavorite: !note.isFavorite });
-                  await load();
+                variant="ghost"
+                className="h-10 justify-start px-2"
+                onPress={() => {
+                  if (actionNote) void toggleStar(actionNote);
                 }}>
                 <Icon as={Star} className="size-4" />
+                <Text>{actionNote?.isFavorite ? 'Unstar' : 'Star'}</Text>
               </Button>
-            </View>
-            <Text selectable numberOfLines={5}>
-              {note.body}
-            </Text>
-            <View className="flex-row gap-2">
-              <Button className="flex-1" size="sm" variant="outline" onPress={() => editNote(note)}>
-                <Icon as={PenLine} className="size-4" />
-                <Text>Edit</Text>
+              <Button
+                variant="ghost"
+                className="h-10 justify-start px-2"
+                onPress={() => {
+                  if (!actionNote) return;
+                  setActionNote(null);
+                  router.push({ pathname: '/notes/labels' as never, params: { noteId: actionNote.id } as never });
+                }}>
+                <Icon as={Tag} className="size-4" />
+                <Text>Labels</Text>
               </Button>
-              <Button size="icon" variant="destructive" onPress={() => confirmDelete(note)}>
-                <Icon as={Trash2} className="size-4" />
+              <Button
+                variant="ghost"
+                className="h-10 justify-start px-2"
+                onPress={() => {
+                  if (!actionNote) return;
+                  setConfirmDeleteNote(actionNote);
+                  setActionNote(null);
+                }}>
+                <Icon as={Trash2} className="text-white size-4" />
+                <Text className="text-white">Delete</Text>
               </Button>
-            </View>
-          </Card>
-        ))
-      )}
-    </Screen>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
+
+      <ConfirmModal
+        visible={!!confirmDeleteNote}
+        title="Delete note?"
+        confirmVariant="destructive"
+        onCancel={() => setConfirmDeleteNote(null)}
+        onConfirm={() => {
+          if (confirmDeleteNote) void deleteNote(confirmDeleteNote);
+        }}
+      />
+    </View>
   );
 }

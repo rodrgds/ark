@@ -10,6 +10,7 @@ import { AppState, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ArkMark } from '@/components/brand/ark-logo';
+import { ArkKeyboardProvider } from '@/components/layout/keyboard-controller';
 import { Text } from '@/components/ui/text';
 import { AutoLockService } from '@/services/security/autolock.service';
 import { useAppStore } from '@/stores/app-store';
@@ -58,28 +59,31 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView className="bg-background flex-1">
       <SafeAreaProvider>
-        <ThemeProvider value={NAV_THEME[effectiveTheme]}>
-          <StatusBar style={effectiveTheme === 'light' ? 'dark' : 'light'} />
-          <Stack
-            screenOptions={{
-              headerStyle: { backgroundColor: NAV_THEME[effectiveTheme].colors.background },
-              headerTintColor: NAV_THEME[effectiveTheme].colors.text,
-              contentStyle: { backgroundColor: NAV_THEME[effectiveTheme].colors.background },
-            }}>
-            <Stack.Screen name="index" options={{ headerShown: false }} />
-            <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="tools" options={{ headerShown: false }} />
-            <Stack.Screen name="content" options={{ headerShown: false }} />
-            <Stack.Screen name="documents" options={{ headerShown: false }} />
-          </Stack>
-          {error ? (
-            <View className="bg-destructive p-3">
-              <Text className="text-white">{error}</Text>
-            </View>
-          ) : null}
-          <PortalHost />
-        </ThemeProvider>
+        <ArkKeyboardProvider>
+          <ThemeProvider value={NAV_THEME[effectiveTheme]}>
+            <StatusBar style={effectiveTheme === 'light' ? 'dark' : 'light'} />
+            <Stack
+              screenOptions={{
+                headerStyle: { backgroundColor: NAV_THEME[effectiveTheme].colors.background },
+                headerTintColor: NAV_THEME[effectiveTheme].colors.text,
+                contentStyle: { backgroundColor: NAV_THEME[effectiveTheme].colors.background },
+              }}>
+              <Stack.Screen name="index" options={{ headerShown: false }} />
+              <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="tools" options={{ headerShown: false }} />
+              <Stack.Screen name="content" options={{ headerShown: false }} />
+              <Stack.Screen name="documents" options={{ headerShown: false }} />
+              <Stack.Screen name="notes" />
+            </Stack>
+            {error ? (
+              <View className="bg-destructive p-3">
+                <Text className="text-white">{error}</Text>
+              </View>
+            ) : null}
+            <PortalHost />
+          </ThemeProvider>
+        </ArkKeyboardProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

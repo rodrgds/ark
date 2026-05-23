@@ -159,8 +159,8 @@ export default function GuideReaderScreen() {
 
   if (loading && !content) {
     return (
-      <View className="bg-black flex-1 items-center justify-center p-6">
-        <ActivityIndicator size="large" color="#f2b84b" />
+      <View className="bg-background flex-1 items-center justify-center p-6">
+          <ActivityIndicator size="large" />
         <Text variant="muted" className="mt-4">Loading guide...</Text>
       </View>
     );
@@ -168,7 +168,7 @@ export default function GuideReaderScreen() {
 
   if (error) {
     return (
-      <View className="bg-black flex-1 items-center justify-center p-6 gap-4">
+      <View className="bg-background flex-1 items-center justify-center p-6 gap-4">
         <Arky pose="thinking" size={120} />
         <Text variant="large" className="text-destructive text-center">{error}</Text>
         <Button variant="outline" onPress={loadPackAndContent}>
@@ -182,7 +182,7 @@ export default function GuideReaderScreen() {
   }
 
   return (
-    <View className="bg-black flex-1">
+    <View className="bg-background flex-1">
       <Stack.Screen options={{ headerShown: false }} />
 
       {/* Main Content Area */}
@@ -223,7 +223,7 @@ export default function GuideReaderScreen() {
       {webViewLoadError && (
         <View
           style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
-          className="absolute inset-0 z-[60] bg-black flex-col items-center justify-center p-8 gap-6"
+          className="absolute inset-0 z-[60] bg-background flex-col items-center justify-center p-8 gap-6"
         >
           <Arky pose="thinking" size={160} />
           <View className="gap-2 items-center">
@@ -231,7 +231,7 @@ export default function GuideReaderScreen() {
             <Text variant="muted" className="text-center leading-6">
               {webViewLoadError}
             </Text>
-            <Text variant="small" className="text-zinc-600 text-center">
+            <Text variant="small" className="text-muted-foreground text-center">
               This format may not be supported by the built-in viewer.
             </Text>
           </View>
@@ -260,9 +260,9 @@ export default function GuideReaderScreen() {
       {(loading || webViewLoading) && content && (
         <View
           style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
-          className="absolute inset-0 z-[60] bg-black/60 items-center justify-center"
+          className="absolute inset-0 z-[60] bg-background/60 items-center justify-center"
         >
-          <ActivityIndicator size="large" color="#f2b84b" />
+        <ActivityIndicator size="large" />
         </View>
       )}
 
@@ -272,25 +272,25 @@ export default function GuideReaderScreen() {
           {/* Header */}
           <View
             style={{ paddingTop: insets.top }}
-            className="absolute top-0 left-0 right-0 z-50 bg-black/80 border-b border-zinc-800"
+            className="absolute top-0 left-0 right-0 z-50 bg-background/80 border-b border-border"
           >
             <View className="flex-row items-center justify-between px-4 h-14">
               <Button variant="ghost" size="icon" onPress={() => router.back()}>
-                <Icon as={ChevronLeft} className="text-zinc-200" />
+                <Icon as={ChevronLeft} className="text-foreground" />
               </Button>
               <View className="flex-1 mx-2">
-                <Text variant="small" className="text-zinc-200 font-bold text-center" numberOfLines={1}>
+                <Text variant="small" className="text-foreground font-bold text-center" numberOfLines={1}>
                   {pack?.title}
                 </Text>
               </View>
               <View className="flex-row gap-1">
                 {sections.length > 0 && (
                   <Button variant="ghost" size="icon" onPress={() => setShowToc(true)}>
-                    <Icon as={List} className="text-zinc-200" />
+                    <Icon as={List} className="text-foreground" />
                   </Button>
                 )}
                 <Button variant="ghost" size="icon" onPress={handleShare}>
-                  <Icon as={Share2} className="text-zinc-200" />
+                  <Icon as={Share2} className="text-foreground" />
                 </Button>
               </View>
             </View>
@@ -299,10 +299,10 @@ export default function GuideReaderScreen() {
           {/* Footer */}
           <View
             style={{ paddingBottom: insets.bottom }}
-            className="absolute bottom-0 left-0 right-0 z-50 bg-black/80 border-t border-zinc-800"
+            className="absolute bottom-0 left-0 right-0 z-50 bg-background/80 border-t border-border"
           >
             <View className="px-6 h-14 justify-center">
-              <Text variant="small" className="text-zinc-400 font-medium">
+              <Text variant="small" className="text-muted-foreground font-medium">
                 {content?.sectionTitle || 'Reading Guide'}
               </Text>
             </View>
@@ -312,13 +312,13 @@ export default function GuideReaderScreen() {
 
       {/* TOC Drawer */}
       <Modal visible={showToc} animationType="slide" transparent={true} onRequestClose={() => setShowToc(false)}>
-        <View className="flex-1 bg-black/60 justify-end">
+        <View className="flex-1 bg-background/60 justify-end">
           <Pressable className="flex-1" onPress={() => setShowToc(false)} />
-          <View style={{ paddingBottom: insets.bottom + 20 }} className="bg-zinc-950 border-t border-zinc-800 rounded-t-3xl max-h-[80%]">
-            <View className="flex-row items-center justify-between px-6 py-5 border-b border-zinc-900">
-              <Text variant="h3" className="text-zinc-100">Table of Contents</Text>
+          <View style={{ paddingBottom: insets.bottom + 20 }} className="bg-card border-t border-border rounded-t-3xl max-h-[80%]">
+            <View className="flex-row items-center justify-between px-6 py-5 border-b border-border">
+              <Text variant="h3" className="text-foreground">Table of Contents</Text>
               <Button variant="ghost" size="icon" onPress={() => setShowToc(false)}>
-                <Icon as={X} className="text-zinc-400" />
+                <Icon as={X} className="text-muted-foreground" />
               </Button>
             </View>
             <ScrollView className="px-3 pt-2">
@@ -326,11 +326,11 @@ export default function GuideReaderScreen() {
                 <Pressable
                   key={sec.title}
                   onPress={() => handleSectionSelect(sec)}
-                  className="flex-row items-center justify-between p-4 my-1 rounded-xl bg-zinc-900/40 active:bg-zinc-800/60"
+                  className="flex-row items-center justify-between p-4 my-1 rounded-xl bg-muted/40 active:bg-muted/60"
                 >
                   <View className="flex-1 pr-4">
-                    <Text className="font-bold text-zinc-200">{sec.title}</Text>
-                    {sec.detail && <Text variant="small" className="text-zinc-500 mt-1">{sec.detail}</Text>}
+                    <Text className="font-bold text-foreground">{sec.title}</Text>
+                    {sec.detail && <Text variant="small" className="text-muted-foreground mt-1">{sec.detail}</Text>}
                   </View>
                   {sec.page && <Text variant="small" className="text-primary/70">p.{sec.page}</Text>}
                 </Pressable>

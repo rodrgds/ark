@@ -154,7 +154,7 @@ export default function ContentDetailScreen() {
   if (!pack) {
     return (
       <View className="bg-background flex-1 items-center justify-center p-6">
-        <ActivityIndicator size="large" color="#f2b84b" />
+        <ActivityIndicator size="large" />
         <Text variant="muted" className="mt-4">Loading content pack...</Text>
       </View>
     );
@@ -181,23 +181,23 @@ export default function ContentDetailScreen() {
         </View>
 
         {/* Status / Action Card */}
-        <Card className="gap-4 border-zinc-800 bg-zinc-950/40">
+        <Card className="gap-4 border-border bg-card">
           <View className="flex-row items-center justify-between">
             <View className="flex-row flex-wrap gap-x-3 gap-y-1">
-              <Text variant="small" className="text-zinc-400 uppercase tracking-widest text-xs">
+              <Text variant="small" className="text-muted-foreground uppercase tracking-widest text-xs">
                 {pack.category}
               </Text>
-              <Text variant="small" className="text-zinc-500">•</Text>
-              <Text variant="small" className="text-zinc-400 uppercase tracking-widest text-xs">
+              <Text variant="small" className="text-muted-foreground">•</Text>
+              <Text variant="small" className="text-muted-foreground uppercase tracking-widest text-xs">
                 {pack.format.toUpperCase()}
               </Text>
-              <Text variant="small" className="text-zinc-500">•</Text>
-              <Text variant="small" className="text-zinc-400 uppercase tracking-widest text-xs">
+              <Text variant="small" className="text-muted-foreground">•</Text>
+              <Text variant="small" className="text-muted-foreground uppercase tracking-widest text-xs">
                 {pack.estimatedSize}
               </Text>
             </View>
             {pack.sourceLabel ? (
-              <Text variant="small" className="text-zinc-500 text-xs">
+              <Text variant="small" className="text-muted-foreground text-xs">
                 {pack.sourceLabel}
               </Text>
             ) : null}
@@ -208,7 +208,7 @@ export default function ContentDetailScreen() {
             <View className="gap-2">
               <Progress value={pack.progress} />
               <View className="flex-row justify-between">
-                <Text variant="small" className="text-zinc-400">
+                <Text variant="small" className="text-muted-foreground">
                   {pack.installStatus === 'downloading'
                     ? `Downloading: ${Math.round(pack.progress * 100)}%`
                     : pack.installStatus.replace('_', ' ')}
@@ -246,7 +246,7 @@ export default function ContentDetailScreen() {
                 <Button
                   size="icon"
                   variant="outline"
-                  className="border-zinc-800 active:bg-zinc-900"
+                  className="border-border active:bg-muted"
                   disabled={busy}
                   onPress={() =>
                     Alert.alert('Remove Pack?', `Delete ${pack.title} from offline storage?`, [
@@ -269,7 +269,7 @@ export default function ContentDetailScreen() {
                 onPress={() => runAction(() => ContentPackService.installPack(pack.id))}
               >
                 {busy || pack.installStatus === 'downloading' ? (
-                  <ActivityIndicator color="#000" />
+                  <ActivityIndicator size="small" />
                 ) : (
                   <Icon as={Download} className="size-5" />
                 )}
@@ -291,31 +291,31 @@ export default function ContentDetailScreen() {
         {/* Guide Table of Contents (for non-ZIM packages) */}
         {!isZim && sections.length > 0 && (
           <View className="gap-3 mt-2">
-            <Text variant="h3" className="font-bold tracking-tight text-zinc-200 px-1">
+            <Text variant="h3" className="font-bold tracking-tight text-foreground px-1">
               Table of Contents
             </Text>
-            <View className="border border-zinc-900 rounded-lg overflow-hidden bg-zinc-950/20">
+            <View className="border border-border rounded-lg overflow-hidden bg-muted/20">
               {sections.map((section, idx) => (
                 <Pressable
                   key={section.title}
                   disabled={!pack.installed}
                   onPress={() => handleReadGuide(section)}
-                  className={`flex-row items-center justify-between p-4 border-b border-zinc-900 last:border-b-0 active:bg-zinc-900/30 ${
+                  className={`flex-row items-center justify-between p-4 border-b border-border last:border-b-0 active:bg-muted/30 ${
                     !pack.installed ? 'opacity-50' : ''
                   }`}
                 >
                   <View className="flex-1 pr-4">
-                    <Text variant="default" className="font-bold text-zinc-300">
+                    <Text variant="default" className="font-bold text-foreground">
                       {section.title}
                     </Text>
                     {section.detail && (
-                      <Text variant="muted" className="text-zinc-500 mt-1 leading-snug">
+                      <Text variant="muted" className="text-muted-foreground mt-1 leading-snug">
                         {section.detail}
                       </Text>
                     )}
                   </View>
                   {section.page && (
-                    <Text variant="small" className="text-zinc-500">
+                    <Text variant="small" className="text-muted-foreground">
                       Page {section.page}
                     </Text>
                   )}
@@ -328,14 +328,14 @@ export default function ContentDetailScreen() {
         {/* ZIM Metadata & Fallbacks (for ZIM packages) */}
         {isZim && pack.installed && (
           <View className="gap-4 mt-2">
-            <Text variant="h3" className="font-bold tracking-tight text-zinc-200 px-1">
+            <Text variant="h3" className="font-bold tracking-tight text-foreground px-1">
               Offline ZIM Archive
             </Text>
 
             {/* If native reader is available, offer in-app searching */}
             {zimPlan?.nativeReaderAvailable && zimMetadata ? (
-              <Card className="gap-4 border-zinc-900">
-                <Text variant="large" className="text-zinc-200">In-App Search</Text>
+              <Card className="gap-4 border-border">
+                <Text variant="large" className="text-foreground">In-App Search</Text>
 
                 <View className="flex-row gap-2">
                   <Input
@@ -349,12 +349,12 @@ export default function ContentDetailScreen() {
                   <Button
                     size="icon"
                     variant="outline"
-                    className="border-zinc-800 active:bg-zinc-900"
+                    className="border-border active:bg-muted"
                     onPress={runZimSearch}
                     disabled={zimBusy || !zimQuery.trim()}
                   >
                     {zimBusy ? (
-                      <ActivityIndicator size="small" color="#a1a1aa" />
+                      <ActivityIndicator size="small" />
                     ) : (
                       <Icon as={Search} className="size-4" />
                     )}
@@ -371,11 +371,11 @@ export default function ContentDetailScreen() {
                       <Pressable
                         key={result.path}
                         onPress={() => openZimArticle(result.path)}
-                        className="p-3 rounded-lg bg-zinc-900/40 active:bg-zinc-800/60"
+                        className="p-3 rounded-lg bg-muted/40 active:bg-muted/60"
                       >
-                        <Text className="font-semibold text-zinc-200">{result.title}</Text>
+                        <Text className="font-semibold text-foreground">{result.title}</Text>
                         {result.snippet ? (
-                          <Text variant="small" className="text-zinc-500 mt-1">{result.snippet}</Text>
+                          <Text variant="small" className="text-muted-foreground mt-1">{result.snippet}</Text>
                         ) : null}
                       </Pressable>
                     ))}
@@ -389,24 +389,24 @@ export default function ContentDetailScreen() {
             ) : (
               /* If JS reader metadata is parsed */
               zimPlan?.headerInfo && (
-                <Card className="gap-3 border-zinc-900 bg-zinc-950/30">
-                  <Text variant="large" className="text-zinc-300">Archive Details</Text>
+                <Card className="gap-3 border-border bg-card/30">
+                  <Text variant="large" className="text-foreground">Archive Details</Text>
                   <View className="gap-2">
-                    <View className="flex-row justify-between border-b border-zinc-900 pb-2">
+                    <View className="flex-row justify-between border-b border-border pb-2">
                       <Text variant="muted">Total Articles</Text>
-                      <Text className="font-semibold text-zinc-300">
+                      <Text className="font-semibold text-foreground">
                         {zimPlan.headerInfo.articleCount.toLocaleString()}
                       </Text>
                     </View>
-                    <View className="flex-row justify-between border-b border-zinc-900 pb-2">
+                    <View className="flex-row justify-between border-b border-border pb-2">
                       <Text variant="muted">Format version</Text>
-                      <Text className="font-semibold text-zinc-300">
+                      <Text className="font-semibold text-foreground">
                         ZIM v{zimPlan.headerInfo.majorVersion}.{zimPlan.headerInfo.minorVersion}
                       </Text>
                     </View>
                     <View className="flex-row justify-between">
                       <Text variant="muted">Content Types</Text>
-                      <Text className="font-semibold text-zinc-300" numberOfLines={1}>
+                      <Text className="font-semibold text-foreground" numberOfLines={1}>
                         {zimPlan.headerInfo.mimeTypes.join(', ') || 'HTML'}
                       </Text>
                     </View>
@@ -416,17 +416,17 @@ export default function ContentDetailScreen() {
             )}
 
             {/* Read Option / App Handoff */}
-            <Card className="gap-3 border-zinc-900">
+            <Card className="gap-3 border-border">
               <View className="flex-row items-center gap-2">
                 <Icon as={BookOpen} className="text-primary size-5" />
-                <Text variant="large" className="text-zinc-300">How to Open Offline</Text>
+                <Text variant="large" className="text-foreground">How to Open Offline</Text>
               </View>
               <Text variant="muted" className="leading-relaxed">
                 ZIM archives are optimized for high-performance reading. You can view this archive using the official, privacy-respecting Kiwix app or by uploading it to the Kiwix web reader.
               </Text>
               <View className="flex-row gap-2 mt-2">
                 <Button
-                  className="flex-1 border-zinc-800 active:bg-zinc-900"
+                  className="flex-1 border-border active:bg-muted"
                   variant="outline"
                   onPress={handleHandoffToKiwix}
                 >
@@ -434,7 +434,7 @@ export default function ContentDetailScreen() {
                   <Text>Share to Kiwix App</Text>
                 </Button>
                 <Button
-                  className="flex-1 border-zinc-800 active:bg-zinc-900"
+                  className="flex-1 border-border active:bg-muted"
                   variant="outline"
                   onPress={() => void Linking.openURL(ZimService.getKiwixJsUrl())}
                 >
@@ -445,8 +445,8 @@ export default function ContentDetailScreen() {
             </Card>
 
             {/* Dev build capabilities notice */}
-            <View className="bg-zinc-950/60 p-4 border border-zinc-900 rounded-lg">
-              <Text variant="small" className="text-zinc-500 leading-normal">
+            <View className="bg-muted/60 p-4 border border-border rounded-lg">
+              <Text variant="small" className="text-muted-foreground leading-normal">
                 ℹ️ Full in-app reading, fast local FTS5 indexing, and AI/RAG chat integration on Wikipedia archives are supported in dev builds containing the custom C++ native ZIM engine (`ArkZim`).
               </Text>
             </View>
@@ -459,15 +459,15 @@ export default function ContentDetailScreen() {
           animationType="slide"
           onRequestClose={() => setZimArticle(null)}
         >
-          <View className="bg-black flex-1">
-            <View className="flex-row items-center justify-between px-4 h-14 bg-black border-b border-zinc-800">
+          <View className="bg-background flex-1">
+            <View className="flex-row items-center justify-between px-4 h-14 bg-background border-b border-border">
               <View className="flex-1 mr-2">
-                <Text variant="small" className="text-zinc-200 font-bold" numberOfLines={1}>
+                <Text variant="small" className="text-foreground font-bold" numberOfLines={1}>
                   {zimArticle?.title || 'Article'}
                 </Text>
               </View>
               <Button variant="ghost" size="icon" onPress={() => setZimArticle(null)}>
-                <Icon as={X} className="text-zinc-400" />
+                <Icon as={X} className="text-muted-foreground" />
               </Button>
             </View>
             {zimArticle && (

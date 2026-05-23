@@ -1,30 +1,14 @@
 import { Screen } from '@/components/layout/screen';
 import { Card } from '@/components/ui/card';
 import { Text } from '@/components/ui/text';
+import { useSensorSubscription } from '@/hooks/use-sensor-subscription';
 import { CompassService } from '@/services/sensors/compass.service';
 import { useSensorStore } from '@/stores/sensor-store';
 import * as React from 'react';
 
 export default function CompassTool() {
-  const [available, setAvailable] = React.useState<boolean | null>(null);
-  const [heading, setHeading] = React.useState<number | null>(null);
   const setStoreHeading = useSensorStore((state) => state.setHeading);
-
-  React.useEffect(() => {
-    let stop: undefined | (() => void);
-    CompassService.isAvailable().then((ok) => {
-      setAvailable(ok);
-      if (ok)
-        stop = CompassService.start((nextHeading) => {
-          setHeading(nextHeading);
-          setStoreHeading(nextHeading);
-        });
-    });
-    return () => {
-      stop?.();
-      setStoreHeading(null);
-    };
-  }, [setStoreHeading]);
+  const { available, value: heading } = useSensorSubscription(CompassService, setStoreHeading);
 
   return (
     <Screen>

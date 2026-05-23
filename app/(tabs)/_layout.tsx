@@ -64,6 +64,7 @@ export default function TabsLayout() {
           headerShown: false,
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.text,
+          tabBarHideOnKeyboard: true,
           tabBarStyle: { backgroundColor: colors.card, borderTopColor: colors.border },
           tabBarActiveTintColor: colors.primary,
           tabBarInactiveTintColor: NAV_COLORS[theme].mutedForeground,

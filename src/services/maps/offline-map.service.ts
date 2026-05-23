@@ -61,8 +61,13 @@ export class OfflineMapService {
         }
 
         const isComplete = isOfflinePackComplete(status);
+        
+        // If the region was paused by the user, keep it paused and don't auto-resume.
+        const isPaused = region.status === 'paused';
+        const nextStatus = isComplete ? 'downloaded' : isPaused ? 'paused' : 'downloading';
+
         await MapsRepository.updateRegionStatus(region.id, {
-          status: isComplete ? 'downloaded' : 'downloading',
+          status: nextStatus,
           progress: progressFromPackStatus(status),
           sizeBytes: status.completedResourceSize || status.completedTileSize || null,
           offlinePackId: pack.id,
@@ -70,7 +75,7 @@ export class OfflineMapService {
 
         // Resume any pack that isn't complete so downloads continue after an app restart.
         // MapLibre pauses packs when the app is killed; .resume() restarts them.
-        if (!isComplete) {
+        if (!isComplete && status.state === 'inactive' && !isPaused) {
           await pack.resume().catch(() => undefined);
         }
       })
@@ -95,6 +100,27 @@ export class OfflineMapService {
     }
 
     return MapsRepository.deleteRegion(id);
+  }
+
+  static async pauseRegion(id: string) {
+    const region = await MapsRepository.getRegion(id);
+    if (!region) return { ok: false, reason: 'Map region not found.' };
+
+    const maplibre = await MapService.loadMapLibre();
+    if (maplibre) {
+      try {
+        const packs = await maplibre.OfflineManager.getPacks();
+        const pack = packs.find((candidate) => isPackForRegion(candidate, region));
+        if (pack) {
+          await pack.pause();
+        }
+      } catch (error) {
+        console.warn(error instanceof Error ? error.message : 'Unable to pause native map pack.');
+      }
+    }
+
+    await MapsRepository.updateRegionStatus(id, { status: 'paused' });
+    return { ok: true };
   }
 
   static async refreshRegion(id: string) {
@@ -208,6 +234,26 @@ export class OfflineMapService {
     return MapsRepository.createMarker(input);
   }
 
+  static async updateMarker(
+    id: string,
+    input: {
+      title: string;
+      description?: string | null;
+      photoUri?: string | null;
+    }
+  ) {
+    const marker = await MapsRepository.getMarker(id);
+    if (!marker) throw new Error('Saved spot not found.');
+    await MapsRepository.updateMarker(id, {
+      title: input.title,
+      description: input.description,
+      photoUri: input.photoUri,
+    });
+    if (marker.photoUri && marker.photoUri !== (input.photoUri ?? null)) {
+      await FileSystemService.deleteByUri(marker.photoUri).catch(() => undefined);
+    }
+  }
+
   static async createRegionFromMarkers(input: {
     name: string;
     markers: MapMarker[];
@@ -315,7 +361,28 @@ export class OfflineMapService {
         longitude: route.points[0]?.longitude ?? null,
       }));
 
-    return [...markerResults, ...regionResults, ...routeResults].slice(0, limit);
+    let poiResults: OfflineMapSearchResult[] = [];
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5`,
+        { headers: { 'User-Agent': 'ArkApp/1.0' } }
+      );
+      if (response.ok) {
+        const data = await response.json();
+        poiResults = data.map((item: any) => ({
+          id: `poi-${item.place_id}`,
+          kind: 'poi',
+          title: item.name || item.display_name.split(',')[0],
+          subtitle: 'Online Result: ' + item.display_name,
+          latitude: parseFloat(item.lat),
+          longitude: parseFloat(item.lon),
+        }));
+      }
+    } catch {
+      // Ignore network errors for POI search in offline mode
+    }
+
+    return [...markerResults, ...regionResults, ...routeResults, ...poiResults].slice(0, limit);
   }
 
   static async createRouteFromMarkers(title: string, markers: MapMarker[]) {

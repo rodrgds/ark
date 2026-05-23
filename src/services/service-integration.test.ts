@@ -5,6 +5,7 @@ const secureStore = new Map<string, string>();
 let llamaStopCalls = 0;
 let llamaCompletionGate: Promise<void> | null = null;
 let llamaCompletionStarted: (() => void) | null = null;
+let lastLlamaModelUri: string | null = null;
 let freeDiskStorageBytes = 10 * 1024 * 1024 * 1024;
 const mockFiles = new Map<string, { isDirectory: boolean; size?: number; text?: string }>();
 let mockDownloadStatus = 200;
@@ -173,20 +174,23 @@ mock.module('react-native', () => ({
 }));
 
 mock.module('llama.rn', () => ({
-  initLlama: async () => ({
-    completion: async (
-      _params: unknown,
-      callback?: (data: { token?: string; accumulated_text?: string }) => void
-    ) => {
-      callback?.({ token: 'Local ', accumulated_text: 'Local ' });
-      llamaCompletionStarted?.();
-      if (llamaCompletionGate) await llamaCompletionGate;
-      return { text: 'Local mocked llama response.' };
-    },
-    stopCompletion: async () => {
-      llamaStopCalls += 1;
-    },
-  }),
+  initLlama: async (params: { model: string }) => {
+    lastLlamaModelUri = params.model;
+    return {
+      completion: async (
+        _params: unknown,
+        callback?: (data: { token?: string; accumulated_text?: string }) => void
+      ) => {
+        callback?.({ token: 'Local ', accumulated_text: 'Local ' });
+        llamaCompletionStarted?.();
+        if (llamaCompletionGate) await llamaCompletionGate;
+        return { text: 'Local mocked llama response.' };
+      },
+      stopCompletion: async () => {
+        llamaStopCalls += 1;
+      },
+    };
+  },
 }));
 
 type Params = unknown[] | readonly unknown[] | undefined;
@@ -251,6 +255,8 @@ let ContentRepository: typeof import('@/services/db/repositories/content.repo').
 let SettingsRepository: typeof import('@/services/db/repositories/settings.repo').SettingsRepository;
 let NotesRepository: typeof import('@/services/db/repositories/notes.repo').NotesRepository;
 let DownloadsRepository: typeof import('@/services/db/repositories/downloads.repo').DownloadsRepository;
+let RssRepository: typeof import('@/services/db/repositories/rss.repo').RssRepository;
+let WeatherRepository: typeof import('@/services/db/repositories/weather.repo').WeatherRepository;
 
 let testDb: TestSQLiteDatabase;
 
@@ -276,6 +282,8 @@ beforeAll(async () => {
   ({ SettingsRepository } = await import('@/services/db/repositories/settings.repo'));
   ({ NotesRepository } = await import('@/services/db/repositories/notes.repo'));
   ({ DownloadsRepository } = await import('@/services/db/repositories/downloads.repo'));
+  ({ RssRepository } = await import('@/services/db/repositories/rss.repo'));
+  ({ WeatherRepository } = await import('@/services/db/repositories/weather.repo'));
 });
 
 beforeEach(async () => {
@@ -283,6 +291,7 @@ beforeEach(async () => {
   llamaStopCalls = 0;
   llamaCompletionGate = null;
   llamaCompletionStarted = null;
+  lastLlamaModelUri = null;
   freeDiskStorageBytes = 10 * 1024 * 1024 * 1024;
   mockFiles.clear();
   mockDownloadStatus = 200;
@@ -392,7 +401,8 @@ describe('service integration', () => {
           citation.sectionTitle === 'Bleeding and shock' &&
           citation.page === 9 &&
           citation.snippet === 'Direct pressure, danger signs, and shock response.' &&
-          citation.targetHref === '/content/hesperian-first-aid?section=Bleeding%20and%20shock'
+          citation.targetHref ===
+            '/content/reader?packId=hesperian-first-aid&section=Bleeding%20and%20shock'
       )
     ).toBe(true);
 
@@ -615,6 +625,62 @@ describe('service integration', () => {
     const stored = await AIService.listMessages(result.threadId);
     expect(stored.map((message) => message.role)).toEqual(['user', 'assistant']);
     expect(stored[1].citations[0]?.sourceRef).toBe(note.id);
+    expect(stored[1].content).toContain('Based on the local sources Ark found');
+    expect(stored[1].content).not.toContain('mock mode');
+  });
+
+  test('RAG includes saved maps and cached operational context', async () => {
+    await OfflineMapService.createMarker({
+      title: 'Ridge water cache',
+      description: 'Spring near the old wall.',
+      latitude: 38.7,
+      longitude: -9.2,
+    });
+    const markers = await OfflineMapService.listMarkers();
+    await OfflineMapService.createRouteFromMarkers('Ridge route', markers);
+    await OfflineMapService.createRegionFromBounds({
+      name: 'Ridge coverage',
+      north: 39,
+      south: 38,
+      east: -8,
+      west: -10,
+    });
+    await RssRepository.addFeed('Civil protection', 'https://example.com/feed.xml');
+    const feed = (await RssRepository.listFeeds())[0]!;
+    await RssRepository.upsertItems([
+      {
+        id: 'rss-water-advisory',
+        feedId: feed.id,
+        title: 'Water advisory',
+        summary: 'Boil water before drinking during the outage.',
+      },
+    ]);
+    await WeatherRepository.saveForecast({
+      latitude: 38.7,
+      longitude: -9.2,
+      locationLabel: 'Ridge camp',
+      provider: 'test',
+      forecast: {
+        summary: 'Rain - 12C - 30 km/h wind - 1000 hPa',
+        temperatureC: 12,
+        windKph: 30,
+        pressureHpa: 1000,
+        weatherCode: 61,
+        daily: [{ date: '2026-05-23', highC: 14, lowC: 9, precipitationMm: 11 }],
+      },
+    });
+
+    const mapCitations = await RagService.search('ridge route coverage water cache', { limit: 8 });
+    const alertCitations = await RagService.search('water advisory outage', { limit: 4 });
+    const weatherCitations = await RagService.search('ridge rain wind forecast', { limit: 4 });
+
+    expect(mapCitations.some((citation) => citation.sourceId.startsWith('map-marker:'))).toBe(true);
+    expect(mapCitations.some((citation) => citation.sourceId.startsWith('map-region:'))).toBe(true);
+    expect(mapCitations.some((citation) => citation.sourceId.startsWith('map-route:'))).toBe(true);
+    expect(alertCitations.some((citation) => citation.sourceId === 'rss:rss-water-advisory')).toBe(
+      true
+    );
+    expect(weatherCitations.some((citation) => citation.sourceId === 'weather:latest')).toBe(true);
   });
 
   test('imported text documents are indexed for RAG', async () => {
@@ -738,6 +804,40 @@ describe('service integration', () => {
     expect(status.installedModels).toBe(1);
     expect(status.activeModelTitle).toBe('Status model');
     expect(status.contextTokens).toBe(2048);
+  });
+
+  test('selected AI model preference controls the llama runtime model', async () => {
+    await ContentRepository.createPack({
+      id: 'custom-model-alpha-test',
+      title: 'Alpha model',
+      description: 'First installed model.',
+      category: 'AI Models',
+      format: 'gguf',
+      localUri: 'file:///ark/models/alpha.gguf',
+      installed: true,
+      installStatus: 'installed',
+      progress: 1,
+    });
+    await ContentRepository.createPack({
+      id: 'custom-model-bravo-test',
+      title: 'Bravo model',
+      description: 'Selected installed model.',
+      category: 'AI Models',
+      format: 'gguf',
+      localUri: 'file:///ark/models/bravo.gguf',
+      installed: true,
+      installStatus: 'installed',
+      progress: 1,
+    });
+
+    await ModelManagerService.setSelectedModel('custom-model-bravo-test');
+    resetLlamaAdapterForTests();
+
+    const status = await ModelManagerService.getStatus();
+    expect(status.activeModelTitle).toBe('Bravo model');
+
+    await AIService.sendMessage({ content: 'Which model should answer?', useRag: false });
+    expect(lastLlamaModelUri).toBe('file:///ark/models/bravo.gguf');
   });
 
   test('diagnostics reports the actual AI runtime status', async () => {

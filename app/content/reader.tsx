@@ -261,15 +261,15 @@ export default function GuideReaderScreen() {
               ref={pdfRef}
               source={pdfSource}
               page={initialPage}
-              onPageChanged={(page) => {
+              onPageChanged={(page: number) => {
                 setCurrentPage(page);
                 const currentSec = sections.find((s) => s.page === page);
                 if (currentSec && content.sectionTitle !== currentSec.title) {
                   setContent((prev) => prev ? { ...prev, sectionTitle: currentSec.title } : null);
                 }
               }}
-              onError={(err) => {
-                setWebViewLoadError(err && 'message' in err ? String((err as any).message) : String(err));
+              onError={(err: unknown) => {
+                setWebViewLoadError(err && typeof err === 'object' && 'message' in err ? String((err as any).message) : String(err));
               }}
               style={{ flex: 1, backgroundColor: '#000000' }}
             />

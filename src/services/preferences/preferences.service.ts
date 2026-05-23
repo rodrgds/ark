@@ -2,6 +2,8 @@ import { SettingsRepository } from '@/services/db/repositories/settings.repo';
 
 const MOTION_ENABLED_KEY = 'motion.enabled';
 const CHECKLIST_STATE_KEY = 'tools.readiness-checklist';
+const AI_MODEL_PICKER_ENABLED_KEY = 'ai.modelPickerEnabled';
+const AI_SELECTED_MODEL_ID_KEY = 'ai.selectedModelId';
 
 export type ReadinessChecklistState = Record<string, boolean>;
 
@@ -13,6 +15,24 @@ export class PreferencesService {
 
   static async setMotionEnabled(enabled: boolean) {
     await SettingsRepository.set(MOTION_ENABLED_KEY, enabled ? 'true' : 'false');
+  }
+
+  static async getAiModelPickerEnabled() {
+    const value = await SettingsRepository.get(AI_MODEL_PICKER_ENABLED_KEY);
+    return value !== 'false';
+  }
+
+  static async setAiModelPickerEnabled(enabled: boolean) {
+    await SettingsRepository.set(AI_MODEL_PICKER_ENABLED_KEY, enabled ? 'true' : 'false');
+  }
+
+  static async getSelectedAiModelId() {
+    const value = await SettingsRepository.get(AI_SELECTED_MODEL_ID_KEY);
+    return value || null;
+  }
+
+  static async setSelectedAiModelId(modelId: string | null) {
+    await SettingsRepository.set(AI_SELECTED_MODEL_ID_KEY, modelId ?? '');
   }
 
   static async getReadinessChecklist(): Promise<ReadinessChecklistState> {

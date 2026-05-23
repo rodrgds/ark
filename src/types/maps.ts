@@ -10,7 +10,7 @@ export type MapRegion = {
   minZoom?: number | null;
   maxZoom?: number | null;
   offlinePackId?: string | null;
-  status: 'not_downloaded' | 'queued' | 'downloading' | 'downloaded' | 'failed';
+  status: 'not_downloaded' | 'queued' | 'downloading' | 'downloaded' | 'failed' | 'paused';
   progress: number;
   sizeBytes?: number | null;
   createdAt: number;
@@ -47,7 +47,7 @@ export type SavedRoute = {
 
 export type OfflineMapSearchResult = {
   id: string;
-  kind: 'spot' | 'region' | 'route';
+  kind: 'spot' | 'region' | 'route' | 'poi';
   title: string;
   subtitle: string;
   latitude?: number | null;

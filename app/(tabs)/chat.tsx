@@ -7,18 +7,22 @@ import { Text } from '@/components/ui/text';
 import { Arky } from '@/components/brand/ark-logo';
 import { SAFETY_COPY } from '@/constants/app';
 import { AIService } from '@/services/ai/ai.service';
+import { ModelManagerService } from '@/services/ai/model-manager.service';
 import type { AiCitation, AiMessage } from '@/types/ai';
+import type { ContentPack } from '@/types/content';
 import { router } from 'expo-router';
-import { Bot, ExternalLink, Search, Send, StopCircle, Trash2 } from 'lucide-react-native';
+import { Bot, ChevronDown, ExternalLink, Send, StopCircle, Trash2 } from 'lucide-react-native';
 import * as React from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
-  KeyboardAvoidingView,
-  Platform,
+  Modal,
+  Pressable,
   View,
 } from 'react-native';
+import Animated, { useAnimatedKeyboard, useAnimatedStyle } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function CitationItem({ citation }: { citation: AiCitation }) {
   const location = [
@@ -27,6 +31,12 @@ function CitationItem({ citation }: { citation: AiCitation }) {
   ]
     .filter(Boolean)
     .join(' - ');
+  const actionLabel =
+    typeof citation.page === 'number'
+      ? `Open page ${citation.page}`
+      : citation.sectionTitle
+        ? 'Open chapter'
+        : 'Open source';
 
   return (
     <View className="gap-1">
@@ -41,10 +51,60 @@ function CitationItem({ citation }: { citation: AiCitation }) {
           className="self-start"
           onPress={() => router.push(citation.targetHref as never)}>
           <Icon as={ExternalLink} className="size-4" />
-          <Text>Open source</Text>
+          <Text>{actionLabel}</Text>
         </Button>
       ) : null}
     </View>
+  );
+}
+
+function ModelPill({
+  installedModels,
+  activeModel,
+  pickerEnabled,
+  disabled,
+  onOpen,
+}: {
+  installedModels: ContentPack[];
+  activeModel: ContentPack | null;
+  pickerEnabled: boolean;
+  disabled: boolean;
+  onOpen: () => void;
+}) {
+  const canSelect = pickerEnabled && installedModels.length > 1;
+  const label = activeModel?.title ?? 'No AI model downloaded';
+
+  if (!canSelect) {
+    return (
+      <View className="border-border bg-card min-h-12 flex-1 flex-row items-center gap-2 rounded-md border px-3">
+        <Icon as={Bot} className="text-primary size-4" />
+        <View className="min-w-0 flex-1">
+          <Text variant="small" className="text-muted-foreground uppercase">
+            AI model
+          </Text>
+          <Text numberOfLines={1}>{label}</Text>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <Button
+      className="min-h-12 flex-1 justify-between px-3"
+      variant="outline"
+      disabled={disabled}
+      onPress={onOpen}>
+      <View className="min-w-0 flex-1 flex-row items-center gap-2">
+        <Icon as={Bot} className="text-primary size-4" />
+        <View className="min-w-0 flex-1 items-start">
+          <Text variant="small" className="text-muted-foreground uppercase">
+            AI model
+          </Text>
+          <Text numberOfLines={1}>{label}</Text>
+        </View>
+      </View>
+      <Icon as={ChevronDown} className="size-4" />
+    </Button>
   );
 }
 
@@ -96,14 +156,22 @@ function StreamingBubble({ content }: { content: string }) {
 }
 
 export default function ChatScreen() {
+  const insets = useSafeAreaInsets();
   const [threadId, setThreadId] = React.useState<string | undefined>();
   const [messages, setMessages] = React.useState<AiMessage[]>([]);
   const [content, setContent] = React.useState('');
-  const [useRag, setUseRag] = React.useState(true);
+  const [installedModels, setInstalledModels] = React.useState<ContentPack[]>([]);
+  const [activeModel, setActiveModel] = React.useState<ContentPack | null>(null);
+  const [modelPickerEnabled, setModelPickerEnabled] = React.useState(true);
+  const [modelMenuOpen, setModelMenuOpen] = React.useState(false);
   const [sending, setSending] = React.useState(false);
   const [streamingText, setStreamingText] = React.useState('');
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const keyboard = useAnimatedKeyboard();
+  const composerStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: -Math.max(0, keyboard.height.value - insets.bottom + 14) }],
+  }));
 
   async function load() {
     setLoading(true);
@@ -112,6 +180,14 @@ export default function ChatScreen() {
       setThreadId(id);
       setMessages(await AIService.listMessages(id));
     }
+    const [models, model, preferences] = await Promise.all([
+      ModelManagerService.listInstalledModels(),
+      ModelManagerService.getActiveModel(),
+      ModelManagerService.getPreferences(),
+    ]);
+    setInstalledModels(models);
+    setActiveModel(model);
+    setModelPickerEnabled(preferences.modelPickerEnabled);
     setLoading(false);
   }
 
@@ -128,7 +204,7 @@ export default function ChatScreen() {
     setContent('');
     try {
       const result = await AIService.sendMessage(
-        { threadId, content: trimmed, useRag },
+        { threadId, content: trimmed, useRag: true },
         { onToken: setStreamingText }
       );
       setThreadId(result.threadId);
@@ -153,6 +229,12 @@ export default function ChatScreen() {
     await AIService.cancelActiveResponse();
   }
 
+  async function selectModel(model: ContentPack) {
+    await ModelManagerService.setSelectedModel(model.id);
+    setActiveModel(model);
+    setModelMenuOpen(false);
+  }
+
   function confirmClear() {
     if (!threadId) return;
     Alert.alert('Clear chat?', 'This removes the current local thread from this device.', [
@@ -164,36 +246,18 @@ export default function ChatScreen() {
   const data = React.useMemo(() => [...messages].reverse(), [messages]);
 
   return (
-    <KeyboardAvoidingView
-      className="bg-background flex-1"
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
-      <View className="border-border bg-background gap-3 border-b px-4 py-3">
-        <View className="flex-row items-start justify-between gap-3">
-          <View className="min-w-0 flex-1 gap-1">
-            <Text variant="h1" className="text-3xl">
-              Ask Arky
-            </Text>
-            <Text variant="muted">Local answers with offline source retrieval.</Text>
-          </View>
-          <Button
-            size="icon"
-            variant="ghost"
-            disabled={!threadId || sending}
-            onPress={confirmClear}>
-            <Icon as={Trash2} className="size-5" />
-          </Button>
-        </View>
-        <View className="flex-row gap-2">
-          <Button
-            className="flex-1"
-            size="sm"
-            variant={useRag ? 'default' : 'outline'}
-            onPress={() => setUseRag((value) => !value)}>
-            <Icon as={Search} className="size-4" />
-            <Text>{useRag ? 'Sources on' : 'Sources off'}</Text>
-          </Button>
-        </View>
+    <View className="bg-background flex-1">
+      <View className="border-border bg-background flex-row items-center gap-2 border-b px-4 py-3">
+        <ModelPill
+          installedModels={installedModels}
+          activeModel={activeModel}
+          pickerEnabled={modelPickerEnabled}
+          disabled={sending}
+          onOpen={() => setModelMenuOpen(true)}
+        />
+        <Button size="icon" variant="ghost" disabled={!threadId || sending} onPress={confirmClear}>
+          <Icon as={Trash2} className="size-5" />
+        </Button>
       </View>
 
       {loading ? (
@@ -208,7 +272,7 @@ export default function ChatScreen() {
           <Arky pose="scholar" size={160} />
           <Text variant="h3">Ask Arky</Text>
           <Text variant="muted" className="text-center">
-            Ask about downloaded guides, notes, or offline operating plans.
+            Ask about downloaded guides, notes, saved maps, cached alerts, or weather.
           </Text>
         </View>
       ) : (
@@ -243,21 +307,46 @@ export default function ChatScreen() {
         </View>
       ) : null}
 
-      <View className="border-border bg-card gap-2 border-t p-3">
+      <Animated.View
+        className="border-border bg-card gap-2 border-t p-3"
+        style={composerStyle}>
         <Text className="text-destructive text-xs">{SAFETY_COPY.ai}</Text>
         <View className="flex-row items-end gap-2">
           <Input
             className="max-h-32 min-h-12 flex-1"
             value={content}
             onChangeText={setContent}
-            placeholder="Ask an offline question"
+            placeholder="Ask Arky a question"
             multiline
           />
           <Button size="icon" onPress={send} disabled={sending || !content.trim()}>
             {sending ? <ActivityIndicator /> : <Icon as={Send} className="size-5" />}
           </Button>
         </View>
-      </View>
-    </KeyboardAvoidingView>
+      </Animated.View>
+
+      <Modal
+        visible={modelMenuOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setModelMenuOpen(false)}>
+        <Pressable
+          className="flex-1 justify-end bg-black/60 p-4"
+          onPress={() => setModelMenuOpen(false)}>
+          <Pressable className="bg-card border-border gap-2 rounded-lg border p-3">
+            <Text variant="large">Choose AI model</Text>
+            {installedModels.map((model) => (
+              <Button
+                key={model.id}
+                className="justify-start"
+                variant={activeModel?.id === model.id ? 'default' : 'outline'}
+                onPress={() => void selectModel(model)}>
+                <Text numberOfLines={1}>{model.title}</Text>
+              </Button>
+            ))}
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </View>
   );
 }

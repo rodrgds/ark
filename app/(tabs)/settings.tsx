@@ -11,19 +11,22 @@ import { FileSystemService } from '@/services/files/filesystem.service';
 import { PreferencesService } from '@/services/preferences/preferences.service';
 import { VaultService } from '@/services/security/vault.service';
 import { useThemeStore } from '@/stores/theme-store';
-import { Link } from 'expo-router';
+import type { ContentPack } from '@/types/content';
+import { Link, useLocalSearchParams } from 'expo-router';
 import * as React from 'react';
-import { ActivityIndicator, Alert, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, View } from 'react-native';
 
-type SettingsTab = 'appearance' | 'security' | 'storage';
+type SettingsTab = 'appearance' | 'security' | 'ai' | 'storage';
 
 const SETTINGS_TABS: Array<{ value: SettingsTab; label: string }> = [
   { value: 'appearance', label: 'Appearance' },
   { value: 'security', label: 'Security' },
+  { value: 'ai', label: 'AI' },
   { value: 'storage', label: 'Storage' },
 ];
 
 export default function SettingsScreen() {
+  const { tab } = useLocalSearchParams<{ tab?: SettingsTab }>();
   const preference = useThemeStore((state) => state.preference);
   const setPreference = useThemeStore((state) => state.setPreference);
   const [activeTab, setActiveTab] = React.useState<SettingsTab>('appearance');
@@ -33,6 +36,9 @@ export default function SettingsScreen() {
   const [passwordHint, setPasswordHint] = React.useState('');
   const [biometricsEnabled, setBiometricsEnabled] = React.useState(false);
   const [motionEnabled, setMotionEnabled] = React.useState(true);
+  const [modelPickerEnabled, setModelPickerEnabled] = React.useState(true);
+  const [installedModels, setInstalledModels] = React.useState<ContentPack[]>([]);
+  const [activeModel, setActiveModel] = React.useState<ContentPack | null>(null);
   const [storage, setStorage] = React.useState<Awaited<
     ReturnType<typeof FileSystemService.getStorageSummary>
   > | null>(null);
@@ -44,24 +50,43 @@ export default function SettingsScreen() {
 
   React.useEffect(() => {
     async function load() {
-      const [vault, biometricState, motionState, storageState, nextModelStatus] = await Promise.all(
-        [
-          SettingsRepository.getVaultState(),
-          VaultService.getBiometricsEnabled(),
-          PreferencesService.getMotionEnabled(),
-          FileSystemService.getStorageSummary(),
-          ModelManagerService.getStatus(),
-        ]
-      );
+      const [
+        vault,
+        biometricState,
+        motionState,
+        storageState,
+        nextModelStatus,
+        nextInstalledModels,
+        nextActiveModel,
+        aiPreferences,
+      ] = await Promise.all([
+        SettingsRepository.getVaultState(),
+        VaultService.getBiometricsEnabled(),
+        PreferencesService.getMotionEnabled(),
+        FileSystemService.getStorageSummary(),
+        ModelManagerService.getStatus(),
+        ModelManagerService.listInstalledModels(),
+        ModelManagerService.getActiveModel(),
+        ModelManagerService.getPreferences(),
+      ]);
       setAutoLock(vault.autoLockMinutes);
       setPasswordHint(vault.passwordHint ?? '');
       setBiometricsEnabled(biometricState);
       setMotionEnabled(motionState);
       setStorage(storageState);
       setModelStatus(nextModelStatus);
+      setInstalledModels(nextInstalledModels);
+      setActiveModel(nextActiveModel);
+      setModelPickerEnabled(aiPreferences.modelPickerEnabled);
     }
     void load();
   }, []);
+
+  React.useEffect(() => {
+    if (tab && SETTINGS_TABS.some((item) => item.value === tab)) {
+      setActiveTab(tab);
+    }
+  }, [tab]);
 
   async function setLockMinutes(minutes: number) {
     await SettingsRepository.updateVaultState({ autoLockMinutes: minutes });
@@ -110,6 +135,19 @@ export default function SettingsScreen() {
     await PreferencesService.setMotionEnabled(next);
   }
 
+  async function toggleModelPicker() {
+    const next = !modelPickerEnabled;
+    setModelPickerEnabled(next);
+    await ModelManagerService.setModelPickerEnabled(next);
+    setModelStatus(await ModelManagerService.getStatus());
+  }
+
+  async function selectModel(model: ContentPack) {
+    await ModelManagerService.setSelectedModel(model.id);
+    setActiveModel(model);
+    setModelStatus(await ModelManagerService.getStatus());
+  }
+
   const currentTheme = THEME_OPTIONS.find((option) => option.value === preference);
 
   return (
@@ -122,18 +160,22 @@ export default function SettingsScreen() {
         <Arky pose="signal" size={52} />
       </View>
 
-      <View className="border-border bg-card flex-row rounded-lg border p-1">
-        {SETTINGS_TABS.map((tab) => (
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        className="border-border bg-card rounded-lg border"
+        contentContainerStyle={{ gap: 4, padding: 4 }}>
+        {SETTINGS_TABS.map((tabItem) => (
           <Button
-            key={tab.value}
-            className="flex-1"
+            key={tabItem.value}
+            className="min-w-28 px-3"
             size="sm"
-            variant={activeTab === tab.value ? 'default' : 'ghost'}
-            onPress={() => setActiveTab(tab.value)}>
-            <Text>{tab.label}</Text>
+            variant={activeTab === tabItem.value ? 'default' : 'ghost'}
+            onPress={() => setActiveTab(tabItem.value)}>
+            <Text numberOfLines={1}>{tabItem.label}</Text>
           </Button>
         ))}
-      </View>
+      </ScrollView>
 
       {activeTab === 'appearance' ? (
         <>
@@ -251,6 +293,81 @@ export default function SettingsScreen() {
         </>
       ) : null}
 
+      {activeTab === 'ai' ? (
+        <>
+          <Card className="gap-3">
+            <View className="gap-1">
+              <Text variant="large">Local AI</Text>
+              <Text>
+                {modelStatus
+                  ? modelStatus.adapter === 'llama'
+                    ? 'Local runtime ready'
+                    : `${modelStatus.installedModels} model file(s) installed`
+                  : 'Checking model status...'}
+              </Text>
+              {modelStatus ? <Text variant="muted">{modelStatus.message}</Text> : null}
+            </View>
+            <View className="flex-row flex-wrap gap-2">
+              <Link href="/(tabs)/library" asChild>
+                <Button className="flex-1" variant="outline">
+                  <Text>Models</Text>
+                </Button>
+              </Link>
+              <Link href="/tools/diagnostics" asChild>
+                <Button className="flex-1" variant="outline">
+                  <Text>Diagnostics</Text>
+                </Button>
+              </Link>
+            </View>
+          </Card>
+
+          <Card className="gap-3">
+            <View className="flex-row items-center justify-between gap-3">
+              <View className="min-w-0 flex-1 gap-1">
+                <Text variant="large">Chat model selector</Text>
+                <Text variant="muted">
+                  Allow Ask Arky to switch between downloaded GGUF models.
+                </Text>
+              </View>
+              <Button
+                size="sm"
+                variant={modelPickerEnabled ? 'default' : 'outline'}
+                onPress={toggleModelPicker}>
+                <Text>{modelPickerEnabled ? 'On' : 'Off'}</Text>
+              </Button>
+            </View>
+          </Card>
+
+          <Card className="gap-3">
+            <View className="gap-1">
+              <Text variant="large">Active model</Text>
+              <Text variant="muted">
+                {activeModel
+                  ? activeModel.title
+                  : 'Download or import a GGUF model before choosing one.'}
+              </Text>
+            </View>
+            {installedModels.length > 1 ? (
+              <View className="gap-2">
+                {installedModels.map((model) => (
+                  <Button
+                    key={model.id}
+                    className="justify-start"
+                    variant={activeModel?.id === model.id ? 'default' : 'outline'}
+                    onPress={() => void selectModel(model)}>
+                    <Text numberOfLines={1}>{model.title}</Text>
+                  </Button>
+                ))}
+              </View>
+            ) : installedModels.length === 1 ? (
+              <View className="border-border rounded-md border px-3 py-2">
+                <Text>{installedModels[0]?.title}</Text>
+              </View>
+            ) : null}
+          </Card>
+        </>
+      ) : null}
+
       {activeTab === 'storage' ? (
         <>
           <Card className="gap-3">
@@ -275,37 +392,6 @@ export default function SettingsScreen() {
                 ))}
               </View>
             ) : null}
-          </Card>
-
-          <Card className="gap-3">
-            <View className="gap-1">
-              <Text variant="large">Local AI</Text>
-              <Text>
-                {modelStatus
-                  ? modelStatus.adapter === 'llama'
-                    ? 'Offline model ready'
-                    : `${modelStatus.installedModels} model file(s) installed`
-                  : 'Checking model status...'}
-              </Text>
-              {modelStatus ? <Text variant="muted">{modelStatus.message}</Text> : null}
-            </View>
-            <View className="flex-row flex-wrap gap-2">
-              <Link href="/(tabs)/library" asChild>
-                <Button className="flex-1" variant="outline">
-                  <Text>Content</Text>
-                </Button>
-              </Link>
-              <Link href="/(tabs)/map" asChild>
-                <Button className="flex-1" variant="outline">
-                  <Text>Maps</Text>
-                </Button>
-              </Link>
-              <Link href="/tools/diagnostics" asChild>
-                <Button className="flex-1" variant="outline">
-                  <Text>Diagnostics</Text>
-                </Button>
-              </Link>
-            </View>
           </Card>
 
           <Card className="gap-2">

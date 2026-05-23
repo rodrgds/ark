@@ -1,5 +1,6 @@
 import { SAFETY_COPY } from '@/constants/app';
 import { ContentPackService } from '@/services/content/content-pack.service';
+import { PreferencesService } from '@/services/preferences/preferences.service';
 import type { AiAdapterResponse } from '@/types/ai';
 import type { AiAdapterSendInput } from '@/types/ai';
 
@@ -8,11 +9,13 @@ type LlamaContext = Awaited<ReturnType<LlamaModule['initLlama']>>;
 
 let llamaModulePromise: Promise<LlamaModule | null> | null = null;
 let contextPromise: Promise<LlamaContext | null> | null = null;
+let contextModelUri: string | null = null;
 let activeCompletionContext: LlamaContext | null = null;
 
 export function resetLlamaAdapterForTests() {
   llamaModulePromise = null;
   contextPromise = null;
+  contextModelUri = null;
   activeCompletionContext = null;
 }
 
@@ -50,28 +53,30 @@ export class LlamaAdapter {
       : 'No retrieved sources.';
     let streamedText = '';
     activeCompletionContext = context;
-    const result = (await context.completion(
-      {
-        messages: [
-          {
-            role: 'system',
-            content: `You are Ark, an offline survival-grade assistant. Be concise, cite retrieved local sources when relevant, and include this safety rule: ${SAFETY_COPY.ai}`,
-          },
-          {
-            role: 'user',
-            content: `Retrieved local sources:\n${sourceText}\n\nUser question:\n${input.content}`,
-          },
-        ],
-        n_predict: 384,
-        temperature: 0.2,
-      },
-      (data) => {
-        streamedText = data.accumulated_text ?? `${streamedText}${data.token ?? ''}`;
-        if (streamedText) input.onToken?.(streamedText);
-      }
-    ).finally(() => {
-      if (activeCompletionContext === context) activeCompletionContext = null;
-    })) as { text?: string; content?: string };
+    const result = (await context
+      .completion(
+        {
+          messages: [
+            {
+              role: 'system',
+              content: `You are Ark, an offline survival-grade assistant. Be concise, cite retrieved local sources when relevant, and include this safety rule: ${SAFETY_COPY.ai}`,
+            },
+            {
+              role: 'user',
+              content: `Retrieved local sources:\n${sourceText}\n\nUser question:\n${input.content}`,
+            },
+          ],
+          n_predict: 384,
+          temperature: 0.2,
+        },
+        (data) => {
+          streamedText = data.accumulated_text ?? `${streamedText}${data.token ?? ''}`;
+          if (streamedText) input.onToken?.(streamedText);
+        }
+      )
+      .finally(() => {
+        if (activeCompletionContext === context) activeCompletionContext = null;
+      })) as { text?: string; content?: string };
 
     return {
       content:
@@ -114,22 +119,29 @@ async function getInstalledModel() {
   const models = (await ContentPackService.listPacks()).filter(
     (pack) => pack.category === 'AI Models' && pack.installed && pack.localUri
   );
-  return models[0] ?? null;
+  const selectedId = await PreferencesService.getSelectedAiModelId();
+  return models.find((model) => model.id === selectedId) ?? models[0] ?? null;
 }
 
 async function getContext() {
-  if (!contextPromise) {
-    contextPromise = (async () => {
+  const model = await getInstalledModel();
+  if (!model?.localUri) {
+    contextPromise = null;
+    contextModelUri = null;
+    return null;
+  }
+  if (!contextPromise || contextModelUri !== model.localUri) {
+    contextModelUri = model.localUri;
+    contextPromise = (async (modelUri: string) => {
       const module = await loadLlamaModule();
-      const model = await getInstalledModel();
-      if (!module || !model?.localUri) return null;
+      if (!module) return null;
       return module.initLlama({
-        model: model.localUri,
+        model: modelUri,
         n_ctx: contextTokensForModel(model.sizeBytes ?? null),
         n_gpu_layers: 0,
         ctx_shift: true,
       });
-    })().catch(() => null);
+    })(model.localUri).catch(() => null);
   }
   return contextPromise;
 }

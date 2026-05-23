@@ -289,6 +289,16 @@ describe('repositories', () => {
     expect(marker?.id).toBe(markerId);
     expect(marker?.photoUri).toBe('file:///ark/maps/water.jpg');
 
+    await MapsRepository.updateMarker(markerId, {
+      title: 'Filtered water',
+      description: 'Spring near the north track',
+      photoUri: 'file:///ark/maps/spring.jpg',
+    });
+    const updatedMarker = await MapsRepository.getMarker(markerId);
+    expect(updatedMarker?.title).toBe('Filtered water');
+    expect(updatedMarker?.description).toBe('Spring near the north track');
+    expect(updatedMarker?.photoUri).toBe('file:///ark/maps/spring.jpg');
+
     const routeId = await MapsRepository.createRoute({
       title: 'Walk out',
       points: [

@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { ArkMark } from '@/components/brand/ark-logo';
+import { FunctionSearchButton } from '@/components/layout/function-search';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { useAuthStore } from '@/stores/auth-store';
@@ -32,7 +33,8 @@ export function LockStateBar() {
           <Text variant="small">{unlocked ? 'Vault unlocked' : 'Vault locked'}</Text>
         </View>
 
-        <View className="flex-row items-center gap-4">
+        <View className="flex-row items-center gap-2">
+          <FunctionSearchButton />
           <View className="flex-row items-center gap-1.5">
             <View className={`h-2 w-2 rounded-full ${isOnline ? 'bg-green-500' : 'bg-red-500'}`} />
             <Text variant="small" className="text-muted-foreground text-[10px] font-bold uppercase">

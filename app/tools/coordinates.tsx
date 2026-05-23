@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Text } from '@/components/ui/text';
 import { OfflineMapService } from '@/services/maps/offline-map.service';
+import { router } from 'expo-router';
 import * as Location from 'expo-location';
 import * as React from 'react';
 import { ActivityIndicator, Alert, View } from 'react-native';
@@ -36,13 +37,23 @@ export default function CoordinatesTool() {
 
   async function saveSpot() {
     if (!fix) return;
-    await OfflineMapService.createMarker({
+    const markerId = await OfflineMapService.createMarker({
       title: `Captured position ${new Date(fix.capturedAt).toLocaleTimeString()}`,
       description: `Accuracy ${formatMeters(fix.accuracy)}. Saved from Coordinates tool.`,
       latitude: fix.latitude,
       longitude: fix.longitude,
     });
-    Alert.alert('Spot saved', 'This position is now available in Map.');
+    Alert.alert('Spot saved', 'This position is now available in Map.', [
+      { text: 'Stay here', style: 'cancel' },
+      {
+        text: 'Open Map',
+        onPress: () =>
+          router.push({
+            pathname: '/(tabs)/map',
+            params: { markerId },
+          }),
+      },
+    ]);
   }
 
   return (

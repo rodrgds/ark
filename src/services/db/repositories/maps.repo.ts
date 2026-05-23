@@ -88,7 +88,7 @@ export class MapsRepository {
   static async listRegions() {
     const db = await DatabaseClient.getDb();
     const rows = await db.getAllAsync<Parameters<typeof mapRegion>[0]>(
-      'SELECT * FROM map_regions ORDER BY updated_at DESC'
+      'SELECT * FROM map_regions ORDER BY created_at DESC'
     );
     return rows.map(mapRegion);
   }
@@ -223,6 +223,26 @@ export class MapsRepository {
       ]
     );
     return id;
+  }
+
+  static async updateMarker(
+    id: string,
+    marker: {
+      title: string;
+      description?: string | null;
+      photoUri?: string | null;
+    }
+  ) {
+    const db = await DatabaseClient.getDb();
+    await db.runAsync(
+      `UPDATE map_markers
+       SET title = ?,
+           description = ?,
+           photo_uri = ?,
+           updated_at = ?
+       WHERE id = ?`,
+      [marker.title, marker.description ?? null, marker.photoUri ?? null, Date.now(), id]
+    );
   }
 
   static async deleteMarker(id: string) {

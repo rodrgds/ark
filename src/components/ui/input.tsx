@@ -13,9 +13,13 @@ function getPlaceholderColor(): string {
   }
 }
 
-export function Input({ className, placeholderTextColor, ...props }: TextInputProps) {
+export const Input = React.forwardRef<TextInput, TextInputProps>(function Input(
+  { className, placeholderTextColor, ...props },
+  ref
+) {
   return (
     <TextInput
+      ref={ref}
       className={cn(
         'border-border bg-card text-foreground min-h-12 rounded-md border px-4 py-3 text-base',
         className
@@ -24,4 +28,4 @@ export function Input({ className, placeholderTextColor, ...props }: TextInputPr
       {...props}
     />
   );
-}
+});

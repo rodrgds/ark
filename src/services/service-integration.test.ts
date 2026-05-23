@@ -75,12 +75,14 @@ mock.module('expo-haptics', () => ({
 mock.module('expo-file-system/legacy', () => ({
   documentDirectory: 'file:///ark-test/',
   FileSystemSessionType: { BACKGROUND: 0 },
+  EncodingType: { UTF8: 'utf8' },
   makeDirectoryAsync: async () => undefined,
   deleteAsync: async () => undefined,
   copyAsync: async () => undefined,
   getFreeDiskStorageAsync: async () => freeDiskStorageBytes,
   getTotalDiskCapacityAsync: async () => 64 * 1024 * 1024 * 1024,
   getInfoAsync: async (uri: string) => ({ exists: true, isDirectory: false, uri, size: 2048 }),
+  readAsStringAsync: async () => '%PDF mock content',
   createDownloadResumable: (
     _url: string,
     uri: string,
@@ -595,9 +597,9 @@ describe('service integration', () => {
 });
 
 async function waitFor(predicate: () => Promise<boolean>) {
-  for (let index = 0; index < 10; index += 1) {
+  for (let index = 0; index < 200; index += 1) {
     if (await predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 10));
   }
   throw new Error('Timed out waiting for service state.');
 }

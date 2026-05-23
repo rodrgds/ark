@@ -29,4 +29,20 @@ describe('MapService runtime status', () => {
     expect(MapService.isDemoStyle('https://demotiles.maplibre.org/style.json')).toBe(true);
     expect(MapService.isDemoStyle('https://example.test/style.json')).toBe(false);
   });
+
+  test('guards MapLibre network mode behind the native manager', () => {
+    const calls: boolean[] = [];
+
+    MapService.setNetworkConnected(
+      {
+        NetworkManager: {
+          setConnected: (connected: boolean) => calls.push(connected),
+        },
+      } as never,
+      false
+    );
+    MapService.setNetworkConnected(null, true);
+
+    expect(calls).toEqual([false]);
+  });
 });

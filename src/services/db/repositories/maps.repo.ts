@@ -151,22 +151,28 @@ export class MapsRepository {
     }
   ) {
     const db = await DatabaseClient.getDb();
+    const sets = ['status = ?', 'updated_at = ?'];
+    const params: Array<string | number | null> = [patch.status, Date.now()];
+
+    if ('progress' in patch) {
+      sets.splice(1, 0, 'progress = ?');
+      params.splice(1, 0, patch.progress ?? null);
+    }
+    if ('offlinePackId' in patch) {
+      sets.splice(1, 0, 'offline_pack_id = ?');
+      params.splice(1, 0, patch.offlinePackId ?? null);
+    }
+    if ('sizeBytes' in patch) {
+      sets.splice(1, 0, 'size_bytes = ?');
+      params.splice(1, 0, patch.sizeBytes ?? null);
+    }
+    params.push(id);
+
     await db.runAsync(
       `UPDATE map_regions
-       SET status = ?,
-           progress = COALESCE(?, progress),
-           offline_pack_id = COALESCE(?, offline_pack_id),
-           size_bytes = COALESCE(?, size_bytes),
-           updated_at = ?
+       SET ${sets.join(',\n           ')}
        WHERE id = ?`,
-      [
-        patch.status,
-        patch.progress ?? null,
-        patch.offlinePackId ?? null,
-        patch.sizeBytes ?? null,
-        Date.now(),
-        id,
-      ]
+      params
     );
   }
 

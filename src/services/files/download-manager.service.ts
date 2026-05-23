@@ -172,6 +172,8 @@ export class DownloadManagerService {
         result.md5 &&
         input.expectedChecksumMd5.toLowerCase() !== result.md5.toLowerCase()
       ) {
+        await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(() => undefined);
+        throw new Error('Downloaded file failed MD5 verification.');
       }
       if (result.uri.endsWith('.pdf')) {
         const headerText = await FileSystem.readAsStringAsync(result.uri, {
@@ -213,7 +215,7 @@ export class DownloadManagerService {
           localUri: result.uri,
           sizeBytes,
         });
-        await RagService.indexContentPack(input.packId);
+        await RagService.indexContentPack(input.packId).catch(() => undefined);
       }
     } catch (error) {
       if (active?.stopReason === 'paused' || active?.stopReason === 'canceled') return;

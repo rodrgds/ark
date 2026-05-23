@@ -6,8 +6,8 @@ export type MapTheme = 'oled' | 'dark' | 'light';
 export const LEGACY_DEMO_MAP_STYLE_URL = 'https://demotiles.maplibre.org/style.json';
 export const DEFAULT_MAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
 
-const OPENMAPTILES_SOURCE_URL = 'https://demotiles.maplibre.org/tiles/tiles.json';
-const OPENMAPTILES_GLYPHS_URL = 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf';
+const OPENMAPTILES_SOURCE_URL = 'https://tiles.openfreemap.org/planet';
+const OPENMAPTILES_GLYPHS_URL = 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf';
 const STYLE_REACHABILITY_TIMEOUT_MS = 4500;
 
 const OPENFREEMAP_STYLE_URLS: Record<MapTheme, string> = {
@@ -108,13 +108,18 @@ export class MapService {
     return this.getDefaultStyleUrl(theme);
   }
 
-  /**
-   * Returns the local JSON style spec — always works offline.
-   * Use this for downloaded regions so the style never needs a network fetch.
-   * MapLibre's offline pack intercepts the tile requests that were cached at download time.
-   */
   static getLocalStyle(theme: MapTheme = 'oled'): StyleSpecification {
     return createTacticalStyle(theme);
+  }
+
+  static setNetworkConnected(maplibre: MapLibreModule | null, connected: boolean) {
+    const manager = maplibre?.NetworkManager;
+    if (!manager) return;
+    try {
+      manager.setConnected(connected);
+    } catch {
+      // The network manager is native-only. Expo Go and partial native builds can omit it.
+    }
   }
 
   static async canReachStyle(theme: MapTheme = 'light') {

@@ -92,17 +92,20 @@ export default function MapScreen() {
     [downloadedRegions, selectedRegionId]
   );
   const mapStyle = React.useMemo(() => {
-    // If a downloaded offline pack is selected, always use the local JSON style.
-    // MapLibre's offline pack intercepts the tile requests that were cached at download time,
-    // so the map renders fully offline. Using the remote styleUrl here would fail offline.
     if (selectedRegion?.status === 'downloaded') {
       return MapService.getLocalStyle(theme);
     }
-    // No offline region selected — use themed remote style (requires internet)
     return MapService.getThemedStyle(theme);
   }, [selectedRegion, theme]);
   const mapStyleUrl =
     typeof mapStyle === 'string' ? mapStyle : MapService.getDefaultStyleUrl(theme);
+  const mapInstanceKey =
+    typeof mapStyle === 'string'
+      ? mapStyle
+      : `offline:${selectedRegion?.id ?? 'none'}:${selectedRegion?.minZoom ?? '-'}:${
+          selectedRegion?.maxZoom ?? '-'
+        }`;
+  const activeMapKeyRef = React.useRef(mapInstanceKey);
   const status = MapService.getRuntimeStatus(maplibre, maplibreChecked);
   const nativeMapAvailable = Boolean(getMapComponent(maplibre) && getCameraComponent(maplibre));
   // Allow mounting the map if:
@@ -154,6 +157,12 @@ export default function MapScreen() {
   }, [fullscreen, navigation]);
 
   React.useEffect(() => {
+    activeMapKeyRef.current = mapInstanceKey;
+    setMapReady(false);
+    cameraRef.current = null;
+  }, [canMountMap, mapInstanceKey]);
+
+  React.useEffect(() => {
     let canceled = false;
     if (!maplibre) {
       setStyleReachable(null);
@@ -178,6 +187,11 @@ export default function MapScreen() {
     };
   }, [maplibre, mapStyleUrl, hasDownloadedRegion]);
 
+  React.useEffect(() => {
+    if (!maplibre || !nativeMapAvailable) return;
+    MapService.setNetworkConnected(maplibre, !hasDownloadedRegion);
+    return () => MapService.setNetworkConnected(maplibre, true);
+  }, [hasDownloadedRegion, maplibre, nativeMapAvailable]);
 
   React.useEffect(() => {
     const hasActiveDownloads = regions.some((region) => region.status === 'downloading');
@@ -328,10 +342,12 @@ export default function MapScreen() {
     setBusy(`download:${regionId}`);
     setError(null);
     try {
+      MapService.setNetworkConnected(maplibre, true);
       const result = await OfflineMapService.refreshRegion(regionId);
       if (!result.ok) setError(result.reason ?? 'Unable to download this map region.');
     } finally {
       await load({ syncNative: true });
+      MapService.setNetworkConnected(maplibre, !hasDownloadedRegion);
       setBusy(null);
     }
   }
@@ -391,29 +407,34 @@ export default function MapScreen() {
 
   function centerOn(nextCenter: LngLat, zoom = 13) {
     setCenter(nextCenter);
-    if (cameraRef.current?.flyTo) {
+    if (!mapReady || !canMountMap) return;
+    if (cameraRef.current?.flyTo)
       cameraRef.current.flyTo({ center: nextCenter, zoom, duration: 650 });
-    } else {
-      cameraRef.current?.easeTo?.({ center: nextCenter, zoom, duration: 650 });
-    }
+    else cameraRef.current?.easeTo?.({ center: nextCenter, zoom, duration: 650 });
   }
 
   function fitRegion(region: MapRegion) {
     const bounds = regionBounds(region);
     if (!bounds) return;
     const [west, south, east, north] = bounds;
-    // Camera.fitBounds(ne, sw, paddingNumber, durationMs) — padding must be a number, not an object
-    cameraRef.current?.fitBounds?.([east, north], [west, south], 42, 650);
     setCenter([(west + east) / 2, (south + north) / 2]);
+    if (!mapReady || !canMountMap) return;
+    cameraRef.current?.fitBounds?.([west, south, east, north], {
+      padding: mapPadding(42),
+      duration: 650,
+    });
   }
 
   function centerOnRoute(route: SavedRoute) {
     const bounds = routeBounds(route);
     if (!bounds) return;
     const [west, south, east, north] = bounds;
-    // Camera.fitBounds(ne, sw, paddingNumber, durationMs) — padding must be a number, not an object
-    cameraRef.current?.fitBounds?.([east, north], [west, south], 64, 650);
     setCenter([(west + east) / 2, (south + north) / 2]);
+    if (!mapReady || !canMountMap) return;
+    cameraRef.current?.fitBounds?.([west, south, east, north], {
+      padding: mapPadding(64),
+      duration: 650,
+    });
   }
 
   function openSearchResult(result: OfflineMapSearchResult) {
@@ -445,6 +466,7 @@ export default function MapScreen() {
         center={regionCenter(selectedRegion) ?? center}
         checkingSource={checkingStyle}
         fullscreen={fullscreen}
+        mapKey={mapInstanceKey}
         mapStyle={mapStyle}
         maplibre={maplibre}
         markers={markers}
@@ -454,9 +476,21 @@ export default function MapScreen() {
         onCenterChange={setCenter}
         onLongPress={openSpotDialog}
         onMapLoadFailed={() =>
-          setError('Map source failed to load. Select a downloaded map or retry with internet.')
+          setError(
+            selectedRegion
+              ? 'Offline map pack is incomplete or unavailable. Retry the map download while online.'
+              : 'Map source failed to load. Select a downloaded map or retry with internet.'
+          )
         }
-        onMapReady={() => setMapReady(true)}
+        onMapReady={(readyKey) => {
+          if (readyKey === activeMapKeyRef.current) setMapReady(true);
+        }}
+        onMapUnmount={(deadKey) => {
+          if (deadKey === activeMapKeyRef.current) {
+            setMapReady(false);
+            cameraRef.current = null;
+          }
+        }}
         onMarkerPress={(marker) => centerOn([marker.longitude, marker.latitude], 14)}
       />
 
@@ -579,6 +613,7 @@ function MapCanvas({
   center,
   checkingSource,
   fullscreen,
+  mapKey,
   mapStyle,
   maplibre,
   markers,
@@ -589,6 +624,7 @@ function MapCanvas({
   onLongPress,
   onMapLoadFailed,
   onMapReady,
+  onMapUnmount,
   onMarkerPress,
 }: {
   cameraRef: React.MutableRefObject<any>;
@@ -596,6 +632,7 @@ function MapCanvas({
   center: LngLat;
   checkingSource: boolean;
   fullscreen: boolean;
+  mapKey: string;
   mapStyle: unknown;
   maplibre: MapLibreModule | null;
   markers: MapMarker[];
@@ -605,17 +642,19 @@ function MapCanvas({
   onCenterChange: (center: LngLat) => void;
   onLongPress: (center: LngLat) => void;
   onMapLoadFailed: () => void;
-  onMapReady: () => void;
+  onMapReady: (mapKey: string) => void;
+  onMapUnmount: (mapKey: string) => void;
   onMarkerPress: (marker: MapMarker) => void;
 }) {
   const Map = getMapComponent(maplibre);
   const Camera = getCameraComponent(maplibre);
-  const Marker = getMarkerComponent(maplibre);
   const GeoJSONSource = getGeoJSONSourceComponent(maplibre);
   const Layer = getLayerComponent(maplibre);
   const UserLocation = getUserLocationComponent(maplibre);
   const routeData = React.useMemo(() => routeFeatureCollection(routes), [routes]);
-  const mapKey = typeof mapStyle === 'string' ? mapStyle : 'json-style';
+  const markerData = React.useMemo(() => markerFeatureCollection(markers), [markers]);
+
+  React.useEffect(() => () => onMapUnmount(mapKey), [mapKey]);
 
   if (!Map || !Camera || !canMount) {
     return (
@@ -645,7 +684,7 @@ function MapCanvas({
       compass
       scaleBar={fullscreen}
       onDidFailLoadingMap={onMapLoadFailed}
-      onDidFinishLoadingMap={onMapReady}
+      onDidFinishLoadingMap={() => onMapReady(mapKey)}
       onLongPress={(event: any) => onLongPress(event.nativeEvent.lngLat)}
       onRegionDidChange={(event: any) => onCenterChange(event.nativeEvent.center)}>
       <Camera
@@ -671,21 +710,38 @@ function MapCanvas({
           />
         </GeoJSONSource>
       ) : null}
-      {Marker
-        ? markers.map((marker) => (
-            <Marker
-              key={marker.id}
-              id={marker.id}
-              lngLat={[marker.longitude, marker.latitude]}
-              anchor="bottom"
-              onPress={() => onMarkerPress(marker)}>
-              <View className="items-center">
-                <View className="border-background bg-primary size-5 rounded-full border-2" />
-                <View className="bg-primary h-2 w-0.5" />
-              </View>
-            </Marker>
-          ))
-        : null}
+      {GeoJSONSource && Layer && markers.length ? (
+        <GeoJSONSource
+          id="ark-markers"
+          data={markerData}
+          hitbox={{ top: 18, right: 18, bottom: 18, left: 18 }}
+          onPress={(event: any) => {
+            const markerId = event.nativeEvent.features?.[0]?.properties?.markerId;
+            const marker = markers.find((item) => item.id === markerId);
+            if (marker) onMarkerPress(marker);
+          }}>
+          <Layer
+            id="ark-marker-halo"
+            type="circle"
+            style={{
+              circleColor: '#050316',
+              circleOpacity: 0.95,
+              circleRadius: ['interpolate', ['linear'], ['zoom'], 6, 5, 14, 8],
+              circleStrokeColor: '#F2B84B',
+              circleStrokeWidth: 2,
+            }}
+          />
+          <Layer
+            id="ark-marker-core"
+            type="circle"
+            style={{
+              circleColor: '#F2B84B',
+              circleOpacity: 1,
+              circleRadius: ['interpolate', ['linear'], ['zoom'], 6, 2.5, 14, 4.5],
+            }}
+          />
+        </GeoJSONSource>
+      ) : null}
     </Map>
   );
 }
@@ -1315,10 +1371,6 @@ function getCameraComponent(maplibre: MapLibreModule | null) {
   return getMapLibreExport(maplibre, 'Camera');
 }
 
-function getMarkerComponent(maplibre: MapLibreModule | null) {
-  return getMapLibreExport(maplibre, 'Marker');
-}
-
 function getGeoJSONSourceComponent(maplibre: MapLibreModule | null) {
   return getMapLibreExport(maplibre, 'GeoJSONSource');
 }
@@ -1354,11 +1406,32 @@ function routeFeatureCollection(routes: SavedRoute[]) {
   };
 }
 
+function markerFeatureCollection(markers: MapMarker[]) {
+  return {
+    type: 'FeatureCollection',
+    features: markers.map((marker) => ({
+      type: 'Feature',
+      properties: {
+        markerId: marker.id,
+        title: marker.title,
+      },
+      geometry: {
+        type: 'Point',
+        coordinates: [marker.longitude, marker.latitude],
+      },
+    })),
+  };
+}
+
 function regionBounds(region: MapRegion): [number, number, number, number] | null {
   if (region.west == null || region.south == null || region.east == null || region.north == null) {
     return null;
   }
   return [region.west, region.south, region.east, region.north];
+}
+
+function mapPadding(value: number) {
+  return { top: value, right: value, bottom: value, left: value };
 }
 
 function regionCenter(region: MapRegion | null): LngLat | null {

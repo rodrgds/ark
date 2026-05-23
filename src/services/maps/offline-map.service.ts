@@ -39,14 +39,31 @@ export class OfflineMapService {
     await Promise.all(
       regions.map(async (region) => {
         const pack = packs.find((candidate) => isPackForRegion(candidate, region));
-        if (!pack) return;
+        if (!pack) {
+          if (region.status === 'downloaded' || region.status === 'downloading') {
+            await MapsRepository.updateRegionStatus(region.id, {
+              status: 'failed',
+              progress: 0,
+              sizeBytes: null,
+              offlinePackId: null,
+            });
+          }
+          return;
+        }
         const status = await pack.status().catch(() => null);
-        if (!status) return;
+        if (!status) {
+          await MapsRepository.updateRegionStatus(region.id, {
+            status: 'failed',
+            progress: 0,
+            sizeBytes: null,
+          });
+          return;
+        }
 
-        const isComplete = status.state === 'complete';
+        const isComplete = isOfflinePackComplete(status);
         await MapsRepository.updateRegionStatus(region.id, {
           status: isComplete ? 'downloaded' : 'downloading',
-          progress: Math.max(0, Math.min(1, status.percentage / 100)),
+          progress: progressFromPackStatus(status),
           sizeBytes: status.completedResourceSize || status.completedTileSize || null,
           offlinePackId: pack.id,
         });
@@ -59,7 +76,6 @@ export class OfflineMapService {
       })
     );
   }
-
 
   static async deleteRegion(id: string) {
     const region = await MapsRepository.getRegion(id);
@@ -111,11 +127,12 @@ export class OfflineMapService {
 
     await MapsRepository.updateRegionStatus(id, { status: 'downloading', progress: 0 });
     try {
+      maplibre.OfflineManager.setTileCountLimit?.(250000);
       const existingPacks = await maplibre.OfflineManager.getPacks();
       const existingPack = existingPacks.find((candidate) => isPackForRegion(candidate, region));
       if (existingPack) {
         const existingStatus = await existingPack.status().catch(() => null);
-        if (existingStatus?.state === 'complete') {
+        if (existingStatus && isOfflinePackComplete(existingStatus)) {
           await MapsRepository.updateRegionStatus(id, {
             status: 'downloaded',
             progress: 1,
@@ -129,7 +146,7 @@ export class OfflineMapService {
         if (existingStatus) {
           await MapsRepository.updateRegionStatus(id, {
             status: 'downloading',
-            progress: Math.max(0, Math.min(1, existingStatus.percentage / 100)),
+            progress: progressFromPackStatus(existingStatus),
             sizeBytes:
               existingStatus.completedResourceSize || existingStatus.completedTileSize || null,
             offlinePackId: existingPack.id,
@@ -148,8 +165,8 @@ export class OfflineMapService {
         },
         (_offlinePack, status) => {
           void MapsRepository.updateRegionStatus(id, {
-            status: status.state === 'complete' ? 'downloaded' : 'downloading',
-            progress: Math.max(0, Math.min(1, status.percentage / 100)),
+            status: isOfflinePackComplete(status) ? 'downloaded' : 'downloading',
+            progress: progressFromPackStatus(status),
             sizeBytes: status.completedResourceSize || status.completedTileSize || null,
             offlinePackId: _offlinePack.id,
           });
@@ -162,8 +179,8 @@ export class OfflineMapService {
       await pack.resume().catch(() => undefined);
       const status = await pack.status().catch(() => null);
       await MapsRepository.updateRegionStatus(id, {
-        status: status?.state === 'complete' ? 'downloaded' : 'downloading',
-        progress: status ? Math.max(0, Math.min(1, status.percentage / 100)) : 0,
+        status: status && isOfflinePackComplete(status) ? 'downloaded' : 'downloading',
+        progress: status ? progressFromPackStatus(status) : 0,
         sizeBytes: status?.completedResourceSize || status?.completedTileSize || null,
         offlinePackId: pack.id,
       });
@@ -403,6 +420,21 @@ function isPackForRegion(
     metadata.regionId === region.id ||
     metadata.name === region.name
   );
+}
+
+function isOfflinePackComplete(status: {
+  state: string;
+  percentage: number;
+  completedResourceCount: number;
+  requiredResourceCount: number;
+}) {
+  if (status.state !== 'complete') return false;
+  if (status.requiredResourceCount <= 0) return status.percentage >= 100;
+  return status.completedResourceCount >= status.requiredResourceCount;
+}
+
+function progressFromPackStatus(status: { percentage: number }) {
+  return Math.max(0, Math.min(1, status.percentage / 100));
 }
 
 function distance(a: SavedRoutePoint, b: SavedRoutePoint) {

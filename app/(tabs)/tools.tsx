@@ -1,12 +1,10 @@
 import { ActionCard } from '@/components/cards/action-card';
 import { Arky } from '@/components/brand/ark-logo';
 import { Screen } from '@/components/layout/screen';
-import { Card } from '@/components/ui/card';
 import { Text } from '@/components/ui/text';
 import { useSensorStore } from '@/stores/sensor-store';
 import { Link, type Href } from 'expo-router';
 import {
-  Activity,
   CheckSquare,
   Compass,
   Crosshair,
@@ -15,6 +13,7 @@ import {
   Ruler,
   Settings2,
   SunMedium,
+  Timer,
 } from 'lucide-react-native';
 import { View } from 'react-native';
 
@@ -36,23 +35,6 @@ export default function ToolsScreen() {
         </View>
         <Arky pose="resourceful" size={80} />
       </View>
-      <Card className="gap-2">
-        <Text variant="large">Last live readings</Text>
-        <View className="flex-row flex-wrap gap-x-4 gap-y-2">
-          <Text variant="muted">
-            Heading: {heading === null ? '--' : `${Math.round(heading)}°`}
-          </Text>
-          <Text variant="muted">
-            Pressure: {pressure === null ? '--' : `${pressure.toFixed(1)} hPa`}
-          </Text>
-          <Text variant="muted">
-            Level:{' '}
-            {pitch === null || roll === null ? '--' : `${pitch.toFixed(1)}° / ${roll.toFixed(1)}°`}
-          </Text>
-          <Text variant="muted">Steps: {steps === null ? '--' : steps}</Text>
-          <Text variant="muted">Light: {lux === null ? '--' : `${Math.round(lux)} lux`}</Text>
-        </View>
-      </Card>
       <Link href="/tools/compass" asChild>
         <ActionCard
           icon={Compass}
@@ -70,11 +52,11 @@ export default function ToolsScreen() {
       <Link href="/tools/level" asChild>
         <ActionCard icon={Ruler} title="Level" description="Pitch and roll from accelerometer." />
       </Link>
-      <Link href="/tools/pedometer" asChild>
+      <Link href="/tools/chronometer" asChild>
         <ActionCard
-          icon={Activity}
-          title="Pedometer"
-          description="Today/session steps if supported."
+          icon={Timer}
+          title="Chronometer"
+          description="Stopwatch with lap times, works fully offline."
         />
       </Link>
       <Link href="/tools/light" asChild>

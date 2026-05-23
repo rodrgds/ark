@@ -41,9 +41,33 @@ export type ArkDocument = {
   encryptionStatus: 'unknown' | 'plaintext' | 'encrypted';
   extractedText: string | null;
   ocrText: string | null;
-  ocrStatus: 'not_needed' | 'pending' | 'processing' | 'ready' | 'unavailable' | 'failed';
+  ocrStatus:
+    | 'not_needed'
+    | 'pending'
+    | 'processing'
+    | 'ready'
+    | 'unavailable'
+    | 'failed'
+    | 'imported'
+    | 'extracting_text'
+    | 'text_extracted'
+    | 'ocr_needed'
+    | 'ocr_queued'
+    | 'ocr_running'
+    | 'searchable';
   ocrError: string | null;
   indexedAt: number | null;
   createdAt: number;
   updatedAt: number;
+};
+
+export type DocumentPage = {
+  id: string;
+  documentId: string;
+  pageNumber: number;
+  text: string;
+  extractionMethod: 'text_layer' | 'ocr' | 'manual' | 'metadata';
+  confidence: number | null;
+  indexedAt: number | null;
+  createdAt: number;
 };

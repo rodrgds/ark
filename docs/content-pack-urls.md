@@ -33,4 +33,12 @@ Builds without the native reader keep the Open File/Kiwix handoff.
 - NHC Atlantic Tropical Cyclones RSS: `https://www.nhc.noaa.gov/index-at.xml`
 - USGS Significant Earthquakes Atom: `https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_week.atom`
 
+## Embedding Models
+
+- Nomic Embed Text v1.5 Q4_K_M GGUF: `https://huggingface.co/nomic-ai/nomic-embed-text-v1.5-GGUF/resolve/main/nomic-embed-text-v1.5.Q4_K_M.gguf`
+- Qwen3 Embedding 0.6B Q8_0 GGUF: `https://huggingface.co/Qwen/Qwen3-Embedding-0.6B-GGUF/resolve/main/Qwen3-Embedding-0.6B-Q8_0.gguf`
+
+Ark treats these as optional retrieval packs, not chat models. The compact Nomic pack is the
+default recommendation; Qwen is the heavier multilingual option.
+
 Do not ship mushroom identification content without expert local sources and safety review.

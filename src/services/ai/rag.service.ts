@@ -3,34 +3,24 @@ import { DatabaseClient } from '@/services/db/client';
 import { NotesRepository } from '@/services/db/repositories/notes.repo';
 import { ContentRepository } from '@/services/db/repositories/content.repo';
 import { DocumentsRepository } from '@/services/db/repositories/documents.repo';
-import { MapsRepository } from '@/services/db/repositories/maps.repo';
-import { RssRepository } from '@/services/db/repositories/rss.repo';
-import { WeatherCacheService } from '@/services/weather/weather-cache.service';
+import { DocumentPagesRepository } from '@/services/db/repositories/document-pages.repo';
 import { chunkText, estimateTokens } from '@/services/ai/chunking';
 import {
   RAG_HASH_EMBEDDING_MODEL_ID,
   cosineSimilarity,
   deserializeEmbedding,
+  deserializeEmbeddingWithDimensions,
   embedText,
   serializeEmbedding,
 } from '@/services/ai/rag-embedding';
 import { RagVectorService } from '@/services/ai/rag-vector.service';
+import { EmbeddingService, type EmbeddingResult } from '@/services/ai/embedding.service';
 import { GuideService } from '@/services/content/guide.service';
-import { ZimService, type ZimSearchResult } from '@/services/content/zim.service';
+import { ZimService, type ZimArticle, type ZimSearchResult } from '@/services/content/zim.service';
 import type { AiCitation } from '@/types/ai';
 import type { ContentPack } from '@/types/content';
 import type { ArkDocument } from '@/types/db';
-import type { MapMarker, MapRegion, SavedRoute } from '@/types/maps';
-
-type RagSourceInput = {
-  id: string;
-  kind: string;
-  sourceRef: string;
-  title: string;
-  chunks: string[];
-};
-
-const LIVE_LOCAL_SOURCE_KINDS = ['map_marker', 'map_region', 'map_route', 'rss_item', 'weather'];
+import type { DocumentPage } from '@/types/db';
 
 const STOPWORDS = new Set([
   'a',
@@ -61,7 +51,7 @@ const STOPWORDS = new Set([
 function tokenizeForFts(query: string) {
   return query
     .split(/\s+/)
-    .map((part) => part.replace(/[^a-zA-Z0-9_]/g, '').trim())
+    .map((part) => part.replace(/[^a-zA-Z0-9_'-]/g, '').trim())
     .filter(Boolean);
 }
 
@@ -74,77 +64,91 @@ function toFtsQueries(query: string) {
 }
 
 export class RagService {
-  private static async replaceSources(
-    inputs: RagSourceInput[],
-    options: { pruneKinds?: string[] } = {}
-  ) {
+  private static async replaceSource(input: {
+    id: string;
+    kind: string;
+    sourceRef: string;
+    title: string;
+    chunks: string[];
+  }) {
     const db = await DatabaseClient.getDb();
     const timestamp = Date.now();
+    const embeddedChunks: Array<{
+      text: string;
+      embeddingResult: EmbeddingResult;
+      embedding: Uint8Array;
+    }> = [];
+    for (const text of input.chunks) {
+      const embeddingResult = await EmbeddingService.embedDocument(text);
+      embeddedChunks.push({
+        text,
+        embeddingResult,
+        embedding: serializeEmbedding(embeddingResult.vector),
+      });
+    }
     await db.withTransactionAsync(async () => {
-      const sourceIdsToClear = new Set(inputs.map((input) => input.id));
-      for (const kind of options.pruneKinds ?? []) {
-        const rows = await db.getAllAsync<{ id: string }>(
-          'SELECT id FROM rag_sources WHERE kind = ?',
-          [kind]
-        );
-        rows.forEach((row) => sourceIdsToClear.add(row.id));
-      }
-
-      const oldChunkIds: string[] = [];
-      for (const sourceId of sourceIdsToClear) {
-        const oldChunks = await db.getAllAsync<{ id: string }>(
-          'SELECT id FROM rag_chunks WHERE source_id = ?',
-          [sourceId]
-        );
-        oldChunks.forEach((chunk) => oldChunkIds.push(chunk.id));
+      const oldChunks = await db.getAllAsync<{ id: string }>(
+        'SELECT id FROM rag_chunks WHERE source_id = ?',
+        [input.id]
+      );
+      await db.runAsync(
+        `INSERT INTO rag_sources (id, kind, source_ref, title, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           kind = excluded.kind,
+           source_ref = excluded.source_ref,
+           title = excluded.title,
+           updated_at = excluded.updated_at`,
+        [input.id, input.kind, input.sourceRef, input.title, timestamp, timestamp]
+      );
+      await db.runAsync(
+        'DELETE FROM rag_chunks_fts WHERE chunk_id IN (SELECT id FROM rag_chunks WHERE source_id = ?)',
+        [input.id]
+      );
+      await RagVectorService.removeChunks(
+        db,
+        oldChunks.map((chunk) => chunk.id)
+      );
+      await db.runAsync(
+        'DELETE FROM chunk_embeddings WHERE chunk_id IN (SELECT id FROM rag_chunks WHERE source_id = ?)',
+        [input.id]
+      );
+      await db.runAsync('DELETE FROM rag_chunks WHERE source_id = ?', [input.id]);
+      for (let index = 0; index < embeddedChunks.length; index += 1) {
+        const { text, embeddingResult, embedding } = embeddedChunks[index];
+        const id = randomUUID();
         await db.runAsync(
-          'DELETE FROM rag_chunks_fts WHERE chunk_id IN (SELECT id FROM rag_chunks WHERE source_id = ?)',
-          [sourceId]
+          `INSERT INTO rag_chunks
+            (id, source_id, chunk_index, text, token_count, embedding_model_id, embedding_blob, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            id,
+            input.id,
+            index,
+            text,
+            estimateTokens(text),
+            embeddingResult.modelId,
+            embedding,
+            timestamp,
+          ]
         );
-        await db.runAsync('DELETE FROM rag_chunks WHERE source_id = ?', [sourceId]);
-        await db.runAsync('DELETE FROM rag_sources WHERE id = ?', [sourceId]);
-      }
-      await RagVectorService.removeChunks(db, oldChunkIds);
-
-      for (const input of inputs) {
-        const chunks = input.chunks.map((chunk) => chunk.trim()).filter(Boolean);
-        if (!chunks.length) continue;
         await db.runAsync(
-          `INSERT INTO rag_sources (id, kind, source_ref, title, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?)`,
-          [input.id, input.kind, input.sourceRef, input.title, timestamp, timestamp]
+          `INSERT OR REPLACE INTO chunk_embeddings
+            (chunk_id, model_id, dimension, embedding_blob, created_at)
+           VALUES (?, ?, ?, ?, ?)`,
+          [id, embeddingResult.modelId, embeddingResult.dimensions, embedding, timestamp]
         );
-        for (let index = 0; index < chunks.length; index += 1) {
-          const text = chunks[index];
-          const id = randomUUID();
-          const embedding = serializeEmbedding(embedText(text));
-          await db.runAsync(
-            `INSERT INTO rag_chunks
-              (id, source_id, chunk_index, text, token_count, embedding_model_id, embedding_blob, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              id,
-              input.id,
-              index,
-              text,
-              estimateTokens(text),
-              RAG_HASH_EMBEDDING_MODEL_ID,
-              embedding,
-              timestamp,
-            ]
-          );
-          await db.runAsync(
-            'INSERT INTO rag_chunks_fts (chunk_id, text, source_title) VALUES (?, ?, ?)',
-            [id, text, input.title]
-          );
-          await RagVectorService.upsertChunk(db, { chunkId: id, embedding });
-        }
+        await db.runAsync(
+          'INSERT INTO rag_chunks_fts (chunk_id, text, source_title) VALUES (?, ?, ?)',
+          [id, text, input.title]
+        );
+        await RagVectorService.upsertChunk(db, {
+          chunkId: id,
+          embedding,
+          modelId: embeddingResult.modelId,
+        });
       }
     });
-  }
-
-  private static async replaceSource(input: RagSourceInput) {
-    await this.replaceSources([input]);
   }
 
   static async indexNote(noteId: string) {
@@ -207,7 +211,21 @@ export class RagService {
     }
   }
 
-  static buildDocumentChunks(document: ArkDocument) {
+  static buildDocumentChunks(document: ArkDocument, pages: DocumentPage[] = []) {
+    if (pages.length) {
+      return pages.flatMap((page) =>
+        chunkText(
+          [
+            `Document: ${document.title}.`,
+            document.mimeType ? `Type: ${document.mimeType}.` : '',
+            `Page: ${page.pageNumber}. Extraction: ${page.extractionMethod}.`,
+            page.text,
+          ]
+            .filter(Boolean)
+            .join('\n')
+        )
+      );
+    }
     const text = [
       `Document: ${document.title}.`,
       document.mimeType ? `Type: ${document.mimeType}.` : '',
@@ -222,12 +240,13 @@ export class RagService {
   static async indexDocument(documentId: string) {
     const document = await DocumentsRepository.get(documentId);
     if (!document) return;
+    const pages = await DocumentPagesRepository.listForDocument(document.id);
     await this.replaceSource({
       id: `document:${document.id}`,
       kind: 'document',
       sourceRef: document.id,
       title: document.title,
-      chunks: this.buildDocumentChunks(document),
+      chunks: this.buildDocumentChunks(document, pages),
     });
     await DocumentsRepository.markIndexed(document.id);
   }
@@ -240,65 +259,79 @@ export class RagService {
     }
   }
 
-  static async indexLiveLocalContext() {
-    const [markers, regions, routes, rssItems, weather] = await Promise.all([
-      MapsRepository.listMarkers(),
-      MapsRepository.listRegions(),
-      MapsRepository.listRoutes(),
-      RssRepository.listRecentItems(20),
-      WeatherCacheService.getLatest(),
-    ]);
+  static async cacheZimArticle(pack: ContentPack, path: string, article: ZimArticle) {
+    const db = await DatabaseClient.getDb();
+    const timestamp = Date.now();
+    const cacheId = `zim-cache:${pack.id}:${article.finalPath || path}`;
+    const paragraphs = extractArticleParagraphs(article.html);
+    if (!paragraphs.length) return null;
 
-    const sources: RagSourceInput[] = [
-      ...markers.map((marker) => sourceForMarker(marker)),
-      ...regions.map((region) => sourceForRegion(region)),
-      ...routes.map((route) => sourceForRoute(route)),
-      ...rssItems.map((item) => ({
-        id: `rss:${item.id}`,
-        kind: 'rss_item',
-        sourceRef: item.id,
-        title: `Cached alert: ${item.title}`,
-        chunks: [
+    await db.withTransactionAsync(async () => {
+      await db.runAsync(
+        `INSERT INTO zim_articles_cache
+          (id, zim_id, path, title, html_hash, extracted_at, last_accessed_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(zim_id, path) DO UPDATE SET
+           title = excluded.title,
+           html_hash = excluded.html_hash,
+           last_accessed_at = excluded.last_accessed_at`,
+        [
+          cacheId,
+          pack.id,
+          article.finalPath || path,
+          article.title || path,
+          hashText(article.html),
+          timestamp,
+          timestamp,
+        ]
+      );
+      await db.runAsync('DELETE FROM zim_paragraph_chunks WHERE article_cache_id = ?', [cacheId]);
+      for (let index = 0; index < paragraphs.length; index += 1) {
+        await db.runAsync(
+          `INSERT INTO zim_paragraph_chunks
+            (id, article_cache_id, zim_id, path, title, section_title, paragraph_index, text, token_estimate, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
-            `Cached RSS item: ${item.title}.`,
-            `Feed: ${item.feed_title}.`,
-            item.author ? `Author: ${item.author}.` : '',
-            item.summary,
-            item.content,
+            randomUUID(),
+            cacheId,
+            pack.id,
+            article.finalPath || path,
+            article.title || path,
+            paragraphs[index].sectionTitle,
+            index,
+            paragraphs[index].text,
+            estimateTokens(paragraphs[index].text),
+            timestamp,
           ]
-            .filter(Boolean)
-            .join('\n'),
-        ],
-      })),
-    ];
+        );
+      }
+    });
 
-    if (weather) {
-      sources.push({
-        id: 'weather:latest',
-        kind: 'weather',
-        sourceRef: weather.id,
-        title: `Cached weather: ${weather.location}`,
-        chunks: [weatherSourceText(weather)],
-      });
-    }
+    await this.replaceSource({
+      id: `zim-article:${pack.id}:${article.finalPath || path}`,
+      kind: 'zim_article',
+      sourceRef: pack.id,
+      title: `${pack.title}: ${article.title || path}`,
+      chunks: paragraphs.map((paragraph) =>
+        [paragraph.sectionTitle ? `Section: ${paragraph.sectionTitle}.` : '', paragraph.text]
+          .filter(Boolean)
+          .join('\n')
+      ),
+    });
 
-    await this.replaceSources(sources, { pruneKinds: LIVE_LOCAL_SOURCE_KINDS });
+    return paragraphs[0]?.text ?? null;
   }
 
   static async removeSource(sourceId: string) {
     const db = await DatabaseClient.getDb();
     await db.withTransactionAsync(async () => {
-      const oldChunks = await db.getAllAsync<{ id: string }>(
-        'SELECT id FROM rag_chunks WHERE source_id = ?',
-        [sourceId]
-      );
       await db.runAsync(
         'DELETE FROM rag_chunks_fts WHERE chunk_id IN (SELECT id FROM rag_chunks WHERE source_id = ?)',
         [sourceId]
       );
-      await RagVectorService.removeChunks(
-        db,
-        oldChunks.map((chunk) => chunk.id)
+      await db.runAsync(
+        'DELETE FROM chunk_embeddings WHERE chunk_id IN (SELECT id FROM rag_chunks WHERE source_id = ?)',
+        [sourceId]
       );
       await db.runAsync('DELETE FROM rag_chunks WHERE source_id = ?', [sourceId]);
       await db.runAsync('DELETE FROM rag_sources WHERE id = ?', [sourceId]);
@@ -338,6 +371,12 @@ export class RagService {
       ]
     );
     await db.runAsync(
+      `INSERT OR REPLACE INTO chunk_embeddings
+        (chunk_id, model_id, dimension, embedding_blob, created_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      [chunkId, RAG_HASH_EMBEDDING_MODEL_ID, embedding.byteLength / 4, embedding, timestamp]
+    );
+    await db.runAsync(
       'INSERT INTO rag_chunks_fts (chunk_id, text, source_title) VALUES (?, ?, ?)',
       [chunkId, text, 'Ark starter guide']
     );
@@ -348,7 +387,6 @@ export class RagService {
     await this.seedCoreContent();
     await this.indexInstalledContentPacks();
     await this.indexImportedDocuments();
-    await this.indexLiveLocalContext();
     const ftsQueries = toFtsQueries(query);
     if (!ftsQueries.length) return [];
     const db = await DatabaseClient.getDb();
@@ -361,6 +399,7 @@ export class RagService {
       kind: string;
       chunk_index: number;
       embedding_blob: unknown;
+      embedding_model_id: string | null;
     }> = [];
     const limit = options.limit ?? 4;
     for (const fts of ftsQueries) {
@@ -370,6 +409,7 @@ export class RagService {
                 f.source_title,
                 c.source_id,
                 c.chunk_index,
+                c.embedding_model_id,
                 c.embedding_blob,
                 s.source_ref,
                 s.kind
@@ -383,12 +423,10 @@ export class RagService {
       );
       if (rows.length) break;
     }
-    const ftsCitations = rankRows(query, rows)
-      .slice(0, limit)
-      .map((row) => ({
-        ...citationForRow(row),
-        snippet: snippetForRow(row),
-      }));
+    const ftsCitations = (await rankRows(query, rows)).slice(0, limit).map((row) => ({
+      ...citationForRow(row),
+      snippet: snippetForRow(row),
+    }));
     const zimCitations =
       ftsCitations.length < limit
         ? await searchInstalledZimArticles(query, limit - ftsCitations.length)
@@ -421,120 +459,6 @@ async function searchInstalledZimArticles(query: string, limit: number): Promise
   return citations;
 }
 
-function sourceForMarker(marker: MapMarker): RagSourceInput {
-  return {
-    id: `map-marker:${marker.id}`,
-    kind: 'map_marker',
-    sourceRef: marker.id,
-    title: `Map spot: ${marker.title}`,
-    chunks: [
-      [
-        `Saved map spot: ${marker.title}.`,
-        marker.description ? `Description: ${marker.description}.` : '',
-        `Coordinates: ${formatPoint(marker.latitude, marker.longitude)}.`,
-        marker.icon ? `Icon: ${marker.icon}.` : '',
-      ]
-        .filter(Boolean)
-        .join('\n'),
-    ],
-  };
-}
-
-function sourceForRegion(region: MapRegion): RagSourceInput {
-  const center =
-    region.north != null && region.south != null && region.east != null && region.west != null
-      ? formatPoint((region.north + region.south) / 2, (region.east + region.west) / 2)
-      : null;
-  return {
-    id: `map-region:${region.id}`,
-    kind: 'map_region',
-    sourceRef: region.id,
-    title: `Map region: ${region.name}`,
-    chunks: [
-      [
-        `Offline map region: ${region.name}.`,
-        `Status: ${region.status.replace('_', ' ')}.`,
-        `Provider: ${region.provider}.`,
-        center ? `Center: ${center}.` : '',
-        region.north != null && region.south != null && region.east != null && region.west != null
-          ? `Bounds: north ${region.north}, south ${region.south}, east ${region.east}, west ${region.west}.`
-          : '',
-        `Zoom range: ${region.minZoom ?? 'unknown'} to ${region.maxZoom ?? 'unknown'}.`,
-        region.sizeBytes
-          ? `Downloaded size: ${Math.round(region.sizeBytes / 1024 / 1024)} MB.`
-          : '',
-      ]
-        .filter(Boolean)
-        .join('\n'),
-    ],
-  };
-}
-
-function sourceForRoute(route: SavedRoute): RagSourceInput {
-  const points = route.points
-    .map((point, index) => {
-      const label = point.title ? `${point.title} ` : `Point ${index + 1} `;
-      return `${label}at ${formatPoint(point.latitude, point.longitude)}`;
-    })
-    .join('; ');
-  return {
-    id: `map-route:${route.id}`,
-    kind: 'map_route',
-    sourceRef: route.id,
-    title: `Map route: ${route.title}`,
-    chunks: [
-      [
-        `Saved map route: ${route.title}.`,
-        `${route.points.length} point${route.points.length === 1 ? '' : 's'}.`,
-        route.distanceMeters ? `Distance: ${formatDistance(route.distanceMeters)}.` : '',
-        points ? `Route points: ${points}.` : '',
-      ]
-        .filter(Boolean)
-        .join('\n'),
-    ],
-  };
-}
-
-function weatherSourceText(
-  weather: NonNullable<Awaited<ReturnType<typeof WeatherCacheService.getLatest>>>
-) {
-  const daily = weather.forecast.daily
-    .map((day) => {
-      const parts = [
-        day.highC != null ? `high ${Math.round(day.highC)}C` : null,
-        day.lowC != null ? `low ${Math.round(day.lowC)}C` : null,
-        day.precipitationMm != null ? `${day.precipitationMm} mm precipitation` : null,
-      ].filter(Boolean);
-      return `${day.date}: ${parts.join(', ') || 'forecast cached'}`;
-    })
-    .join('\n');
-  return [
-    `Cached weather for ${weather.location}.`,
-    `Provider: ${weather.provider}.`,
-    `Freshness: ${weather.freshness}${weather.stale ? ' (stale)' : ''}.`,
-    `Current summary: ${weather.forecast.summary}.`,
-    weather.forecast.temperatureC != null
-      ? `Temperature: ${Math.round(weather.forecast.temperatureC)}C.`
-      : '',
-    weather.forecast.windKph != null ? `Wind: ${Math.round(weather.forecast.windKph)} km/h.` : '',
-    weather.forecast.pressureHpa != null
-      ? `Pressure: ${Math.round(weather.forecast.pressureHpa)} hPa.`
-      : '',
-    daily ? `Daily forecast:\n${daily}` : '',
-  ]
-    .filter(Boolean)
-    .join('\n');
-}
-
-function formatPoint(latitude: number, longitude: number) {
-  return `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
-}
-
-function formatDistance(distanceMeters: number) {
-  if (distanceMeters >= 1000) return `${(distanceMeters / 1000).toFixed(1)} km`;
-  return `${Math.round(distanceMeters)} m`;
-}
-
 async function citationForZimResult(
   pack: ContentPack,
   result: ZimSearchResult
@@ -556,26 +480,55 @@ async function citationForZimResult(
 async function getZimArticleText(pack: ContentPack, path: string) {
   try {
     const article = await ZimService.getArticle(pack, path);
-    return stripHtml(article.html)
-      .split('\n')
-      .map((line) => line.trim())
-      .find((line) => line.length > 40);
+    return await RagService.cacheZimArticle(pack, path, article);
   } catch {
     return null;
   }
 }
 
-function stripHtml(html: string) {
-  return html
+function extractArticleParagraphs(html: string) {
+  const blockMarked = html
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<\/(p|div|li|h1|h2|h3|h4|section|article)>/gi, '\n')
+    .replace(/<(h1|h2|h3|h4)[^>]*>/gi, '\n# ');
+  const lines = stripHtml(blockMarked)
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const paragraphs: Array<{ sectionTitle: string | null; text: string }> = [];
+  let sectionTitle: string | null = null;
+  for (const line of lines) {
+    if (line.startsWith('# ')) {
+      sectionTitle = line.slice(2).trim().slice(0, 120) || sectionTitle;
+      continue;
+    }
+    if (line.length < 60) continue;
+    paragraphs.push({ sectionTitle, text: line.slice(0, 1800) });
+    if (paragraphs.length >= 24) break;
+  }
+  return paragraphs;
+}
+
+function stripHtml(html: string) {
+  return html
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
-    .replace(/\s+/g, ' ')
+    .replace(/[ \t\r\f\v]+/g, ' ')
+    .replace(/\n[ \t]+/g, '\n')
     .trim();
+}
+
+function hashText(text: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash.toString(16);
 }
 
 function dedupeCitations(citations: AiCitation[]) {
@@ -587,15 +540,28 @@ function dedupeCitations(citations: AiCitation[]) {
   });
 }
 
-function rankRows<T extends { embedding_blob: unknown }>(query: string, rows: T[]) {
-  const queryEmbedding = embedText(query);
+async function rankRows<T extends { embedding_blob: unknown; embedding_model_id?: string | null }>(
+  query: string,
+  rows: T[]
+) {
+  const queryEmbedding = await EmbeddingService.embedQuery(query);
+  const hashQueryEmbedding =
+    queryEmbedding.modelId === RAG_HASH_EMBEDDING_MODEL_ID
+      ? queryEmbedding.vector
+      : embedText(query);
   return rows
     .map((row, index) => {
-      const embedding = deserializeEmbedding(row.embedding_blob);
+      const modelId = row.embedding_model_id ?? RAG_HASH_EMBEDDING_MODEL_ID;
+      const embedding =
+        modelId === queryEmbedding.modelId
+          ? deserializeEmbeddingWithDimensions(row.embedding_blob, queryEmbedding.dimensions)
+          : deserializeEmbedding(row.embedding_blob);
+      const comparison =
+        modelId === queryEmbedding.modelId ? queryEmbedding.vector : hashQueryEmbedding;
       return {
         row,
         index,
-        score: embedding ? cosineSimilarity(queryEmbedding, embedding) : Number.NEGATIVE_INFINITY,
+        score: embedding ? cosineSimilarity(comparison, embedding) : Number.NEGATIVE_INFINITY,
       };
     })
     .sort((left, right) => right.score - left.score || left.index - right.index)
@@ -615,22 +581,21 @@ function citationForRow(row: {
       : null;
   const contentTarget =
     row.source_id.startsWith('content:') && row.source_ref
-      ? row.kind === 'guide'
-        ? `/content/reader?packId=${encodeURIComponent(row.source_ref)}${
-            section?.title ? `&section=${encodeURIComponent(section.title)}` : ''
-          }`
-        : `/content/${encodeURIComponent(row.source_ref)}`
+      ? `/content/${encodeURIComponent(row.source_ref)}${
+          section?.title ? `?section=${encodeURIComponent(section.title)}` : ''
+        }`
       : undefined;
   const documentTarget =
     row.source_id.startsWith('document:') && row.source_ref
       ? `/documents/${encodeURIComponent(row.source_ref)}`
       : undefined;
-  const mapTarget =
-    row.kind === 'map_marker' || row.kind === 'map_region' || row.kind === 'map_route'
-      ? '/(tabs)/map'
+  const zimArticlePath = row.source_id.startsWith('zim-article:')
+    ? row.source_id.split(':').slice(2).join(':')
+    : null;
+  const zimArticleTarget =
+    zimArticlePath && row.source_ref
+      ? `/content/${encodeURIComponent(row.source_ref)}?article=${encodeURIComponent(zimArticlePath)}`
       : undefined;
-  const rssTarget = row.kind === 'rss_item' ? '/(tabs)/library' : undefined;
-  const weatherTarget = row.kind === 'weather' ? '/tools/weather' : undefined;
 
   return {
     sourceId: row.source_id,
@@ -638,7 +603,7 @@ function citationForRow(row: {
     sourceRef: row.source_ref,
     sectionTitle: section?.title,
     page: section?.page,
-    targetHref: contentTarget ?? documentTarget ?? mapTarget ?? rssTarget ?? weatherTarget,
+    targetHref: contentTarget ?? documentTarget ?? zimArticleTarget,
   };
 }
 

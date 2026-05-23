@@ -1,6 +1,18 @@
 import { RAG_HASH_EMBEDDING_DIMENSIONS } from '@/services/ai/rag-embedding';
+import { EMBEDDING_MODEL_CONFIGS } from '@/services/ai/embedding-models';
 
-const VECTOR_TABLE = 'rag_chunk_vectors_v2';
+const HASH_VECTOR_TABLE = 'rag_chunk_vectors_v2';
+const VECTOR_TABLES: Record<string, { table: string; dimensions: number }> = {
+  'ark-hash-v2': { table: HASH_VECTOR_TABLE, dimensions: RAG_HASH_EMBEDDING_DIMENSIONS },
+  'embedding-nomic-v15-q4-k-m': {
+    table: 'rag_chunk_vectors_nomic_v15_256',
+    dimensions: EMBEDDING_MODEL_CONFIGS['embedding-nomic-v15-q4-k-m'].dimension,
+  },
+  'embedding-qwen3-06b-q8': {
+    table: 'rag_chunk_vectors_qwen3_06b_1024',
+    dimensions: EMBEDDING_MODEL_CONFIGS['embedding-qwen3-06b-q8'].dimension,
+  },
+};
 
 type VectorDb = {
   execAsync: (sql: string) => Promise<void>;
@@ -8,42 +20,52 @@ type VectorDb = {
   runAsync: (sql: string, ...args: any[]) => Promise<unknown>;
 };
 
-let vectorAvailable: boolean | null = null;
+const vectorAvailable = new Map<string, boolean>();
 
 export class RagVectorService {
-  static async isAvailable(db: VectorDb) {
-    if (vectorAvailable !== null) return vectorAvailable;
+  static async isAvailable(db: VectorDb, modelId = 'ark-hash-v2') {
+    const table = VECTOR_TABLES[modelId] ?? VECTOR_TABLES['ark-hash-v2'];
+    const cached = vectorAvailable.get(table.table);
+    if (cached !== undefined) return cached;
     try {
       await db.execAsync(`
-        CREATE VIRTUAL TABLE IF NOT EXISTS ${VECTOR_TABLE} USING vec0(
-          embedding float[${RAG_HASH_EMBEDDING_DIMENSIONS}] distance_metric=cosine,
+        CREATE VIRTUAL TABLE IF NOT EXISTS ${table.table} USING vec0(
+          embedding float[${table.dimensions}] distance_metric=cosine,
           +chunk_id text
         )
       `);
-      vectorAvailable = true;
+      vectorAvailable.set(table.table, true);
     } catch {
-      vectorAvailable = false;
+      vectorAvailable.set(table.table, false);
     }
-    return vectorAvailable;
+    return vectorAvailable.get(table.table) ?? false;
   }
 
   static async removeChunks(db: VectorDb, chunkIds: string[]) {
-    if (!chunkIds.length || !(await this.isAvailable(db))) return;
-    for (const chunkId of chunkIds) {
-      await db.runAsync(`DELETE FROM ${VECTOR_TABLE} WHERE chunk_id = ?`, [chunkId]);
+    if (!chunkIds.length) return;
+    for (const modelId of Object.keys(VECTOR_TABLES)) {
+      if (!(await this.isAvailable(db, modelId))) continue;
+      const table = VECTOR_TABLES[modelId];
+      for (const chunkId of chunkIds) {
+        await db.runAsync(`DELETE FROM ${table.table} WHERE chunk_id = ?`, [chunkId]);
+      }
     }
   }
 
-  static async upsertChunk(db: VectorDb, input: { chunkId: string; embedding: Uint8Array }) {
-    if (!(await this.isAvailable(db))) return;
-    await db.runAsync(`DELETE FROM ${VECTOR_TABLE} WHERE chunk_id = ?`, [input.chunkId]);
-    await db.runAsync(`INSERT INTO ${VECTOR_TABLE} (embedding, chunk_id) VALUES (?, ?)`, [
+  static async upsertChunk(
+    db: VectorDb,
+    input: { chunkId: string; embedding: Uint8Array; modelId?: string }
+  ) {
+    const table = VECTOR_TABLES[input.modelId ?? 'ark-hash-v2'];
+    if (!table || !(await this.isAvailable(db, input.modelId))) return;
+    await db.runAsync(`DELETE FROM ${table.table} WHERE chunk_id = ?`, [input.chunkId]);
+    await db.runAsync(`INSERT INTO ${table.table} (embedding, chunk_id) VALUES (?, ?)`, [
       input.embedding,
       input.chunkId,
     ]);
   }
 
   static resetForTests() {
-    vectorAvailable = null;
+    vectorAvailable.clear();
   }
 }

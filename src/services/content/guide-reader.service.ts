@@ -137,6 +137,16 @@ export class GuideReaderService {
     }
 
     if (format === 'html') {
+      if (pack.downloadStrategy === 'html_snapshot') {
+        return {
+          uri: pack.localUri,
+          allowReadAccessToURL: parentDirectory(pack.localUri),
+          format: 'html',
+          title: pack.title,
+          sectionTitle: section?.title,
+        };
+      }
+
       const content = await FileSystem.readAsStringAsync(pack.localUri, {
         encoding: FileSystem.EncodingType.UTF8,
       });
@@ -188,4 +198,9 @@ export class GuideReaderService {
     if (uri.endsWith('.html') || uri.endsWith('.htm')) return 'html';
     return 'text';
   }
+}
+
+function parentDirectory(uri: string) {
+  const separatorIndex = uri.lastIndexOf('/');
+  return separatorIndex === -1 ? uri : uri.slice(0, separatorIndex + 1);
 }

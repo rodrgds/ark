@@ -8,6 +8,8 @@ export type ZimMetadata = {
   language?: string;
   articleCount?: number;
   mainPath?: string;
+  hasFulltextIndex?: boolean;
+  hasTitleIndex?: boolean;
 };
 
 export type ZimArticle = {
@@ -33,6 +35,7 @@ type ArkZimNativeModule = {
 export type ZimReaderPlan = {
   installed: boolean;
   nativeReaderAvailable: boolean;
+  nativeReaderError: string | null;
   jsHeaderAvailable: boolean;
   handoffAvailable: boolean;
   status: string;
@@ -52,7 +55,19 @@ export class ZimService {
   static async getReaderPlan(pack?: ContentPack | null): Promise<ZimReaderPlan> {
     const installed = !!pack?.installed && !!pack.localUri;
     const nativeModule = await this.requireNativeReader();
-    const nativeReaderAvailable = !!nativeModule;
+    let nativeReaderAvailable = !!nativeModule;
+    let nativeReaderError: string | null = null;
+
+    // The module may exist (e.g. iOS stubs) but not actually work.
+    // Verify by opening the archive when one is available.
+    if (nativeReaderAvailable && installed && pack) {
+      try {
+        await this.openArchive(pack);
+      } catch (e) {
+        nativeReaderAvailable = false;
+        nativeReaderError = e instanceof Error ? e.message : 'Native ZIM reader failed to initialize.';
+      }
+    }
 
     let headerInfo: ZimHeaderInfo | null = null;
     if (installed && pack?.localUri) {
@@ -74,6 +89,7 @@ export class ZimService {
     return {
       installed,
       nativeReaderAvailable,
+      nativeReaderError,
       jsHeaderAvailable: headerInfo?.valid ?? false,
       handoffAvailable: installed,
       status: this.getReaderStatus(pack, nativeReaderAvailable, headerInfo),
@@ -138,14 +154,14 @@ export class ZimService {
   static async search(pack: ContentPack, query: string, limit = 8) {
     const module = await this.openForQuery(pack);
     const normalized = query.trim();
-    if (normalized.length < 2) return [];
+    if (normalized.length < 1) return [];
     return module.search(normalized, limit);
   }
 
   static async suggest(pack: ContentPack, prefix: string, limit = 8) {
     const module = await this.openForQuery(pack);
     const normalized = prefix.trim();
-    if (normalized.length < 2) return [];
+    if (normalized.length < 1) return [];
     return module.suggest(normalized, limit);
   }
 

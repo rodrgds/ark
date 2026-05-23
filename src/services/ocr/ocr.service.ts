@@ -3,6 +3,30 @@ type ArkOcrNativeModule = {
     text: string;
     blocks?: Array<{ text: string; confidence?: number | null }>;
   }>;
+  extractPdfText(
+    uri: string,
+    maxPages: number
+  ): Promise<{
+    pageCount: number;
+    pages: NativePdfPage[];
+    truncated?: boolean;
+  }>;
+  recognizePdf(
+    uri: string,
+    maxPages: number,
+    renderDpi: number
+  ): Promise<{
+    pageCount: number;
+    pages: NativePdfPage[];
+    truncated?: boolean;
+  }>;
+};
+
+type NativePdfPage = {
+  pageNumber: number;
+  text: string;
+  extractionMethod: 'text_layer' | 'ocr';
+  confidence?: number | null;
 };
 
 export type OcrRecognitionResult =
@@ -39,6 +63,68 @@ export class OcrService {
     }
   }
 
+  static async extractPdfText(uri: string, maxPages = 300) {
+    const module = await this.requireNativeModule();
+    if (!module) {
+      return {
+        status: 'unavailable' as const,
+        error: 'PDF text extraction is available in the Android development build.',
+        pageCount: 0,
+        pages: [],
+        truncated: false,
+      };
+    }
+
+    try {
+      const result = await module.extractPdfText(uri, maxPages);
+      return {
+        status: 'ready' as const,
+        pageCount: result.pageCount,
+        pages: normalizePdfPages(result.pages),
+        truncated: !!result.truncated,
+      };
+    } catch (error) {
+      return {
+        status: 'failed' as const,
+        error: error instanceof Error ? error.message : 'PDF text extraction failed.',
+        pageCount: 0,
+        pages: [],
+        truncated: false,
+      };
+    }
+  }
+
+  static async recognizePdf(uri: string, input: { maxPages?: number; renderDpi?: number } = {}) {
+    const module = await this.requireNativeModule();
+    if (!module) {
+      return {
+        status: 'unavailable' as const,
+        error: 'PDF OCR is available in the Android development build.',
+        pageCount: 0,
+        pages: [],
+        truncated: false,
+      };
+    }
+
+    try {
+      const result = await module.recognizePdf(uri, input.maxPages ?? 20, input.renderDpi ?? 180);
+      return {
+        status: 'ready' as const,
+        pageCount: result.pageCount,
+        pages: normalizePdfPages(result.pages),
+        truncated: !!result.truncated,
+      };
+    } catch (error) {
+      return {
+        status: 'failed' as const,
+        error: error instanceof Error ? error.message : 'PDF OCR failed.',
+        pageCount: 0,
+        pages: [],
+        truncated: false,
+      };
+    }
+  }
+
   static setNativeModuleForTests(module: ArkOcrNativeModule | null | undefined) {
     this.nativeModuleOverride = module;
   }
@@ -60,4 +146,13 @@ function normalizeOcrText(text: string) {
     .map((line) => line.trim())
     .filter(Boolean)
     .join('\n');
+}
+
+function normalizePdfPages(pages: NativePdfPage[]) {
+  return pages.map((page) => ({
+    pageNumber: page.pageNumber,
+    text: normalizeOcrText(page.text),
+    extractionMethod: page.extractionMethod,
+    confidence: page.confidence ?? null,
+  }));
 }

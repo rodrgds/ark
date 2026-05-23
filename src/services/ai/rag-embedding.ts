@@ -49,6 +49,10 @@ export function serializeEmbedding(vector: number[]) {
 }
 
 export function deserializeEmbedding(blob: unknown) {
+  return deserializeEmbeddingWithDimensions(blob, RAG_HASH_EMBEDDING_DIMENSIONS);
+}
+
+export function deserializeEmbeddingWithDimensions(blob: unknown, dimensions: number) {
   const bytes =
     blob instanceof Uint8Array
       ? blob
@@ -57,7 +61,7 @@ export function deserializeEmbedding(blob: unknown) {
         : ArrayBuffer.isView(blob)
           ? new Uint8Array(blob.buffer, blob.byteOffset, blob.byteLength)
           : null;
-  if (!bytes || bytes.byteLength !== RAG_HASH_EMBEDDING_DIMENSIONS * 4) return null;
+  if (!bytes || bytes.byteLength !== dimensions * 4) return null;
   const copy = new Uint8Array(bytes);
   return Array.from(new Float32Array(copy.buffer));
 }

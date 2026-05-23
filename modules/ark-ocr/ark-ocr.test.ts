@@ -43,7 +43,10 @@ describe('ark-ocr native module packaging', () => {
     );
 
     expect(gradle).toContain('com.google.mlkit:text-recognition:16.0.1');
+    expect(gradle).toContain('com.tom-roush:pdfbox-android:2.0.27.0');
     expect(kotlin).toContain('TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)');
     expect(kotlin).toContain('InputImage.fromFilePath');
+    expect(kotlin).toContain('AsyncFunction("extractPdfText")');
+    expect(kotlin).toContain('AsyncFunction("recognizePdf")');
   });
 });

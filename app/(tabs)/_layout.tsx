@@ -8,7 +8,16 @@ import { RssService } from '@/services/rss/rss.service';
 import { useAuthStore } from '@/stores/auth-store';
 import { useThemeStore } from '@/stores/theme-store';
 import { Tabs } from 'expo-router';
-import { Bot, BookOpen, Compass, Home, Map, NotebookPen, Settings } from 'lucide-react-native';
+import {
+  Bot,
+  BookOpen,
+  Compass,
+  Home,
+  Lock,
+  Map,
+  NotebookPen,
+  Settings,
+} from 'lucide-react-native';
 import * as React from 'react';
 import { View } from 'react-native';
 
@@ -70,6 +79,10 @@ export default function TabsLayout() {
           tabBarInactiveTintColor: NAV_COLORS[theme].mutedForeground,
           sceneStyle: { backgroundColor: colors.background },
           tabBarIcon: ({ color, size }) => {
+            if (route.name === 'notes') {
+              return <Icon as={NotebookPen} color={color} size={size} />;
+            }
+
             const Component = icons[route.name as keyof typeof icons] ?? Home;
             return <Icon as={Component} color={color} size={size} />;
           },
@@ -87,10 +100,7 @@ export default function TabsLayout() {
             tabBarBadge: pendingDownloads || rssItems || undefined,
           }}
         />
-        <Tabs.Screen
-          name="notes"
-          options={{ title: 'Notes', tabBarBadge: unlocked ? undefined : 'Lock' }}
-        />
+        <Tabs.Screen name="notes" options={{ title: 'Notes' }} />
         <Tabs.Screen name="tools" options={{ title: 'Tools' }} />
         <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
       </Tabs>

@@ -4,7 +4,11 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { Linking } from 'react-native';
 import { DocumentsRepository } from '@/services/db/repositories/documents.repo';
 import { RagService } from '@/services/ai/rag.service';
-import { DocumentTextService, isImageDocument } from '@/services/files/document-text.service';
+import {
+  DocumentTextService,
+  isImageDocument,
+  isPdfDocument,
+} from '@/services/files/document-text.service';
 import { FileSystemService } from '@/services/files/filesystem.service';
 
 export class ImportService {
@@ -44,9 +48,11 @@ export class ImportService {
       sizeBytes: storedSize,
       source: 'document-picker',
       encryptionStatus: 'plaintext',
-      ocrStatus: isImageDocument({ mimeType: asset.mimeType ?? null, title: asset.name ?? '' })
-        ? 'pending'
-        : 'not_needed',
+      ocrStatus:
+        isImageDocument({ mimeType: asset.mimeType ?? null, title: asset.name ?? '' }) ||
+        isPdfDocument({ mimeType: asset.mimeType ?? null, title: asset.name ?? '' })
+          ? 'pending'
+          : 'not_needed',
     });
     if (document) {
       return DocumentTextService.processDocument(document.id);
@@ -55,6 +61,14 @@ export class ImportService {
   }
 
   static async reprocessDocument(id: string) {
+    return DocumentTextService.reprocessDocument(id);
+  }
+
+  static async runDocumentOcr(id: string) {
+    const document = await DocumentsRepository.get(id);
+    if (document && isPdfDocument(document)) {
+      return DocumentTextService.runPdfOcr(id);
+    }
     return DocumentTextService.reprocessDocument(id);
   }
 
@@ -69,6 +83,7 @@ export class ImportService {
   static async deleteDocument(id: string) {
     const document = await DocumentsRepository.get(id);
     if (document?.localUri) await FileSystemService.deleteByUri(document.localUri);
+    await DocumentTextService.deleteDocumentIndex(id);
     await RagService.removeSource(`document:${id}`);
     await DocumentsRepository.delete(id);
   }

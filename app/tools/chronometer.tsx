@@ -81,7 +81,6 @@ export default function ChronometerTool() {
   return (
     <Screen style={styles.screen}>
 
-      {/* ── Ring ── */}
       <View style={[styles.ring, { width: RING_SIZE, height: RING_SIZE, borderRadius: RING_R }]}>
         <View style={[styles.ringInner, { width: INNER_SIZE, height: INNER_SIZE, borderRadius: INNER_SIZE / 2 }]}>
           <View style={styles.timeRow}>
@@ -96,7 +95,6 @@ export default function ChronometerTool() {
         </View>
       </View>
 
-      {/* ── Controls — full width row so buttons sit symmetrically ── */}
       <View style={styles.controls}>
         <View style={styles.btnSlot}>
           <TouchableOpacity
@@ -122,7 +120,6 @@ export default function ChronometerTool() {
         </View>
       </View>
 
-      {/* ── Lap list ── */}
       {laps.length > 0 && (
         <View style={[styles.lapList, { width: SW - 32, height: SH * 0.34 }]}>
           <View style={styles.lapHeader}>
@@ -213,16 +210,15 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 
-  // ── Buttons — each in an equal flex slot so they're always centered ────────
   controls: {
     flexDirection: 'row',
-    width: SW - 32,         // same width as the lap list
+    width: SW - 32, 
     alignItems: 'center',
     justifyContent: 'center',
   },
   btnSlot: {
     flex: 1,
-    alignItems: 'center',   // centers the button within its half
+    alignItems: 'center',
     justifyContent: 'center',
   },
   btn: {
@@ -266,7 +262,6 @@ const styles = StyleSheet.create({
     color: '#8e8e93',
   },
 
-  // ── Laps ──────────────────────────────────────────────────────────────────
   lapList: {
     backgroundColor: '#1c1c1e',
     borderRadius: 16,

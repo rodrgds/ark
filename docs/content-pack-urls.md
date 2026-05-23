@@ -24,7 +24,7 @@ Builds without the native reader keep the Open File/Kiwix handoff.
 - Hesperian New Where There Is No Doctor, First Aid: `https://hesperian.org/wp-content/uploads/pdf/en_nwtnd_2011/en_nwtnd_2014_03g.pdf`
 - Hesperian Where There Is No Doctor, First Aid: `https://hesperian.org/wp-content/uploads/pdf/en_wtnd_2025/en_wtnd_2025_10.pdf`
 - US Army FM 21-76 Survival Manual: `https://ia601604.us.archive.org/28/items/Fm21-76SurvivalManual/FM21-76_SurvivalManual.pdf`
-- USDA Forest Service wild plant harvest guidance: `https://www.fs.usda.gov/nrs/pubs/gtr/gtr_nrs131.pdf`
+- USDA Forest Service wild plant harvest guidance: `https://research.fs.usda.gov/download/treesearch/45826.pdf`
 
 ## Weather And Feeds
 

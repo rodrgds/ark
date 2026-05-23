@@ -106,32 +106,10 @@ function wrapInHtmlShell(body: string, title: string) {
 </html>`;
 }
 
-function pdfWrapperHtml(pdfSrc: string, title: string): string {
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <title>${escapeHtml(title)}</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; background: #000; overflow: hidden; }
-    embed, iframe, object { position: fixed; top: 0; left: 0; width: 100%; height: 100%; border: none; }
-  </style>
-</head>
-<body>
-  <embed src="${pdfSrc}" type="application/pdf" />
-</body>
-</html>`;
-}
-
 export class GuideReaderService {
   /**
    * Prepares content for the full-screen reader.
-   * For PDFs, we create a small HTML wrapper file on disk that embeds the PDF
-   * via `<embed>` or base64 data URI. This is more reliable than passing
-   * raw file:// URIs directly to the WebView, which often renders blank on iOS
-   * and is unsupported on Android.
+   * For PDFs, we pass the local file URI directly to the native react-native-pdf viewer.
    */
   static async prepareContent(
     pack: ContentPack,
@@ -149,52 +127,12 @@ export class GuideReaderService {
     const format = this.detectFormat(pack);
 
     if (format === 'pdf') {
-      const pageParam = section?.page ? `#page=${section.page}` : '';
-
-      if (Platform.OS === 'ios') {
-        // iOS: create an HTML wrapper in the SAME directory as the PDF.
-        // The wrapper uses <embed src="filename.pdf"> so WKWebView's native
-        // PDF viewer kicks in. allowingReadAccessToURL is set to the directory.
-        const lastSlash = pack.localUri.lastIndexOf('/');
-        const pdfDir = pack.localUri.substring(0, lastSlash);
-        const pdfFileName = pack.localUri.substring(lastSlash + 1);
-        const wrapperPath = `${pdfDir}/.ark-reader.html`;
-
-        const embedSrc = `./${encodeURIComponent(pdfFileName)}${pageParam}`;
-        const wrapperHtml = pdfWrapperHtml(embedSrc, pack.title);
-        await FileSystem.writeAsStringAsync(wrapperPath, wrapperHtml);
-
-        return {
-          uri: wrapperPath,
-          format: 'pdf',
-          title: pack.title,
-          sectionTitle: section?.title,
-          page: section?.page,
-          allowReadAccessToURL: pdfDir,
-        };
-      }
-
-      // Android: read PDF as base64, write an HTML wrapper that embeds it
-      // via data URI. The HTML file lives in the app cache directory.
-      const base64 = await FileSystem.readAsStringAsync(pack.localUri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-
-      const readerDir = `${FileSystem.cacheDirectory}ark-reader/`;
-      await FileSystem.makeDirectoryAsync(readerDir, { intermediates: true });
-
-      const wrapperPath = `${readerDir}${pack.id}.html`;
-      const dataUri = `data:application/pdf;base64,${base64}${pageParam}`;
-      const wrapperHtml = pdfWrapperHtml(dataUri, pack.title);
-      await FileSystem.writeAsStringAsync(wrapperPath, wrapperHtml);
-
       return {
-        uri: wrapperPath,
+        uri: pack.localUri,
         format: 'pdf',
         title: pack.title,
         sectionTitle: section?.title,
         page: section?.page,
-        allowReadAccessToURL: readerDir,
       };
     }
 

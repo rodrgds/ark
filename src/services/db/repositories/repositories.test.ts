@@ -116,7 +116,7 @@ beforeEach(async () => {
 describe('database migrations', () => {
   test('creates the current schema with FTS and resumable download columns', async () => {
     const version = await testDb.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
-    expect(version?.user_version).toBe(7);
+    expect(version?.user_version).toBe(8);
 
     const downloadColumns = await testDb.getAllAsync<{ name: string }>(
       'PRAGMA table_info(downloads)'
@@ -136,6 +136,14 @@ describe('database migrations', () => {
       'PRAGMA table_info(map_markers)'
     );
     expect(markerColumns.map((column) => column.name)).toContain('photo_uri');
+    const documentColumns = await testDb.getAllAsync<{ name: string }>(
+      'PRAGMA table_info(documents)'
+    );
+    expect(documentColumns.map((column) => column.name)).toContain('extracted_text');
+    expect(documentColumns.map((column) => column.name)).toContain('ocr_text');
+    expect(documentColumns.map((column) => column.name)).toContain('ocr_status');
+    expect(documentColumns.map((column) => column.name)).toContain('ocr_error');
+    expect(documentColumns.map((column) => column.name)).toContain('indexed_at');
 
     await testDb.runAsync(
       'INSERT INTO notes_fts (note_id, title, body, tags) VALUES (?, ?, ?, ?)',
@@ -325,6 +333,13 @@ describe('repositories', () => {
       sizeBytes: 500,
     });
     expect(document?.title).toBe('Permit PDF');
+    const indexedDocument = await DocumentsRepository.updateText('doc-1', {
+      extractedText: 'Permit allows water cache access.',
+      ocrStatus: 'not_needed',
+      indexedAt: 123,
+    });
+    expect(indexedDocument?.extractedText).toContain('water cache');
+    expect(indexedDocument?.indexedAt).toBe(123);
     await DocumentsRepository.delete('doc-1');
     expect(await DocumentsRepository.get('doc-1')).toBeNull();
 

@@ -30,7 +30,14 @@ export type ContentPackManifest = {
 export type ContentPack = ContentPackManifest & {
   localUri?: string | null;
   sizeBytes?: number | null;
-  installStatus: 'not_installed' | 'queued' | 'downloading' | 'paused' | 'installed' | 'failed';
+  installStatus:
+    | 'not_installed'
+    | 'queued'
+    | 'downloading'
+    | 'verifying'
+    | 'paused'
+    | 'installed'
+    | 'failed';
   progress: number;
   createdAt: number;
   updatedAt: number;

@@ -60,6 +60,7 @@ describe('app route contracts', () => {
       'app/(tabs)/settings.tsx',
       'app/onboarding/security.tsx',
       'src/components/ui/input.tsx',
+      'app/content/[id].tsx',
     ]);
     const offenders = ROUTE_FILES.filter((file) => {
       const rel = relative(process.cwd(), file);

@@ -1,0 +1,19 @@
+{
+  "name": "ark-zim",
+  "version": "1.0.0",
+  "description": "Native ZIM engine for Ark using libkiwix/libzim",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "private": true,
+  "keywords": [
+    "expo",
+    "react-native",
+    "zim",
+    "kiwix"
+  ],
+  "peerDependencies": {
+    "expo": "*",
+    "expo-modules-core": "*",
+    "react-native": "*"
+  }
+}

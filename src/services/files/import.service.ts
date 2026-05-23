@@ -3,6 +3,8 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Linking } from 'react-native';
 import { DocumentsRepository } from '@/services/db/repositories/documents.repo';
+import { RagService } from '@/services/ai/rag.service';
+import { DocumentTextService, isImageDocument } from '@/services/files/document-text.service';
 import { FileSystemService } from '@/services/files/filesystem.service';
 
 export class ImportService {
@@ -34,7 +36,7 @@ export class ImportService {
     const info = await FileSystem.getInfoAsync(localUri);
     const storedSize = info.exists && 'size' in info ? (info.size ?? asset.size ?? null) : null;
 
-    return DocumentsRepository.create({
+    const document = await DocumentsRepository.create({
       id,
       title: asset.name || 'Imported document',
       mimeType: asset.mimeType ?? null,
@@ -42,7 +44,18 @@ export class ImportService {
       sizeBytes: storedSize,
       source: 'document-picker',
       encryptionStatus: 'plaintext',
+      ocrStatus: isImageDocument({ mimeType: asset.mimeType ?? null, title: asset.name ?? '' })
+        ? 'pending'
+        : 'not_needed',
     });
+    if (document) {
+      return DocumentTextService.processDocument(document.id);
+    }
+    return document;
+  }
+
+  static async reprocessDocument(id: string) {
+    return DocumentTextService.reprocessDocument(id);
   }
 
   static async openDocument(id: string) {
@@ -56,6 +69,7 @@ export class ImportService {
   static async deleteDocument(id: string) {
     const document = await DocumentsRepository.get(id);
     if (document?.localUri) await FileSystemService.deleteByUri(document.localUri);
+    await RagService.removeSource(`document:${id}`);
     await DocumentsRepository.delete(id);
   }
 }

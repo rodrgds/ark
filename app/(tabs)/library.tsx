@@ -55,6 +55,7 @@ function iconFor(pack: ContentPack) {
 
 function actionLabel(pack: ContentPack) {
   if (pack.installStatus === 'downloading' || pack.installStatus === 'queued') return 'Downloading';
+  if (pack.installStatus === 'verifying') return 'Verifying';
   if (pack.installStatus === 'paused') return 'Resume';
   if (pack.installStatus === 'failed') return 'Retry';
   if (pack.installed) return 'Installed';
@@ -114,7 +115,12 @@ export default function LibraryScreen() {
 
   React.useEffect(() => {
     if (
-      !packs.some((pack) => pack.installStatus === 'queued' || pack.installStatus === 'downloading')
+      !packs.some(
+        (pack) =>
+          pack.installStatus === 'queued' ||
+          pack.installStatus === 'downloading' ||
+          pack.installStatus === 'verifying'
+      )
     ) {
       return;
     }
@@ -133,7 +139,10 @@ export default function LibraryScreen() {
   const showModelTools = filter === 'All' || filter === 'AI Models';
   const installedCount = packs.filter((pack) => pack.installed).length;
   const activeCount = packs.filter(
-    (pack) => pack.installStatus === 'queued' || pack.installStatus === 'downloading'
+    (pack) =>
+      pack.installStatus === 'queued' ||
+      pack.installStatus === 'downloading' ||
+      pack.installStatus === 'verifying'
   ).length;
 
   return (
@@ -158,7 +167,7 @@ export default function LibraryScreen() {
             Real offline packs from Kiwix, Hesperian, and public-domain survival archives.
           </Text>
         </View>
-          <Arky pose="download" size={80} />
+        <Arky pose="download" size={80} />
       </View>
 
       <Card className="gap-3">
@@ -434,6 +443,7 @@ export default function LibraryScreen() {
                     <Text variant="small">
                       Imported {formatDistanceToNow(document.createdAt, { addSuffix: true })}
                     </Text>
+                    <Text variant="small">{documentSearchStatus(document)}</Text>
                   </View>
                 </View>
                 <View className="flex-row gap-2">
@@ -487,11 +497,13 @@ export default function LibraryScreen() {
         </View>
       ) : null}
 
-      {!initialLoading && showPacks
-        ? visible.length === 0 ? (
+      {!initialLoading && showPacks ? (
+        visible.length === 0 ? (
           <View className="items-center gap-4 py-8">
             <Arky pose="archivist" size={160} />
-            <Text variant="h3" className="text-center">Library is empty</Text>
+            <Text variant="h3" className="text-center">
+              Library is empty
+            </Text>
             <Text variant="muted" className="text-center">
               Ark organizes downloaded knowledge packs, documents, maps, and models here.
             </Text>
@@ -527,7 +539,9 @@ export default function LibraryScreen() {
                   <Text variant="small">
                     {pack.installStatus === 'failed'
                       ? 'Download failed. Check connection and retry.'
-                      : `${Math.round(pack.progress * 100)}% - ${pack.installStatus.replace('_', ' ')}`}
+                      : pack.installStatus === 'verifying'
+                        ? 'Verifying file before installing'
+                        : `${Math.round(pack.progress * 100)}% - ${pack.installStatus.replace('_', ' ')}`}
                   </Text>
                   {packStorageWarning ? (
                     <Text variant="small" className="text-destructive">
@@ -540,199 +554,229 @@ export default function LibraryScreen() {
                   <Text className="text-destructive text-sm">{pack.disclaimer}</Text>
                 ) : null}
 
-              {pack.installStatus === 'downloading' || pack.installStatus === 'queued' ? (
-                <View className="flex-row gap-2">
-                  <Button
-                    className="flex-1"
-                    variant="outline"
-                    disabled={workingId === pack.id}
-                    onPress={async () => {
-                      setWorkingId(pack.id);
-                      setError(null);
-                      try {
-                        await ContentPackService.pausePackDownload(pack.id);
-                        await load();
-                      } catch (pauseError) {
-                        setError(
-                          pauseError instanceof Error
-                            ? pauseError.message
-                            : 'Unable to pause download.'
-                        );
-                      } finally {
-                        setWorkingId(null);
-                      }
-                    }}>
-                    {workingId === pack.id ? (
-                      <ActivityIndicator />
-                    ) : (
-                      <Icon as={Pause} className="size-4" />
-                    )}
-                    <Text>Pause</Text>
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    onPress={() =>
-                      Alert.alert('Cancel download?', pack.title, [
-                        { text: 'Keep', style: 'cancel' },
-                        {
-                          text: 'Cancel',
-                          style: 'destructive',
-                          onPress: async () => {
-                            setWorkingId(pack.id);
-                            setError(null);
-                            try {
-                              await ContentPackService.cancelPackDownload(pack.id);
-                              await load();
-                            } catch (cancelError) {
-                              setError(
-                                cancelError instanceof Error
-                                  ? cancelError.message
-                                  : 'Unable to cancel download.'
-                              );
-                            } finally {
-                              setWorkingId(null);
-                            }
+                {pack.installStatus === 'downloading' || pack.installStatus === 'queued' ? (
+                  <View className="flex-row gap-2">
+                    <Button
+                      className="flex-1"
+                      variant="outline"
+                      disabled={workingId === pack.id}
+                      onPress={async () => {
+                        setWorkingId(pack.id);
+                        setError(null);
+                        try {
+                          await ContentPackService.pausePackDownload(pack.id);
+                          await load();
+                        } catch (pauseError) {
+                          setError(
+                            pauseError instanceof Error
+                              ? pauseError.message
+                              : 'Unable to pause download.'
+                          );
+                        } finally {
+                          setWorkingId(null);
+                        }
+                      }}>
+                      {workingId === pack.id ? (
+                        <ActivityIndicator />
+                      ) : (
+                        <Icon as={Pause} className="size-4" />
+                      )}
+                      <Text>Pause</Text>
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      onPress={() =>
+                        Alert.alert('Cancel download?', pack.title, [
+                          { text: 'Keep', style: 'cancel' },
+                          {
+                            text: 'Cancel',
+                            style: 'destructive',
+                            onPress: async () => {
+                              setWorkingId(pack.id);
+                              setError(null);
+                              try {
+                                await ContentPackService.cancelPackDownload(pack.id);
+                                await load();
+                              } catch (cancelError) {
+                                setError(
+                                  cancelError instanceof Error
+                                    ? cancelError.message
+                                    : 'Unable to cancel download.'
+                                );
+                              } finally {
+                                setWorkingId(null);
+                              }
+                            },
                           },
-                        },
-                      ])
-                    }>
-                    <Icon as={Trash2} className="size-4" />
-                  </Button>
-                </View>
-              ) : pack.installStatus === 'paused' ? (
-                <View className="flex-row gap-2">
-                  <Button
-                    className="flex-1"
-                    disabled={workingId === pack.id}
-                    onPress={async () => {
-                      setWorkingId(pack.id);
-                      setError(null);
-                      try {
-                        await ContentPackService.resumePackDownload(pack.id);
-                        await load();
-                      } catch (resumeError) {
-                        setError(
-                          resumeError instanceof Error
-                            ? resumeError.message
-                            : 'Unable to resume download.'
-                        );
-                      } finally {
-                        setWorkingId(null);
-                      }
-                    }}>
-                    {workingId === pack.id ? (
-                      <ActivityIndicator />
-                    ) : (
-                      <Icon as={Play} className="size-4" />
-                    )}
-                    <Text>Resume</Text>
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    onPress={() =>
-                      Alert.alert('Cancel download?', pack.title, [
-                        { text: 'Keep', style: 'cancel' },
-                        {
-                          text: 'Cancel',
-                          style: 'destructive',
-                          onPress: async () => {
-                            setWorkingId(pack.id);
-                            setError(null);
-                            try {
-                              await ContentPackService.cancelPackDownload(pack.id);
-                              await load();
-                            } catch (cancelError) {
-                              setError(
-                                cancelError instanceof Error
-                                  ? cancelError.message
-                                  : 'Unable to cancel download.'
-                              );
-                            } finally {
-                              setWorkingId(null);
-                            }
-                          },
-                        },
-                      ])
-                    }>
-                    <Icon as={Trash2} className="size-4" />
-                  </Button>
-                </View>
-              ) : pack.installed ? (
-                <View className="flex-row gap-2">
-                  <Button
-                    className="flex-1"
-                    variant="secondary"
-                    onPress={() => router.push(`/content/${pack.id}` as never)}>
-                    <Text>Open</Text>
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    onPress={() =>
-                      Alert.alert('Remove pack?', pack.title, [
-                        { text: 'Cancel', style: 'cancel' },
-                        {
-                          text: 'Remove',
-                          style: 'destructive',
-                          onPress: async () => {
-                            setWorkingId(pack.id);
-                            setError(null);
-                            try {
-                              await ContentPackService.removePack(pack.id);
-                              await load();
-                            } finally {
-                              setWorkingId(null);
-                            }
-                          },
-                        },
-                      ])
-                    }>
-                    <Icon as={Trash2} className="size-4" />
-                  </Button>
-                </View>
-              ) : (
-                <Button
-                  variant={pack.installStatus === 'failed' ? 'outline' : 'default'}
-                  disabled={workingId === pack.id || !!packStorageWarning}
-                  onPress={async () => {
-                    setWorkingId(pack.id);
-                    setError(null);
-                    try {
-                      await ContentPackService.installPack(pack.id);
-                      await load();
-                    } catch (downloadError) {
-                      setError(
-                        downloadError instanceof Error
-                          ? downloadError.message
-                          : 'Unable to download pack.'
-                      );
-                    } finally {
-                      setWorkingId(null);
-                    }
-                  }}>
-                  {workingId === pack.id ? (
+                        ])
+                      }>
+                      <Icon as={Trash2} className="size-4" />
+                    </Button>
+                  </View>
+                ) : pack.installStatus === 'verifying' ? (
+                  <Button disabled>
                     <ActivityIndicator />
-                  ) : (
-                    <Icon as={Download} className="size-4" />
-                  )}
-                  <Text>{actionLabel(pack)}</Text>
-                </Button>
-              )}
+                    <Text>Verifying</Text>
+                  </Button>
+                ) : pack.installStatus === 'paused' ? (
+                  <View className="flex-row gap-2">
+                    <Button
+                      className="flex-1"
+                      disabled={workingId === pack.id}
+                      onPress={async () => {
+                        setWorkingId(pack.id);
+                        setError(null);
+                        try {
+                          await ContentPackService.resumePackDownload(pack.id);
+                          await load();
+                        } catch (resumeError) {
+                          setError(
+                            resumeError instanceof Error
+                              ? resumeError.message
+                              : 'Unable to resume download.'
+                          );
+                        } finally {
+                          setWorkingId(null);
+                        }
+                      }}>
+                      {workingId === pack.id ? (
+                        <ActivityIndicator />
+                      ) : (
+                        <Icon as={Play} className="size-4" />
+                      )}
+                      <Text>Resume</Text>
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      onPress={() =>
+                        Alert.alert('Cancel download?', pack.title, [
+                          { text: 'Keep', style: 'cancel' },
+                          {
+                            text: 'Cancel',
+                            style: 'destructive',
+                            onPress: async () => {
+                              setWorkingId(pack.id);
+                              setError(null);
+                              try {
+                                await ContentPackService.cancelPackDownload(pack.id);
+                                await load();
+                              } catch (cancelError) {
+                                setError(
+                                  cancelError instanceof Error
+                                    ? cancelError.message
+                                    : 'Unable to cancel download.'
+                                );
+                              } finally {
+                                setWorkingId(null);
+                              }
+                            },
+                          },
+                        ])
+                      }>
+                      <Icon as={Trash2} className="size-4" />
+                    </Button>
+                  </View>
+                ) : pack.installed ? (
+                  <View className="flex-row gap-2">
+                    <Button
+                      className="flex-1"
+                      variant="secondary"
+                      onPress={() => {
+                        // For readable guide formats, skip the info page and go straight to reader
+                        if (
+                          pack.format === 'pdf' ||
+                          pack.format === 'html' ||
+                          pack.format === 'txt'
+                        ) {
+                          router.push({
+                            pathname: '/content/reader',
+                            params: { packId: pack.id },
+                          } as never);
+                        } else {
+                          router.push(`/content/${pack.id}` as never);
+                        }
+                      }}>
+                      <Text>Open</Text>
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      onPress={() =>
+                        Alert.alert('Remove pack?', pack.title, [
+                          { text: 'Cancel', style: 'cancel' },
+                          {
+                            text: 'Remove',
+                            style: 'destructive',
+                            onPress: async () => {
+                              setWorkingId(pack.id);
+                              setError(null);
+                              try {
+                                await ContentPackService.removePack(pack.id);
+                                await load();
+                              } finally {
+                                setWorkingId(null);
+                              }
+                            },
+                          },
+                        ])
+                      }>
+                      <Icon as={Trash2} className="size-4" />
+                    </Button>
+                  </View>
+                ) : (
+                  <Button
+                    variant={pack.installStatus === 'failed' ? 'outline' : 'default'}
+                    disabled={workingId === pack.id || !!packStorageWarning}
+                    onPress={async () => {
+                      setWorkingId(pack.id);
+                      setError(null);
+                      try {
+                        await ContentPackService.installPack(pack.id);
+                        await load();
+                      } catch (downloadError) {
+                        setError(
+                          downloadError instanceof Error
+                            ? downloadError.message
+                            : 'Unable to download pack.'
+                        );
+                      } finally {
+                        setWorkingId(null);
+                      }
+                    }}>
+                    {workingId === pack.id ? (
+                      <ActivityIndicator />
+                    ) : (
+                      <Icon as={Download} className="size-4" />
+                    )}
+                    <Text>{actionLabel(pack)}</Text>
+                  </Button>
+                )}
               </Card>
             );
           })
         )
-        : null}
+      ) : null}
 
       {!initialLoading && showPacks ? (
-        <View className="py-8 items-center justify-center">
-          <Text variant="small" className="text-zinc-500 text-center px-4 leading-relaxed">
-            To protect your safety offline, Ark automatically verifies the integrity of all downloaded files.
+        <View className="items-center justify-center py-8">
+          <Text variant="small" className="px-4 text-center leading-relaxed text-zinc-500">
+            To protect your safety offline, Ark automatically verifies the integrity of all
+            downloaded files.
           </Text>
         </View>
       ) : null}
     </Screen>
   );
+}
+
+function documentSearchStatus(document: ArkDocument) {
+  if (document.extractedText) return 'Text indexed for offline search';
+  if (document.ocrText) return 'Image text indexed for offline search';
+  if (document.ocrStatus === 'processing') return 'Reading image text';
+  if (document.ocrStatus === 'pending') return 'Queued for text extraction';
+  if (document.ocrStatus === 'unavailable') return 'OCR available in Android dev build';
+  if (document.ocrStatus === 'failed') return 'OCR needs attention';
+  return 'Stored offline';
 }

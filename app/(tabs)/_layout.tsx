@@ -38,7 +38,10 @@ export default function TabsLayout() {
     ]);
     setPendingDownloads(
       downloads.filter(
-        (download) => download.status === 'queued' || download.status === 'downloading'
+        (download) =>
+          download.status === 'queued' ||
+          download.status === 'downloading' ||
+          download.status === 'verifying'
       ).length
     );
     setRssItems(rss.recentItems.length);

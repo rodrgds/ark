@@ -58,6 +58,7 @@ export default function TabsLayout() {
       <LockStateBar />
       <Tabs
         screenOptions={({ route }) => ({
+          headerShown: false,
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.text,
           tabBarStyle: { backgroundColor: colors.card, borderTopColor: colors.border },

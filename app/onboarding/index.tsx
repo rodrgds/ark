@@ -1,32 +1,63 @@
 import { Card, CardHeader } from '@/components/ui/card';
 import { OnboardingFrame } from '@/components/onboarding/onboarding-frame';
 import { SettingsRepository } from '@/services/db/repositories/settings.repo';
+import { Shield, HardDrive, Cpu, Compass } from '@/components/ui/icon';
+import { View } from 'react-native';
+import { Text } from '@/components/ui/text';
 
-const cards = [
-  ['Download before you leave', 'Maps, guides, weather, and references live on this device.'],
-  ['Keep private notes close', 'The vault puts notes and documents behind a local unlock step.'],
-  ['Ask with sources', 'Ark answers from downloaded material when a local model is available.'],
+const features = [
+  {
+    title: 'Download everything',
+    description: 'Maps, guides, and references live locally on this device.',
+    icon: HardDrive,
+  },
+  {
+    title: 'Private Vault',
+    description: 'Sensitive notes and documents are locked behind local biometrics.',
+    icon: Shield,
+  },
+  {
+    title: 'Offline AI',
+    description: 'Ask questions using local models without an internet connection.',
+    icon: Cpu,
+  },
+  {
+    title: 'Survival Tools',
+    description: 'Built-in sensors for compass, level, and environment monitoring.',
+    icon: Compass,
+  },
 ];
 
 export default function IntroScreen() {
   return (
     <OnboardingFrame
-      title="Build your offline command center"
+      title="Offline Command Center"
       nextHref="/onboarding/security"
       onNext={async () => {
         await SettingsRepository.updateOnboardingState({ hasSeenIntro: true });
       }}>
-      <Card className="border-primary/35 bg-primary/10 gap-2">
-        <CardHeader
-          title="Arky is your offline quartermaster"
-          description="No account, no cloud sync, no hidden service dependency. Set up the basics now, tune everything later."
-        />
-      </Card>
-      {cards.map(([title, description]) => (
-        <Card key={title}>
-          <CardHeader title={title} description={description} />
-        </Card>
-      ))}
+      <View className="gap-4">
+        <View className="bg-primary/10 border-primary/20 rounded-2xl border p-5">
+          <Text className="text-primary text-lg font-bold">Arky is your quartermaster</Text>
+          <Text variant="muted" className="mt-1">
+            No accounts, no cloud, no dependencies. Set up the basics now and tune everything later.
+          </Text>
+        </View>
+
+        <View className="gap-3">
+          {features.map((item) => (
+            <Card key={item.title} className="flex-row items-center gap-4 p-4">
+              <View className="bg-muted h-10 w-10 items-center justify-center rounded-xl">
+                <item.icon size={20} className="text-primary" />
+              </View>
+              <View className="flex-1">
+                <Text className="font-bold">{item.title}</Text>
+                <Text variant="muted" className="text-sm">{item.description}</Text>
+              </View>
+            </Card>
+          ))}
+        </View>
+      </View>
     </OnboardingFrame>
   );
 }

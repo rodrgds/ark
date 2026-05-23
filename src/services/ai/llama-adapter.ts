@@ -10,6 +10,12 @@ let llamaModulePromise: Promise<LlamaModule | null> | null = null;
 let contextPromise: Promise<LlamaContext | null> | null = null;
 let activeCompletionContext: LlamaContext | null = null;
 
+export function resetLlamaAdapterForTests() {
+  llamaModulePromise = null;
+  contextPromise = null;
+  activeCompletionContext = null;
+}
+
 export class LlamaAdapter {
   readonly id = 'llama';
 

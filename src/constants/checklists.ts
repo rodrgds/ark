@@ -48,8 +48,9 @@ export const READINESS_CHECKLIST: ReadinessChecklistItem[] = [
   {
     id: 'battery',
     group: 'power',
-    title: 'Battery reserve',
-    detail: 'Charge phone and power bank. Low-power mode should be available before departure.',
+    title: 'Battery and Power Source',
+    detail:
+      'Highly Recommended: Ensure you have a high-capacity battery, portable generator, or solar-powered power bank. Charge all devices before departure.',
   },
   {
     id: 'contacts',

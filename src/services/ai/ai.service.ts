@@ -121,4 +121,8 @@ export class AIService {
     void HapticsService.selection();
     return { threadId, messages: [userMessage, assistantMessage] };
   }
+
+  static async cancelActiveResponse() {
+    await llamaAdapter.cancelActiveCompletion();
+  }
 }

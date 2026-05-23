@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
-import { ArkBrandLockup, Arky } from '@/components/brand/ark-logo';
+import { ArkBrandLockup } from '@/components/brand/ark-logo';
 import { APP_TAGLINE } from '@/constants/app';
 import { PreferencesService } from '@/services/preferences/preferences.service';
 import { type Href, router } from 'expo-router';
@@ -14,12 +14,14 @@ export function OnboardingFrame({
   nextHref,
   nextLabel = 'Continue',
   onNext,
+  hideBranding = false,
 }: {
   title: string;
   children: React.ReactNode;
   nextHref?: Href;
   nextLabel?: string;
   onNext?: () => Promise<boolean | void> | boolean | void;
+  hideBranding?: boolean;
 }) {
   const [motionEnabled, setMotionEnabled] = React.useState(true);
 
@@ -42,29 +44,40 @@ export function OnboardingFrame({
         className="bg-background flex-1"
         automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
         contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={{ padding: 20, gap: 20, flexGrow: 1 }}
+        contentContainerStyle={{ padding: 24, gap: 24, flexGrow: 1 }}
         keyboardDismissMode="interactive"
         keyboardShouldPersistTaps="handled">
+        {!hideBranding && (
+          <Animated.View
+            className="gap-4 py-8"
+            entering={
+              motionEnabled ? FadeInDown.duration(400).easing(Easing.out(Easing.quad)) : undefined
+            }>
+            <ArkBrandLockup center />
+            <Text variant="muted" className="text-center font-medium">
+              {APP_TAGLINE}
+            </Text>
+          </Animated.View>
+        )}
+
+        <View className="gap-2">
+          <Text variant="h2">{title}</Text>
+          <View className="bg-primary h-1 w-12 rounded-full" />
+        </View>
+
         <Animated.View
-          className="min-h-48 justify-end gap-3"
+          className="flex-1 gap-4"
           entering={
-            motionEnabled ? FadeInDown.duration(280).easing(Easing.out(Easing.quad)) : undefined
-          }>
-          <Arky compact size={72} />
-          <ArkBrandLockup />
-          <Text className="text-primary text-lg font-semibold">{APP_TAGLINE}</Text>
-        </Animated.View>
-        <Text variant="h3">{title}</Text>
-        <Animated.View
-          className="flex-1 gap-3"
-          entering={
-            motionEnabled ? FadeInUp.duration(260).easing(Easing.out(Easing.quad)) : undefined
+            motionEnabled ? FadeInUp.duration(400).easing(Easing.out(Easing.quad)) : undefined
           }>
           {children}
         </Animated.View>
-        <Button size="lg" onPress={handleNext}>
-          <Text>{nextLabel}</Text>
-        </Button>
+
+        <View className="pt-4">
+          <Button size="lg" onPress={handleNext} className="h-14 rounded-2xl">
+            <Text className="text-lg font-semibold">{nextLabel}</Text>
+          </Button>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );

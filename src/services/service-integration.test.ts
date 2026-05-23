@@ -2,6 +2,9 @@ import { beforeAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { Database } from 'bun:sqlite';
 
 const secureStore = new Map<string, string>();
+let llamaStopCalls = 0;
+let llamaCompletionGate: Promise<void> | null = null;
+let llamaCompletionStarted: (() => void) | null = null;
 
 mock.module('expo-sqlite', () => ({
   openDatabaseAsync: async () => {
@@ -89,7 +92,18 @@ mock.module('react-native', () => ({
 
 mock.module('llama.rn', () => ({
   initLlama: async () => ({
-    completion: async () => ({ text: 'Local mocked llama response.' }),
+    completion: async (
+      _params: unknown,
+      callback?: (data: { token?: string; accumulated_text?: string }) => void
+    ) => {
+      callback?.({ token: 'Local ', accumulated_text: 'Local ' });
+      llamaCompletionStarted?.();
+      if (llamaCompletionGate) await llamaCompletionGate;
+      return { text: 'Local mocked llama response.' };
+    },
+    stopCompletion: async () => {
+      llamaStopCalls += 1;
+    },
   }),
 }));
 
@@ -140,6 +154,7 @@ let VaultService: typeof import('@/services/security/vault.service').VaultServic
 let ContentPackService: typeof import('@/services/content/content-pack.service').ContentPackService;
 let RagService: typeof import('@/services/ai/rag.service').RagService;
 let AIService: typeof import('@/services/ai/ai.service').AIService;
+let resetLlamaAdapterForTests: typeof import('@/services/ai/llama-adapter').resetLlamaAdapterForTests;
 let ContentRepository: typeof import('@/services/db/repositories/content.repo').ContentRepository;
 let NotesRepository: typeof import('@/services/db/repositories/notes.repo').NotesRepository;
 let DownloadsRepository: typeof import('@/services/db/repositories/downloads.repo').DownloadsRepository;
@@ -153,6 +168,7 @@ beforeAll(async () => {
   ({ ContentPackService } = await import('@/services/content/content-pack.service'));
   ({ RagService } = await import('@/services/ai/rag.service'));
   ({ AIService } = await import('@/services/ai/ai.service'));
+  ({ resetLlamaAdapterForTests } = await import('@/services/ai/llama-adapter'));
   ({ ContentRepository } = await import('@/services/db/repositories/content.repo'));
   ({ NotesRepository } = await import('@/services/db/repositories/notes.repo'));
   ({ DownloadsRepository } = await import('@/services/db/repositories/downloads.repo'));
@@ -160,6 +176,10 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   secureStore.clear();
+  llamaStopCalls = 0;
+  llamaCompletionGate = null;
+  llamaCompletionStarted = null;
+  resetLlamaAdapterForTests?.();
   testDb?.close();
   testDb = new TestSQLiteDatabase();
   await migrateDbIfNeeded(testDb as never);
@@ -245,6 +265,35 @@ describe('service integration', () => {
     const stored = await AIService.listMessages(result.threadId);
     expect(stored.map((message) => message.role)).toEqual(['user', 'assistant']);
     expect(stored[1].citations[0]?.sourceRef).toBe(note.id);
+  });
+
+  test('AI chat can cancel an active llama completion', async () => {
+    await ContentRepository.updateInstallStatus({
+      id: 'model-qwen25-15b-q4-0',
+      status: 'installed',
+      progress: 1,
+      localUri: 'file:///ark/models/qwen.gguf',
+    });
+
+    let releaseCompletion!: () => void;
+    const completionStarted = new Promise<void>((resolve) => {
+      llamaCompletionStarted = resolve;
+    });
+    llamaCompletionGate = new Promise<void>((resolve) => {
+      releaseCompletion = resolve;
+    });
+
+    const pending = AIService.sendMessage({
+      content: 'Give me a short offline plan.',
+      useRag: false,
+    });
+    await completionStarted;
+    await AIService.cancelActiveResponse();
+    expect(llamaStopCalls).toBe(1);
+
+    releaseCompletion();
+    const result = await pending;
+    expect(result.messages[1].content).toBe('Local mocked llama response.');
   });
 
   test('content pack removal clears installed state and RAG source', async () => {

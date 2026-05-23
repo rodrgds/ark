@@ -7,7 +7,7 @@ import { Text } from '@/components/ui/text';
 import { SAFETY_COPY } from '@/constants/app';
 import { AIService } from '@/services/ai/ai.service';
 import type { AiMessage } from '@/types/ai';
-import { Bot, Search, Send, Trash2 } from 'lucide-react-native';
+import { Bot, Search, Send, StopCircle, Trash2 } from 'lucide-react-native';
 import * as React from 'react';
 import {
   ActivityIndicator,
@@ -99,6 +99,10 @@ export default function ChatScreen() {
     setMessages([]);
   }
 
+  async function stopResponse() {
+    await AIService.cancelActiveResponse();
+  }
+
   function confirmClear() {
     if (!threadId) return;
     Alert.alert('Clear chat?', 'This removes the current local thread from this device.', [
@@ -171,9 +175,15 @@ export default function ChatScreen() {
       )}
 
       {sending ? (
-        <View className="border-border flex-row items-center gap-2 border-t px-4 py-2">
+        <View className="border-border flex-row items-center gap-3 border-t px-4 py-2">
           <ActivityIndicator />
-          <Text variant="muted">Ark is checking local sources...</Text>
+          <Text variant="muted" className="min-w-0 flex-1">
+            Ark is checking local sources...
+          </Text>
+          <Button size="sm" variant="outline" onPress={() => void stopResponse()}>
+            <Icon as={StopCircle} className="size-4" />
+            <Text>Stop</Text>
+          </Button>
         </View>
       ) : null}
 

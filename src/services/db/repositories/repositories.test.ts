@@ -150,6 +150,12 @@ describe('repositories', () => {
     await SettingsRepository.set('theme.preference', 'oled');
     expect(await SettingsRepository.get('theme.preference')).toBe('oled');
 
+    await SettingsRepository.setLabelColor('water', '#2563eb');
+    expect(await SettingsRepository.getLabelColors()).toEqual({ water: '#2563eb' });
+
+    await SettingsRepository.deleteLabelColor('water');
+    expect(await SettingsRepository.getLabelColors()).toEqual({});
+
     await SettingsRepository.updateOnboardingState({ hasSeenIntro: true, completedAt: 123 });
     const onboarding = await SettingsRepository.getOnboardingState();
     expect(onboarding.hasSeenIntro).toBe(true);

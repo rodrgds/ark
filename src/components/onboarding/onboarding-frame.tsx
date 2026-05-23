@@ -7,6 +7,7 @@ import { type Href, router } from 'expo-router';
 import * as React from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import Animated, { Easing, FadeInDown, FadeInUp } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export function OnboardingFrame({
   title,
@@ -26,6 +27,7 @@ export function OnboardingFrame({
   arkyPose?: ArkyPose;
 }) {
   const [motionEnabled, setMotionEnabled] = React.useState(true);
+  const insets = useSafeAreaInsets();
 
   React.useEffect(() => {
     PreferencesService.getMotionEnabled().then(setMotionEnabled);
@@ -46,7 +48,14 @@ export function OnboardingFrame({
         className="bg-background flex-1"
         automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
         contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={{ padding: 24, gap: 24, flexGrow: 1 }}
+        contentContainerStyle={{
+          paddingTop: Math.max(24, insets.top),
+          paddingBottom: Math.max(24, insets.bottom),
+          paddingLeft: 24,
+          paddingRight: 24,
+          gap: 24,
+          flexGrow: 1,
+        }}
         keyboardDismissMode="interactive"
         keyboardShouldPersistTaps="handled">
         {!hideBranding && (

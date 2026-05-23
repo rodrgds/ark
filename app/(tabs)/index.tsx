@@ -66,7 +66,7 @@ export default function HomeScreen() {
       <ArkBrandLockup compact />
 
       <View className="items-center py-2">
-        <Arky pose="normal" size={140} />
+        <Arky pose="prepared" size={140} />
       </View>
 
       <Card className="gap-3">

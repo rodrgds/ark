@@ -158,7 +158,7 @@ export default function LibraryScreen() {
             Real offline packs from Kiwix, Hesperian, and public-domain survival archives.
           </Text>
         </View>
-        <Arky pose="scholar" size={80} />
+          <Arky pose="download" size={80} />
       </View>
 
       <Card className="gap-3">
@@ -488,7 +488,16 @@ export default function LibraryScreen() {
       ) : null}
 
       {!initialLoading && showPacks
-        ? visible.map((pack) => {
+        ? visible.length === 0 ? (
+          <View className="items-center gap-4 py-8">
+            <Arky pose="archivist" size={160} />
+            <Text variant="h3" className="text-center">Library is empty</Text>
+            <Text variant="muted" className="text-center">
+              Ark organizes downloaded knowledge packs, documents, maps, and models here.
+            </Text>
+          </View>
+        ) : (
+          visible.map((pack) => {
             const packStorageWarning = storageWarning(pack, storageCapacity?.freeBytes);
             return (
               <Card key={pack.id} className="gap-4">
@@ -519,16 +528,7 @@ export default function LibraryScreen() {
                     {pack.installStatus === 'failed'
                       ? 'Download failed. Check connection and retry.'
                       : `${Math.round(pack.progress * 100)}% - ${pack.installStatus.replace('_', ' ')}`}
-                    {pack.checksumMd5 ? ' - MD5 verification enabled' : ''}
-                    {!pack.checksumMd5 && (pack.checksumSha256 || pack.checksumSha256Url)
-                      ? ' - SHA-256 published'
-                      : ''}
                   </Text>
-                  {(pack.checksumSha256 || pack.checksumSha256Url) && !pack.checksumMd5 ? (
-                    <Text variant="small" className="text-muted-foreground">
-                      Ark stores the official SHA-256 and verifies downloads after completion.
-                    </Text>
-                  ) : null}
                   {packStorageWarning ? (
                     <Text variant="small" className="text-destructive">
                       {packStorageWarning}
@@ -723,7 +723,16 @@ export default function LibraryScreen() {
               </Card>
             );
           })
+        )
         : null}
+
+      {!initialLoading && showPacks ? (
+        <View className="py-8 items-center justify-center">
+          <Text variant="small" className="text-zinc-500 text-center px-4 leading-relaxed">
+            To protect your safety offline, Ark automatically verifies the integrity of all downloaded files.
+          </Text>
+        </View>
+      ) : null}
     </Screen>
   );
 }

@@ -1,4 +1,5 @@
 import type { ContentPack } from '@/types/content';
+import { ZimHeaderParser, type ZimHeaderInfo } from '@/services/content/zim-header';
 
 export type ZimMetadata = {
   id: string;
@@ -29,41 +30,99 @@ type ArkZimNativeModule = {
   suggest(prefix: string, limit?: number): Promise<ZimSearchResult[]>;
 };
 
+export type ZimReaderPlan = {
+  installed: boolean;
+  nativeReaderAvailable: boolean;
+  jsHeaderAvailable: boolean;
+  handoffAvailable: boolean;
+  status: string;
+  kiwixJsUrl: string;
+  headerInfo: ZimHeaderInfo | null;
+  capabilities: string[];
+};
+
 export class ZimService {
   private static nativeModuleOverride: ArkZimNativeModule | null | undefined;
+  private static headerCache = new Map<string, ZimHeaderInfo>();
 
-  static getReaderPlan(pack?: ContentPack | null) {
+  /**
+   * Builds a comprehensive reader plan for a ZIM pack,
+   * showing what capabilities are available in this build.
+   */
+  static async getReaderPlan(pack?: ContentPack | null): Promise<ZimReaderPlan> {
     const installed = !!pack?.installed && !!pack.localUri;
+    const nativeModule = await this.requireNativeReader();
+    const nativeReaderAvailable = !!nativeModule;
+
+    let headerInfo: ZimHeaderInfo | null = null;
+    if (installed && pack?.localUri) {
+      headerInfo = await this.parseHeader(pack.localUri);
+    }
+
+    const capabilities: string[] = [];
+    if (installed) {
+      capabilities.push('Stored offline for reading');
+      capabilities.push('Open in Kiwix or another ZIM reader');
+      if (headerInfo?.valid) {
+        capabilities.push('Archive metadata available');
+      }
+    }
+    if (nativeReaderAvailable) {
+      capabilities.push('Full in-app reading with search');
+    }
+
     return {
       installed,
-      embeddedReaderAvailable: false,
-      inAppReaderCandidate: installed,
+      nativeReaderAvailable,
+      jsHeaderAvailable: headerInfo?.valid ?? false,
       handoffAvailable: installed,
-      status: this.getReaderStatus(pack),
-      kiwixJsUrl: this.getKiwixJsUrl(),
-      limitations: this.getLimitations(),
-      nextStep: installed
-        ? 'Ark will try the in-app reader first. Open File is available as a fallback.'
-        : 'Download the archive first. Ark will keep it in app storage for offline use.',
+      status: this.getReaderStatus(pack, nativeReaderAvailable, headerInfo),
+      kiwixJsUrl: 'https://pwa.kiwix.org',
+      headerInfo,
+      capabilities,
     };
   }
 
-  static getReaderStatus(pack?: ContentPack | null) {
+  private static getReaderStatus(
+    pack?: ContentPack | null,
+    nativeAvailable = false,
+    headerInfo?: ZimHeaderInfo | null
+  ): string {
     if (!pack) return 'Select a ZIM archive to inspect it.';
-    if (!pack.installed) return 'Download this archive before opening it offline.';
-    return 'ZIM archive is stored locally for offline reading.';
+    if (!pack.installed) return 'Download this archive to read it offline.';
+    if (nativeAvailable) return 'Ready for in-app reading.';
+    if (headerInfo?.valid) {
+      return `${headerInfo.articleCount.toLocaleString()} entries stored locally. Open in Kiwix to browse.`;
+    }
+    return 'Archive stored locally. Open in Kiwix to browse articles.';
   }
 
   static getKiwixJsUrl() {
     return 'https://pwa.kiwix.org';
   }
 
-  static getLimitations() {
-    return [
-      'In-app reading needs the ArkZim native module in a development build.',
-      'Expo Go and builds without ArkZim can still open the archive in Kiwix or another ZIM reader.',
-    ];
+  /**
+   * Parse ZIM header using pure JavaScript. Works without the native module.
+   */
+  static async parseHeader(fileUri: string): Promise<ZimHeaderInfo> {
+    const cached = this.headerCache.get(fileUri);
+    if (cached) return cached;
+
+    const info = await ZimHeaderParser.parse(fileUri);
+    if (info.valid) {
+      this.headerCache.set(fileUri, info);
+    }
+    return info;
   }
+
+  /**
+   * Get a formatted description of the archive for display.
+   */
+  static describeHeader(header: ZimHeaderInfo): string {
+    return ZimHeaderParser.describe(header);
+  }
+
+  // --- Native module methods (require dev build with ArkZim) ---
 
   static async openArchive(pack: ContentPack) {
     const module = await this.requireNativeReader();

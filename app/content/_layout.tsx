@@ -14,6 +14,7 @@ export default function ContentLayout() {
         contentStyle: { backgroundColor: colors.background },
       }}>
       <Stack.Screen name="[id]" options={{ title: 'Content' }} />
+      <Stack.Screen name="reader" options={{ headerShown: false, gestureEnabled: true }} />
     </Stack>
   );
 }

@@ -1,3 +1,4 @@
+import { Arky } from '@/components/brand/ark-logo';
 import { Screen } from '@/components/layout/screen';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -32,6 +33,9 @@ export default function WeatherTool() {
 
   return (
     <Screen>
+      <View className="items-center py-4">
+        <Arky pose="weather" size={100} />
+      </View>
       <Card className="gap-3">
         <Text variant="large">Offline Weather</Text>
         <Text variant="muted">

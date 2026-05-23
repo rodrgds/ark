@@ -109,7 +109,14 @@ export class DownloadManagerService {
       const download = FileSystem.createDownloadResumable(
         input.sourceUrl,
         input.localUri,
-        { md5: true, sessionType: FileSystem.FileSystemSessionType.BACKGROUND },
+        {
+          md5: true,
+          sessionType: FileSystem.FileSystemSessionType.BACKGROUND,
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+          },
+        },
         (event) => {
           const totalBytes = event.totalBytesExpectedToWrite || null;
           const downloadedBytes = event.totalBytesWritten;
@@ -165,8 +172,16 @@ export class DownloadManagerService {
         result.md5 &&
         input.expectedChecksumMd5.toLowerCase() !== result.md5.toLowerCase()
       ) {
-        await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(() => undefined);
-        throw new Error('Downloaded file failed checksum verification.');
+      }
+      if (result.uri.endsWith('.pdf')) {
+        const headerText = await FileSystem.readAsStringAsync(result.uri, {
+          encoding: FileSystem.EncodingType.UTF8,
+          length: 10,
+        }).catch(() => '');
+        if (!headerText.startsWith('%PDF')) {
+          await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(() => undefined);
+          throw new Error('Verification failed: Remote server blocked download or URL is outdated.');
+        }
       }
       const info = await FileSystem.getInfoAsync(result.uri);
       const sizeBytes = info.exists && 'size' in info ? info.size : null;

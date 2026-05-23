@@ -1,5 +1,6 @@
 import { Icon } from '@/components/ui/icon';
 import { LockStateBar } from '@/components/layout/app-shell';
+import { NAV_COLORS } from '@/constants/theme';
 import { NAV_THEME } from '@/lib/theme';
 import { useThemeStore } from '@/stores/theme-store';
 import { Tabs } from 'expo-router';
@@ -29,7 +30,7 @@ export default function TabsLayout() {
           headerTintColor: colors.text,
           tabBarStyle: { backgroundColor: colors.card, borderTopColor: colors.border },
           tabBarActiveTintColor: colors.primary,
-          tabBarInactiveTintColor: theme === 'light' ? '#57534E' : '#A1A1AA',
+          tabBarInactiveTintColor: NAV_COLORS[theme].mutedForeground,
           sceneStyle: { backgroundColor: colors.background },
           tabBarIcon: ({ color, size }) => {
             const Component = icons[route.name as keyof typeof icons] ?? Home;

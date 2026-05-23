@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils';
+import { NAV_COLORS } from '@/constants/theme';
 import { useThemeStore } from '@/stores/theme-store';
 import * as React from 'react';
 import { TextInput, type TextInputProps } from 'react-native';
@@ -6,9 +7,9 @@ import { TextInput, type TextInputProps } from 'react-native';
 function getPlaceholderColor(): string {
   try {
     const theme = useThemeStore.getState().effectiveTheme;
-    return theme === 'light' ? '#71717A' : '#A1A1AA';
+    return NAV_COLORS[theme].mutedForeground;
   } catch {
-    return '#A1A1AA';
+    return NAV_COLORS.oled.mutedForeground;
   }
 }
 

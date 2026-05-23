@@ -2,11 +2,12 @@ import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
-import { router } from 'expo-router';
+import { type Href, router } from 'expo-router';
 import {
   Bot,
   BookOpen,
   CheckSquare,
+  Clock,
   Compass,
   Footprints,
   Gauge,
@@ -32,8 +33,7 @@ type SearchEntry = {
   subtitle: string;
   keywords: string;
   icon: LucideIcon;
-  pathname: string;
-  params?: Record<string, string>;
+  href: Href;
 };
 
 const FUNCTION_ENTRIES: SearchEntry[] = [
@@ -42,137 +42,140 @@ const FUNCTION_ENTRIES: SearchEntry[] = [
     subtitle: 'Status dashboard and quick actions',
     keywords: 'dashboard status home readiness',
     icon: Home,
-    pathname: '/(tabs)',
+    href: '/(tabs)',
   },
   {
     title: 'Ask Arky',
     subtitle: 'AI chat with downloaded references',
     keywords: 'ai arky chat assistant rag question',
     icon: Bot,
-    pathname: '/(tabs)/chat',
+    href: '/(tabs)/chat',
   },
   {
     title: 'Offline Map',
     subtitle: 'Map regions, saved spots, and routes',
     keywords: 'map maps offline regions spots routes location',
     icon: Map,
-    pathname: '/(tabs)/map',
+    href: '/(tabs)/map',
   },
   {
     title: 'Library',
     subtitle: 'Content packs, RSS, documents, and models',
     keywords: 'library content downloads documents rss models zim pdf',
     icon: Library,
-    pathname: '/(tabs)/library',
+    href: '/(tabs)/library',
   },
   {
     title: 'Secure Notes',
     subtitle: 'Vault-gated notes and search',
     keywords: 'notes vault secure private documents',
     icon: NotebookPen,
-    pathname: '/(tabs)/notes',
+    href: '/(tabs)/notes',
   },
   {
     title: 'Tools',
     subtitle: 'Sensor tools and field utilities',
     keywords: 'tools sensors utility field',
     icon: Compass,
-    pathname: '/(tabs)/tools',
+    href: '/(tabs)/tools',
   },
   {
     title: 'Compass',
     subtitle: 'Heading and cardinal direction',
     keywords: 'compass heading direction magnetometer',
     icon: Compass,
-    pathname: '/tools/compass',
+    href: '/tools/compass',
   },
   {
     title: 'Barometer',
     subtitle: 'Pressure and trend',
     keywords: 'barometer pressure hpa weather trend',
     icon: Gauge,
-    pathname: '/tools/barometer',
+    href: '/tools/barometer',
   },
   {
     title: 'Level',
     subtitle: 'Pitch and roll bubble level',
     keywords: 'level pitch roll accelerometer angle',
     icon: Ruler,
-    pathname: '/tools/level',
+    href: '/tools/level',
   },
   {
     title: 'Pedometer',
     subtitle: 'Step counter',
     keywords: 'pedometer steps walking distance',
     icon: Footprints,
-    pathname: '/tools/pedometer',
+    href: '/tools/pedometer',
   },
   {
     title: 'Light Meter',
     subtitle: 'Lux reading',
     keywords: 'light meter lux sensor',
     icon: Lightbulb,
-    pathname: '/tools/light',
+    href: '/tools/light',
   },
   {
     title: 'Coordinates',
     subtitle: 'Current position and saved spots',
     keywords: 'coordinates gps location latitude longitude',
     icon: LocateFixed,
-    pathname: '/tools/coordinates',
+    href: '/tools/coordinates',
   },
   {
     title: 'Weather',
     subtitle: 'Cached forecast',
     keywords: 'weather forecast rain wind pressure cache',
     icon: BookOpen,
-    pathname: '/tools/weather',
+    href: '/tools/weather',
   },
   {
     title: 'Readiness Checklist',
     subtitle: 'Preparedness checklist',
     keywords: 'checklist readiness preparedness supplies',
     icon: CheckSquare,
-    pathname: '/tools/checklist',
+    href: '/tools/checklist',
+  },
+  {
+    title: 'Chronometer',
+    subtitle: 'Stopwatch and elapsed time',
+    keywords: 'chronometer stopwatch timer elapsed time',
+    icon: Clock,
+    href: '/tools/chronometer',
   },
   {
     title: 'Diagnostics',
     subtitle: 'Native capabilities and storage report',
     keywords: 'diagnostics native status storage sensors',
     icon: Smartphone,
-    pathname: '/tools/diagnostics',
+    href: '/tools/diagnostics',
   },
   {
     title: 'Appearance Settings',
     subtitle: 'Theme and motion',
     keywords: 'settings appearance theme motion display',
     icon: SlidersHorizontal,
-    pathname: '/(tabs)/settings',
-    params: { tab: 'appearance' },
+    href: { pathname: '/(tabs)/settings', params: { tab: 'appearance' } },
   },
   {
     title: 'Security Settings',
     subtitle: 'Vault, biometrics, and passphrase',
     keywords: 'settings security vault biometrics password passphrase lock',
     icon: Shield,
-    pathname: '/(tabs)/settings',
-    params: { tab: 'security' },
+    href: { pathname: '/(tabs)/settings', params: { tab: 'security' } },
   },
   {
     title: 'AI Settings',
     subtitle: 'Model selector and local runtime',
     keywords: 'settings ai model llama gguf selector arky',
     icon: Bot,
-    pathname: '/(tabs)/settings',
-    params: { tab: 'ai' },
+    href: { pathname: '/(tabs)/settings', params: { tab: 'ai' } },
   },
   {
     title: 'Storage Settings',
     subtitle: 'Offline storage and directories',
     keywords: 'settings storage disk files directories',
     icon: Settings,
-    pathname: '/(tabs)/settings',
-    params: { tab: 'storage' },
+    href: { pathname: '/(tabs)/settings', params: { tab: 'storage' } },
   },
 ];
 
@@ -192,7 +195,7 @@ export function FunctionSearchButton() {
   function openEntry(entry: SearchEntry) {
     setOpen(false);
     setQuery('');
-    router.push({ pathname: entry.pathname as never, params: entry.params } as never);
+    router.push(entry.href);
   }
 
   React.useEffect(() => {
@@ -205,50 +208,69 @@ export function FunctionSearchButton() {
 
   return (
     <>
-      <Button size="icon" variant="ghost" onPress={() => setOpen(true)}>
-        <Icon as={Search} className="size-5" />
+      <Button
+        size="icon"
+        variant="ghost"
+        accessibilityLabel="Open function search"
+        onPress={() => setOpen(true)}
+        className="h-9 w-9 rounded-full">
+        <Icon as={Search} className="size-4" />
       </Button>
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <Pressable className="flex-1 bg-black/60 p-4 pt-16" onPress={() => setOpen(false)}>
-          <Pressable className="bg-card border-border max-h-[82%] gap-3 rounded-lg border p-3">
-            <View className="flex-row items-center gap-2">
-              <Icon as={Search} className="text-muted-foreground size-5" />
-              <Input
-                ref={inputRef}
-                className="h-11 min-h-11 flex-1 py-2"
-                value={query}
-                onChangeText={setQuery}
-                placeholder="Search Ark"
-                autoFocus
-                returnKeyType="search"
-              />
-            </View>
-            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 8 }}>
-              {results.map((entry) => (
-                <Button
-                  key={`${entry.pathname}-${entry.title}`}
-                  className="h-auto justify-start px-3 py-3"
-                  variant="ghost"
-                  onPress={() => openEntry(entry)}>
-                  <Icon as={entry.icon} className="text-primary size-5" />
-                  <View className="min-w-0 flex-1 items-start gap-1">
-                    <Text numberOfLines={1}>{entry.title}</Text>
-                    <Text variant="muted" className="font-normal" numberOfLines={1}>
-                      {entry.subtitle}
+
+      <Modal transparent visible={open} animationType="fade" onRequestClose={() => setOpen(false)}>
+        <Pressable className="flex-1 bg-black/60" onPress={() => setOpen(false)}>
+          <View className="flex-1 justify-start px-4 pt-16">
+            <Pressable
+              className="border-border bg-card max-h-[82%] w-full gap-3 rounded-lg border p-3"
+              onPress={(event) => event.stopPropagation()}>
+              <View className="flex-row items-center gap-2">
+                <Icon as={Search} className="text-muted-foreground size-4" />
+                <Input
+                  ref={inputRef}
+                  className="h-11 min-h-11 flex-1 py-2"
+                  value={query}
+                  onChangeText={setQuery}
+                  placeholder="Search Ark"
+                  autoFocus
+                  returnKeyType="search"
+                  accessibilityLabel="Search Ark functions"
+                />
+              </View>
+
+              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                <View className="gap-1">
+                  {results.map((entry) => (
+                    <Pressable
+                      key={`${entry.title}-${typeof entry.href === 'string' ? entry.href : entry.href.pathname}`}
+                      accessibilityRole="button"
+                      onPress={() => openEntry(entry)}
+                      className="active:bg-accent flex-row items-center gap-3 rounded-md p-3">
+                      <View className="bg-primary/10 h-10 w-10 items-center justify-center rounded-full">
+                        <Icon as={entry.icon} className="text-primary size-5" />
+                      </View>
+                      <View className="min-w-0 flex-1">
+                        <Text className="font-semibold" numberOfLines={1}>
+                          {entry.title}
+                        </Text>
+                        <Text variant="muted" className="leading-5" numberOfLines={2}>
+                          {entry.subtitle}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  ))}
+                </View>
+
+                {results.length === 0 ? (
+                  <View className="items-center gap-2 py-6">
+                    <Text variant="large">No matching function</Text>
+                    <Text variant="muted" className="text-center">
+                      Try map, notes, weather, AI, security, or diagnostics.
                     </Text>
                   </View>
-                </Button>
-              ))}
-              {results.length === 0 ? (
-                <View className="items-center gap-2 py-6">
-                  <Text variant="large">No matching function</Text>
-                  <Text variant="muted" className="text-center">
-                    Try map, notes, weather, AI, security, or diagnostics.
-                  </Text>
-                </View>
-              ) : null}
-            </ScrollView>
-          </Pressable>
+                ) : null}
+              </ScrollView>
+            </Pressable>
+          </View>
         </Pressable>
       </Modal>
     </>

@@ -1,12 +1,10 @@
 import { ActionCard } from '@/components/cards/action-card';
 import { Arky } from '@/components/brand/ark-logo';
 import { Screen } from '@/components/layout/screen';
-import { Card } from '@/components/ui/card';
 import { Text } from '@/components/ui/text';
 import { useSensorStore } from '@/stores/sensor-store';
 import { Link, type Href } from 'expo-router';
 import {
-  Activity,
   CheckSquare,
   Compass,
   Crosshair,
@@ -15,8 +13,36 @@ import {
   Ruler,
   Settings2,
   SunMedium,
+  Timer,
 } from 'lucide-react-native';
 import { View } from 'react-native';
+
+type Drain = 'low' | 'medium' | 'high';
+
+function DrainBadge({ level }: { level: Drain }) {
+  const colors: Record<Drain, { bg: string; text: string; label: string }> = {
+    low: { bg: '#0d2a0d', text: '#30d158', label: 'Low' },
+    medium: { bg: '#2a1f0d', text: '#f5a623', label: 'Med' },
+    high: { bg: '#2a0d0d', text: '#ff453a', label: 'High' },
+  };
+  const c = colors[level];
+  return (
+    <View
+      style={{
+        backgroundColor: c.bg,
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 6,
+        borderWidth: 1,
+        borderColor: c.text + '44',
+      }}
+    >
+      <Text style={{ fontSize: 10, fontWeight: '700', color: c.text, letterSpacing: 0.5 }}>
+        {c.label} drain
+      </Text>
+    </View>
+  );
+}
 
 const TOOL_ROUTES = {
   coordinates: '/tools/coordinates' as Href,
@@ -36,28 +62,12 @@ export default function ToolsScreen() {
         </View>
         <Arky pose="resourceful" size={80} />
       </View>
-      <Card className="gap-2">
-        <Text variant="large">Last live readings</Text>
-        <View className="flex-row flex-wrap gap-x-4 gap-y-2">
-          <Text variant="muted">
-            Heading: {heading === null ? '--' : `${Math.round(heading)}°`}
-          </Text>
-          <Text variant="muted">
-            Pressure: {pressure === null ? '--' : `${pressure.toFixed(1)} hPa`}
-          </Text>
-          <Text variant="muted">
-            Level:{' '}
-            {pitch === null || roll === null ? '--' : `${pitch.toFixed(1)}° / ${roll.toFixed(1)}°`}
-          </Text>
-          <Text variant="muted">Steps: {steps === null ? '--' : steps}</Text>
-          <Text variant="muted">Light: {lux === null ? '--' : `${Math.round(lux)} lux`}</Text>
-        </View>
-      </Card>
       <Link href="/tools/compass" asChild>
         <ActionCard
           icon={Compass}
           title="Compass"
           description="Magnetometer heading and cardinal direction."
+          right={<DrainBadge level="medium" />}
         />
       </Link>
       <Link href="/tools/barometer" asChild>
@@ -65,16 +75,23 @@ export default function ToolsScreen() {
           icon={Gauge}
           title="Barometer"
           description="hPa readings and pressure trend snapshots."
+          right={<DrainBadge level="low" />}
         />
       </Link>
       <Link href="/tools/level" asChild>
-        <ActionCard icon={Ruler} title="Level" description="Pitch and roll from accelerometer." />
-      </Link>
-      <Link href="/tools/pedometer" asChild>
         <ActionCard
-          icon={Activity}
-          title="Pedometer"
-          description="Today/session steps if supported."
+          icon={Ruler}
+          title="Level"
+          description="Pitch and roll from accelerometer."
+          right={<DrainBadge level="low" />}
+        />
+      </Link>
+      <Link href="/tools/chronometer" asChild>
+        <ActionCard
+          icon={Timer}
+          title="Chronometer"
+          description="Stopwatch with lap times, works fully offline."
+          right={<DrainBadge level="low" />}
         />
       </Link>
       <Link href="/tools/light" asChild>
@@ -82,6 +99,7 @@ export default function ToolsScreen() {
           icon={Lightbulb}
           title="Light meter"
           description="Lux readings on supported devices."
+          right={<DrainBadge level="low" />}
         />
       </Link>
       <Link href={TOOL_ROUTES.coordinates} asChild>
@@ -94,8 +112,8 @@ export default function ToolsScreen() {
       <Link href={TOOL_ROUTES.weather} asChild>
         <ActionCard
           icon={SunMedium}
-          title="Offline weather"
-          description="View or refresh the cached local forecast."
+          title="Meteorology"
+          description="Cached local forecast, confidence, and trend charts."
         />
       </Link>
       <Link href={TOOL_ROUTES.checklist} asChild>

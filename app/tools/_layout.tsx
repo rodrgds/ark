@@ -7,9 +7,10 @@ const titles: Record<string, string> = {
   barometer: 'Barometer',
   level: 'Level',
   pedometer: 'Pedometer',
+  chronometer: 'Chronometer',
   light: 'Light Meter',
   coordinates: 'Coordinates',
-  weather: 'Offline Weather',
+  weather: 'Meteorology',
   checklist: 'Checklist',
   diagnostics: 'Diagnostics',
 };

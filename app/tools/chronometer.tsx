@@ -124,7 +124,7 @@ export default function ChronometerTool() {
 
       {/* ── Lap list ── */}
       {laps.length > 0 && (
-        <View style={[styles.lapList, { width: SW - 32 }]}>
+        <View style={[styles.lapList, { width: SW - 32, height: SH * 0.34 }]}>
           <View style={styles.lapHeader}>
             <Text style={[styles.lapColNarrow, styles.lapHeadText]}>LAP</Text>
             <Text style={[styles.lapColWide,   styles.lapHeadText]}>SPLIT</Text>
@@ -133,7 +133,7 @@ export default function ChronometerTool() {
           <FlatList
             data={laps}
             keyExtractor={l => String(l.index)}
-            style={{ maxHeight: SH * 0.28 }}
+            style={{ flex: 1 }}
             showsVerticalScrollIndicator={false}
             renderItem={({ item }) => (
               <View style={styles.lapRow}>
@@ -270,7 +270,7 @@ const styles = StyleSheet.create({
   lapList: {
     backgroundColor: '#1c1c1e',
     borderRadius: 16,
-    overflow: 'scroll',
+    overflow: 'hidden',
   },
   lapHeader: {
     flexDirection: 'row',

@@ -1,3 +1,4 @@
+import { Arky } from '@/components/brand/ark-logo';
 import { Screen } from '@/components/layout/screen';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -8,6 +9,7 @@ import { BarometerService } from '@/services/sensors/barometer.service';
 import { PressureTrendService } from '@/services/weather/pressure-trend.service';
 import { useSensorStore } from '@/stores/sensor-store';
 import * as React from 'react';
+import { View } from 'react-native';
 
 export default function BarometerTool() {
   const [trend, setTrend] = React.useState<'rising' | 'stable' | 'falling'>('stable');
@@ -28,6 +30,9 @@ export default function BarometerTool() {
 
   return (
     <Screen>
+      <View className="items-center py-4">
+        <Arky pose="weather" size={100} />
+      </View>
       <Card className="items-center gap-4 py-8">
         <Text variant="h2">{pressure === null ? '--' : pressure.toFixed(1)}</Text>
         <Text className="text-primary text-xl font-semibold">hPa</Text>

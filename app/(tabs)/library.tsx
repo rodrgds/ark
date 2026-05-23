@@ -158,7 +158,7 @@ export default function LibraryScreen() {
             Real offline packs from Kiwix, Hesperian, and public-domain survival archives.
           </Text>
         </View>
-        <Arky pose="scholar" size={80} />
+          <Arky pose="download" size={80} />
       </View>
 
       <Card className="gap-3">
@@ -488,7 +488,16 @@ export default function LibraryScreen() {
       ) : null}
 
       {!initialLoading && showPacks
-        ? visible.map((pack) => {
+        ? visible.length === 0 ? (
+          <View className="items-center gap-4 py-8">
+            <Arky pose="archivist" size={160} />
+            <Text variant="h3" className="text-center">Library is empty</Text>
+            <Text variant="muted" className="text-center">
+              Ark organizes downloaded knowledge packs, documents, maps, and models here.
+            </Text>
+          </View>
+        ) : (
+          visible.map((pack) => {
             const packStorageWarning = storageWarning(pack, storageCapacity?.freeBytes);
             return (
               <Card key={pack.id} className="gap-4">
@@ -714,6 +723,7 @@ export default function LibraryScreen() {
               </Card>
             );
           })
+        )
         : null}
 
       {!initialLoading && showPacks ? (

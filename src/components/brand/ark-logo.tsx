@@ -59,6 +59,12 @@ const ARKY_POSES = {
   secure: require('@/assets/images/arky/secure.png'),
   signal: require('@/assets/images/arky/signal.png'),
   thinking: require('@/assets/images/arky/thinking.png'),
+  download: require('@/assets/images/arky/download.png'),
+  archivist: require('@/assets/images/arky/archivist.png'),
+  oled: require('@/assets/images/arky/oled.png'),
+  sos: require('@/assets/images/arky/sos.png'),
+  weather: require('@/assets/images/arky/weather.png'),
+  prepared: require('@/assets/images/arky/prepared.png'),
 } as const;
 
 export type ArkyPose = keyof typeof ARKY_POSES;

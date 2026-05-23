@@ -78,7 +78,7 @@ export function OnboardingFrame({
   return (
     <KeyboardAvoidingView
       className="flex-1"
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
       <ScrollView
         className="bg-background flex-1"

@@ -9,7 +9,6 @@ import type { ContentPack } from '@/types/content';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { ChevronLeft, ExternalLink, List, Share2, X } from 'lucide-react-native';
 import * as React from 'react';
-import Pdf from 'react-native-pdf';
 import {
   ActivityIndicator,
   Alert,
@@ -23,6 +22,19 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import * as Sharing from 'expo-sharing';
+
+let NativePdf: React.ComponentType<any> | null | undefined;
+
+function getNativePdf() {
+  if (NativePdf !== undefined) return NativePdf;
+  try {
+    const module = require('react-native-pdf') as { default?: React.ComponentType<any> };
+    NativePdf = module.default ?? (module as unknown as React.ComponentType<any>);
+  } catch {
+    NativePdf = null;
+  }
+  return NativePdf;
+}
 
 const TAP_DETECTION_SCRIPT = `
 (function() {
@@ -182,6 +194,7 @@ export default function GuideReaderScreen() {
   }
 
   const isPdf = content?.format === 'pdf';
+  const Pdf = isPdf ? getNativePdf() : null;
 
   if (loading && !content) {
     return (
@@ -243,7 +256,7 @@ export default function GuideReaderScreen() {
       {/* Main Content Area */}
       <View className="flex-1">
         {content && (
-          isPdf ? (
+          isPdf && Pdf ? (
             <Pdf
               ref={pdfRef}
               source={pdfSource}

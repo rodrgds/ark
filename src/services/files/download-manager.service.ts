@@ -202,16 +202,6 @@ export class DownloadManagerService {
         resultUri: result.uri,
         checksumMd5: result.md5 ?? null,
       });
-      if (input.packId) {
-        await ContentRepository.updateInstallStatus({
-          id: input.packId,
-          status: 'installed',
-          progress: 1,
-          localUri: result.uri,
-          sizeBytes,
-        });
-        await RagService.indexContentPack(input.packId).catch(() => undefined);
-      }
     } catch (error) {
       if (active?.stopReason === 'paused' || active?.stopReason === 'canceled') return;
       const message = error instanceof Error ? error.message : 'Download failed.';

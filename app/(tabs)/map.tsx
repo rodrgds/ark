@@ -17,6 +17,7 @@ import * as Location from 'expo-location';
 import { useNavigation } from 'expo-router';
 import {
   AlertTriangle,
+  Camera,
   Check,
   CheckCircle2,
   ChevronDown,
@@ -36,6 +37,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
 import * as React from 'react';
 import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, View } from 'react-native';
 import Animated, { Easing, FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
@@ -79,9 +81,16 @@ export default function MapScreen() {
   const [error, setError] = React.useState<string | null>(null);
   const [styleReachable, setStyleReachable] = React.useState<boolean | null>(null);
   const [checkingStyle, setCheckingStyle] = React.useState(false);
+  const [catalogMeta, setCatalogMeta] = React.useState(() => MapPresetsService.getCatalogMeta());
+  const [catalogVersion, setCatalogVersion] = React.useState(0);
+  const [userLocation, setUserLocation] = React.useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
   const [recommendedPresets, setRecommendedPresets] = React.useState<MapPreset[]>(() =>
     MapPresetsService.recommendedForLocation(null)
   );
+  const [isPlacing, setIsPlacing] = React.useState(false);
 
   const downloadedRegions = React.useMemo(
     () => regions.filter((region) => region.status === 'downloaded'),
@@ -120,7 +129,10 @@ export default function MapScreen() {
       `${marker.title} ${marker.description ?? ''}`.toLowerCase().includes(query)
     );
   }, [markers, savedSearch]);
-  const presetResults = React.useMemo(() => MapPresetsService.search(presetSearch), [presetSearch]);
+  const presetResults = React.useMemo(
+    () => MapPresetsService.search(presetSearch),
+    [presetSearch, catalogVersion]
+  );
 
   async function load(options: { syncNative?: boolean } = {}) {
     if (options.syncNative) await OfflineMapService.syncNativePacks();
@@ -149,6 +161,12 @@ export default function MapScreen() {
     MapService.loadMapLibre()
       .then(setMaplibre)
       .finally(() => setMaplibreChecked(true));
+    MapPresetsService.refreshCatalog()
+      .then((meta) => {
+        setCatalogMeta(meta);
+        setCatalogVersion((version) => version + 1);
+      })
+      .catch(() => undefined);
   }, []);
 
   React.useEffect(() => {
@@ -224,15 +242,13 @@ export default function MapScreen() {
       })
       .then((position) => {
         if (canceled) return;
-        setRecommendedPresets(
-          MapPresetsService.recommendedForLocation(
-            position
-              ? {
-                  latitude: position.coords.latitude,
-                  longitude: position.coords.longitude,
-                }
-              : null
-          )
+        setUserLocation(
+          position
+            ? {
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+              }
+            : null
         );
       })
       .catch(() => undefined);
@@ -240,6 +256,10 @@ export default function MapScreen() {
       canceled = true;
     };
   }, []);
+
+  React.useEffect(() => {
+    setRecommendedPresets(MapPresetsService.recommendedForLocation(userLocation));
+  }, [catalogVersion, userLocation]);
 
   React.useEffect(() => {
     if (!mapReady || !canMountMap || !selectedRegion) return;
@@ -251,7 +271,39 @@ export default function MapScreen() {
     setPendingSpot(lngLat);
     setSpotTitle('');
     setSpotDescription('');
-    setSpotPhotoUri(null);
+  }
+
+  async function takePhotoAndOpenDialog(lngLat: LngLat) {
+    setIsPlacing(false);
+    try {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        openSpotDialog(lngLat);
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        quality: 0.8,
+      });
+
+      if (result.canceled || !result.assets[0]) {
+        openSpotDialog(lngLat);
+        return;
+      }
+
+      const asset = result.assets[0];
+      const savedUri = await FileSystemService.copyToAppDirectory({
+        sourceUri: asset.uri,
+        directory: 'maps',
+        fileName: `spot-${Date.now()}.jpg`,
+      });
+
+      setSpotPhotoUri(savedUri);
+      openSpotDialog(lngLat);
+    } catch {
+      openSpotDialog(lngLat);
+    }
   }
 
   async function cancelSpotDialog() {
@@ -261,16 +313,21 @@ export default function MapScreen() {
   }
 
   async function attachSpotPhoto() {
-    const result = await DocumentPicker.getDocumentAsync({
-      type: 'image/*',
-      copyToCacheDirectory: true,
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission needed', 'Camera access is required to take spot photos.');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      quality: 0.8,
     });
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
     const savedUri = await FileSystemService.copyToAppDirectory({
       sourceUri: asset.uri,
       directory: 'maps',
-      fileName: asset.name ?? 'spot-photo.jpg',
+      fileName: `spot-${Date.now()}.jpg`,
     });
     if (spotPhotoUri) await FileSystemService.deleteByUri(spotPhotoUri).catch(() => undefined);
     setSpotPhotoUri(savedUri);
@@ -408,9 +465,11 @@ export default function MapScreen() {
   function centerOn(nextCenter: LngLat, zoom = 13) {
     setCenter(nextCenter);
     if (!mapReady || !canMountMap) return;
-    if (cameraRef.current?.flyTo)
-      cameraRef.current.flyTo({ center: nextCenter, zoom, duration: 650 });
-    else cameraRef.current?.easeTo?.({ center: nextCenter, zoom, duration: 650 });
+    cameraRef.current?.setCamera({
+      centerCoordinate: nextCenter,
+      zoomLevel: zoom,
+      animationDuration: 650,
+    });
   }
 
   function fitRegion(region: MapRegion) {
@@ -474,7 +533,7 @@ export default function MapScreen() {
         selectedRegion={selectedRegion}
         status={mapStatus}
         onCenterChange={setCenter}
-        onLongPress={openSpotDialog}
+        onLongPress={takePhotoAndOpenDialog}
         onMapLoadFailed={() =>
           setError(
             selectedRegion
@@ -494,7 +553,7 @@ export default function MapScreen() {
         onMarkerPress={(marker) => centerOn([marker.longitude, marker.latitude], 14)}
       />
 
-      <View className="absolute right-3 left-3 gap-2" style={{ top: Math.max(insets.top + 2, 6) }}>
+      <View className="absolute right-3 left-3 gap-2" style={{ top: 6 }}>
         <TopMapControls
           downloadedRegions={downloadedRegions}
           mode={topMode}
@@ -510,12 +569,16 @@ export default function MapScreen() {
 
       <View className="absolute right-3 gap-2" style={{ bottom: Math.max(insets.bottom + 12, 20) }}>
         <MapFab
-          icon={LocateFixed}
           label="Locate me"
           loading={busy === 'locate'}
           onPress={locateMe}
+          text="Me"
         />
-        <MapFab icon={Plus} label="Add spot" onPress={() => openSpotDialog(center)} />
+        <MapFab
+          icon={isPlacing ? X : Plus}
+          label="Add spot"
+          onPress={() => setIsPlacing((v) => !v)}
+        />
         <MapFab
           icon={Download}
           label="Offline maps"
@@ -549,9 +612,35 @@ export default function MapScreen() {
         ) : null}
       </View>
 
+      {isPlacing ? (
+        <View
+          className="absolute inset-0 items-center justify-center"
+          pointerEvents="box-none"
+          style={{ paddingBottom: 140 }}>
+          <View className="bg-primary/20 size-20 items-center justify-center rounded-full border-2 border-primary/40">
+            <View className="bg-primary size-2 rounded-full" />
+            <View className="bg-primary absolute h-8 w-0.5" />
+            <View className="bg-primary absolute h-0.5 w-8" />
+          </View>
+          <View className="absolute bottom-24 left-3 right-3 flex-row gap-2">
+            <Button
+              className="flex-1 bg-background/95 h-12"
+              variant="outline"
+              onPress={() => setIsPlacing(false)}>
+              <Text>Cancel</Text>
+            </Button>
+            <Button className="flex-1 h-12 shadow-lg" onPress={() => takePhotoAndOpenDialog(center)}>
+              <Icon as={Camera} className="size-4" />
+              <Text>Confirm & Photo</Text>
+            </Button>
+          </View>
+        </View>
+      ) : null}
+
       <OfflineManagerPanel
         busy={busy}
         downloadedRegions={downloadedRegions}
+        catalogMeta={catalogMeta}
         managerTab={managerTab}
         presetResults={presetResults}
         presetSearch={presetSearch}
@@ -772,10 +861,10 @@ function TopMapControls({
       <View className="flex-row gap-2">
         {mode !== 'map' ? (
           <Animated.View layout={TOP_TRANSITION} className="flex-1">
-            <View className="border-border bg-card/95 flex-row items-center gap-2 rounded-lg border px-3 py-2">
+            <View className="border-border bg-card/95 h-12 flex-row items-center gap-2 rounded-lg border px-3">
               <Icon as={Search} className="text-muted-foreground size-4" />
               <Input
-                className="h-9 min-h-0 flex-1 border-0 bg-transparent px-0 py-0"
+                className="h-8 min-h-0 flex-1 border-0 bg-transparent px-0 py-0"
                 value={search}
                 onChangeText={onChangeSearch}
                 onFocus={() => onChangeMode('search')}
@@ -802,7 +891,7 @@ function TopMapControls({
         {mode !== 'search' ? (
           <Animated.View layout={TOP_TRANSITION} className={mode === 'map' ? 'flex-1' : ''}>
             <Pressable
-              className="border-border bg-card/95 h-[53px] flex-row items-center justify-center gap-2 rounded-lg border px-3"
+              className="border-border bg-card/95 h-12 flex-row items-center justify-center gap-2 rounded-lg border px-3"
               onPress={() => onChangeMode(mode === 'map' ? 'compact' : 'map')}>
               <Icon as={Layers} className="text-primary size-4" />
               {mode === 'map' ? (
@@ -878,6 +967,7 @@ function TopMapControls({
 
 function OfflineManagerPanel({
   busy,
+  catalogMeta,
   downloadedRegions,
   managerTab,
   presetResults,
@@ -894,6 +984,7 @@ function OfflineManagerPanel({
   onSelectRegion,
 }: {
   busy: string | null;
+  catalogMeta: ReturnType<typeof MapPresetsService.getCatalogMeta>;
   downloadedRegions: MapRegion[];
   managerTab: ManagerTab;
   presetResults: MapPreset[];
@@ -909,7 +1000,9 @@ function OfflineManagerPanel({
   onDownloadPreset: (preset: MapPreset) => void;
   onSelectRegion: (region: MapRegion) => void;
 }) {
-  const visiblePresets = presetSearch.trim() ? presetResults : recommendedPresets;
+  const searching = Boolean(presetSearch.trim());
+  const recommendedIds = new Set(recommendedPresets.map((preset) => preset.id));
+  const catalogPresets = presetResults.filter((preset) => !recommendedIds.has(preset.id));
 
   return (
     <Panel title="Offline maps" visible={visible} onClose={onClose}>
@@ -958,32 +1051,82 @@ function OfflineManagerPanel({
           <Input
             value={presetSearch}
             onChangeText={onChangePresetSearch}
-            placeholder="Search regions"
+            placeholder="Search map catalog"
             autoCapitalize="none"
             autoCorrect={false}
           />
-          <View className="gap-2">
-            <Text variant="large">{presetSearch.trim() ? 'Preset regions' : 'Recommended'}</Text>
-            {visiblePresets.map((preset) => {
-              const matchingRegion = regions.find((region) => region.name === preset.name);
-              const downloaded = matchingRegion?.status === 'downloaded';
-              const downloading = matchingRegion?.status === 'downloading';
-              return (
-                <PresetCard
-                  key={preset.id}
-                  busy={matchingRegion ? busy === `download:${matchingRegion.id}` : false}
-                  downloaded={downloaded}
-                  downloading={downloading}
-                  preset={preset}
-                  progress={matchingRegion?.progress ?? 0}
-                  onDownload={() => onDownloadPreset(preset)}
-                />
-              );
-            })}
-          </View>
+          <Text variant="small" className="text-muted-foreground">
+            {catalogMeta.count} regions from {catalogMeta.source}
+          </Text>
+          {searching ? (
+            <PresetList
+              busy={busy}
+              presets={presetResults}
+              regions={regions}
+              title="Search results"
+              onDownloadPreset={onDownloadPreset}
+            />
+          ) : (
+            <>
+              <PresetList
+                busy={busy}
+                presets={recommendedPresets}
+                regions={regions}
+                title="Recommended near you"
+                onDownloadPreset={onDownloadPreset}
+              />
+              <PresetList
+                busy={busy}
+                presets={catalogPresets}
+                regions={regions}
+                title="Map catalog"
+                onDownloadPreset={onDownloadPreset}
+              />
+            </>
+          )}
         </View>
       )}
     </Panel>
+  );
+}
+
+function PresetList({
+  busy,
+  presets,
+  regions,
+  title,
+  onDownloadPreset,
+}: {
+  busy: string | null;
+  presets: MapPreset[];
+  regions: MapRegion[];
+  title: string;
+  onDownloadPreset: (preset: MapPreset) => void;
+}) {
+  return (
+    <View className="gap-2">
+      <Text variant="large">{title}</Text>
+      {presets.length ? (
+        presets.map((preset) => {
+          const matchingRegion = regions.find((region) => region.name === preset.name);
+          const downloaded = matchingRegion?.status === 'downloaded';
+          const downloading = matchingRegion?.status === 'downloading';
+          return (
+            <PresetCard
+              key={preset.id}
+              busy={matchingRegion ? busy === `download:${matchingRegion.id}` : false}
+              downloaded={downloaded}
+              downloading={downloading}
+              preset={preset}
+              progress={matchingRegion?.progress ?? 0}
+              onDownload={() => onDownloadPreset(preset)}
+            />
+          );
+        })
+      ) : (
+        <Text variant="muted">No matching regions.</Text>
+      )}
+    </View>
   );
 }
 
@@ -1157,25 +1300,6 @@ function SavedDataPanel({
         )}
       </View>
 
-      <View className="gap-2">
-        <Text variant="large">Routes</Text>
-        {routes.length ? (
-          routes.map((route) => (
-            <SavedRow
-              key={route.id}
-              icon={Route}
-              title={route.title}
-              subtitle={`${route.points.length} points${
-                route.distanceMeters ? ` · ${(route.distanceMeters / 1000).toFixed(1)} km` : ''
-              }`}
-              onPress={() => onFocusRoute(route)}
-              onDelete={() => onDeleteRoute(route)}
-            />
-          ))
-        ) : (
-          <Text variant="muted">No route drafts yet.</Text>
-        )}
-      </View>
     </Panel>
   );
 }
@@ -1298,8 +1422,8 @@ function SpotDialog({
             </View>
           ) : (
             <Button variant="outline" onPress={onAttachPhoto}>
-              <Icon as={ImageIcon} className="size-4" />
-              <Text>Add photo</Text>
+              <Icon as={Camera} className="size-4" />
+              <Text>Take photo</Text>
             </Button>
           )}
           <View className="flex-row gap-2">
@@ -1322,20 +1446,32 @@ function MapFab({
   label,
   loading,
   onPress,
+  text,
 }: {
-  icon: React.ComponentProps<typeof Icon>['as'];
+  icon?: React.ComponentProps<typeof Icon>['as'];
   label: string;
   loading?: boolean;
   onPress: () => void;
+  text?: string;
 }) {
   return (
     <Button
       accessibilityLabel={label}
-      size="icon"
+      size={text ? 'default' : 'icon'}
       variant="outline"
-      className="border-primary/40 bg-card/95"
+      className={
+        text
+          ? 'border-primary/40 bg-card/95 h-12 min-w-12 px-3'
+          : 'border-primary/40 bg-card/95'
+      }
       onPress={onPress}>
-      {loading ? <ActivityIndicator /> : <Icon as={icon} className="text-primary size-5" />}
+      {loading ? (
+        <ActivityIndicator />
+      ) : text ? (
+        <Text className="text-primary font-bold">{text}</Text>
+      ) : icon ? (
+        <Icon as={icon} className="text-primary size-5" />
+      ) : null}
     </Button>
   );
 }

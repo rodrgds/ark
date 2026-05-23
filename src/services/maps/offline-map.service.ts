@@ -428,9 +428,15 @@ function isOfflinePackComplete(status: {
   completedResourceCount: number;
   requiredResourceCount: number;
 }) {
-  if (status.state !== 'complete') return false;
-  if (status.requiredResourceCount <= 0) return status.percentage >= 100;
-  return status.completedResourceCount >= status.requiredResourceCount;
+  if (status.state === 'complete') return true;
+  if (status.percentage >= 100) return true;
+  if (
+    status.requiredResourceCount > 0 &&
+    status.completedResourceCount >= status.requiredResourceCount
+  ) {
+    return true;
+  }
+  return false;
 }
 
 function progressFromPackStatus(status: { percentage: number }) {

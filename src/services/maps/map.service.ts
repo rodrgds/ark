@@ -66,6 +66,7 @@ const MAP_THEME_COLORS: Record<
 };
 
 let modulePromise: Promise<MapLibreModule | null> | null = null;
+let loggingConfigured = false;
 
 export class MapService {
   static getRuntimeStatus(maplibre?: MapLibreModule | null, checked = false) {
@@ -93,9 +94,31 @@ export class MapService {
 
   static async loadMapLibre() {
     if (!modulePromise) {
-      modulePromise = import('@maplibre/maplibre-react-native').catch(() => null);
+      modulePromise = import('@maplibre/maplibre-react-native')
+        .then((maplibre) => {
+          this.configureLogging(maplibre);
+          return maplibre;
+        })
+        .catch(() => null);
     }
     return modulePromise;
+  }
+
+  static configureLogging(maplibre: MapLibreModule | null) {
+    if (!maplibre || loggingConfigured) return;
+    const manager = maplibre.LogManager;
+    if (!manager) return;
+    loggingConfigured = true;
+    manager.onLog((event) => {
+      if (
+        event.level === 'warn' &&
+        event.tag === 'Mbgl-HttpRequest' &&
+        isCanceledHttpRequest(event.message)
+      ) {
+        return true;
+      }
+      return false;
+    });
   }
 
   static getDefaultStyleUrl(theme: MapTheme = 'light') {
@@ -267,4 +290,9 @@ export function createTacticalStyle(theme: MapTheme): StyleSpecification {
       },
     ],
   };
+}
+
+function isCanceledHttpRequest(message: string) {
+  const normalized = message.toLowerCase();
+  return normalized.includes('canceled') || normalized.includes('cancel');
 }

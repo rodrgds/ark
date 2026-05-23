@@ -17,25 +17,18 @@ class SQLiteMutex {
 const dbMutex = new SQLiteMutex();
 
 function wrapDatabase(db: SQLiteDatabase): SQLiteDatabase {
-  return new Proxy(db, {
-    get(target, prop, receiver) {
-      const value = Reflect.get(target, prop, receiver);
-      if (typeof value === 'function') {
-        if (
-          prop === 'runAsync' ||
-          prop === 'getFirstAsync' ||
-          prop === 'getAllAsync' ||
-          prop === 'execAsync'
-        ) {
-          return function(this: any, ...args: any[]) {
-            return dbMutex.run(() => value.apply(target, args));
-          };
-        }
-        return value.bind(target);
-      }
-      return value;
-    },
-  }) as SQLiteDatabase;
+  return {
+    ...db,
+    execAsync: (...args: Parameters<SQLiteDatabase['execAsync']>) =>
+      dbMutex.run(() => db.execAsync(...args)),
+    runAsync: (...args: Parameters<SQLiteDatabase['runAsync']>) =>
+      dbMutex.run(() => db.runAsync(...args)),
+    getFirstAsync: <T>(...args: Parameters<SQLiteDatabase['getFirstAsync']>) =>
+      dbMutex.run(() => db.getFirstAsync<T>(...args)),
+    getAllAsync: <T>(...args: Parameters<SQLiteDatabase['getAllAsync']>) =>
+      dbMutex.run(() => db.getAllAsync<T>(...args)),
+    withTransactionAsync: (callback: () => Promise<void>) => db.withTransactionAsync(callback),
+  } as SQLiteDatabase;
 }
 
 let dbPromise: Promise<SQLiteDatabase> | null = null;

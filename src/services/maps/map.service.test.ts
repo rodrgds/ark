@@ -24,8 +24,25 @@ describe('MapService runtime status', () => {
     expect(status.checking).toBe(false);
   });
 
-  test('marks the built-in style as development-only demo tiles', () => {
-    expect(MapService.isDemoStyle()).toBe(true);
+  test('does not use MapLibre demo tiles as the built-in style', () => {
+    expect(MapService.isDemoStyle()).toBe(false);
+    expect(MapService.isDemoStyle('https://demotiles.maplibre.org/style.json')).toBe(true);
     expect(MapService.isDemoStyle('https://example.test/style.json')).toBe(false);
+  });
+
+  test('guards MapLibre network mode behind the native manager', () => {
+    const calls: boolean[] = [];
+
+    MapService.setNetworkConnected(
+      {
+        NetworkManager: {
+          setConnected: (connected: boolean) => calls.push(connected),
+        },
+      } as never,
+      false
+    );
+    MapService.setNetworkConnected(null, true);
+
+    expect(calls).toEqual([false]);
   });
 });

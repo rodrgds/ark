@@ -15,6 +15,11 @@ function rowToDocument(row: {
   source: string | null;
   is_personal: number;
   encryption_status: ArkDocument['encryptionStatus'];
+  extracted_text: string | null;
+  ocr_text: string | null;
+  ocr_status: ArkDocument['ocrStatus'];
+  ocr_error: string | null;
+  indexed_at: number | null;
   created_at: number;
   updated_at: number;
 }): ArkDocument {
@@ -28,6 +33,11 @@ function rowToDocument(row: {
     source: row.source,
     isPersonal: !!row.is_personal,
     encryptionStatus: row.encryption_status,
+    extractedText: row.extracted_text,
+    ocrText: row.ocr_text,
+    ocrStatus: row.ocr_status,
+    ocrError: row.ocr_error,
+    indexedAt: row.indexed_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -60,13 +70,14 @@ export class DocumentsRepository {
     sha256?: string | null;
     source?: string | null;
     encryptionStatus?: ArkDocument['encryptionStatus'];
+    ocrStatus?: ArkDocument['ocrStatus'];
   }) {
     const db = await DatabaseClient.getDb();
     const timestamp = now();
     await db.runAsync(
       `INSERT INTO documents
-        (id, title, mime_type, local_uri, size_bytes, sha256, source, is_personal, encryption_status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
+        (id, title, mime_type, local_uri, size_bytes, sha256, source, is_personal, encryption_status, ocr_status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
       [
         input.id,
         input.title,
@@ -76,11 +87,53 @@ export class DocumentsRepository {
         input.sha256 ?? null,
         input.source ?? null,
         input.encryptionStatus ?? 'plaintext',
+        input.ocrStatus ?? 'not_needed',
         timestamp,
         timestamp,
       ]
     );
     return this.get(input.id);
+  }
+
+  static async updateText(
+    id: string,
+    input: {
+      extractedText?: string | null;
+      ocrText?: string | null;
+      ocrStatus?: ArkDocument['ocrStatus'];
+      ocrError?: string | null;
+      indexedAt?: number | null;
+    }
+  ) {
+    const db = await DatabaseClient.getDb();
+    const current = await this.get(id);
+    if (!current) return null;
+    const timestamp = now();
+    await db.runAsync(
+      `UPDATE documents
+       SET extracted_text = ?,
+           ocr_text = ?,
+           ocr_status = ?,
+           ocr_error = ?,
+           indexed_at = ?,
+           updated_at = ?
+       WHERE id = ?`,
+      [
+        input.extractedText === undefined ? current.extractedText : input.extractedText,
+        input.ocrText === undefined ? current.ocrText : input.ocrText,
+        input.ocrStatus ?? current.ocrStatus,
+        input.ocrError === undefined ? current.ocrError : input.ocrError,
+        input.indexedAt === undefined ? current.indexedAt : input.indexedAt,
+        timestamp,
+        id,
+      ]
+    );
+    return this.get(id);
+  }
+
+  static async markIndexed(id: string, indexedAt = now()) {
+    const db = await DatabaseClient.getDb();
+    await db.runAsync('UPDATE documents SET indexed_at = ? WHERE id = ?', [indexedAt, id]);
   }
 
   static async delete(id: string) {

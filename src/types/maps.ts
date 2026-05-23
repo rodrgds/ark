@@ -23,6 +23,7 @@ export type MapMarker = {
   description: string | null;
   latitude: number;
   longitude: number;
+  photoUri: string | null;
   icon: string | null;
   color: string | null;
   createdAt: number;

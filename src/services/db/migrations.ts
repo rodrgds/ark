@@ -72,6 +72,11 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
           source TEXT,
           is_personal INTEGER DEFAULT 1,
           encryption_status TEXT NOT NULL DEFAULT 'unknown',
+          extracted_text TEXT,
+          ocr_text TEXT,
+          ocr_status TEXT NOT NULL DEFAULT 'not_needed',
+          ocr_error TEXT,
+          indexed_at INTEGER,
           created_at INTEGER,
           updated_at INTEGER
         );
@@ -141,6 +146,7 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
           description TEXT,
           latitude REAL NOT NULL,
           longitude REAL NOT NULL,
+          photo_uri TEXT,
           icon TEXT,
           color TEXT,
           created_at INTEGER,
@@ -318,7 +324,9 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
 
   if (currentVersion < 6) {
     await db.withTransactionAsync(async () => {
-      const downloadColumns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(downloads)');
+      const downloadColumns = await db.getAllAsync<{ name: string }>(
+        'PRAGMA table_info(downloads)'
+      );
       if (!downloadColumns.some((column) => column.name === 'expected_checksum_sha256')) {
         await db.execAsync('ALTER TABLE downloads ADD COLUMN expected_checksum_sha256 TEXT');
       }
@@ -326,7 +334,9 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
         await db.execAsync('ALTER TABLE downloads ADD COLUMN checksum_sha256 TEXT');
       }
 
-      const packColumns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(content_packs)');
+      const packColumns = await db.getAllAsync<{ name: string }>(
+        'PRAGMA table_info(content_packs)'
+      );
       if (!packColumns.some((column) => column.name === 'checksum_sha256')) {
         await db.execAsync('ALTER TABLE content_packs ADD COLUMN checksum_sha256 TEXT');
       }
@@ -335,6 +345,44 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
       }
 
       await db.runAsync('PRAGMA user_version = 6');
+    });
+  }
+
+  if (currentVersion < 7) {
+    await db.withTransactionAsync(async () => {
+      const markerColumns = await db.getAllAsync<{ name: string }>(
+        'PRAGMA table_info(map_markers)'
+      );
+      if (!markerColumns.some((column) => column.name === 'photo_uri')) {
+        await db.execAsync('ALTER TABLE map_markers ADD COLUMN photo_uri TEXT');
+      }
+      await db.runAsync('PRAGMA user_version = 7');
+    });
+  }
+
+  if (currentVersion < 8) {
+    await db.withTransactionAsync(async () => {
+      const documentColumns = await db.getAllAsync<{ name: string }>(
+        'PRAGMA table_info(documents)'
+      );
+      if (!documentColumns.some((column) => column.name === 'extracted_text')) {
+        await db.execAsync('ALTER TABLE documents ADD COLUMN extracted_text TEXT');
+      }
+      if (!documentColumns.some((column) => column.name === 'ocr_text')) {
+        await db.execAsync('ALTER TABLE documents ADD COLUMN ocr_text TEXT');
+      }
+      if (!documentColumns.some((column) => column.name === 'ocr_status')) {
+        await db.execAsync(
+          "ALTER TABLE documents ADD COLUMN ocr_status TEXT NOT NULL DEFAULT 'not_needed'"
+        );
+      }
+      if (!documentColumns.some((column) => column.name === 'ocr_error')) {
+        await db.execAsync('ALTER TABLE documents ADD COLUMN ocr_error TEXT');
+      }
+      if (!documentColumns.some((column) => column.name === 'indexed_at')) {
+        await db.execAsync('ALTER TABLE documents ADD COLUMN indexed_at INTEGER');
+      }
+      await db.runAsync('PRAGMA user_version = 8');
     });
   }
 }

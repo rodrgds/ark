@@ -1,0 +1,23 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.arkzim'
+version = '1.0.0'
+
+android {
+  namespace "expo.modules.arkzim"
+  defaultConfig {
+    versionCode 1
+    versionName "1.0.0"
+  }
+  lintOptions {
+    abortOnError false
+  }
+}
+
+dependencies {
+  implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.24"
+  implementation "org.kiwix:libkiwix:2.6.0"
+}

@@ -3,25 +3,19 @@ import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { ImportService } from '@/services/files/import.service';
+import { isImageDocument, isTextDocument } from '@/services/files/document-text.service';
 import { FileSystemService } from '@/services/files/filesystem.service';
 import type { ArkDocument } from '@/types/db';
 import { format } from 'date-fns';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
-import { ExternalLink, FileText, Trash2 } from 'lucide-react-native';
+import { ExternalLink, FileText, RefreshCcw, Trash2 } from 'lucide-react-native';
 import * as React from 'react';
 import { ActivityIndicator, Alert, Platform, ScrollView, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 
 function canPreviewAsText(document: ArkDocument) {
-  const title = document.title.toLowerCase();
-  return (
-    document.mimeType?.startsWith('text/') ||
-    title.endsWith('.md') ||
-    title.endsWith('.json') ||
-    title.endsWith('.csv') ||
-    title.endsWith('.log')
-  );
+  return isTextDocument(document);
 }
 
 function canPreviewInWebView(document: ArkDocument) {
@@ -174,6 +168,38 @@ export default function DocumentReaderScreen() {
           {error ? <Text className="text-destructive text-sm">{error}</Text> : null}
         </Card>
 
+        <Card className="gap-3">
+          <View className="flex-row items-center justify-between gap-3">
+            <View className="min-w-0 flex-1 gap-1">
+              <Text variant="large">Search text</Text>
+              <Text variant="muted">{ocrStatusCopy(document)}</Text>
+            </View>
+            {document.ocrStatus === 'processing' ? <ActivityIndicator /> : null}
+          </View>
+          {document.extractedText ? (
+            <Text variant="small">Text document indexed for offline search and chat sources.</Text>
+          ) : null}
+          {document.ocrText ? (
+            <View className="bg-muted/40 max-h-44 rounded-md p-3">
+              <Text variant="small">{document.ocrText}</Text>
+            </View>
+          ) : null}
+          {document.ocrError ? (
+            <Text className="text-destructive text-sm">{document.ocrError}</Text>
+          ) : null}
+          {isImageDocument(document) ? (
+            <Button
+              variant="outline"
+              disabled={busy || document.ocrStatus === 'processing'}
+              onPress={() =>
+                run(() => ImportService.reprocessDocument(document.id).then(() => undefined))
+              }>
+              {busy ? <ActivityIndicator /> : <Icon as={RefreshCcw} className="size-4" />}
+              <Text>{document.ocrText ? 'Run OCR Again' : 'Run OCR'}</Text>
+            </Button>
+          ) : null}
+        </Card>
+
         {webSource && canPreviewInWebView(document) ? (
           <Card className="overflow-hidden p-0">
             <View className="border-border flex-row items-center gap-2 border-b p-3">
@@ -207,4 +233,24 @@ export default function DocumentReaderScreen() {
       </ScrollView>
     </View>
   );
+}
+
+function ocrStatusCopy(document: ArkDocument) {
+  if (document.extractedText) return 'This file text is indexed and available to RAG.';
+  switch (document.ocrStatus) {
+    case 'pending':
+      return 'Waiting to inspect this file.';
+    case 'processing':
+      return 'Reading image text on this device.';
+    case 'ready':
+      return document.ocrText
+        ? 'Image text is indexed and available to RAG.'
+        : 'No readable text was found in this image.';
+    case 'unavailable':
+      return 'OCR needs the Android development build with Ark OCR.';
+    case 'failed':
+      return 'OCR failed. You can retry from this screen.';
+    default:
+      return 'Ark keeps this file offline and indexes its title for search.';
+  }
 }

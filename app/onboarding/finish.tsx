@@ -15,7 +15,7 @@ export default function FinishScreen() {
       title="Ready for deployment"
       nextLabel="Get Started"
       hideBranding
-      arkyPose="normal"
+      arkyPose="prepared"
       onNext={async () => {
         await completeOnboarding();
         router.replace('/(tabs)');

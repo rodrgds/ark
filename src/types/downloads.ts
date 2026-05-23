@@ -2,6 +2,7 @@ export type DownloadKind = 'map' | 'zim' | 'guide' | 'model' | 'rss' | 'weather'
 export type DownloadStatus =
   | 'queued'
   | 'downloading'
+  | 'verifying'
   | 'paused'
   | 'completed'
   | 'failed'

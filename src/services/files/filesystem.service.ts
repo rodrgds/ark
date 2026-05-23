@@ -28,6 +28,18 @@ export class FileSystemService {
     if (info.exists) await FileSystem.deleteAsync(uri, { idempotent: true });
   }
 
+  static async copyToAppDirectory(input: {
+    sourceUri: string;
+    directory: AppDirectory;
+    fileName: string;
+  }) {
+    await this.ensureAppDirectories();
+    const safeName = this.safeFileName(input.fileName);
+    const destination = `${this.dir(input.directory)}${Date.now()}-${safeName}`;
+    await FileSystem.copyAsync({ from: input.sourceUri, to: destination });
+    return destination;
+  }
+
   static async getStorageSummary() {
     const dirs = await this.ensureAppDirectories();
     const capacity = await this.getDiskCapacity();

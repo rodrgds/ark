@@ -1,16 +1,9 @@
 {
-  "name": "ark-zim",
-  "version": "1.0.0",
-  "description": "Native ZIM engine for Ark using libkiwix/libzim",
-  "main": "src/index.ts",
-  "types": "src/index.ts",
-  "expo": {
-    "moduleName": "ArkZim",
-    "android": {
-      "package": "expo.modules.arkzim"
-    },
-    "ios": {
-      "bundleIdentifier": "expo.modules.arkzim"
-    }
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["ArkZimModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.arkzim.ArkZimModule"]
   }
 }

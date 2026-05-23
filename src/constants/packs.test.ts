@@ -48,7 +48,7 @@ describe('starter content packs', () => {
       (pack) => pack.id === 'usda-special-forest-products-harvest'
     );
 
-    expect(plantSafety?.sourceUrl).toBe('https://www.fs.usda.gov/nrs/pubs/gtr/gtr_nrs131.pdf');
+    expect(plantSafety?.sourceUrl).toBe('https://research.fs.usda.gov/download/treesearch/45826.pdf');
     expect(plantSafety?.sourceLabel).toBe('USDA Forest Service');
     expect(`${plantSafety?.title} ${plantSafety?.description}`.toLowerCase()).not.toContain(
       'mushroom identification'

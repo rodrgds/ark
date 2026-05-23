@@ -1,0 +1,347 @@
+{
+  "version": 1,
+  "updatedAt": "2026-05-23",
+  "source": "ark-bundled-openfreemap-bounds",
+  "regions": [
+    {
+      "id": "pt-lisbon-field-area",
+      "name": "Lisbon field area",
+      "description": "Compact operating area for Lisbon, Cascais, Sintra, Setubal, and the Tejo approaches.",
+      "bounds": { "north": 39.05, "south": 38.42, "east": -8.72, "west": -9.55 },
+      "minZoom": 8,
+      "maxZoom": 15,
+      "estimatedSize": "180-420 MB",
+      "tags": ["Portugal", "Lisbon", "urban", "recommended"]
+    },
+    {
+      "id": "pt-portugal-overview",
+      "name": "Portugal overview",
+      "description": "Country-scale roads, towns, coast, and fallback navigation.",
+      "bounds": { "north": 42.3, "south": 36.8, "east": -6.1, "west": -9.7 },
+      "minZoom": 5,
+      "maxZoom": 11,
+      "estimatedSize": "120-260 MB",
+      "tags": ["Portugal", "Iberia", "overview", "recommended"]
+    },
+    {
+      "id": "pt-porto-north",
+      "name": "Porto and North",
+      "description": "Northern Portugal corridor from Porto toward Braga, Guimaraes, and the Minho.",
+      "bounds": { "north": 41.95, "south": 40.85, "east": -7.55, "west": -9.0 },
+      "minZoom": 8,
+      "maxZoom": 14,
+      "estimatedSize": "160-360 MB",
+      "tags": ["Portugal", "Porto", "north"]
+    },
+    {
+      "id": "pt-algarve-coast",
+      "name": "Algarve coast",
+      "description": "Southern coastal navigation from Sagres to Vila Real de Santo Antonio.",
+      "bounds": { "north": 37.45, "south": 36.85, "east": -7.35, "west": -9.05 },
+      "minZoom": 8,
+      "maxZoom": 14,
+      "estimatedSize": "140-320 MB",
+      "tags": ["Portugal", "Algarve", "coast"]
+    },
+    {
+      "id": "pt-madeira",
+      "name": "Madeira",
+      "description": "Island roads, settlements, coastal access, and mountain routes.",
+      "bounds": { "north": 33.2, "south": 32.55, "east": -16.1, "west": -17.35 },
+      "minZoom": 8,
+      "maxZoom": 14,
+      "estimatedSize": "90-220 MB",
+      "tags": ["Portugal", "Madeira", "island"]
+    },
+    {
+      "id": "pt-azores-central",
+      "name": "Azores central group",
+      "description": "Faial, Pico, Sao Jorge, Graciosa, and Terceira regional coverage.",
+      "bounds": { "north": 39.25, "south": 38.2, "east": -26.8, "west": -29.2 },
+      "minZoom": 7,
+      "maxZoom": 13,
+      "estimatedSize": "110-260 MB",
+      "tags": ["Portugal", "Azores", "island"]
+    },
+    {
+      "id": "es-galicia-northwest",
+      "name": "Galicia and northwest Spain",
+      "description": "Cross-border fallback for Galicia, Asturias west, and northern Portugal approaches.",
+      "bounds": { "north": 44.2, "south": 41.6, "east": -6.0, "west": -9.6 },
+      "minZoom": 6,
+      "maxZoom": 12,
+      "estimatedSize": "180-420 MB",
+      "tags": ["Spain", "Galicia", "Portugal", "border"]
+    },
+    {
+      "id": "es-madrid-central",
+      "name": "Madrid central Spain",
+      "description": "Madrid metro area and central plateau road network.",
+      "bounds": { "north": 41.2, "south": 39.6, "east": -2.6, "west": -5.0 },
+      "minZoom": 7,
+      "maxZoom": 13,
+      "estimatedSize": "170-390 MB",
+      "tags": ["Spain", "Madrid", "urban"]
+    },
+    {
+      "id": "es-catalonia",
+      "name": "Catalonia",
+      "description": "Barcelona, Girona, Tarragona, Lleida, and Pyrenees approaches.",
+      "bounds": { "north": 42.95, "south": 40.45, "east": 3.4, "west": 0.05 },
+      "minZoom": 6,
+      "maxZoom": 13,
+      "estimatedSize": "220-520 MB",
+      "tags": ["Spain", "Catalonia", "Barcelona"]
+    },
+    {
+      "id": "ib-iberia-low-detail",
+      "name": "Iberia low detail",
+      "description": "Wide-area planning fallback for Portugal and Spain.",
+      "bounds": { "north": 44.4, "south": 35.5, "east": 4.5, "west": -10.0 },
+      "minZoom": 4,
+      "maxZoom": 9,
+      "estimatedSize": "220-520 MB",
+      "tags": ["Portugal", "Spain", "Iberia", "overview"]
+    },
+    {
+      "id": "fr-southwest",
+      "name": "Southwest France",
+      "description": "Bay of Biscay, Bordeaux, Toulouse, and western Pyrenees.",
+      "bounds": { "north": 46.2, "south": 42.35, "east": 2.5, "west": -2.1 },
+      "minZoom": 6,
+      "maxZoom": 12,
+      "estimatedSize": "260-620 MB",
+      "tags": ["France", "Bordeaux", "Toulouse", "Pyrenees"]
+    },
+    {
+      "id": "fr-paris-north",
+      "name": "Paris and north France",
+      "description": "Paris basin, Normandy approaches, and northern transport corridors.",
+      "bounds": { "north": 50.9, "south": 47.8, "east": 4.2, "west": -1.9 },
+      "minZoom": 6,
+      "maxZoom": 12,
+      "estimatedSize": "300-720 MB",
+      "tags": ["France", "Paris", "Normandy"]
+    },
+    {
+      "id": "fr-southeast-alps",
+      "name": "Southeast France and Alps",
+      "description": "Lyon, Marseille, Nice, Grenoble, and alpine access routes.",
+      "bounds": { "north": 46.6, "south": 42.7, "east": 7.8, "west": 3.7 },
+      "minZoom": 6,
+      "maxZoom": 12,
+      "estimatedSize": "280-680 MB",
+      "tags": ["France", "Alps", "Marseille", "Lyon"]
+    },
+    {
+      "id": "eu-western-base",
+      "name": "Western Europe base",
+      "description": "Low zoom continental context for long-range route planning.",
+      "bounds": { "north": 55.2, "south": 35.0, "east": 16.5, "west": -11.0 },
+      "minZoom": 3,
+      "maxZoom": 7,
+      "estimatedSize": "180-480 MB",
+      "tags": ["Europe", "overview", "low detail"]
+    },
+    {
+      "id": "uk-great-britain",
+      "name": "Great Britain",
+      "description": "England, Wales, Scotland, major roads, towns, and coastal references.",
+      "bounds": { "north": 58.8, "south": 49.8, "east": 2.1, "west": -7.8 },
+      "minZoom": 5,
+      "maxZoom": 11,
+      "estimatedSize": "240-580 MB",
+      "tags": ["United Kingdom", "Britain", "overview"]
+    },
+    {
+      "id": "ie-ireland",
+      "name": "Ireland",
+      "description": "Ireland and Northern Ireland country-scale coverage.",
+      "bounds": { "north": 55.5, "south": 51.2, "east": -5.3, "west": -10.8 },
+      "minZoom": 6,
+      "maxZoom": 12,
+      "estimatedSize": "160-380 MB",
+      "tags": ["Ireland", "Northern Ireland", "island"]
+    },
+    {
+      "id": "de-west",
+      "name": "Western Germany",
+      "description": "Ruhr, Cologne, Frankfurt, Rhine corridor, and western transport grid.",
+      "bounds": { "north": 52.8, "south": 48.0, "east": 10.2, "west": 5.6 },
+      "minZoom": 6,
+      "maxZoom": 12,
+      "estimatedSize": "320-760 MB",
+      "tags": ["Germany", "Rhine", "Frankfurt", "Cologne"]
+    },
+    {
+      "id": "it-north",
+      "name": "Northern Italy",
+      "description": "Po Valley, Milan, Turin, Venice, and southern alpine routes.",
+      "bounds": { "north": 47.3, "south": 43.5, "east": 13.2, "west": 6.5 },
+      "minZoom": 6,
+      "maxZoom": 12,
+      "estimatedSize": "330-780 MB",
+      "tags": ["Italy", "Milan", "Venice", "Alps"]
+    },
+    {
+      "id": "it-central",
+      "name": "Central Italy",
+      "description": "Rome, Florence, Adriatic crossings, and central Apennines.",
+      "bounds": { "north": 44.4, "south": 40.5, "east": 15.0, "west": 10.0 },
+      "minZoom": 6,
+      "maxZoom": 12,
+      "estimatedSize": "260-640 MB",
+      "tags": ["Italy", "Rome", "Florence", "Apennines"]
+    },
+    {
+      "id": "gr-greece",
+      "name": "Greece",
+      "description": "Mainland Greece, Peloponnese, and island ferry context.",
+      "bounds": { "north": 41.9, "south": 34.6, "east": 29.8, "west": 19.2 },
+      "minZoom": 5,
+      "maxZoom": 11,
+      "estimatedSize": "240-620 MB",
+      "tags": ["Greece", "Aegean", "islands"]
+    },
+    {
+      "id": "tr-west",
+      "name": "Western Turkey",
+      "description": "Istanbul, Marmara, Aegean Turkey, and western Anatolia.",
+      "bounds": { "north": 42.3, "south": 36.0, "east": 32.8, "west": 25.4 },
+      "minZoom": 5,
+      "maxZoom": 11,
+      "estimatedSize": "280-680 MB",
+      "tags": ["Turkey", "Istanbul", "Anatolia"]
+    },
+    {
+      "id": "ma-morocco",
+      "name": "Morocco",
+      "description": "Morocco country-scale roads, towns, Atlantic coast, and Atlas crossings.",
+      "bounds": { "north": 36.1, "south": 27.5, "east": -0.8, "west": -13.3 },
+      "minZoom": 5,
+      "maxZoom": 11,
+      "estimatedSize": "220-560 MB",
+      "tags": ["Morocco", "Atlas", "North Africa"]
+    },
+    {
+      "id": "us-northeast",
+      "name": "US Northeast corridor",
+      "description": "Boston, New York, Philadelphia, Washington, and surrounding corridor.",
+      "bounds": { "north": 43.6, "south": 38.0, "east": -70.0, "west": -78.8 },
+      "minZoom": 6,
+      "maxZoom": 12,
+      "estimatedSize": "360-860 MB",
+      "tags": ["United States", "Northeast", "New York", "Boston"]
+    },
+    {
+      "id": "us-california",
+      "name": "California",
+      "description": "California coast, Central Valley, Sierra approaches, and major metro areas.",
+      "bounds": { "north": 42.2, "south": 32.4, "east": -113.8, "west": -124.6 },
+      "minZoom": 5,
+      "maxZoom": 11,
+      "estimatedSize": "380-920 MB",
+      "tags": ["United States", "California", "west coast"]
+    },
+    {
+      "id": "us-pacific-northwest",
+      "name": "Pacific Northwest",
+      "description": "Oregon, Washington, Vancouver approaches, Cascades, and coastal routes.",
+      "bounds": { "north": 50.1, "south": 41.8, "east": -116.4, "west": -125.0 },
+      "minZoom": 5,
+      "maxZoom": 11,
+      "estimatedSize": "320-780 MB",
+      "tags": ["United States", "Canada", "Oregon", "Washington"]
+    },
+    {
+      "id": "us-texas",
+      "name": "Texas",
+      "description": "Texas state-scale coverage for highways, cities, and Gulf approaches.",
+      "bounds": { "north": 36.6, "south": 25.7, "east": -93.4, "west": -106.7 },
+      "minZoom": 5,
+      "maxZoom": 10,
+      "estimatedSize": "320-820 MB",
+      "tags": ["United States", "Texas", "Gulf"]
+    },
+    {
+      "id": "ca-southern-ontario",
+      "name": "Southern Ontario and Quebec",
+      "description": "Toronto, Ottawa, Montreal, Great Lakes, and St. Lawrence corridor.",
+      "bounds": { "north": 47.4, "south": 41.6, "east": -70.8, "west": -83.6 },
+      "minZoom": 5,
+      "maxZoom": 11,
+      "estimatedSize": "300-720 MB",
+      "tags": ["Canada", "Ontario", "Quebec", "Great Lakes"]
+    },
+    {
+      "id": "mx-central",
+      "name": "Central Mexico",
+      "description": "Mexico City, Puebla, Queretaro, Toluca, and central highlands.",
+      "bounds": { "north": 21.8, "south": 17.8, "east": -96.0, "west": -101.5 },
+      "minZoom": 6,
+      "maxZoom": 12,
+      "estimatedSize": "260-640 MB",
+      "tags": ["Mexico", "Mexico City", "highlands"]
+    },
+    {
+      "id": "br-southeast",
+      "name": "Southeast Brazil",
+      "description": "Sao Paulo, Rio de Janeiro, Belo Horizonte, and coastal mountain routes.",
+      "bounds": { "north": -18.0, "south": -25.5, "east": -39.0, "west": -49.5 },
+      "minZoom": 5,
+      "maxZoom": 11,
+      "estimatedSize": "360-900 MB",
+      "tags": ["Brazil", "Sao Paulo", "Rio de Janeiro"]
+    },
+    {
+      "id": "ar-buenos-aires-pampas",
+      "name": "Buenos Aires and Pampas",
+      "description": "Buenos Aires metro, La Plata, Rosario approaches, and Pampas roads.",
+      "bounds": { "north": -31.0, "south": -36.5, "east": -56.5, "west": -62.5 },
+      "minZoom": 5,
+      "maxZoom": 11,
+      "estimatedSize": "240-620 MB",
+      "tags": ["Argentina", "Buenos Aires", "Pampas"]
+    },
+    {
+      "id": "au-southeast",
+      "name": "Southeast Australia",
+      "description": "Sydney, Canberra, Melbourne, alpine routes, and southeast coast.",
+      "bounds": { "north": -32.0, "south": -39.5, "east": 151.8, "west": 143.0 },
+      "minZoom": 5,
+      "maxZoom": 11,
+      "estimatedSize": "300-760 MB",
+      "tags": ["Australia", "Sydney", "Melbourne"]
+    },
+    {
+      "id": "nz-new-zealand",
+      "name": "New Zealand",
+      "description": "North and South Island national coverage for roads, towns, and ferry context.",
+      "bounds": { "north": -34.0, "south": -47.6, "east": 178.9, "west": 166.0 },
+      "minZoom": 5,
+      "maxZoom": 11,
+      "estimatedSize": "240-600 MB",
+      "tags": ["New Zealand", "island", "overview"]
+    },
+    {
+      "id": "jp-kanto",
+      "name": "Japan Kanto",
+      "description": "Tokyo, Yokohama, Chiba, Saitama, and surrounding Kanto region.",
+      "bounds": { "north": 36.8, "south": 34.8, "east": 140.9, "west": 138.4 },
+      "minZoom": 6,
+      "maxZoom": 13,
+      "estimatedSize": "260-680 MB",
+      "tags": ["Japan", "Tokyo", "Kanto"]
+    },
+    {
+      "id": "in-northwest",
+      "name": "Northwest India",
+      "description": "Delhi, Jaipur, Chandigarh, and western Himalayan approaches.",
+      "bounds": { "north": 32.8, "south": 26.0, "east": 78.5, "west": 73.0 },
+      "minZoom": 5,
+      "maxZoom": 11,
+      "estimatedSize": "300-760 MB",
+      "tags": ["India", "Delhi", "Rajasthan"]
+    }
+  ]
+}

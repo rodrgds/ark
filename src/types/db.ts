@@ -39,6 +39,11 @@ export type ArkDocument = {
   source: string | null;
   isPersonal: boolean;
   encryptionStatus: 'unknown' | 'plaintext' | 'encrypted';
+  extractedText: string | null;
+  ocrText: string | null;
+  ocrStatus: 'not_needed' | 'pending' | 'processing' | 'ready' | 'unavailable' | 'failed';
+  ocrError: string | null;
+  indexedAt: number | null;
   createdAt: number;
   updatedAt: number;
 };

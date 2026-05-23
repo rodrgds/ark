@@ -1,0 +1,18 @@
+{
+  "name": "ark-ocr",
+  "version": "1.0.0",
+  "description": "Ark Android OCR module",
+  "main": "src/index.ts",
+  "scripts": {},
+  "keywords": [
+    "expo",
+    "ocr",
+    "mlkit"
+  ],
+  "license": "UNLICENSED",
+  "peerDependencies": {
+    "expo": "*",
+    "expo-modules-core": "*"
+  },
+  "private": true
+}

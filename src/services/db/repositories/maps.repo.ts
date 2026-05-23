@@ -46,6 +46,7 @@ function mapMarker(row: {
   description: string | null;
   latitude: number;
   longitude: number;
+  photo_uri: string | null;
   icon: string | null;
   color: string | null;
   created_at: number;
@@ -57,6 +58,7 @@ function mapMarker(row: {
     description: row.description,
     latitude: row.latitude,
     longitude: row.longitude,
+    photoUri: row.photo_uri,
     icon: row.icon,
     color: row.color,
     createdAt: row.created_at,
@@ -149,22 +151,28 @@ export class MapsRepository {
     }
   ) {
     const db = await DatabaseClient.getDb();
+    const sets = ['status = ?', 'updated_at = ?'];
+    const params: Array<string | number | null> = [patch.status, Date.now()];
+
+    if ('progress' in patch) {
+      sets.splice(1, 0, 'progress = ?');
+      params.splice(1, 0, patch.progress ?? null);
+    }
+    if ('offlinePackId' in patch) {
+      sets.splice(1, 0, 'offline_pack_id = ?');
+      params.splice(1, 0, patch.offlinePackId ?? null);
+    }
+    if ('sizeBytes' in patch) {
+      sets.splice(1, 0, 'size_bytes = ?');
+      params.splice(1, 0, patch.sizeBytes ?? null);
+    }
+    params.push(id);
+
     await db.runAsync(
       `UPDATE map_regions
-       SET status = ?,
-           progress = COALESCE(?, progress),
-           offline_pack_id = COALESCE(?, offline_pack_id),
-           size_bytes = COALESCE(?, size_bytes),
-           updated_at = ?
+       SET ${sets.join(',\n           ')}
        WHERE id = ?`,
-      [
-        patch.status,
-        patch.progress ?? null,
-        patch.offlinePackId ?? null,
-        patch.sizeBytes ?? null,
-        Date.now(),
-        id,
-      ]
+      params
     );
   }
 
@@ -176,11 +184,21 @@ export class MapsRepository {
     return rows.map(mapMarker);
   }
 
+  static async getMarker(id: string) {
+    const db = await DatabaseClient.getDb();
+    const row = await db.getFirstAsync<Parameters<typeof mapMarker>[0]>(
+      'SELECT * FROM map_markers WHERE id = ?',
+      [id]
+    );
+    return row ? mapMarker(row) : null;
+  }
+
   static async createMarker(marker: {
     title: string;
     description?: string | null;
     latitude: number;
     longitude: number;
+    photoUri?: string | null;
     icon?: string | null;
     color?: string | null;
   }) {
@@ -189,14 +207,15 @@ export class MapsRepository {
     const id = randomUUID();
     await db.runAsync(
       `INSERT INTO map_markers
-        (id, title, description, latitude, longitude, icon, color, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (id, title, description, latitude, longitude, photo_uri, icon, color, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         marker.title,
         marker.description ?? null,
         marker.latitude,
         marker.longitude,
+        marker.photoUri ?? null,
         marker.icon ?? 'pin',
         marker.color ?? '#F2B84B',
         timestamp,

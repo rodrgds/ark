@@ -11,7 +11,7 @@ export default function PowerScreen() {
       title="Power Readiness" 
       nextHref="/onboarding/packs" 
       hideBranding 
-      arkyPose="resourceful"
+      arkyPose="oled"
     >
       <View className="gap-6">
         <View className="bg-amber-500/10 border-amber-500/20 rounded-2xl border p-5">

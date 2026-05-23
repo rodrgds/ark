@@ -3,6 +3,7 @@ import { Sha256 } from '@/services/files/sha256';
 
 export const MAX_IN_MEMORY_SHA256_BYTES = 64 * 1024 * 1024;
 const SHA256_STREAM_CHUNK_BYTES = 1024 * 1024;
+const CHECKSUM_SIDECAR_TIMEOUT_MS = 8000;
 
 function arrayBufferToHex(buffer: ArrayBuffer) {
   return Array.from(new Uint8Array(buffer), (byte) => byte.toString(16).padStart(2, '0')).join('');
@@ -31,12 +32,16 @@ export class FileDigestService {
     if (direct) return direct;
     if (!input.checksumSha256Url) return null;
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), CHECKSUM_SIDECAR_TIMEOUT_MS);
     try {
-      const response = await fetch(input.checksumSha256Url);
+      const response = await fetch(input.checksumSha256Url, { signal: controller.signal });
       if (!response.ok) return null;
       return this.parseSha256Sidecar(await response.text());
     } catch {
       return null;
+    } finally {
+      clearTimeout(timeout);
     }
   }
 

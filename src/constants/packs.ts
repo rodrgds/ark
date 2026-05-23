@@ -41,7 +41,7 @@ export const STARTER_PACKS: ContentPackManifest[] = [
     category: 'Survival',
     format: 'pdf',
     estimatedSize: '58 pages',
-    sourceUrl: 'https://www.fs.usda.gov/nrs/pubs/gtr/gtr_nrs131.pdf',
+    sourceUrl: 'https://research.fs.usda.gov/download/treesearch/45826.pdf',
     sourceLabel: 'USDA Forest Service',
     fileName: 'usda-special-forest-products-harvest.pdf',
     installed: false,

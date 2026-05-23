@@ -1,0 +1,53 @@
+import { describe, expect, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+const moduleRoot = import.meta.dir;
+const appRoot = join(moduleRoot, '..', '..');
+
+function readJson<T>(path: string): T {
+  return JSON.parse(readFileSync(path, 'utf8')) as T;
+}
+
+describe('ArkZim local module', () => {
+  test('is registered as a local app dependency for Expo autolinking', () => {
+    const appPackage = readJson<{ dependencies: Record<string, string> }>(
+      join(appRoot, 'package.json')
+    );
+    const modulePackage = readJson<{ name: string; main: string; types: string }>(
+      join(moduleRoot, 'package.json')
+    );
+
+    expect(appPackage.dependencies['ark-zim']).toBe('./modules/ark-zim');
+    expect(modulePackage.name).toBe('ark-zim');
+    expect(modulePackage.main).toBe('src/index.ts');
+    expect(modulePackage.types).toBe('src/index.ts');
+  });
+
+  test('uses the Expo module config shape that autolinking resolves', () => {
+    const config = readJson<{
+      platforms: string[];
+      android: { modules: string[] };
+      apple: { modules: string[] };
+    }>(join(moduleRoot, 'expo-module.config.json'));
+
+    expect(config.platforms).toContain('android');
+    expect(config.platforms).toContain('apple');
+    expect(config.android.modules).toEqual(['expo.modules.arkzim.ArkZimModule']);
+    expect(config.apple.modules).toEqual(['ArkZimModule']);
+  });
+
+  test('compiles Android through the Expo module Gradle plugin and libzim binding', () => {
+    const gradle = readFileSync(join(moduleRoot, 'android', 'build.gradle'), 'utf8');
+    const kotlin = readFileSync(
+      join(moduleRoot, 'android', 'src', 'main', 'java', 'expo', 'modules', 'arkzim', 'ArkZimModule.kt'),
+      'utf8'
+    );
+
+    expect(gradle).toContain("id 'expo-module-gradle-plugin'");
+    expect(gradle).toContain('org.kiwix:libkiwix:2.6.0');
+    expect(kotlin).toContain('import org.kiwix.libzim.Archive');
+    expect(kotlin).toContain('Searcher(archive)');
+    expect(kotlin).toContain('SuggestionSearcher(archive)');
+  });
+});

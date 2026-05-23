@@ -52,6 +52,8 @@ function rowToPack(row: {
     checksumMd5: row.checksum_md5 ?? manifest?.checksumMd5 ?? null,
     checksumSha256: row.checksum_sha256 ?? manifest?.checksumSha256 ?? null,
     checksumSha256Url: row.checksum_sha256_url ?? manifest?.checksumSha256Url ?? null,
+    modelRole: manifest?.modelRole,
+    downloadStrategy: manifest?.downloadStrategy,
     localUri: row.local_uri,
     sizeBytes: row.size_bytes,
     installed: !!row.installed,

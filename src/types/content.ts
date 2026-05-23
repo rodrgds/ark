@@ -5,9 +5,17 @@ export type ContentCategory =
   | 'Wiki'
   | 'RSS'
   | 'AI Models'
-  | 'Personal Documents';
+  | 'Preparedness'
+  | 'Personal Documents'
+  | 'Disasters'
+  | 'Food'
+  | 'Comms'
+  | 'Safety'
+  | 'Health';
 
 export type ContentFormat = 'pdf' | 'markdown' | 'zim' | 'html' | 'txt' | 'bundle' | 'gguf';
+export type ContentModelRole = 'embedding' | 'chat';
+export type ContentDownloadStrategy = 'file' | 'html_snapshot';
 
 export type ContentPackManifest = {
   id: string;
@@ -15,6 +23,8 @@ export type ContentPackManifest = {
   description: string;
   category: ContentCategory;
   format: ContentFormat;
+  modelRole?: ContentModelRole;
+  downloadStrategy?: ContentDownloadStrategy;
   estimatedSize: string;
   sizeBytes?: number | null;
   sourceUrl?: string;

@@ -87,6 +87,7 @@ let MapsRepository: typeof import('@/services/db/repositories/maps.repo').MapsRe
 let RssRepository: typeof import('@/services/db/repositories/rss.repo').RssRepository;
 let WeatherRepository: typeof import('@/services/db/repositories/weather.repo').WeatherRepository;
 let DocumentsRepository: typeof import('@/services/db/repositories/documents.repo').DocumentsRepository;
+let DocumentPagesRepository: typeof import('@/services/db/repositories/document-pages.repo').DocumentPagesRepository;
 let SensorsRepository: typeof import('@/services/db/repositories/sensors.repo').SensorsRepository;
 
 let testDb: TestSQLiteDatabase;
@@ -102,6 +103,7 @@ beforeAll(async () => {
   ({ RssRepository } = await import('@/services/db/repositories/rss.repo'));
   ({ WeatherRepository } = await import('@/services/db/repositories/weather.repo'));
   ({ DocumentsRepository } = await import('@/services/db/repositories/documents.repo'));
+  ({ DocumentPagesRepository } = await import('@/services/db/repositories/document-pages.repo'));
   ({ SensorsRepository } = await import('@/services/db/repositories/sensors.repo'));
 });
 
@@ -116,7 +118,7 @@ beforeEach(async () => {
 describe('database migrations', () => {
   test('creates the current schema with FTS and resumable download columns', async () => {
     const version = await testDb.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
-    expect(version?.user_version).toBe(8);
+    expect(version?.user_version).toBe(9);
 
     const downloadColumns = await testDb.getAllAsync<{ name: string }>(
       'PRAGMA table_info(downloads)'
@@ -144,6 +146,27 @@ describe('database migrations', () => {
     expect(documentColumns.map((column) => column.name)).toContain('ocr_status');
     expect(documentColumns.map((column) => column.name)).toContain('ocr_error');
     expect(documentColumns.map((column) => column.name)).toContain('indexed_at');
+    expect(
+      (
+        await testDb.getFirstAsync<{ name: string }>(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'document_pages'"
+        )
+      )?.name
+    ).toBe('document_pages');
+    expect(
+      (
+        await testDb.getFirstAsync<{ name: string }>(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'embedding_models'"
+        )
+      )?.name
+    ).toBe('embedding_models');
+    expect(
+      (
+        await testDb.getFirstAsync<{ name: string }>(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'zim_articles_cache'"
+        )
+      )?.name
+    ).toBe('zim_articles_cache');
 
     await testDb.runAsync(
       'INSERT INTO notes_fts (note_id, title, body, tags) VALUES (?, ?, ?, ?)',
@@ -346,7 +369,18 @@ describe('repositories', () => {
     });
     expect(indexedDocument?.extractedText).toContain('water cache');
     expect(indexedDocument?.indexedAt).toBe(123);
+    await DocumentPagesRepository.replaceForDocument('doc-1', 'Permit PDF', [
+      {
+        pageNumber: 1,
+        text: 'Permit page allows water cache access.',
+        extractionMethod: 'text_layer',
+      },
+    ]);
+    expect((await DocumentPagesRepository.listForDocument('doc-1'))[0]?.text).toContain(
+      'water cache'
+    );
     await DocumentsRepository.delete('doc-1');
+    await DocumentPagesRepository.deleteForDocument('doc-1');
     expect(await DocumentsRepository.get('doc-1')).toBeNull();
 
     await SensorsRepository.saveSnapshot('barometer', { hpa: 1013 });

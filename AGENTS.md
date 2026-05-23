@@ -118,7 +118,7 @@ Boot → index.tsx
 
 ## Database Schema
 
-20 tables, 2 FTS5 virtual tables, V1 migration via `PRAGMA user_version`.
+24 tables, 3 FTS5 virtual tables, V1 migration via `PRAGMA user_version`.
 
 **Key tables actually used by screens:**
 
@@ -129,6 +129,9 @@ Boot → index.tsx
 - `chat_threads` + `chat_messages` — AI conversation history
 - `rag_sources` + `rag_chunks` + `rag_chunks_fts` — RAG indexing
 - `documents` — imported local files plus extracted text/OCR status for RAG
+- `document_pages` + `document_pages_fts` — page-level PDF/text/OCR extraction for document search and RAG
+- `embedding_models` + `chunk_embeddings` — active embedding-pack metadata and model-specific chunk vector links
+- `zim_articles_cache` + `zim_paragraph_chunks` — lazily cached ZIM article paragraphs for RAG
 
 **Tables now used by screens/services:**
 
@@ -149,28 +152,28 @@ Boot → index.tsx
 - Onboarding wizard: 5-step flow with state persistence
 - Vault service: versioned stretched SHA-512 verifier with legacy upgrade, password change, biometric unlock via LocalAuthentication, auto-lock lifecycle enforcement
 - AI chat: messages stored to DB, mock fallback adapter, llama.rn adapter in dev builds when a GGUF model is installed, streaming tokens, Stop action
-- RAG: FTS plus deterministic offline `ark-hash-v2` 256-dimension reranking, installed guide chunks, note indexing, imported document text, imported image OCR text, section/page/document citations, and best-effort ZIM article citations when ArkZim is available
+- RAG: hybrid FTS plus embeddings, deterministic offline `ark-hash-v2` fallback, llama.rn embedding contexts for installed Nomic/Qwen embedding packs, installed guide chunks, note indexing, imported document text, PDF page text, imported image OCR text, section/page/document citations, and lazy ZIM paragraph citations when ArkZim is available
 - Pressure trend: rising/stable/falling from barometer snapshot history
 - Network monitoring: NetInfo wrapper
 - App filesystem directories: created at boot
 - Content pack manifest: real Kiwix ZIM URLs, public survival/medical PDFs, model GGUF URLs, checksums, source labels
 - Real download manager: resumable Expo file downloads, progress, pause/resume/cancel, free-space checks, MD5/SHA-256 verification, app-directory storage
 - Content readers: PDF/WebView guide reader with section jumps, ZIM detail screen, OS handoff to Kiwix, Android ArkZim native reader path behind dev builds
-- Document ingestion: text-file extraction, Android on-device ML Kit OCR through `ark-ocr`, visible OCR/indexing status, and document RAG cleanup on delete
+- Document ingestion: text-file extraction, Android PDFBox text-layer extraction, capped PDF OCR fallback through ML Kit, Android on-device image OCR through `ark-ocr`, visible extraction/OCR/indexing status, page-level FTS, and document RAG cleanup on delete
 - Sensor tools: compass, barometer, level, pedometer, light meter, coordinates, offline weather, readiness checklist, with live readings in the sensor store
 
 ### MOCK / STUB / PLACEHOLDER:
 
-| Feature                 | Status  | What's missing                                                                                                                                                                    |
-| ----------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Map rendering           | PARTIAL | MapLibre is installed and dynamically loaded; native map rendering needs on-device dev-build verification and a production style URL.                                             |
-| Offline map downloading | PARTIAL | MapLibre `OfflineManager.createPack()` is wired when native MapLibre exists; still needs real-device validation, drawn bounds, and offline geocoder/PMTiles index.                |
-| Local LLM inference     | PARTIAL | llama.rn is installed and dynamically loads installed GGUF models; still needs device memory tuning and runtime verification.                                                     |
-| DB encryption           | PARTIAL | SecureStore SQLCipher key path is wired; still needs fresh encrypted DB proof, plaintext migration, and final vault-passphrase/device-key decision.                               |
-| Password KDF            | PARTIAL | v3 SHA-512 stretching is in place with legacy upgrades; still needs native argon2/bcrypt/scrypt before production.                                                                |
-| ZIM reader              | PARTIAL | Android ArkZim module compiles with libkiwix/libzim and the UI can search/open articles when native is available; iOS CoreKiwix binding and real-archive device testing remain.   |
-| OCR                     | PARTIAL | Android `ark-ocr` compiles and uses bundled ML Kit text recognition; still needs real-device verification with camera/imported images and PDF page extraction is not implemented. |
-| Component tests         | PARTIAL | Route/static/service tests are broad; mounted React Native screen tests are still missing. Detox onboarding coverage is intentionally deprioritized.                              |
+| Feature                 | Status  | What's missing                                                                                                                                                                                      |
+| ----------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Map rendering           | PARTIAL | MapLibre is installed and dynamically loaded; native map rendering needs on-device dev-build verification and a production style URL.                                                               |
+| Offline map downloading | PARTIAL | MapLibre `OfflineManager.createPack()` is wired when native MapLibre exists; still needs real-device validation, drawn bounds, and offline geocoder/PMTiles index.                                  |
+| Local LLM inference     | PARTIAL | llama.rn is installed and dynamically loads installed GGUF models; still needs device memory tuning and runtime verification.                                                                       |
+| DB encryption           | PARTIAL | SecureStore SQLCipher key path is wired; still needs fresh encrypted DB proof, plaintext migration, and final vault-passphrase/device-key decision.                                                 |
+| Password KDF            | PARTIAL | v3 SHA-512 stretching is in place with legacy upgrades; still needs a custom Expo native libsodium Argon2id `ark-kdf` module before production.                                                     |
+| ZIM reader              | PARTIAL | Android ArkZim module compiles with libkiwix/libzim and the UI can search/open articles when native is available; iOS CoreKiwix binding and real-archive device testing remain.                     |
+| OCR/PDF indexing        | PARTIAL | Android `ark-ocr` compiles with ML Kit and PDFBox, images use on-device OCR, PDFs use text-layer extraction before OCR fallback; still needs real-device verification with scanned/searchable PDFs. |
+| Component tests         | PARTIAL | Route/static/service tests are broad; mounted React Native screen tests are still missing. Detox onboarding coverage is intentionally deprioritized.                                                |
 
 ## Theme System
 
@@ -204,8 +207,8 @@ Applied via `Uniwind.setTheme()` called from `theme-store.ts`.
 
 1. **Native verification remains the main risk:** SQLCipher, MapLibre offline packs, ArkZim, ArkOcr, and llama.rn all need real-device verification in development builds.
 2. **iOS ZIM support is still missing:** Android ArkZim compiles; iOS still needs CoreKiwix.xcframework integration.
-3. **Password KDF is improved but not production-grade:** v3 SHA-512 stretching replaced the old weak verifier path, but native argon2/bcrypt/scrypt is still required.
-4. **RAG embeddings are deterministic hash vectors:** useful for offline regression coverage, not semantic model-quality embeddings. llama.rn embedding model support is still needed for model-quality semantic search.
+3. **Password KDF is improved but not production-grade:** v3 SHA-512 stretching replaced the old weak verifier path, but a native libsodium Argon2id module is still required.
+4. **RAG embeddings need device validation:** Nomic/Qwen llama.rn embedding-pack support is implemented with an `ark-hash-v2` fallback, but real-device quality, memory, and sqlite-vec KNN behavior still need verification.
 5. **Mounted UI tests are still absent:** current coverage is route/static/service-level, not React Native render tests. E2E onboarding coverage is intentionally deprioritized for now.
 
 ## Build / Run Commands

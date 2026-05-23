@@ -81,6 +81,25 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
           updated_at INTEGER
         );
 
+        CREATE TABLE IF NOT EXISTS document_pages (
+          id TEXT PRIMARY KEY,
+          document_id TEXT NOT NULL,
+          page_number INTEGER NOT NULL,
+          text TEXT,
+          extraction_method TEXT NOT NULL,
+          confidence REAL,
+          indexed_at INTEGER,
+          created_at INTEGER NOT NULL,
+          UNIQUE(document_id, page_number)
+        );
+
+        CREATE VIRTUAL TABLE IF NOT EXISTS document_pages_fts USING fts5(
+          page_id UNINDEXED,
+          document_id UNINDEXED,
+          text,
+          title
+        );
+
         CREATE TABLE IF NOT EXISTS content_packs (
           id TEXT PRIMARY KEY,
           title TEXT NOT NULL,
@@ -260,10 +279,62 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
           source_title
         );
 
+        CREATE TABLE IF NOT EXISTS embedding_models (
+          id TEXT PRIMARY KEY,
+          display_name TEXT NOT NULL,
+          family TEXT NOT NULL,
+          dimension INTEGER NOT NULL,
+          distance TEXT NOT NULL,
+          quantization TEXT,
+          query_prefix TEXT,
+          document_prefix TEXT,
+          normalize INTEGER NOT NULL DEFAULT 1,
+          installed_at INTEGER,
+          active INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS chunk_embeddings (
+          chunk_id TEXT NOT NULL,
+          model_id TEXT NOT NULL,
+          dimension INTEGER NOT NULL,
+          embedding_blob BLOB NOT NULL,
+          created_at INTEGER NOT NULL,
+          PRIMARY KEY(chunk_id, model_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS zim_articles_cache (
+          id TEXT PRIMARY KEY,
+          zim_id TEXT NOT NULL,
+          path TEXT NOT NULL,
+          title TEXT NOT NULL,
+          html_hash TEXT NOT NULL,
+          extracted_at INTEGER NOT NULL,
+          last_accessed_at INTEGER NOT NULL,
+          UNIQUE(zim_id, path)
+        );
+
+        CREATE TABLE IF NOT EXISTS zim_paragraph_chunks (
+          id TEXT PRIMARY KEY,
+          article_cache_id TEXT NOT NULL,
+          zim_id TEXT NOT NULL,
+          path TEXT NOT NULL,
+          title TEXT NOT NULL,
+          section_title TEXT,
+          paragraph_index INTEGER NOT NULL,
+          text TEXT NOT NULL,
+          token_estimate INTEGER,
+          created_at INTEGER NOT NULL
+        );
+
         CREATE INDEX IF NOT EXISTS idx_notes_deleted_updated ON notes(deleted_at, updated_at);
         CREATE INDEX IF NOT EXISTS idx_downloads_status ON downloads(status);
         CREATE INDEX IF NOT EXISTS idx_chat_messages_thread ON chat_messages(thread_id, created_at);
         CREATE INDEX IF NOT EXISTS idx_rag_chunks_source ON rag_chunks(source_id, chunk_index);
+        CREATE INDEX IF NOT EXISTS idx_document_pages_document ON document_pages(document_id, page_number);
+        CREATE INDEX IF NOT EXISTS idx_chunk_embeddings_model ON chunk_embeddings(model_id);
+        CREATE INDEX IF NOT EXISTS idx_zim_paragraphs_article ON zim_paragraph_chunks(article_cache_id, paragraph_index);
       `);
 
       const now = Date.now();
@@ -383,6 +454,85 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
         await db.execAsync('ALTER TABLE documents ADD COLUMN indexed_at INTEGER');
       }
       await db.runAsync('PRAGMA user_version = 8');
+    });
+  }
+
+  if (currentVersion < 9) {
+    await db.withTransactionAsync(async () => {
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS document_pages (
+          id TEXT PRIMARY KEY,
+          document_id TEXT NOT NULL,
+          page_number INTEGER NOT NULL,
+          text TEXT,
+          extraction_method TEXT NOT NULL,
+          confidence REAL,
+          indexed_at INTEGER,
+          created_at INTEGER NOT NULL,
+          UNIQUE(document_id, page_number)
+        );
+
+        CREATE VIRTUAL TABLE IF NOT EXISTS document_pages_fts USING fts5(
+          page_id UNINDEXED,
+          document_id UNINDEXED,
+          text,
+          title
+        );
+
+        CREATE TABLE IF NOT EXISTS embedding_models (
+          id TEXT PRIMARY KEY,
+          display_name TEXT NOT NULL,
+          family TEXT NOT NULL,
+          dimension INTEGER NOT NULL,
+          distance TEXT NOT NULL,
+          quantization TEXT,
+          query_prefix TEXT,
+          document_prefix TEXT,
+          normalize INTEGER NOT NULL DEFAULT 1,
+          installed_at INTEGER,
+          active INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS chunk_embeddings (
+          chunk_id TEXT NOT NULL,
+          model_id TEXT NOT NULL,
+          dimension INTEGER NOT NULL,
+          embedding_blob BLOB NOT NULL,
+          created_at INTEGER NOT NULL,
+          PRIMARY KEY(chunk_id, model_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS zim_articles_cache (
+          id TEXT PRIMARY KEY,
+          zim_id TEXT NOT NULL,
+          path TEXT NOT NULL,
+          title TEXT NOT NULL,
+          html_hash TEXT NOT NULL,
+          extracted_at INTEGER NOT NULL,
+          last_accessed_at INTEGER NOT NULL,
+          UNIQUE(zim_id, path)
+        );
+
+        CREATE TABLE IF NOT EXISTS zim_paragraph_chunks (
+          id TEXT PRIMARY KEY,
+          article_cache_id TEXT NOT NULL,
+          zim_id TEXT NOT NULL,
+          path TEXT NOT NULL,
+          title TEXT NOT NULL,
+          section_title TEXT,
+          paragraph_index INTEGER NOT NULL,
+          text TEXT NOT NULL,
+          token_estimate INTEGER,
+          created_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_document_pages_document ON document_pages(document_id, page_number);
+        CREATE INDEX IF NOT EXISTS idx_chunk_embeddings_model ON chunk_embeddings(model_id);
+        CREATE INDEX IF NOT EXISTS idx_zim_paragraphs_article ON zim_paragraph_chunks(article_cache_id, paragraph_index);
+      `);
+      await db.runAsync('PRAGMA user_version = 9');
     });
   }
 }

@@ -12,32 +12,32 @@ export default function FinishScreen() {
 
   return (
     <OnboardingFrame
-      title="Ready for deployment"
-      nextLabel="Get Started"
+      title="You are ready"
+      nextLabel="Enter Ark"
       hideBranding
       arkyPose="prepared"
+      step={7}
+      totalSteps={7}
       onNext={async () => {
         await completeOnboarding();
         router.replace('/(tabs)');
       }}>
-      <View className="gap-8 py-4">
-        <View className="gap-6">
-          <FeatureItem 
-            icon={ShieldCheck} 
-            title="Privacy First" 
-            description="Your data never leaves this device. No accounts, no tracking." 
-          />
-          <FeatureItem 
-            icon={Zap} 
-            title="Instant Access" 
-            description="All tools and knowledge work without a cell signal." 
-          />
-          <FeatureItem 
-            icon={Download} 
-            title="Growing Library" 
-            description="Download more maps and models anytime from the Library tab." 
-          />
-        </View>
+      <View className="gap-4">
+        <FeatureItem
+          icon={ShieldCheck}
+          title="Private by default"
+          description="Your notes and documents stay behind the vault passphrase you set."
+        />
+        <FeatureItem
+          icon={Zap}
+          title="Instant Access"
+          description="All tools work without a signal."
+        />
+        <FeatureItem
+          icon={Download}
+          title="Growing Library"
+          description="Add more maps and guides anytime."
+        />
       </View>
     </OnboardingFrame>
   );
@@ -53,13 +53,15 @@ function FeatureItem({
   description: string;
 }) {
   return (
-    <View className="flex-row gap-4">
-      <View className="bg-muted h-10 w-10 items-center justify-center rounded-xl">
-        <Icon as={icon} className="text-primary size-5" />
+    <View className="flex-row items-center gap-3">
+      <View className="bg-muted h-9 w-9 items-center justify-center rounded-lg">
+        <Icon as={icon} className="text-primary size-4" />
       </View>
       <View className="flex-1">
-        <Text className="font-bold">{title}</Text>
-        <Text variant="muted" className="text-sm">{description}</Text>
+        <Text className="text-sm font-semibold">{title}</Text>
+        <Text variant="muted" className="text-xs">
+          {description}
+        </Text>
       </View>
     </View>
   );

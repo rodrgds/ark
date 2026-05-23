@@ -15,6 +15,23 @@ import android.net.Uri
 import java.nio.charset.StandardCharsets
 
 class ArkZimModule : Module() {
+  companion object {
+    private var librariesLoaded = false
+    private var libraryLoadError: String? = null
+
+    init {
+      try {
+        System.loadLibrary("kiwix")
+        System.loadLibrary("zim")
+        System.loadLibrary("kiwix_wrapper")
+        System.loadLibrary("zim_wrapper")
+        librariesLoaded = true
+      } catch (e: UnsatisfiedLinkError) {
+        libraryLoadError = "Failed to load native ZIM libraries: ${e.message}"
+      }
+    }
+  }
+
   private var currentArchive: Archive? = null
   private var currentArchivePath: String? = null
   private var currentSearcher: Searcher? = null
@@ -24,6 +41,7 @@ class ArkZimModule : Module() {
     Name("ArkZim")
 
     AsyncFunction("openArchive") { path: String ->
+      ensureLibrariesLoaded()
       val cleanPath = if (path.startsWith("file://")) {
         Uri.parse(path).path ?: path
       } else {
@@ -49,6 +67,7 @@ class ArkZimModule : Module() {
     }
 
     AsyncFunction("getArticle") { path: String ->
+      ensureLibrariesLoaded()
       val archive = currentArchive ?: throw Exception("No archive open")
       try {
         val entry = resolveRedirect(archive.getEntryByPath(path))
@@ -68,36 +87,48 @@ class ArkZimModule : Module() {
     }
 
     AsyncFunction("search") { query: String, limit: Int ->
+      ensureLibrariesLoaded()
       val archive = currentArchive ?: throw Exception("No archive open")
-      try {
-        if (archive.hasFulltextIndex() && currentSearcher != null) {
-          return@AsyncFunction searchFullText(query, limit.coerceAtLeast(1))
-        }
-        return@AsyncFunction suggestTitles(query, limit.coerceAtLeast(1), includeSnippet = true)
-      } catch (e: Exception) {
-        return@AsyncFunction emptyList<Map<String, String>>()
+      if (archive.hasFulltextIndex() && currentSearcher != null) {
+        return@AsyncFunction searchFullText(query, limit.coerceAtLeast(1))
       }
+      return@AsyncFunction suggestTitles(query, limit.coerceAtLeast(1), includeSnippet = true)
     }
 
     AsyncFunction("suggest") { prefix: String, limit: Int ->
+      ensureLibrariesLoaded()
       currentArchive ?: throw Exception("No archive open")
-      try {
-        return@AsyncFunction suggestTitles(prefix, limit.coerceAtLeast(1), includeSnippet = false)
-      } catch (e: Exception) {
-        return@AsyncFunction emptyList<Map<String, String>>()
-      }
+      return@AsyncFunction suggestTitles(prefix, limit.coerceAtLeast(1), includeSnippet = false)
+    }
+  }
+
+  private fun ensureLibrariesLoaded() {
+    if (!librariesLoaded) {
+      throw Exception(libraryLoadError ?: "Native ZIM libraries failed to load.")
     }
   }
 
   private fun getMetadataMap(): Map<String, Any?> {
     val archive = currentArchive ?: return emptyMap()
+    val mainPath = try {
+      if (archive.hasMainEntry()) {
+        val entry = archive.getMainEntry()
+        val path = entry.getPath()
+        // Verify the path actually resolves before advertising it
+        archive.getEntryByPath(path)
+        path
+      } else null
+    } catch (_: Exception) { null }
+
     return mapOf(
       "id" to archive.getUuid(),
       "title" to archive.metadataOrNull("Title", fallback = File(currentArchivePath ?: "").name),
       "description" to archive.metadataOrNull("Description"),
       "language" to archive.metadataOrNull("Language"),
       "articleCount" to archive.getArticleCount(),
-      "mainPath" to if (archive.hasMainEntry()) archive.getMainEntry().getPath() else null
+      "mainPath" to mainPath,
+      "hasFulltextIndex" to archive.hasFulltextIndex(),
+      "hasTitleIndex" to archive.hasTitleIndex()
     )
   }
 

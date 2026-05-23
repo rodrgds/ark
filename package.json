@@ -24,6 +24,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.2.1",
+    "defuddle": "^0.18.1",
     "expo": "~55.0.19",
     "expo-build-properties": "~55.0.14",
     "expo-constants": "~55.0.15",

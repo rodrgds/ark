@@ -7,6 +7,11 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
+import {
+  getOrderedContentCategories,
+  getPackIcon,
+  getPackModelRoleLabel,
+} from '@/constants/pack-presentation';
 import { ModelManagerService } from '@/services/ai/model-manager.service';
 import { ContentPackService } from '@/services/content/content-pack.service';
 import { ImportService } from '@/services/files/import.service';
@@ -17,41 +22,20 @@ import type { ArkDocument } from '@/types/db';
 import { formatDistanceToNow } from 'date-fns';
 import { router } from 'expo-router';
 import {
-  BookOpen,
   Bot,
   Check,
   Download,
   FileText,
-  Map,
   Pause,
   Play,
   Plus,
   RefreshCcw,
   Rss,
-  Stethoscope,
   Trash2,
   Upload,
 } from 'lucide-react-native';
 import * as React from 'react';
 import { ActivityIndicator, Alert, RefreshControl, View } from 'react-native';
-
-const filters: Array<ContentCategory | 'All' | 'Documents'> = [
-  'All',
-  'Wiki',
-  'Medical',
-  'Survival',
-  'Maps',
-  'AI Models',
-  'Documents',
-];
-
-function iconFor(pack: ContentPack) {
-  if (pack.category === 'AI Models') return Bot;
-  if (pack.category === 'Medical') return Stethoscope;
-  if (pack.category === 'Maps') return Map;
-  if (pack.format === 'pdf') return FileText;
-  return BookOpen;
-}
 
 function actionLabel(pack: ContentPack) {
   if (pack.installStatus === 'downloading' || pack.installStatus === 'queued') return 'Downloading';
@@ -83,7 +67,7 @@ export default function LibraryScreen() {
   const [storageCapacity, setStorageCapacity] = React.useState<Awaited<
     ReturnType<typeof FileSystemService.getDiskCapacity>
   > | null>(null);
-  const [filter, setFilter] = React.useState<(typeof filters)[number]>('All');
+  const [filter, setFilter] = React.useState<ContentCategory | 'All' | 'Documents'>('All');
   const [workingId, setWorkingId] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [refreshing, setRefreshing] = React.useState(false);
@@ -91,6 +75,10 @@ export default function LibraryScreen() {
   const [modelTitle, setModelTitle] = React.useState('');
   const [modelUrl, setModelUrl] = React.useState('');
   const [modelChecksum, setModelChecksum] = React.useState('');
+  const filters = React.useMemo<Array<ContentCategory | 'All' | 'Documents'>>(
+    () => ['All', ...getOrderedContentCategories(packs), 'Documents'],
+    [packs]
+  );
 
   async function load() {
     const [nextPacks, nextDocuments, nextRssOverview, nextModelStatus, nextStorageCapacity] =
@@ -515,7 +503,7 @@ export default function LibraryScreen() {
               <Card key={pack.id} className="gap-4">
                 <View className="flex-row gap-3">
                   <View className="bg-primary/15 size-11 items-center justify-center rounded-md">
-                    <Icon as={iconFor(pack)} className="text-primary size-6" />
+                    <Icon as={getPackIcon(pack)} className="text-primary size-6" />
                   </View>
                   <View className="min-w-0 flex-1 gap-1">
                     <View className="flex-row items-start justify-between gap-3">
@@ -524,6 +512,11 @@ export default function LibraryScreen() {
                       </Text>
                       {pack.installed ? <Icon as={Check} className="text-primary size-5" /> : null}
                     </View>
+                    {getPackModelRoleLabel(pack) ? (
+                      <Text className="text-primary text-xs font-medium">
+                        {getPackModelRoleLabel(pack)}
+                      </Text>
+                    ) : null}
                     <Text variant="muted">{pack.description}</Text>
                   </View>
                 </View>
@@ -531,7 +524,7 @@ export default function LibraryScreen() {
                 <View className="gap-2">
                   <View className="flex-row flex-wrap gap-x-3 gap-y-1">
                     <Text variant="muted">
-                      {pack.category} - {pack.format.toUpperCase()} - {pack.estimatedSize}
+                      {[pack.category, pack.format.toUpperCase(), pack.estimatedSize].join(' - ')}
                     </Text>
                     {pack.sourceLabel ? <Text variant="muted">{pack.sourceLabel}</Text> : null}
                   </View>
@@ -556,35 +549,38 @@ export default function LibraryScreen() {
 
                 {pack.installStatus === 'downloading' || pack.installStatus === 'queued' ? (
                   <View className="flex-row gap-2">
+                    {pack.format !== 'html' ? (
+                      <Button
+                        className="flex-1"
+                        variant="outline"
+                        disabled={workingId === pack.id}
+                        onPress={async () => {
+                          setWorkingId(pack.id);
+                          setError(null);
+                          try {
+                            await ContentPackService.pausePackDownload(pack.id);
+                            await load();
+                          } catch (pauseError) {
+                            setError(
+                              pauseError instanceof Error
+                                ? pauseError.message
+                                : 'Unable to pause download.'
+                            );
+                          } finally {
+                            setWorkingId(null);
+                          }
+                        }}>
+                        {workingId === pack.id ? (
+                          <ActivityIndicator />
+                        ) : (
+                          <Icon as={Pause} className="size-4" />
+                        )}
+                        <Text>Pause</Text>
+                      </Button>
+                    ) : null}
                     <Button
-                      className="flex-1"
-                      variant="outline"
-                      disabled={workingId === pack.id}
-                      onPress={async () => {
-                        setWorkingId(pack.id);
-                        setError(null);
-                        try {
-                          await ContentPackService.pausePackDownload(pack.id);
-                          await load();
-                        } catch (pauseError) {
-                          setError(
-                            pauseError instanceof Error
-                              ? pauseError.message
-                              : 'Unable to pause download.'
-                          );
-                        } finally {
-                          setWorkingId(null);
-                        }
-                      }}>
-                      {workingId === pack.id ? (
-                        <ActivityIndicator />
-                      ) : (
-                        <Icon as={Pause} className="size-4" />
-                      )}
-                      <Text>Pause</Text>
-                    </Button>
-                    <Button
-                      size="icon"
+                      className={pack.format === 'html' ? 'flex-1' : undefined}
+                      size={pack.format === 'html' ? undefined : 'icon'}
                       variant="outline"
                       onPress={() =>
                         Alert.alert('Cancel download?', pack.title, [
@@ -612,6 +608,7 @@ export default function LibraryScreen() {
                         ])
                       }>
                       <Icon as={Trash2} className="size-4" />
+                      {pack.format === 'html' ? <Text>Cancel</Text> : null}
                     </Button>
                   </View>
                 ) : pack.installStatus === 'verifying' ? (
@@ -680,28 +677,30 @@ export default function LibraryScreen() {
                   </View>
                 ) : pack.installed ? (
                   <View className="flex-row gap-2">
+                    {pack.format !== 'gguf' ? (
+                      <Button
+                        className="flex-1"
+                        variant="secondary"
+                        onPress={() => {
+                          if (
+                            pack.format === 'pdf' ||
+                            pack.format === 'html' ||
+                            pack.format === 'txt'
+                          ) {
+                            router.push({
+                              pathname: '/content/reader',
+                              params: { packId: pack.id },
+                            } as never);
+                          } else {
+                            router.push(`/content/${pack.id}` as never);
+                          }
+                        }}>
+                        <Text>Open</Text>
+                      </Button>
+                    ) : null}
                     <Button
-                      className="flex-1"
-                      variant="secondary"
-                      onPress={() => {
-                        // For readable guide formats, skip the info page and go straight to reader
-                        if (
-                          pack.format === 'pdf' ||
-                          pack.format === 'html' ||
-                          pack.format === 'txt'
-                        ) {
-                          router.push({
-                            pathname: '/content/reader',
-                            params: { packId: pack.id },
-                          } as never);
-                        } else {
-                          router.push(`/content/${pack.id}` as never);
-                        }
-                      }}>
-                      <Text>Open</Text>
-                    </Button>
-                    <Button
-                      size="icon"
+                      className={pack.format === 'gguf' ? 'flex-1' : undefined}
+                      size={pack.format === 'gguf' ? undefined : 'icon'}
                       variant="outline"
                       onPress={() =>
                         Alert.alert('Remove pack?', pack.title, [
@@ -723,6 +722,7 @@ export default function LibraryScreen() {
                         ])
                       }>
                       <Icon as={Trash2} className="size-4" />
+                      {pack.format === 'gguf' ? <Text className="ml-2">Remove</Text> : null}
                     </Button>
                   </View>
                 ) : (
@@ -775,6 +775,10 @@ function documentSearchStatus(document: ArkDocument) {
   if (document.extractedText) return 'Text indexed for offline search';
   if (document.ocrText) return 'Image text indexed for offline search';
   if (document.ocrStatus === 'processing') return 'Reading image text';
+  if (document.ocrStatus === 'extracting_text') return 'Reading PDF text';
+  if (document.ocrStatus === 'ocr_running') return 'Running PDF OCR';
+  if (document.ocrStatus === 'ocr_needed') return 'PDF OCR available';
+  if (document.ocrStatus === 'searchable') return 'Indexed for offline search';
   if (document.ocrStatus === 'pending') return 'Queued for text extraction';
   if (document.ocrStatus === 'unavailable') return 'OCR available in Android dev build';
   if (document.ocrStatus === 'failed') return 'OCR needs attention';

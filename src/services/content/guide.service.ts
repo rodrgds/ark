@@ -161,6 +161,237 @@ const GUIDE_SECTIONS: Record<string, GuideSection[]> = {
       page: 54,
     },
   ],
+
+  // Official web guides — no page numbers because source is HTML
+  'disaster-power-outage': [
+    {
+      title: 'Power Outage Tips',
+      detail:
+        'Keep refrigerators closed, avoid unsafe heating, disconnect electronics, and plan for medical needs.',
+    },
+    {
+      title: 'Preparing for a Power Outage',
+      detail: 'Inventory electric-dependent items and prepare batteries, chargers, and flashlights.',
+    },
+    {
+      title: 'Generator Safety',
+      detail: 'Use generators outdoors, away from windows, doors, and garages.',
+    },
+    {
+      title: 'Food Storage',
+      detail: 'Keep fridges/freezers closed and discard unsafe food after temperature abuse.',
+    },
+  ],
+
+  'disaster-floods': [
+    {
+      title: 'Know Your Risk',
+      detail: 'Check local flood maps and understand flash-flood vs river-flood warnings.',
+    },
+    {
+      title: 'Evacuation',
+      detail: 'Do not drive through flooded roads. Move to higher ground immediately.',
+    },
+    {
+      title: 'During a Flood',
+      detail: 'Avoid moving water, stay off bridges, and listen to emergency broadcasts.',
+    },
+    {
+      title: 'After a Flood',
+      detail: 'Avoid contaminated water, check structural damage, and document losses for aid.',
+    },
+  ],
+
+  'disaster-earthquakes': [
+    {
+      title: 'Drop, Cover, and Hold On',
+      detail: 'Protect your head and neck under sturdy furniture or against an interior wall.',
+    },
+    {
+      title: 'Indoor Safety',
+      detail: 'Stay away from windows, glass, and exterior walls. Do not use elevators.',
+    },
+    {
+      title: 'If Outdoors',
+      detail: 'Move to an open area away from buildings, trees, power lines, and vehicles.',
+    },
+    {
+      title: 'Aftershocks',
+      detail: 'Expect aftershocks. Check for injuries and damage before moving around.',
+    },
+  ],
+
+  'disaster-wildfires': [
+    {
+      title: 'Evacuation Timing',
+      detail: 'Leave early when advised. Delaying puts you and responders at risk.',
+    },
+    {
+      title: 'Air Quality',
+      detail: 'Stay indoors with windows closed. Use N95 masks and avoid strenuous activity.',
+    },
+    {
+      title: 'Protecting Your Home',
+      detail: 'Clear defensible space, close vents, and move flammable items away from walls.',
+    },
+    {
+      title: 'If Trapped',
+      detail: 'Call emergency services, stay inside, and fill sinks/tubs with water.',
+    },
+  ],
+
+  'disaster-extreme-heat': [
+    {
+      title: 'Stay Cool',
+      detail: 'Seek air conditioning, cool showers, and shaded outdoor spaces.',
+    },
+    {
+      title: 'Hydration',
+      detail: 'Drink water regularly, avoid alcohol and caffeine, and check on vulnerable people.',
+    },
+    {
+      title: 'Heat Illness Signs',
+      detail: 'Heavy sweating, cramps, nausea, dizziness, and confusion require cooling and rest.',
+    },
+    {
+      title: 'Never Leave People or Pets in Vehicles',
+      detail: 'Temperatures inside vehicles can become lethal within minutes.',
+    },
+  ],
+
+  'food-preservation-usda': [
+    {
+      title: 'Principles of Home Canning',
+      detail: 'Understand acidity, heat penetration, and the role of pressure canners vs water baths.',
+    },
+    {
+      title: 'Selecting and Preparing Food',
+      detail: 'Use fresh, high-quality produce and follow tested recipes precisely.',
+    },
+    {
+      title: 'Fruits and Fruit Products',
+      detail: 'Jams, jellies, and canned fruits with proper sugar and pH levels.',
+    },
+    {
+      title: 'Tomatoes, Vegetables, and Meats',
+      detail: 'Low-acid foods require pressure canning to destroy botulism spores.',
+    },
+  ],
+
+  'sanitation-hygiene': [
+    {
+      title: 'Clean Water Priorities',
+      detail: 'Drinking, cooking, handwashing, wound cleaning, and dishwashing in order of importance.',
+    },
+    {
+      title: 'Toilet and Waste Setup',
+      detail: 'Temporary toilets, waste separation, smell control, and contamination zones.',
+    },
+    {
+      title: 'Food Safety',
+      detail: 'Spoilage, dirty water, pests, and safe disposal after a disaster.',
+    },
+    {
+      title: 'Prevent Disease Spread',
+      detail: 'Hand hygiene, isolation, laundry, masks, and shared-space precautions.',
+    },
+  ],
+
+  // Authored guides — no page numbers because source is authored HTML
+  'emergency-cooking': [
+    {
+      title: 'Cook safely without power',
+      detail: 'Gas, camping stoves, fire, ventilation, and carbon monoxide risks.',
+    },
+    {
+      title: 'Use food before it spoils',
+      detail: 'Fridge, freezer, pantry order, and when to discard food.',
+    },
+    {
+      title: 'Low-water cooking',
+      detail: 'Meals that conserve water and fuel.',
+    },
+    {
+      title: 'No-cook meals',
+      detail: 'Shelf-stable combinations when fire is unsafe.',
+    },
+  ],
+
+  'foraging-basics': [
+    {
+      title: 'Do not guess',
+      detail: 'Why uncertain plant ID is dangerous and when not to forage.',
+    },
+    {
+      title: 'Universal edibility test is not enough',
+      detail: 'Why slow testing does not make unknown plants safe.',
+    },
+    {
+      title: 'High-risk lookalikes',
+      detail: 'Mushrooms, berries, bulbs, hemlock-like plants, and polluted areas.',
+    },
+    {
+      title: 'Safer food priorities',
+      detail: 'Prefer stored food, known local plants, fishing, and community knowledge.',
+    },
+  ],
+
+  'food-procurement-basics': [
+    {
+      title: 'Before hunting or fishing',
+      detail: 'Legal limits, safety, contamination, humane handling, and energy cost.',
+    },
+    {
+      title: 'Fishing first',
+      detail: 'Why fishing is often safer and more efficient than hunting.',
+    },
+    {
+      title: 'Animal handling risks',
+      detail: 'Parasites, spoilage, bites, disease, and safe cooking temperatures.',
+    },
+    {
+      title: 'When not to hunt',
+      detail: 'Injury risk, ammunition scarcity, noise, legality, and community safety.',
+    },
+  ],
+
+  'personal-safety-conflict': [
+    {
+      title: 'Avoid becoming a target',
+      detail: 'Movement, visibility, valuables, groups, and low-profile behavior.',
+    },
+    {
+      title: 'De-escalation',
+      detail: 'Distance, calm speech, exits, witnesses, and non-provocation.',
+    },
+    {
+      title: 'Escape planning',
+      detail: 'Routes, barriers, safe rooms, alarms, and regroup points.',
+    },
+    {
+      title: 'After an incident',
+      detail: 'Medical check, documentation, police/contact options, and mental recovery.',
+    },
+  ],
+
+  'offline-communications': [
+    {
+      title: 'First rule: preserve battery',
+      detail: 'Airplane mode, low brightness, OLED black UI, power banks, and duty cycles.',
+    },
+    {
+      title: 'SMS, radio, and meeting points',
+      detail: 'Use low-bandwidth channels and pre-agreed physical fallback plans.',
+    },
+    {
+      title: 'Signal methods',
+      detail: 'Whistles, mirrors, flashlights, flags, and ground markers.',
+    },
+    {
+      title: 'Information hygiene',
+      detail: 'Avoid rumors, verify before moving, and record trusted updates.',
+    },
+  ],
 };
 
 export class GuideService {

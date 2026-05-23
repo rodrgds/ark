@@ -1,5 +1,6 @@
 import { SAFETY_COPY } from '@/constants/app';
 import { ContentPackService } from '@/services/content/content-pack.service';
+import { isEmbeddingModelPack } from '@/services/ai/embedding-models';
 import type { AiAdapterResponse } from '@/types/ai';
 import type { AiAdapterSendInput } from '@/types/ai';
 
@@ -112,7 +113,11 @@ async function getInstalledModelUri() {
 
 async function getInstalledModel() {
   const models = (await ContentPackService.listPacks()).filter(
-    (pack) => pack.category === 'AI Models' && pack.installed && pack.localUri
+    (pack) =>
+      pack.category === 'AI Models' &&
+      pack.installed &&
+      pack.localUri &&
+      !isEmbeddingModelPack(pack)
   );
   return models[0] ?? null;
 }

@@ -6,8 +6,7 @@ import { OnboardingFrame } from '@/components/onboarding/onboarding-frame';
 import * as Location from 'expo-location';
 import { View } from 'react-native';
 import * as React from 'react';
-import type { LucideIcon } from 'lucide-react-native';
-import { Activity, CheckCircle2, Compass, MapPin, Waves } from 'lucide-react-native';
+import { CheckCircle2, MapPin } from 'lucide-react-native';
 
 export default function PermissionsScreen() {
   const [locationStatus, setLocationStatus] = React.useState<Location.PermissionStatus | null>(
@@ -27,11 +26,13 @@ export default function PermissionsScreen() {
 
   return (
     <OnboardingFrame
-      title="Access & Sensors"
-      nextHref={'/onboarding/maps' as never}
+      title="Location Access"
+      nextHref={'/onboarding/maps'}
       hideBranding
-      arkyPose="navigator">
-      <View className="gap-6">
+      arkyPose="navigator"
+      step={3}
+      totalSteps={7}>
+      <View className="gap-5">
         <Card className="gap-4 p-5">
           <View className="flex-row items-center gap-3">
             <View
@@ -44,23 +45,18 @@ export default function PermissionsScreen() {
               />
             </View>
             <View className="flex-1">
-              <Text variant="large">Location Services</Text>
+              <Text className="font-semibold">Offline positioning</Text>
               <Text variant="muted" className="text-sm">
-                Precise offline positioning
+                Used only for saved coordinates and maps.
               </Text>
             </View>
           </View>
-
-          <Text variant="muted">
-            Used for saved coordinates, weather cache context, and offline map regions. Ark never
-            sends your location to any server.
-          </Text>
 
           <Button
             variant={isLocationGranted ? 'outline' : 'default'}
             onPress={requestLocation}
             disabled={isLocationGranted}
-            className="flex-row gap-2">
+            className="flex-row gap-2 rounded-xl">
             {isLocationGranted ? (
               <>
                 <Icon as={CheckCircle2} className="text-primary size-4" />
@@ -72,38 +68,10 @@ export default function PermissionsScreen() {
           </Button>
         </Card>
 
-        <View className="gap-4">
-          <Text className="text-muted-foreground text-xs font-bold tracking-widest uppercase">
-            Sensor Integration
-          </Text>
-
-          <View className="flex-row flex-wrap gap-3">
-            <SensorBadge icon={Compass} label="Direction" />
-            <SensorBadge icon={Waves} label="Pressure" />
-            <SensorBadge icon={Activity} label="Motion" />
-          </View>
-
-          <Text variant="muted" className="text-sm italic">
-            Sensors like the compass, level, and barometer request access only when you first open
-            the corresponding tool.
-          </Text>
-        </View>
-
-        <View className="bg-muted/30 rounded-xl p-4">
-          <Text variant="muted" className="text-center text-sm">
-            Everything is skippable and can be revoked anytime in System Settings.
-          </Text>
-        </View>
+        <Text variant="muted" className="text-center text-sm">
+          You can change this anytime in Settings.
+        </Text>
       </View>
     </OnboardingFrame>
-  );
-}
-
-function SensorBadge({ icon, label }: { icon: LucideIcon; label: string }) {
-  return (
-    <View className="bg-muted flex-row items-center gap-2 rounded-full px-3 py-1.5">
-      <Icon as={icon} className="text-muted-foreground size-3.5" />
-      <Text className="text-muted-foreground text-xs font-medium">{label}</Text>
-    </View>
   );
 }

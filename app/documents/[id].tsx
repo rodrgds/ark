@@ -3,7 +3,11 @@ import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { ImportService } from '@/services/files/import.service';
-import { isImageDocument, isTextDocument } from '@/services/files/document-text.service';
+import {
+  isImageDocument,
+  isPdfDocument,
+  isTextDocument,
+} from '@/services/files/document-text.service';
 import { FileSystemService } from '@/services/files/filesystem.service';
 import type { ArkDocument } from '@/types/db';
 import { format } from 'date-fns';
@@ -187,12 +191,12 @@ export default function DocumentReaderScreen() {
           {document.ocrError ? (
             <Text className="text-destructive text-sm">{document.ocrError}</Text>
           ) : null}
-          {isImageDocument(document) ? (
+          {isImageDocument(document) || isPdfDocument(document) ? (
             <Button
               variant="outline"
               disabled={busy || document.ocrStatus === 'processing'}
               onPress={() =>
-                run(() => ImportService.reprocessDocument(document.id).then(() => undefined))
+                run(() => ImportService.runDocumentOcr(document.id).then(() => undefined))
               }>
               {busy ? <ActivityIndicator /> : <Icon as={RefreshCcw} className="size-4" />}
               <Text>{document.ocrText ? 'Run OCR Again' : 'Run OCR'}</Text>
@@ -242,6 +246,15 @@ function ocrStatusCopy(document: ArkDocument) {
       return 'Waiting to inspect this file.';
     case 'processing':
       return 'Reading image text on this device.';
+    case 'extracting_text':
+      return 'Reading the PDF text layer on this device.';
+    case 'text_extracted':
+    case 'searchable':
+      return 'This document is indexed and available to RAG.';
+    case 'ocr_needed':
+      return 'This looks like a scanned PDF. OCR is available, but Ark will not run a large OCR job without you asking.';
+    case 'ocr_running':
+      return 'Running OCR on PDF pages on this device.';
     case 'ready':
       return document.ocrText
         ? 'Image text is indexed and available to RAG.'

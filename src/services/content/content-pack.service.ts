@@ -41,6 +41,7 @@ export class ContentPackService {
       expectedChecksumSha256: pack.checksumSha256,
       expectedChecksumSha256Url: pack.checksumSha256Url,
       expectedSizeBytes: pack.sizeBytes,
+      snapshotHtml: pack.downloadStrategy === 'html_snapshot',
     });
   }
 
@@ -58,6 +59,10 @@ export class ContentPackService {
 
   static async resumePackDownload(id: string) {
     const { pack, download } = await this.findDownloadForPack(id);
+    if (pack.format === 'html') {
+      await this.installPack(id);
+      return;
+    }
     if (!download) {
       await this.installPack(id);
       return;
@@ -74,7 +79,13 @@ export class ContentPackService {
   static async cancelPackDownload(id: string) {
     const { pack, download } = await this.findDownloadForPack(id);
     if (download) await DownloadManagerService.cancelDownload(download.id);
-    if (pack.localUri) await FileSystem.deleteAsync(pack.localUri, { idempotent: true });
+    if (pack.localUri) {
+      const deleteTarget =
+        pack.downloadStrategy === 'html_snapshot'
+          ? pack.localUri.slice(0, pack.localUri.lastIndexOf('/') + 1)
+          : pack.localUri;
+      await FileSystem.deleteAsync(deleteTarget, { idempotent: true });
+    }
     await ContentRepository.uninstall(pack.id);
   }
 
@@ -97,7 +108,13 @@ export class ContentPackService {
   static async removePack(id: string) {
     const packId = parseOrThrow(contentPackIdSchema, id);
     const pack = (await ContentRepository.list()).find((item) => item.id === packId);
-    if (pack?.localUri) await FileSystemService.deleteByUri(pack.localUri);
+    if (pack?.localUri) {
+      const deleteTarget =
+        pack.downloadStrategy === 'html_snapshot'
+          ? pack.localUri.slice(0, pack.localUri.lastIndexOf('/') + 1)
+          : pack.localUri;
+      await FileSystemService.deleteByUri(deleteTarget);
+    }
     if (packId.startsWith('custom-model-')) {
       await ContentRepository.delete(packId);
     } else {

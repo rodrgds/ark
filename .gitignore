@@ -16,6 +16,7 @@ web-build/
 *.key
 *.mobileprovision
 android/.kotlin/
+modules/*/android/build/
 
 # Metro
 .metro-health-check*

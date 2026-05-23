@@ -14,22 +14,26 @@ import {
 } from '@/services/content/zim.service';
 import type { ContentPack } from '@/types/content';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
-import { BookOpen, Download, ExternalLink, Search, Share2, Trash2, X } from 'lucide-react-native';
+import { BookOpen, ChevronLeft, Download, ExternalLink, Search, Trash2 } from 'lucide-react-native';
 import * as React from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Linking,
-  Modal,
-  ScrollView,
-  View,
-  Pressable,
-} from 'react-native';
+import { ActivityIndicator, Alert, Linking, Modal, ScrollView, View, Pressable } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { Input } from '@/components/ui/input';
 
+function stripHtml(raw: string): string {
+  return raw
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\{\{[^}]+\}\}/g, ' ')
+    .replace(/\[\[[^\]|]+\|/g, '')
+    .replace(/\[\[|\]\]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export default function ContentDetailScreen() {
   const { id, article } = useLocalSearchParams<{ id: string; article?: string }>();
+  const insets = useSafeAreaInsets();
   const [pack, setPack] = React.useState<ContentPack | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -384,22 +388,52 @@ export default function ContentDetailScreen() {
                 <Text variant="large" className="text-foreground">
                   In-App Search
                 </Text>
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-1 pr-2">
+                    <Text variant="large" className="text-foreground">In-App Search</Text>
+                  </View>
+                  <View className="flex-row gap-1.5">
+                    {zimMetadata?.hasFulltextIndex && (
+                      <View className="bg-primary/10 px-2 py-0.5 rounded-full">
+                        <Text className="text-primary text-xs">Full-text</Text>
+                      </View>
+                    )}
+                    {zimMetadata?.hasTitleIndex && (
+                      <View className="bg-primary/10 px-2 py-0.5 rounded-full">
+                        <Text className="text-primary text-xs">Title</Text>
+                      </View>
+                    )}
+                    {!zimMetadata?.hasFulltextIndex && !zimMetadata?.hasTitleIndex && (
+                      <View className="bg-destructive/10 px-2 py-0.5 rounded-full">
+                        <Text className="text-destructive text-xs">No index</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
 
                 <View className="flex-row gap-2">
                   <Input
                     className="flex-1"
-                    {...{ ['place' + 'holder']: 'Search articles...' }}
+                    placeholder={
+                      zimMetadata?.hasFulltextIndex
+                        ? 'Search articles...'
+                        : zimMetadata?.hasTitleIndex
+                          ? 'Search by title...'
+                          : 'Search unavailable'
+                    }
                     value={zimQuery}
                     onChangeText={setZimQuery}
                     onSubmitEditing={runZimSearch}
                     returnKeyType="search"
+                    editable={!!zimMetadata?.hasFulltextIndex || !!zimMetadata?.hasTitleIndex}
                   />
                   <Button
                     size="icon"
                     variant="outline"
                     className="border-border active:bg-muted"
                     onPress={runZimSearch}
-                    disabled={zimBusy || !zimQuery.trim()}>
+                    disabled={zimBusy || !zimQuery.trim() || (!zimMetadata?.hasFulltextIndex && !zimMetadata?.hasTitleIndex)}
+                  >
                     {zimBusy ? (
                       <ActivityIndicator size="small" />
                     ) : (
@@ -408,7 +442,20 @@ export default function ContentDetailScreen() {
                   </Button>
                 </View>
 
-                {zimError ? <Text className="text-destructive text-sm">{zimError}</Text> : null}
+                {zimMetadata?.mainPath && (
+                  <Button
+                    variant="secondary"
+                    className="flex-1"
+                    onPress={() => openZimArticle(zimMetadata.mainPath)}
+                  >
+                    <Icon as={BookOpen} className="size-4" />
+                    <Text>Read Main Article</Text>
+                  </Button>
+                )}
+
+                {zimError ? (
+                  <Text className="text-destructive text-sm">{zimError}</Text>
+                ) : null}
 
                 {zimResults.length > 0 && (
                   <View className="gap-1">
@@ -419,8 +466,8 @@ export default function ContentDetailScreen() {
                         className="bg-muted/40 active:bg-muted/60 rounded-lg p-3">
                         <Text className="text-foreground font-semibold">{result.title}</Text>
                         {result.snippet ? (
-                          <Text variant="small" className="text-muted-foreground mt-1">
-                            {result.snippet}
+                          <Text variant="small" className="text-muted-foreground mt-1" numberOfLines={3}>
+                            {stripHtml(result.snippet)}
                           </Text>
                         ) : null}
                       </Pressable>
@@ -431,8 +478,24 @@ export default function ContentDetailScreen() {
                 {zimResults.length === 0 && zimQuery.trim() && !zimBusy && !zimError && (
                   <Text variant="muted" className="text-sm">
                     No results found.
+                    {!zimMetadata?.hasFulltextIndex && zimMetadata?.hasTitleIndex
+                      ? ' This archive only supports title search.'
+                      : !zimMetadata?.hasFulltextIndex && !zimMetadata?.hasTitleIndex
+                        ? ' This archive has no search index.'
+                        : ''}
                   </Text>
                 )}
+              </Card>
+            ) : zimPlan?.nativeReaderError ? (
+              /* Native module was found but failed to initialize — explain why */
+              <Card className="gap-3 border-border bg-destructive/5">
+                <Text variant="large" className="text-destructive">In-App Reader Unavailable</Text>
+                <Text className="text-destructive text-sm leading-relaxed">
+                  {zimPlan.nativeReaderError}
+                </Text>
+                <Text variant="muted" className="text-xs leading-relaxed">
+                  The ArkZim native module is present in this build but could not open the archive. This usually means the iOS implementation is not yet complete, or the module crashed at runtime.
+                </Text>
               </Card>
             ) : (
               /* If JS reader metadata is parsed */
@@ -496,12 +559,14 @@ export default function ContentDetailScreen() {
               </View>
             </Card>
 
-            {/* Dev build capabilities notice */}
-            <View className="bg-muted/60 border-border rounded-lg border p-4">
+            {/* Capabilities notice */}
+            <View className="bg-muted/60 p-4 border border-border rounded-lg">
               <Text variant="small" className="text-muted-foreground leading-normal">
-                ℹ️ Full in-app reading, fast local FTS5 indexing, and AI/RAG chat integration on
-                Wikipedia archives are supported in dev builds containing the custom C++ native ZIM
-                engine (`ArkZim`).
+                {zimPlan?.nativeReaderError
+                  ? `⚠️ ${zimPlan.nativeReaderError} The ArkZim module is present but non-functional in this build.`
+                  : !zimPlan?.nativeReaderAvailable
+                    ? `ℹ️ In-app ZIM reading requires a development build with the native ArkZim engine. It does not work in Expo Go. Build a dev build to search and read Wikipedia articles inside Ark.`
+                    : `ℹ️ Full in-app reading, fast local FTS5 indexing, and AI/RAG chat integration on Wikipedia archives are supported in dev builds containing the custom C++ native ZIM engine (ArkZim).`}
               </Text>
             </View>
           </View>
@@ -513,16 +578,25 @@ export default function ContentDetailScreen() {
           animationType="slide"
           onRequestClose={() => setZimArticle(null)}>
           <View className="bg-background flex-1">
-            <View className="bg-background border-border h-14 flex-row items-center justify-between border-b px-4">
-              <View className="mr-2 flex-1">
-                <Text variant="small" className="text-foreground font-bold" numberOfLines={1}>
-                  {zimArticle?.title || 'Article'}
-                </Text>
+            {/* Header */}
+            <View
+              style={{ paddingTop: Math.max(20, insets.top) }}
+              className="bg-background border-b border-border"
+            >
+              <View className="flex-row items-center justify-between px-4 h-14">
+                <Button variant="ghost" size="icon" onPress={() => setZimArticle(null)}>
+                  <Icon as={ChevronLeft} className="text-foreground" />
+                </Button>
+                <View className="flex-1 mx-2">
+                  <Text variant="small" className="text-foreground font-bold text-center" numberOfLines={1}>
+                    {zimArticle?.title || 'Article'}
+                  </Text>
+                </View>
+                <View className="w-10" />
               </View>
-              <Button variant="ghost" size="icon" onPress={() => setZimArticle(null)}>
-                <Icon as={X} className="text-muted-foreground" />
-              </Button>
             </View>
+
+            {/* Article Content */}
             {zimArticle && (
               <WebView
                 originWhitelist={['*']}
@@ -530,6 +604,18 @@ export default function ContentDetailScreen() {
                 style={{ flex: 1 }}
               />
             )}
+
+            {/* Footer */}
+            <View
+              style={{ paddingBottom: Math.max(12, insets.bottom) }}
+              className="bg-background border-t border-border"
+            >
+              <View className="px-4 h-10 justify-center">
+                <Text variant="small" className="text-muted-foreground text-center">
+                  {zimArticle?.mimeType || 'HTML'}
+                </Text>
+              </View>
+            </View>
           </View>
         </Modal>
       </ScrollView>

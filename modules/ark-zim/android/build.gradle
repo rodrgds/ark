@@ -1,0 +1,32 @@
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+
+group = 'expo.modules.arkzim'
+version = '1.0.0'
+
+def expoModulesProps = [:]
+if (file("../../../node_modules/react-native/package.json").exists()) {
+  def json = new groovy.json.JsonSlurper().parseText(file("../../../node_modules/react-native/package.json").text)
+  expoModulesProps = json
+}
+
+android {
+  compileSdkVersion 35
+  namespace "expo.modules.arkzim"
+  defaultConfig {
+    minSdkVersion 24
+    targetSdkVersion 35
+    versionCode 1
+    versionName "1.0.0"
+  }
+  lintOptions {
+    abortOnError false
+  }
+}
+
+dependencies {
+  implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.24"
+  // TODO: Verify correct libkiwix version at https://mvnrepository.com/artifact/org.kiwix/libkiwix
+  // The Kotlin API (org.kiwix.libkiwix.Archive) requires libkiwix 10+.
+  implementation "org.kiwix:libkiwix:13.0.0"
+}

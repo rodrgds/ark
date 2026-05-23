@@ -1,70 +1,75 @@
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
-import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Text } from '@/components/ui/text';
 import { ContentPackService } from '@/services/content/content-pack.service';
 import { GuideService, type GuideSection } from '@/services/content/guide.service';
-import { ZimService, type ZimArticle, type ZimMetadata, type ZimSearchResult } from '@/services/content/zim.service';
+import { ZimService, type ZimArticle, type ZimMetadata, type ZimSearchResult, type ZimReaderPlan } from '@/services/content/zim.service';
 import type { ContentPack } from '@/types/content';
-import { Stack, useLocalSearchParams } from 'expo-router';
-import { BookOpen, Download, ExternalLink, FileText, Search, Trash2 } from 'lucide-react-native';
+import { Stack, useLocalSearchParams, router } from 'expo-router';
+import { BookOpen, Download, ExternalLink, Search, Share2, Trash2, X } from 'lucide-react-native';
 import * as React from 'react';
-import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Modal, ScrollView, View, Pressable } from 'react-native';
 import { WebView } from 'react-native-webview';
+import { Input } from '@/components/ui/input';
 
-function readerUri(pack: ContentPack, section?: GuideSection | null) {
-  if (!pack.localUri) return null;
-  if (pack.format !== 'pdf') return pack.localUri;
-  if (!section?.page) return pack.localUri;
-  return `${pack.localUri}#page=${section.page}`;
-}
-
-export default function ContentReaderScreen() {
-  const { id, section } = useLocalSearchParams<{ id: string; section?: string }>();
+export default function ContentDetailScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
   const [pack, setPack] = React.useState<ContentPack | null>(null);
-  const [selectedSection, setSelectedSection] = React.useState<GuideSection | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+
+  // ZIM state
+  const [zimPlan, setZimPlan] = React.useState<ZimReaderPlan | null>(null);
+  const [zimMetadata, setZimMetadata] = React.useState<ZimMetadata | null>(null);
   const [zimBusy, setZimBusy] = React.useState(false);
   const [zimError, setZimError] = React.useState<string | null>(null);
-  const [zimMetadata, setZimMetadata] = React.useState<ZimMetadata | null>(null);
   const [zimQuery, setZimQuery] = React.useState('');
   const [zimResults, setZimResults] = React.useState<ZimSearchResult[]>([]);
   const [zimArticle, setZimArticle] = React.useState<ZimArticle | null>(null);
 
   const sections = React.useMemo(() => (pack ? GuideService.getSections(pack.id) : []), [pack]);
-  const zimPlan = React.useMemo(() => (pack?.format === 'zim' ? ZimService.getReaderPlan(pack) : null), [pack]);
-  const uri = pack ? readerUri(pack, selectedSection) : null;
 
   async function load() {
     if (!id) return;
-    setPack(await ContentPackService.getPack(id));
+    try {
+      const loadedPack = await ContentPackService.getPack(id);
+      setPack(loadedPack);
+
+      if (loadedPack?.format === 'zim') {
+        const plan = await ZimService.getReaderPlan(loadedPack);
+        setZimPlan(plan);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load content.');
+    }
   }
 
   React.useEffect(() => {
     void load();
   }, [id]);
 
+  // Handle active downloads polling
   React.useEffect(() => {
-    if (!pack) return;
-    const nextSections = GuideService.getSections(pack.id);
-    const requestedSection = Array.isArray(section) ? section[0] : section;
-    setSelectedSection(
-      nextSections.find((item) => item.title === requestedSection) ?? nextSections[0] ?? null
-    );
-  }, [pack?.id, section]);
+    if (pack?.installStatus === 'downloading' || pack?.installStatus === 'queued') {
+      const interval = setInterval(() => {
+        void load();
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [pack?.installStatus]);
 
+  // Load native ZIM archive if installed and native module is available
   React.useEffect(() => {
-    setZimError(null);
-    setZimMetadata(null);
-    setZimResults([]);
-    setZimArticle(null);
-    if (!pack || pack.format !== 'zim' || !pack.installed) return;
+    if (!pack || pack.format !== 'zim' || !pack.installed || !zimPlan?.nativeReaderAvailable) {
+      return;
+    }
 
     let canceled = false;
     setZimBusy(true);
+    setZimError(null);
+
     ZimService.openArchive(pack)
       .then((metadata) => {
         if (!canceled) setZimMetadata(metadata);
@@ -74,7 +79,7 @@ export default function ContentReaderScreen() {
           setZimError(
             archiveError instanceof Error
               ? archiveError.message
-              : 'In-app ZIM reader is not available.'
+              : 'Failed to initialize local ZIM search.'
           );
         }
       })
@@ -85,9 +90,9 @@ export default function ContentReaderScreen() {
     return () => {
       canceled = true;
     };
-  }, [pack?.id, pack?.installed, pack?.localUri]);
+  }, [pack?.id, pack?.installed, pack?.localUri, zimPlan?.nativeReaderAvailable]);
 
-  async function run(action: () => Promise<void>) {
+  async function runAction(action: () => Promise<void>) {
     setBusy(true);
     setError(null);
     try {
@@ -120,19 +125,42 @@ export default function ContentReaderScreen() {
     try {
       setZimArticle(await ZimService.getArticle(pack, path));
     } catch (articleError) {
-      setZimError(articleError instanceof Error ? articleError.message : 'Article could not open.');
+      setZimError(articleError instanceof Error ? articleError.message : 'Article could not be opened.');
     } finally {
       setZimBusy(false);
+    }
+  }
+
+  function handleReadGuide(startSection?: GuideSection) {
+    if (!pack) return;
+    router.push({
+      pathname: '/content/reader' as any,
+      params: {
+        packId: pack.id,
+        section: startSection?.title || '',
+      },
+    });
+  }
+
+  async function handleHandoffToKiwix() {
+    if (!pack) return;
+    try {
+      await ContentPackService.openPack(pack.id);
+    } catch (err) {
+      Alert.alert('Unable to open', err instanceof Error ? err.message : 'Could not open file.');
     }
   }
 
   if (!pack) {
     return (
       <View className="bg-background flex-1 items-center justify-center p-6">
-        <Text variant="muted">Loading content...</Text>
+        <ActivityIndicator size="large" color="#f2b84b" />
+        <Text variant="muted" className="mt-4">Loading content pack...</Text>
       </View>
     );
   }
+
+  const isZim = pack.format === 'zim';
 
   return (
     <View className="bg-background flex-1">
@@ -140,229 +168,317 @@ export default function ContentReaderScreen() {
       <ScrollView
         className="flex-1"
         contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 32 }}>
+        contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 48 }}
+      >
+        {/* Pack Info */}
         <View className="gap-2">
-          <Text variant="h1" className="text-3xl">
+          <Text variant="h1" className="text-3xl font-extrabold tracking-tight">
             {pack.title}
           </Text>
-          <Text variant="muted">{pack.description}</Text>
+          <Text variant="muted" className="text-base leading-relaxed">
+            {pack.description}
+          </Text>
         </View>
 
-        <Card className="gap-3">
-          <View className="flex-row flex-wrap gap-x-3 gap-y-1">
-            <Text variant="muted">
-              {pack.category} - {pack.format.toUpperCase()} - {pack.estimatedSize}
-            </Text>
-            {pack.sourceLabel ? <Text variant="muted">{pack.sourceLabel}</Text> : null}
+        {/* Status / Action Card */}
+        <Card className="gap-4 border-zinc-800 bg-zinc-950/40">
+          <View className="flex-row items-center justify-between">
+            <View className="flex-row flex-wrap gap-x-3 gap-y-1">
+              <Text variant="small" className="text-zinc-400 uppercase tracking-widest text-xs">
+                {pack.category}
+              </Text>
+              <Text variant="small" className="text-zinc-500">•</Text>
+              <Text variant="small" className="text-zinc-400 uppercase tracking-widest text-xs">
+                {pack.format.toUpperCase()}
+              </Text>
+              <Text variant="small" className="text-zinc-500">•</Text>
+              <Text variant="small" className="text-zinc-400 uppercase tracking-widest text-xs">
+                {pack.estimatedSize}
+              </Text>
+            </View>
+            {pack.sourceLabel ? (
+              <Text variant="small" className="text-zinc-500 text-xs">
+                {pack.sourceLabel}
+              </Text>
+            ) : null}
           </View>
-          <Progress value={pack.progress} />
-          <Text variant="small">
-            {pack.installed
-              ? 'Installed offline'
-              : `${Math.round(pack.progress * 100)}% - ${pack.installStatus.replace('_', ' ')}`}
-          </Text>
+
+          {/* Download status / progress bar */}
+          {!pack.installed && (
+            <View className="gap-2">
+              <Progress value={pack.progress} />
+              <View className="flex-row justify-between">
+                <Text variant="small" className="text-zinc-400">
+                  {pack.installStatus === 'downloading'
+                    ? `Downloading: ${Math.round(pack.progress * 100)}%`
+                    : pack.installStatus.replace('_', ' ')}
+                </Text>
+              </View>
+            </View>
+          )}
+
           {error ? <Text className="text-destructive text-sm">{error}</Text> : null}
-          <View className="flex-row gap-2">
+
+          {/* Primary Action Buttons */}
+          <View className="flex-row gap-2 mt-1">
             {pack.installed ? (
               <>
-                <Button
-                  className="flex-1"
-                  variant="outline"
-                  disabled={busy}
-                  onPress={() => run(() => ContentPackService.openPack(pack.id))}>
-                  <Icon as={ExternalLink} className="size-4" />
-                  <Text>Open File</Text>
-                </Button>
+                {!isZim ? (
+                  <Button
+                    className="flex-1 bg-primary active:bg-primary/90"
+                    disabled={busy}
+                    onPress={() => handleReadGuide()}
+                  >
+                    <Icon as={BookOpen} className="size-5" />
+                    <Text className="text-primary-foreground font-bold">Read Guide</Text>
+                  </Button>
+                ) : (
+                  <Button
+                    className="flex-1 bg-primary active:bg-primary/90"
+                    disabled={busy}
+                    onPress={handleHandoffToKiwix}
+                  >
+                    <Icon as={ExternalLink} className="size-5" />
+                    <Text className="text-primary-foreground font-bold">Open in Reader</Text>
+                  </Button>
+                )}
+
                 <Button
                   size="icon"
                   variant="outline"
+                  className="border-zinc-800 active:bg-zinc-900"
                   disabled={busy}
-                  onPress={() => run(() => ContentPackService.removePack(pack.id))}>
-                  <Icon as={Trash2} className="size-4" />
+                  onPress={() =>
+                    Alert.alert('Remove Pack?', `Delete ${pack.title} from offline storage?`, [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Remove',
+                        style: 'destructive',
+                        onPress: () => runAction(() => ContentPackService.removePack(pack.id)),
+                      },
+                    ])
+                  }
+                >
+                  <Icon as={Trash2} className="text-destructive size-4" />
                 </Button>
               </>
             ) : (
               <Button
-                className="flex-1"
+                className="flex-1 bg-primary active:bg-primary/90"
                 disabled={busy || pack.installStatus === 'downloading'}
-                onPress={() => run(() => ContentPackService.installPack(pack.id))}>
+                onPress={() => runAction(() => ContentPackService.installPack(pack.id))}
+              >
                 {busy || pack.installStatus === 'downloading' ? (
-                  <ActivityIndicator />
+                  <ActivityIndicator color="#000" />
                 ) : (
-                  <Icon as={Download} className="size-4" />
+                  <Icon as={Download} className="size-5" />
                 )}
-                <Text>Download</Text>
+                <Text className="text-primary-foreground font-bold">Download Offline Pack</Text>
               </Button>
             )}
           </View>
         </Card>
 
-        {sections.length > 0 ? (
-          <Card className="gap-3">
-            <Text variant="large">Sections</Text>
-            <View className="gap-2">
-              {sections.map((section) => {
-                const selected = selectedSection?.title === section.title;
-                return (
-                  <Button
-                    key={section.title}
-                    variant={selected ? 'default' : 'outline'}
-                    onPress={() => setSelectedSection(section)}>
-                    <Text>{section.title}</Text>
-                  </Button>
-                );
-              })}
-            </View>
-            {selectedSection ? <Text variant="muted">{selectedSection.detail}</Text> : null}
-          </Card>
+        {/* Disclaimer / Safety Copy if any */}
+        {pack.disclaimer ? (
+          <View className="border-l-2 border-amber-500/50 bg-amber-500/5 p-4 rounded-r-lg">
+            <Text variant="small" className="text-amber-500/80 leading-relaxed font-semibold">
+              {pack.disclaimer}
+            </Text>
+          </View>
         ) : null}
 
-        {pack.format === 'zim' ? (
-          <Card className="gap-3">
-            <View className="flex-row items-start justify-between gap-3">
-              <View className="min-w-0 flex-1 gap-1">
-                <Text variant="large">Wikipedia reader</Text>
-                <Text variant="muted">{zimPlan?.status}</Text>
-              </View>
-              {zimBusy ? <ActivityIndicator /> : null}
+        {/* Guide Table of Contents (for non-ZIM packages) */}
+        {!isZim && sections.length > 0 && (
+          <View className="gap-3 mt-2">
+            <Text variant="h3" className="font-bold tracking-tight text-zinc-200 px-1">
+              Table of Contents
+            </Text>
+            <View className="border border-zinc-900 rounded-lg overflow-hidden bg-zinc-950/20">
+              {sections.map((section, idx) => (
+                <Pressable
+                  key={section.title}
+                  disabled={!pack.installed}
+                  onPress={() => handleReadGuide(section)}
+                  className={`flex-row items-center justify-between p-4 border-b border-zinc-900 last:border-b-0 active:bg-zinc-900/30 ${
+                    !pack.installed ? 'opacity-50' : ''
+                  }`}
+                >
+                  <View className="flex-1 pr-4">
+                    <Text variant="default" className="font-bold text-zinc-300">
+                      {section.title}
+                    </Text>
+                    {section.detail && (
+                      <Text variant="muted" className="text-zinc-500 mt-1 leading-snug">
+                        {section.detail}
+                      </Text>
+                    )}
+                  </View>
+                  {section.page && (
+                    <Text variant="small" className="text-zinc-500">
+                      Page {section.page}
+                    </Text>
+                  )}
+                </Pressable>
+              ))}
             </View>
+          </View>
+        )}
 
-            {zimMetadata ? (
-              <View className="bg-muted/40 gap-1 rounded-md p-3">
-                <Text>{zimMetadata.title || pack.title}</Text>
-                <Text variant="small">
-                  {zimMetadata.language ? `${zimMetadata.language.toUpperCase()} - ` : ''}
-                  {zimMetadata.articleCount
-                    ? `${zimMetadata.articleCount.toLocaleString()} articles`
-                    : 'In-app reader ready'}
-                </Text>
-              </View>
-            ) : (
-              <Text>{zimPlan?.nextStep}</Text>
-            )}
+        {/* ZIM Metadata & Fallbacks (for ZIM packages) */}
+        {isZim && pack.installed && (
+          <View className="gap-4 mt-2">
+            <Text variant="h3" className="font-bold tracking-tight text-zinc-200 px-1">
+              Offline ZIM Archive
+            </Text>
 
-            {zimMetadata ? (
-              <View className="gap-2">
-                <Text variant="small">Search this archive</Text>
+            {/* If native reader is available, offer in-app searching */}
+            {zimPlan?.nativeReaderAvailable && zimMetadata ? (
+              <Card className="gap-4 border-zinc-900">
+                <Text variant="large" className="text-zinc-200">In-App Search</Text>
+
                 <View className="flex-row gap-2">
                   <Input
-                    className="min-w-0 flex-1"
+                    className="flex-1"
+                    placeholder="Search articles..."
                     value={zimQuery}
                     onChangeText={setZimQuery}
-                    accessibilityLabel="Search this archive"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    returnKeyType="search"
                     onSubmitEditing={runZimSearch}
+                    returnKeyType="search"
                   />
-                  <Button size="icon" disabled={zimBusy || zimQuery.trim().length < 2} onPress={runZimSearch}>
-                    <Icon as={Search} className="size-4" />
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    className="border-zinc-800 active:bg-zinc-900"
+                    onPress={runZimSearch}
+                    disabled={zimBusy || !zimQuery.trim()}
+                  >
+                    {zimBusy ? (
+                      <ActivityIndicator size="small" color="#a1a1aa" />
+                    ) : (
+                      <Icon as={Search} className="size-4" />
+                    )}
                   </Button>
                 </View>
-                {zimMetadata.mainPath ? (
-                  <Button
-                    variant="outline"
-                    disabled={zimBusy}
-                    onPress={() => openZimArticle(zimMetadata.mainPath)}>
-                    <Icon as={BookOpen} className="size-4" />
-                    <Text>Main Page</Text>
-                  </Button>
+
+                {zimError ? (
+                  <Text className="text-destructive text-sm">{zimError}</Text>
                 ) : null}
+
+                {zimResults.length > 0 && (
+                  <View className="gap-1">
+                    {zimResults.map((result) => (
+                      <Pressable
+                        key={result.path}
+                        onPress={() => openZimArticle(result.path)}
+                        className="p-3 rounded-lg bg-zinc-900/40 active:bg-zinc-800/60"
+                      >
+                        <Text className="font-semibold text-zinc-200">{result.title}</Text>
+                        {result.snippet ? (
+                          <Text variant="small" className="text-zinc-500 mt-1">{result.snippet}</Text>
+                        ) : null}
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+
+                {zimResults.length === 0 && zimQuery.trim() && !zimBusy && !zimError && (
+                  <Text variant="muted" className="text-sm">No results found.</Text>
+                )}
+              </Card>
+            ) : (
+              /* If JS reader metadata is parsed */
+              zimPlan?.headerInfo && (
+                <Card className="gap-3 border-zinc-900 bg-zinc-950/30">
+                  <Text variant="large" className="text-zinc-300">Archive Details</Text>
+                  <View className="gap-2">
+                    <View className="flex-row justify-between border-b border-zinc-900 pb-2">
+                      <Text variant="muted">Total Articles</Text>
+                      <Text className="font-semibold text-zinc-300">
+                        {zimPlan.headerInfo.articleCount.toLocaleString()}
+                      </Text>
+                    </View>
+                    <View className="flex-row justify-between border-b border-zinc-900 pb-2">
+                      <Text variant="muted">Format version</Text>
+                      <Text className="font-semibold text-zinc-300">
+                        ZIM v{zimPlan.headerInfo.majorVersion}.{zimPlan.headerInfo.minorVersion}
+                      </Text>
+                    </View>
+                    <View className="flex-row justify-between">
+                      <Text variant="muted">Content Types</Text>
+                      <Text className="font-semibold text-zinc-300" numberOfLines={1}>
+                        {zimPlan.headerInfo.mimeTypes.join(', ') || 'HTML'}
+                      </Text>
+                    </View>
+                  </View>
+                </Card>
+              )
+            )}
+
+            {/* Read Option / App Handoff */}
+            <Card className="gap-3 border-zinc-900">
+              <View className="flex-row items-center gap-2">
+                <Icon as={BookOpen} className="text-primary size-5" />
+                <Text variant="large" className="text-zinc-300">How to Open Offline</Text>
               </View>
-            ) : null}
-
-            {zimError ? <Text className="text-destructive text-sm">{zimError}</Text> : null}
-
-            {zimResults.length > 0 ? (
-              <View className="border-border overflow-hidden rounded-md border">
-                {zimResults.map((result) => (
-                  <Pressable
-                    key={result.path}
-                    className="border-border active:bg-muted gap-1 border-b p-3 last:border-b-0"
-                    onPress={() => openZimArticle(result.path)}>
-                    <Text>{result.title}</Text>
-                    {result.snippet ? <Text variant="small">{result.snippet}</Text> : null}
-                  </Pressable>
-                ))}
-              </View>
-            ) : null}
-
-            <View className="flex-row flex-wrap gap-2">
-              <Button
-                variant="outline"
-                onPress={() => void Linking.openURL(ZimService.getKiwixJsUrl())}>
-                <Icon as={ExternalLink} className="size-4" />
-                <Text>Kiwix Web</Text>
-              </Button>
-              {zimPlan?.handoffAvailable ? (
+              <Text variant="muted" className="leading-relaxed">
+                ZIM archives are optimized for high-performance reading. You can view this archive using the official, privacy-respecting Kiwix app or by uploading it to the Kiwix web reader.
+              </Text>
+              <View className="flex-row gap-2 mt-2">
                 <Button
+                  className="flex-1 border-zinc-800 active:bg-zinc-900"
                   variant="outline"
-                  disabled={busy}
-                  onPress={() => run(() => ContentPackService.openPack(pack.id))}>
+                  onPress={handleHandoffToKiwix}
+                >
                   <Icon as={ExternalLink} className="size-4" />
-                  <Text>Open in Reader</Text>
+                  <Text>Share to Kiwix App</Text>
                 </Button>
-              ) : null}
-            </View>
-            {zimPlan?.limitations.map((item) => (
-              <View key={item} className="flex-row gap-2">
-                <Text variant="muted">-</Text>
-                <Text variant="muted" className="flex-1">
-                  {item}
-                </Text>
+                <Button
+                  className="flex-1 border-zinc-800 active:bg-zinc-900"
+                  variant="outline"
+                  onPress={() => void Linking.openURL(ZimService.getKiwixJsUrl())}
+                >
+                  <Icon as={ExternalLink} className="size-4" />
+                  <Text>Kiwix Web Reader</Text>
+                </Button>
               </View>
-            ))}
-          </Card>
-        ) : null}
+            </Card>
 
-        {zimArticle ? (
-          <Card className="overflow-hidden p-0">
-            <View className="border-border flex-row items-center gap-2 border-b p-3">
-              <Icon as={BookOpen} className="text-primary size-5" />
-              <View className="min-w-0 flex-1">
-                <Text variant="large" className="min-w-0">
-                  {zimArticle.title}
-                </Text>
-                <Text variant="small">{zimArticle.finalPath}</Text>
-              </View>
+            {/* Dev build capabilities notice */}
+            <View className="bg-zinc-950/60 p-4 border border-zinc-900 rounded-lg">
+              <Text variant="small" className="text-zinc-500 leading-normal">
+                ℹ️ Full in-app reading, fast local FTS5 indexing, and AI/RAG chat integration on Wikipedia archives are supported in dev builds containing the custom C++ native ZIM engine (`ArkZim`).
+              </Text>
             </View>
-            <View className="bg-background h-[620px]">
+          </View>
+        )}
+
+        {/* ZIM Article Viewer Modal */}
+        <Modal
+          visible={!!zimArticle}
+          animationType="slide"
+          onRequestClose={() => setZimArticle(null)}
+        >
+          <View className="bg-black flex-1">
+            <View className="flex-row items-center justify-between px-4 h-14 bg-black border-b border-zinc-800">
+              <View className="flex-1 mr-2">
+                <Text variant="small" className="text-zinc-200 font-bold" numberOfLines={1}>
+                  {zimArticle?.title || 'Article'}
+                </Text>
+              </View>
+              <Button variant="ghost" size="icon" onPress={() => setZimArticle(null)}>
+                <Icon as={X} className="text-zinc-400" />
+              </Button>
+            </View>
+            {zimArticle && (
               <WebView
                 originWhitelist={['*']}
                 source={{ html: ZimService.articleHtml(zimArticle) }}
-                startInLoadingState
-                renderLoading={() => (
-                  <View className="bg-background flex-1 items-center justify-center">
-                    <ActivityIndicator />
-                  </View>
-                )}
+                style={{ flex: 1 }}
               />
-            </View>
-          </Card>
-        ) : null}
-
-        {uri && pack.format !== 'zim' ? (
-          <Card className="overflow-hidden p-0">
-            <View className="border-border flex-row items-center gap-2 border-b p-3">
-              <Icon as={FileText} className="text-primary size-5" />
-              <Text variant="large">Reader</Text>
-            </View>
-            <View className="bg-background h-[620px]">
-              <WebView
-                originWhitelist={['*']}
-                source={{ uri }}
-                allowFileAccess
-                allowUniversalAccessFromFileURLs={Platform.OS === 'android'}
-                startInLoadingState
-                renderLoading={() => (
-                  <View className="bg-background flex-1 items-center justify-center">
-                    <ActivityIndicator />
-                  </View>
-                )}
-              />
-            </View>
-          </Card>
-        ) : null}
+            )}
+          </View>
+        </Modal>
       </ScrollView>
     </View>
   );

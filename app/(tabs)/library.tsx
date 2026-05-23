@@ -519,16 +519,7 @@ export default function LibraryScreen() {
                     {pack.installStatus === 'failed'
                       ? 'Download failed. Check connection and retry.'
                       : `${Math.round(pack.progress * 100)}% - ${pack.installStatus.replace('_', ' ')}`}
-                    {pack.checksumMd5 ? ' - MD5 verification enabled' : ''}
-                    {!pack.checksumMd5 && (pack.checksumSha256 || pack.checksumSha256Url)
-                      ? ' - SHA-256 published'
-                      : ''}
                   </Text>
-                  {(pack.checksumSha256 || pack.checksumSha256Url) && !pack.checksumMd5 ? (
-                    <Text variant="small" className="text-muted-foreground">
-                      Ark stores the official SHA-256 and verifies downloads after completion.
-                    </Text>
-                  ) : null}
                   {packStorageWarning ? (
                     <Text variant="small" className="text-destructive">
                       {packStorageWarning}
@@ -724,6 +715,14 @@ export default function LibraryScreen() {
             );
           })
         : null}
+
+      {!initialLoading && showPacks ? (
+        <View className="py-8 items-center justify-center">
+          <Text variant="small" className="text-zinc-500 text-center px-4 leading-relaxed">
+            To protect your safety offline, Ark automatically verifies the integrity of all downloaded files.
+          </Text>
+        </View>
+      ) : null}
     </Screen>
   );
 }

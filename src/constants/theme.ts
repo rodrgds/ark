@@ -4,7 +4,7 @@ export const THEME_OPTIONS: Array<{ value: ThemePreference; label: string; descr
   [
     {
       value: 'oled',
-      label: 'OLED',
+      label: 'OLED (Recommended - saves battery)',
       description: 'True black command-center mode. Default for first launch.',
     },
     {

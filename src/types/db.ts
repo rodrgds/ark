@@ -28,3 +28,17 @@ export type Note = {
   updatedAt: number;
   deletedAt: number | null;
 };
+
+export type ArkDocument = {
+  id: string;
+  title: string;
+  mimeType: string | null;
+  localUri: string | null;
+  sizeBytes: number | null;
+  sha256: string | null;
+  source: string | null;
+  isPersonal: boolean;
+  encryptionStatus: 'unknown' | 'plaintext' | 'encrypted';
+  createdAt: number;
+  updatedAt: number;
+};

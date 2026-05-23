@@ -48,7 +48,8 @@
         "expo-sqlite",
         {
           "enableFTS": true,
-          "useSQLCipher": true
+          "useSQLCipher": true,
+          "withSQLiteVecExtension": true
         }
       ],
       [
@@ -62,7 +63,19 @@
         {
           "locationWhenInUsePermission": "Allow Ark to save your position and offline map regions."
         }
-      ]
+      ],
+      "@maplibre/maplibre-react-native",
+      "expo-build-properties",
+      [
+        "llama.rn",
+        {
+          "enableEntitlements": true,
+          "entitlementsProfile": "production",
+          "forceCxx20": true,
+          "enableOpenCLAndHexagon": true
+        }
+      ],
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true

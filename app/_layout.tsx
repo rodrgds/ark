@@ -6,9 +6,12 @@ import { PortalHost } from '@rn-primitives/portal';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as React from 'react';
-import { View } from 'react-native';
+import { AppState, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { ArkMark } from '@/components/brand/ark-logo';
 import { Text } from '@/components/ui/text';
+import { AutoLockService } from '@/services/security/autolock.service';
 import { useAppStore } from '@/stores/app-store';
 import { useThemeStore } from '@/stores/theme-store';
 
@@ -27,39 +30,57 @@ export default function RootLayout() {
     boot();
   }, [boot]);
 
+  React.useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        void AutoLockService.enforce();
+      } else {
+        void AutoLockService.touch();
+      }
+    });
+    return () => subscription.remove();
+  }, []);
+
   if (!booted) {
     return (
       <GestureHandlerRootView className="bg-background flex-1">
-        <View className="bg-background flex-1 items-center justify-center p-6">
-          <Text variant="h2">Ark</Text>
-          <Text variant="muted">Preparing offline systems...</Text>
-        </View>
+        <SafeAreaProvider>
+          <View className="bg-background flex-1 items-center justify-center gap-3 p-6">
+            <ArkMark size={64} />
+            <Text variant="h2">Ark</Text>
+            <Text variant="muted">Preparing offline systems...</Text>
+          </View>
+        </SafeAreaProvider>
       </GestureHandlerRootView>
     );
   }
 
   return (
     <GestureHandlerRootView className="bg-background flex-1">
-      <ThemeProvider value={NAV_THEME[effectiveTheme]}>
-        <StatusBar style={effectiveTheme === 'light' ? 'dark' : 'light'} />
-        <Stack
-          screenOptions={{
-            headerStyle: { backgroundColor: NAV_THEME[effectiveTheme].colors.background },
-            headerTintColor: NAV_THEME[effectiveTheme].colors.text,
-            contentStyle: { backgroundColor: NAV_THEME[effectiveTheme].colors.background },
-          }}>
-          <Stack.Screen name="index" options={{ headerShown: false }} />
-          <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="tools" options={{ headerShown: true, title: 'Tool' }} />
-        </Stack>
-        {error ? (
-          <View className="bg-destructive p-3">
-            <Text className="text-white">{error}</Text>
-          </View>
-        ) : null}
-        <PortalHost />
-      </ThemeProvider>
+      <SafeAreaProvider>
+        <ThemeProvider value={NAV_THEME[effectiveTheme]}>
+          <StatusBar style={effectiveTheme === 'light' ? 'dark' : 'light'} />
+          <Stack
+            screenOptions={{
+              headerStyle: { backgroundColor: NAV_THEME[effectiveTheme].colors.background },
+              headerTintColor: NAV_THEME[effectiveTheme].colors.text,
+              contentStyle: { backgroundColor: NAV_THEME[effectiveTheme].colors.background },
+            }}>
+            <Stack.Screen name="index" options={{ headerShown: false }} />
+            <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="tools" options={{ headerShown: false }} />
+            <Stack.Screen name="content" options={{ headerShown: false }} />
+            <Stack.Screen name="documents" options={{ headerShown: false }} />
+          </Stack>
+          {error ? (
+            <View className="bg-destructive p-3">
+              <Text className="text-white">{error}</Text>
+            </View>
+          ) : null}
+          <PortalHost />
+        </ThemeProvider>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }

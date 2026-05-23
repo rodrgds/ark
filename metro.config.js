@@ -4,6 +4,18 @@ const { withUniwindConfig } = require('uniwind/metro');
 const config = getDefaultConfig(__dirname);
 config.resolver.assetExts.push('wasm');
 
+const defaultBlockList = Array.isArray(config.resolver.blockList)
+  ? config.resolver.blockList
+  : config.resolver.blockList
+    ? [config.resolver.blockList]
+    : [];
+
+config.resolver.blockList = [
+  ...defaultBlockList,
+  /\.test\.[tj]sx?$/,
+  /\.spec\.[tj]sx?$/,
+];
+
 module.exports = withUniwindConfig(config, {
   // relative path to your global.css file (from previous step)
   cssEntryFile: './global.css',

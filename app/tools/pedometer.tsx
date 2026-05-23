@@ -2,24 +2,34 @@ import { Screen } from '@/components/layout/screen';
 import { Card } from '@/components/ui/card';
 import { Text } from '@/components/ui/text';
 import { PedometerService } from '@/services/sensors/pedometer.service';
+import { useSensorStore } from '@/stores/sensor-store';
 import * as React from 'react';
 
 export default function PedometerTool() {
   const [available, setAvailable] = React.useState<boolean | null>(null);
   const [today, setToday] = React.useState(0);
   const [session, setSession] = React.useState(0);
+  const setStoreSteps = useSensorStore((state) => state.setSteps);
 
   React.useEffect(() => {
     let stop: undefined | (() => void);
     PedometerService.isAvailable().then(async (ok) => {
       setAvailable(ok);
       if (ok) {
-        setToday((await PedometerService.getTodaySteps()).steps);
-        stop = PedometerService.start(setSession);
+        const todaySteps = (await PedometerService.getTodaySteps()).steps;
+        setToday(todaySteps);
+        setStoreSteps(todaySteps);
+        stop = PedometerService.start((nextSession) => {
+          setSession(nextSession);
+          setStoreSteps(todaySteps + nextSession);
+        });
       }
     });
-    return () => stop?.();
-  }, []);
+    return () => {
+      stop?.();
+      setStoreSteps(null);
+    };
+  }, [setStoreSteps]);
 
   return (
     <Screen>

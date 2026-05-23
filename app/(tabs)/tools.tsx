@@ -2,27 +2,52 @@ import { ActionCard } from '@/components/cards/action-card';
 import { Screen } from '@/components/layout/screen';
 import { Card } from '@/components/ui/card';
 import { Text } from '@/components/ui/text';
-import { Link } from 'expo-router';
+import { useSensorStore } from '@/stores/sensor-store';
+import { Link, type Href } from 'expo-router';
 import {
   Activity,
+  CheckSquare,
   Compass,
+  Crosshair,
   Gauge,
   Lightbulb,
-  MapPin,
   Ruler,
   Settings2,
-  Timer,
-  Umbrella,
+  SunMedium,
 } from 'lucide-react-native';
+import { View } from 'react-native';
+
+const TOOL_ROUTES = {
+  coordinates: '/tools/coordinates' as Href,
+  weather: '/tools/weather' as Href,
+  checklist: '/tools/checklist' as Href,
+};
 
 export default function ToolsScreen() {
+  const { heading, pressure, pitch, roll, steps, lux } = useSensorStore();
+
   return (
     <Screen>
+      <View className="gap-2">
+        <Text variant="h1">Tools</Text>
+        <Text variant="muted">Field tools that still make sense when service drops.</Text>
+      </View>
       <Card className="gap-2">
-        <Text variant="large">Device tools</Text>
-        <Text variant="muted">
-          Sensor-backed where available, with graceful unavailable states.
-        </Text>
+        <Text variant="large">Last live readings</Text>
+        <View className="flex-row flex-wrap gap-x-4 gap-y-2">
+          <Text variant="muted">
+            Heading: {heading === null ? '--' : `${Math.round(heading)}°`}
+          </Text>
+          <Text variant="muted">
+            Pressure: {pressure === null ? '--' : `${pressure.toFixed(1)} hPa`}
+          </Text>
+          <Text variant="muted">
+            Level:{' '}
+            {pitch === null || roll === null ? '--' : `${pitch.toFixed(1)}° / ${roll.toFixed(1)}°`}
+          </Text>
+          <Text variant="muted">Steps: {steps === null ? '--' : steps}</Text>
+          <Text variant="muted">Light: {lux === null ? '--' : `${Math.round(lux)} lux`}</Text>
+        </View>
       </Card>
       <Link href="/tools/compass" asChild>
         <ActionCard
@@ -55,6 +80,27 @@ export default function ToolsScreen() {
           description="Lux readings on supported devices."
         />
       </Link>
+      <Link href={TOOL_ROUTES.coordinates} asChild>
+        <ActionCard
+          icon={Crosshair}
+          title="Coordinates"
+          description="Capture a GPS fix and save it to Map spots."
+        />
+      </Link>
+      <Link href={TOOL_ROUTES.weather} asChild>
+        <ActionCard
+          icon={SunMedium}
+          title="Offline weather"
+          description="View or refresh the cached local forecast."
+        />
+      </Link>
+      <Link href={TOOL_ROUTES.checklist} asChild>
+        <ActionCard
+          icon={CheckSquare}
+          title="Readiness checklist"
+          description="A compact local checklist before leaving service."
+        />
+      </Link>
       <Link href="/tools/diagnostics" asChild>
         <ActionCard
           icon={Settings2}
@@ -62,21 +108,6 @@ export default function ToolsScreen() {
           description="Native capability and storage report."
         />
       </Link>
-      <ActionCard
-        icon={MapPin}
-        title="Coordinates"
-        description="Placeholder for location card once permission is granted."
-      />
-      <ActionCard
-        icon={Umbrella}
-        title="Offline weather cache"
-        description="Freshness and pressure trend context."
-      />
-      <ActionCard
-        icon={Timer}
-        title="Emergency checklist"
-        description="Placeholder for saved checklists and unit conversion."
-      />
     </Screen>
   );
 }

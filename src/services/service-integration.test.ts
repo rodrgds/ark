@@ -6,6 +6,18 @@ let llamaStopCalls = 0;
 let llamaCompletionGate: Promise<void> | null = null;
 let llamaCompletionStarted: (() => void) | null = null;
 let freeDiskStorageBytes = 10 * 1024 * 1024 * 1024;
+const mockFiles = new Map<string, { isDirectory: boolean; size?: number; text?: string }>();
+let mockDownloadStatus = 200;
+let mockDownloadMd5 = 'mock-md5';
+let mockDownloadText = '%PDF-1.4 mock header';
+let mockDownloadSize = 2048;
+let mockPickedDocument: {
+  name: string;
+  uri: string;
+  mimeType?: string;
+  size?: number;
+  text?: string;
+} | null = null;
 
 mock.module('expo-sqlite', () => ({
   openDatabaseAsync: async () => {
@@ -74,15 +86,34 @@ mock.module('expo-haptics', () => ({
 
 mock.module('expo-file-system/legacy', () => ({
   documentDirectory: 'file:///ark-test/',
-  FileSystemSessionType: { BACKGROUND: 0 },
   EncodingType: { UTF8: 'utf8' },
-  makeDirectoryAsync: async () => undefined,
-  deleteAsync: async () => undefined,
-  copyAsync: async () => undefined,
+  FileSystemSessionType: { BACKGROUND: 0 },
+  makeDirectoryAsync: async (uri: string) => {
+    mockFiles.set(uri, { isDirectory: true });
+  },
+  deleteAsync: async (uri: string) => {
+    mockFiles.delete(uri);
+  },
+  copyAsync: async ({ to }: { to: string }) => {
+    mockFiles.set(to, {
+      isDirectory: false,
+      size: mockPickedDocument?.size ?? 2048,
+      text: mockPickedDocument?.text ?? 'mock file',
+    });
+  },
+  readDirectoryAsync: async (uri: string) =>
+    Array.from(mockFiles.keys())
+      .filter((key) => key.startsWith(uri) && key !== uri)
+      .map((key) => key.slice(uri.length).split('/')[0])
+      .filter((name, index, names) => name.length > 0 && names.indexOf(name) === index),
+  readAsStringAsync: async (uri: string) => mockFiles.get(uri)?.text ?? '',
   getFreeDiskStorageAsync: async () => freeDiskStorageBytes,
   getTotalDiskCapacityAsync: async () => 64 * 1024 * 1024 * 1024,
-  getInfoAsync: async (uri: string) => ({ exists: true, isDirectory: false, uri, size: 2048 }),
-  readAsStringAsync: async () => '%PDF mock content',
+  getInfoAsync: async (uri: string) => {
+    const file = mockFiles.get(uri);
+    if (!file) return { exists: false, isDirectory: false, uri };
+    return { exists: true, isDirectory: file.isDirectory, uri, size: file.size ?? 0 };
+  },
   createDownloadResumable: (
     _url: string,
     uri: string,
@@ -90,8 +121,12 @@ mock.module('expo-file-system/legacy', () => ({
     callback?: (event: { totalBytesExpectedToWrite: number; totalBytesWritten: number }) => void
   ) => ({
     downloadAsync: async () => {
-      callback?.({ totalBytesExpectedToWrite: 2048, totalBytesWritten: 2048 });
-      return { uri, status: 200, headers: {}, mimeType: null, md5: 'mock-md5' };
+      callback?.({
+        totalBytesExpectedToWrite: mockDownloadSize,
+        totalBytesWritten: mockDownloadSize,
+      });
+      mockFiles.set(uri, { isDirectory: false, size: mockDownloadSize, text: mockDownloadText });
+      return { uri, status: mockDownloadStatus, headers: {}, mimeType: null, md5: mockDownloadMd5 };
     },
     pauseAsync: async () => ({ url: _url, fileUri: uri, options: {}, resumeData: 'resume-token' }),
     resumeAsync: async () => ({ uri, status: 200, headers: {}, mimeType: null, md5: 'mock-md5' }),
@@ -101,7 +136,20 @@ mock.module('expo-file-system/legacy', () => ({
 }));
 
 mock.module('expo-document-picker', () => ({
-  getDocumentAsync: async () => ({ canceled: true, assets: [] }),
+  getDocumentAsync: async () =>
+    mockPickedDocument
+      ? {
+          canceled: false,
+          assets: [
+            {
+              name: mockPickedDocument.name,
+              uri: mockPickedDocument.uri,
+              mimeType: mockPickedDocument.mimeType,
+              size: mockPickedDocument.size,
+            },
+          ],
+        }
+      : { canceled: true, assets: [] },
 }));
 
 mock.module('expo-sharing', () => ({
@@ -187,13 +235,17 @@ let migrateDbIfNeeded: typeof import('@/services/db/migrations').migrateDbIfNeed
 let DatabaseEncryptionService: typeof import('@/services/db/encryption.service').DatabaseEncryptionService;
 let VaultService: typeof import('@/services/security/vault.service').VaultService;
 let ContentPackService: typeof import('@/services/content/content-pack.service').ContentPackService;
+let ZimService: typeof import('@/services/content/zim.service').ZimService;
 let OfflineMapService: typeof import('@/services/maps/offline-map.service').OfflineMapService;
 let DiagnosticsService: typeof import('@/services/sensors/diagnostics.service').DiagnosticsService;
 let RagService: typeof import('@/services/ai/rag.service').RagService;
 let AIService: typeof import('@/services/ai/ai.service').AIService;
 let ModelManagerService: typeof import('@/services/ai/model-manager.service').ModelManagerService;
+let ImportService: typeof import('@/services/files/import.service').ImportService;
+let OcrService: typeof import('@/services/ocr/ocr.service').OcrService;
 let resetLlamaAdapterForTests: typeof import('@/services/ai/llama-adapter').resetLlamaAdapterForTests;
 let RAG_HASH_EMBEDDING_MODEL_ID: typeof import('@/services/ai/rag-embedding').RAG_HASH_EMBEDDING_MODEL_ID;
+let RAG_HASH_EMBEDDING_DIMENSIONS: typeof import('@/services/ai/rag-embedding').RAG_HASH_EMBEDDING_DIMENSIONS;
 let useAppStore: typeof import('@/stores/app-store').useAppStore;
 let ContentRepository: typeof import('@/services/db/repositories/content.repo').ContentRepository;
 let SettingsRepository: typeof import('@/services/db/repositories/settings.repo').SettingsRepository;
@@ -208,13 +260,17 @@ beforeAll(async () => {
   ({ DatabaseEncryptionService } = await import('@/services/db/encryption.service'));
   ({ VaultService } = await import('@/services/security/vault.service'));
   ({ ContentPackService } = await import('@/services/content/content-pack.service'));
+  ({ ZimService } = await import('@/services/content/zim.service'));
   ({ OfflineMapService } = await import('@/services/maps/offline-map.service'));
   ({ DiagnosticsService } = await import('@/services/sensors/diagnostics.service'));
   ({ RagService } = await import('@/services/ai/rag.service'));
   ({ AIService } = await import('@/services/ai/ai.service'));
   ({ ModelManagerService } = await import('@/services/ai/model-manager.service'));
+  ({ ImportService } = await import('@/services/files/import.service'));
+  ({ OcrService } = await import('@/services/ocr/ocr.service'));
   ({ resetLlamaAdapterForTests } = await import('@/services/ai/llama-adapter'));
-  ({ RAG_HASH_EMBEDDING_MODEL_ID } = await import('@/services/ai/rag-embedding'));
+  ({ RAG_HASH_EMBEDDING_MODEL_ID, RAG_HASH_EMBEDDING_DIMENSIONS } =
+    await import('@/services/ai/rag-embedding'));
   ({ useAppStore } = await import('@/stores/app-store'));
   ({ ContentRepository } = await import('@/services/db/repositories/content.repo'));
   ({ SettingsRepository } = await import('@/services/db/repositories/settings.repo'));
@@ -228,7 +284,15 @@ beforeEach(async () => {
   llamaCompletionGate = null;
   llamaCompletionStarted = null;
   freeDiskStorageBytes = 10 * 1024 * 1024 * 1024;
+  mockFiles.clear();
+  mockDownloadStatus = 200;
+  mockDownloadMd5 = 'mock-md5';
+  mockDownloadText = '%PDF-1.4 mock header';
+  mockDownloadSize = 2048;
+  mockPickedDocument = null;
   resetLlamaAdapterForTests?.();
+  ZimService?.setNativeModuleForTests(undefined);
+  OcrService?.setNativeModuleForTests(undefined);
   testDb?.close();
   testDb = new TestSQLiteDatabase();
   await migrateDbIfNeeded(testDb as never);
@@ -270,47 +334,39 @@ describe('service integration', () => {
     expect(storedKey).not.toContain('DROP TABLE');
   });
 
-  test(
-    'vault initializes, unlocks, changes passphrase, and rejects the old one',
-    async () => {
-      const initialized = await VaultService.initializeVault('correct horse battery', 'horse', true);
-      expect(initialized.ok).toBe(true);
+  test('vault initializes, unlocks, changes passphrase, and rejects the old one', async () => {
+    const initialized = await VaultService.initializeVault('correct horse battery', 'horse', true);
+    expect(initialized.ok).toBe(true);
 
-      expect((await VaultService.unlockWithPassword('correct horse battery')).ok).toBe(true);
-      expect((await VaultService.unlockWithBiometrics()).ok).toBe(true);
+    expect((await VaultService.unlockWithPassword('correct horse battery')).ok).toBe(true);
+    expect((await VaultService.unlockWithBiometrics()).ok).toBe(true);
 
-      const changed = await VaultService.changePassword({
-        currentPassword: 'correct horse battery',
-        nextPassword: 'new correct battery',
-        passwordHint: 'new hint',
-      });
-      expect(changed.ok).toBe(true);
-      expect((await VaultService.unlockWithPassword('correct horse battery')).ok).toBe(false);
-      expect((await VaultService.unlockWithPassword('new correct battery')).ok).toBe(true);
-    },
-    10_000
-  );
+    const changed = await VaultService.changePassword({
+      currentPassword: 'correct horse battery',
+      nextPassword: 'new correct battery',
+      passwordHint: 'new hint',
+    });
+    expect(changed.ok).toBe(true);
+    expect((await VaultService.unlockWithPassword('correct horse battery')).ok).toBe(false);
+    expect((await VaultService.unlockWithPassword('new correct battery')).ok).toBe(true);
+  }, 10_000);
 
-  test(
-    'vault upgrades v2 stretched verifiers after successful unlock',
-    async () => {
-      const salt = '0123456789abcdef0123456789abcdef';
-      secureStore.set(
-        'ark.vault.passwordVerifier',
-        await deriveV2VerifierForTest('correct horse battery', salt)
-      );
-      await SettingsRepository.updateVaultState({
-        isInitialized: true,
-        kdfSalt: salt,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      });
+  test('vault upgrades v2 stretched verifiers after successful unlock', async () => {
+    const salt = '0123456789abcdef0123456789abcdef';
+    secureStore.set(
+      'ark.vault.passwordVerifier',
+      await deriveV2VerifierForTest('correct horse battery', salt)
+    );
+    await SettingsRepository.updateVaultState({
+      isInitialized: true,
+      kdfSalt: salt,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
 
-      expect((await VaultService.unlockWithPassword('correct horse battery')).ok).toBe(true);
-      expect(secureStore.get('ark.vault.passwordVerifier')).toStartWith('ark-v3:sha512:12000:');
-    },
-    10_000
-  );
+    expect((await VaultService.unlockWithPassword('correct horse battery')).ok).toBe(true);
+    expect(secureStore.get('ark.vault.passwordVerifier')).toStartWith('ark-v3:sha512:12000:');
+  }, 10_000);
 
   test('content pack install downloads, completes, and indexes guide sections for RAG', async () => {
     await ContentPackService.installPack('hesperian-first-aid');
@@ -336,8 +392,7 @@ describe('service integration', () => {
           citation.sectionTitle === 'Bleeding and shock' &&
           citation.page === 9 &&
           citation.snippet === 'Direct pressure, danger signs, and shock response.' &&
-          citation.targetHref ===
-            '/content/hesperian-first-aid?section=Bleeding%20and%20shock'
+          citation.targetHref === '/content/hesperian-first-aid?section=Bleeding%20and%20shock'
       )
     ).toBe(true);
 
@@ -352,7 +407,53 @@ describe('service integration', () => {
       ['hesperian-first-aid']
     );
     expect(embeddedChunk?.embedding_model_id).toBe(RAG_HASH_EMBEDDING_MODEL_ID);
-    expect(embeddedChunk?.embedding_blob?.byteLength).toBe(64 * 4);
+    expect(embeddedChunk?.embedding_blob?.byteLength).toBe(RAG_HASH_EMBEDDING_DIMENSIONS * 4);
+  });
+
+  test('RAG adds installed ZIM article search results when the native reader is available', async () => {
+    await ContentRepository.createPack({
+      id: 'custom-zim-rag-test',
+      title: 'Field encyclopedia',
+      description: 'Installed offline encyclopedia for ZIM search coverage.',
+      category: 'Wiki',
+      format: 'zim',
+      localUri: 'file:///ark/content/field.zim',
+      installed: true,
+      installStatus: 'installed',
+      progress: 1,
+    });
+    ZimService.setNativeModuleForTests({
+      openArchive: async () => ({
+        id: 'field',
+        title: 'Field encyclopedia',
+        articleCount: 1,
+      }),
+      search: async () => [
+        {
+          path: 'A/Water_storage',
+          title: 'Water storage',
+          snippet: 'Offline encyclopedia note for clean water storage.',
+        },
+      ],
+      suggest: async () => [],
+      getArticle: async () => ({
+        finalPath: 'A/Water_storage',
+        title: 'Water storage',
+        mimeType: 'text/html',
+        html: '<p>Water storage</p>',
+      }),
+    });
+
+    const citations = await RagService.search('water storage', { limit: 2 });
+    const zimCitation = citations.find((citation) =>
+      citation.sourceId.startsWith('zim:custom-zim-rag-test:')
+    );
+
+    expect(zimCitation?.title).toBe('Field encyclopedia: Water storage');
+    expect(zimCitation?.snippet).toBe('Offline encyclopedia note for clean water storage.');
+    expect(zimCitation?.sourceRef).toBe('custom-zim-rag-test');
+    expect(zimCitation?.sectionTitle).toBe('Water storage');
+    expect(zimCitation?.targetHref).toBe('/content/custom-zim-rag-test?article=A%2FWater_storage');
   });
 
   test('content pack install rejects mismatched MD5 checksums', async () => {
@@ -377,6 +478,31 @@ describe('service integration', () => {
     expect(pack?.installed).toBe(false);
     expect(pack?.progress).toBe(0);
     expect((await DownloadsRepository.list())[0]?.status).toBe('failed');
+  });
+
+  test('content pack install rejects HTTP error pages instead of installing them', async () => {
+    mockDownloadStatus = 403;
+    mockDownloadText = '<html>The request is blocked.</html>';
+    await ContentRepository.createPack({
+      id: 'custom-guide-http-error-test',
+      title: 'Blocked guide',
+      description: 'Guide endpoint returns an HTML error page.',
+      category: 'Survival',
+      format: 'pdf',
+      sourceUrl: 'https://example.test/blocked.pdf',
+      installed: false,
+    });
+
+    await ContentPackService.installPack('custom-guide-http-error-test');
+    await waitFor(async () => {
+      const pack = await ContentPackService.getPack('custom-guide-http-error-test');
+      return pack?.installStatus === 'failed';
+    });
+
+    const download = (await DownloadsRepository.list())[0];
+    expect(download.status).toBe('failed');
+    expect(download.error).toContain('HTTP 403');
+    expect(mockFiles.has('file:///ark-test/ark/content/blocked.pdf')).toBe(false);
   });
 
   test('content pack install checks free storage before large downloads', async () => {
@@ -489,6 +615,64 @@ describe('service integration', () => {
     const stored = await AIService.listMessages(result.threadId);
     expect(stored.map((message) => message.role)).toEqual(['user', 'assistant']);
     expect(stored[1].citations[0]?.sourceRef).toBe(note.id);
+  });
+
+  test('imported text documents are indexed for RAG', async () => {
+    mockPickedDocument = {
+      name: 'water-plan.txt',
+      uri: 'file:///picker/water-plan.txt',
+      mimeType: 'text/plain',
+      size: 96,
+      text: 'Cache water in clean sealed containers and rotate the supply.',
+    };
+
+    const document = await ImportService.importDocument();
+    expect(document?.extractedText).toContain('Cache water');
+
+    const citations = await RagService.search('rotate water supply', { limit: 3 });
+    expect(citations.some((citation) => citation.sourceRef === document?.id)).toBe(true);
+    expect(citations.find((citation) => citation.sourceRef === document?.id)?.targetHref).toBe(
+      `/documents/${document?.id}`
+    );
+  });
+
+  test('imported images run OCR and become RAG sources', async () => {
+    OcrService.setNativeModuleForTests({
+      recognizeText: async () => ({
+        text: 'Trailhead sign: north spring water cache',
+        blocks: [{ text: 'Trailhead sign: north spring water cache' }],
+      }),
+    });
+    mockPickedDocument = {
+      name: 'trail-sign.jpg',
+      uri: 'file:///picker/trail-sign.jpg',
+      mimeType: 'image/jpeg',
+      size: 4096,
+      text: '',
+    };
+
+    const document = await ImportService.importDocument();
+    expect(document?.ocrStatus).toBe('ready');
+    expect(document?.ocrText).toContain('north spring');
+
+    const citations = await RagService.search('north spring water', { limit: 3 });
+    expect(citations.some((citation) => citation.sourceRef === document?.id)).toBe(true);
+  });
+
+  test('image imports do not fake OCR when the native module is missing', async () => {
+    OcrService.setNativeModuleForTests(null);
+    mockPickedDocument = {
+      name: 'label.jpg',
+      uri: 'file:///picker/label.jpg',
+      mimeType: 'image/jpeg',
+      size: 4096,
+      text: '',
+    };
+
+    const document = await ImportService.importDocument();
+    expect(document?.ocrStatus).toBe('unavailable');
+    expect(document?.ocrText).toBe('');
+    expect(document?.ocrError).toContain('Android development build');
   });
 
   test('AI chat can cancel an active llama completion', async () => {

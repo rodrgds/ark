@@ -29,10 +29,11 @@ import { WebView } from 'react-native-webview';
 import { Input } from '@/components/ui/input';
 
 export default function ContentDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, article } = useLocalSearchParams<{ id: string; article?: string }>();
   const [pack, setPack] = React.useState<ContentPack | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const openedArticleRef = React.useRef<string | null>(null);
 
   // ZIM state
   const [zimPlan, setZimPlan] = React.useState<ZimReaderPlan | null>(null);
@@ -66,7 +67,11 @@ export default function ContentDetailScreen() {
 
   // Handle active downloads polling
   React.useEffect(() => {
-    if (pack?.installStatus === 'downloading' || pack?.installStatus === 'queued') {
+    if (
+      pack?.installStatus === 'downloading' ||
+      pack?.installStatus === 'queued' ||
+      pack?.installStatus === 'verifying'
+    ) {
       const interval = setInterval(() => {
         void load();
       }, 1000);
@@ -105,6 +110,23 @@ export default function ContentDetailScreen() {
       canceled = true;
     };
   }, [pack?.id, pack?.installed, pack?.localUri, zimPlan?.nativeReaderAvailable]);
+
+  React.useEffect(() => {
+    const articlePath = Array.isArray(article) ? article[0] : article;
+    if (
+      !articlePath ||
+      openedArticleRef.current === articlePath ||
+      !pack ||
+      pack.format !== 'zim' ||
+      !pack.installed ||
+      !zimPlan?.nativeReaderAvailable
+    ) {
+      return;
+    }
+
+    openedArticleRef.current = articlePath;
+    void openZimArticle(articlePath);
+  }, [article, pack?.id, pack?.installed, zimPlan?.nativeReaderAvailable]);
 
   async function runAction(action: () => Promise<void>) {
     setBusy(true);
@@ -238,7 +260,9 @@ export default function ContentDetailScreen() {
                 <Text variant="small" className="text-muted-foreground">
                   {pack.installStatus === 'downloading'
                     ? `Downloading: ${Math.round(pack.progress * 100)}%`
-                    : pack.installStatus.replace('_', ' ')}
+                    : pack.installStatus === 'verifying'
+                      ? 'Verifying file before installing'
+                      : pack.installStatus.replace('_', ' ')}
                 </Text>
               </View>
             </View>
@@ -288,10 +312,11 @@ export default function ContentDetailScreen() {
               </>
             ) : (
               <Button
-                className="bg-primary active:bg-primary/90 flex-1"
-                disabled={busy || pack.installStatus === 'downloading'}
-                onPress={() => runAction(() => ContentPackService.installPack(pack.id))}>
-                {busy || pack.installStatus === 'downloading' ? (
+                className="flex-1 bg-primary active:bg-primary/90"
+                disabled={busy || pack.installStatus === 'downloading' || pack.installStatus === 'verifying'}
+                onPress={() => runAction(() => ContentPackService.installPack(pack.id))}
+              >
+                {busy || pack.installStatus === 'downloading' || pack.installStatus === 'verifying' ? (
                   <ActivityIndicator size="small" />
                 ) : (
                   <Icon as={Download} className="size-5" />
@@ -323,9 +348,8 @@ export default function ContentDetailScreen() {
                   key={section.title}
                   disabled={!pack.installed}
                   onPress={() => handleReadGuide(section)}
-                  className={`border-border active:bg-muted/30 flex-row items-center justify-between border-b p-4 last:border-b-0 ${
-                    !pack.installed ? 'opacity-50' : ''
-                  }`}>
+                  className={`border-border active:bg-muted/30 flex-row items-center justify-between border-b p-4 last:border-b-0 ${!pack.installed ? 'opacity-50' : ''
+                    }`}>
                   <View className="flex-1 pr-4">
                     <Text variant="default" className="text-foreground font-bold">
                       {section.title}

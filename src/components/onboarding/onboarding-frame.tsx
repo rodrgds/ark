@@ -49,8 +49,8 @@ export function OnboardingFrame({
         automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={{
-          paddingTop: Math.max(24, insets.top),
-          paddingBottom: Math.max(24, insets.bottom),
+          paddingTop: Math.max(48, insets.top),
+          paddingBottom: Math.max(34, insets.bottom),
           paddingLeft: 24,
           paddingRight: 24,
           gap: 24,

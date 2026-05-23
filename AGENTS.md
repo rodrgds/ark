@@ -12,19 +12,19 @@
 
 ## Tech Stack
 
-| Layer | Choice | Notes |
-|-------|--------|-------|
-| Framework | Expo SDK 55 + React Native 0.83 | Expo Go for MVP; dev builds for native features |
-| Routing | Expo Router (file-based) | `app/` directory |
-| Styling | Tailwind CSS v4 + Uniwind v1.6 | `global.css` defines OLED/dark/light themes |
-| UI primitives | shadcn-style (CVA + RN Primitives) | `src/components/ui/` — Button, Text, Input, Card, Icon |
-| State | Zustand v5 | 5 stores in `src/stores/` |
-| Database | expo-sqlite + custom migrations | `PRAGMA user_version` pattern, FTS5 virtual tables |
-| Icons | lucide-react-native | Wrapped via `src/components/ui/icon.tsx` |
-| Date handling | date-fns v4 | |
-| Validation | zod v4 | Installed but barely used |
-| Keyboard | react-native-keyboard-controller | Installed but UNUSED — we use built-in KeyboardAvoidingView |
-| Package manager | bun | Lockfile is `bun.lock` |
+| Layer           | Choice                             | Notes                                                       |
+| --------------- | ---------------------------------- | ----------------------------------------------------------- |
+| Framework       | Expo SDK 55 + React Native 0.83    | Expo Go for MVP; dev builds for native features             |
+| Routing         | Expo Router (file-based)           | `app/` directory                                            |
+| Styling         | Tailwind CSS v4 + Uniwind v1.6     | `global.css` defines OLED/dark/light themes                 |
+| UI primitives   | shadcn-style (CVA + RN Primitives) | `src/components/ui/` — Button, Text, Input, Card, Icon      |
+| State           | Zustand v5                         | 5 stores in `src/stores/`                                   |
+| Database        | expo-sqlite + custom migrations    | `PRAGMA user_version` pattern, FTS5 virtual tables          |
+| Icons           | lucide-react-native                | Wrapped via `src/components/ui/icon.tsx`                    |
+| Date handling   | date-fns v4                        |                                                             |
+| Validation      | zod v4                             | Installed but barely used                                   |
+| Keyboard        | react-native-keyboard-controller   | Installed but UNUSED — we use built-in KeyboardAvoidingView |
+| Package manager | bun                                | Lockfile is `bun.lock`                                      |
 
 ## Project Structure
 
@@ -121,75 +121,73 @@ Boot → index.tsx
 20 tables, 2 FTS5 virtual tables, V1 migration via `PRAGMA user_version`.
 
 **Key tables actually used by screens:**
+
 - `app_settings` — key-value config (theme preference, etc.)
 - `onboarding_state` — single row wizard progress
 - `vault_state` — password verifier, KDF salt, hint, auto-lock settings
 - `notes` + `notes_fts` — secure notes with FTS search, soft delete
 - `chat_threads` + `chat_messages` — AI conversation history
 - `rag_sources` + `rag_chunks` + `rag_chunks_fts` — RAG indexing
+- `documents` — imported local files plus extracted text/OCR status for RAG
 
-**Tables in schema but unused by any screen/service:**
-- `documents` — personal document metadata (no UI to import/view)
-- `map_markers` — saved map markers (no map rendering yet)
-- `routes` — saved GPS routes (no map rendering yet)
-- `rss_feeds` + `rss_items` — RSS infrastructure exists but feed fetching is deferred
+**Tables now used by screens/services:**
 
-**Encryption:** SQLCipher is configured in `app.json` but NOT active at runtime (`SQLCIPHER_ACTIVE = false` in `schema.ts`). No DB encryption in current build.
+- `map_markers` — saved spots from Coordinates/Map
+- `routes` — route drafts built from saved spots
+- `rss_feeds` + `rss_items` — official emergency feed refresh and cached item list
+
+**Encryption:** SQLCipher is configured in `app.json` and the DB client applies a SecureStore-backed key when the native SQLCipher build is available. Diagnostics reports cipher availability and key state. Plaintext migration/re-key strategy and real-device proof are still launch blockers.
 
 ## What's Real vs What's Mock/Stub/Placeholder
 
 ### REAL (works now):
+
 - OLED/Dark/Light/System theme switching, persisted to SQLite
 - SQLite database with full migrations, all 20 tables, FTS5 search
 - Repository layer — all CRUD is against real SQLite
 - Secure notes: create, FTS search, favorite, soft-delete (gated by vault unlock)
 - Onboarding wizard: 5-step flow with state persistence
-- Vault service: password verifier (SHA-256, 750 iter), biometric unlock via LocalAuthentication
-- Mock AI chat: messages stored to DB, mock responses with RAG citations
-- RAG: FTS indexing of notes + mock "Ark starter guide"
+- Vault service: versioned stretched SHA-512 verifier with legacy upgrade, password change, biometric unlock via LocalAuthentication, auto-lock lifecycle enforcement
+- AI chat: messages stored to DB, mock fallback adapter, llama.rn adapter in dev builds when a GGUF model is installed, streaming tokens, Stop action
+- RAG: FTS plus deterministic offline `ark-hash-v2` 256-dimension reranking, installed guide chunks, note indexing, imported document text, imported image OCR text, section/page/document citations, and best-effort ZIM article citations when ArkZim is available
 - Pressure trend: rising/stable/falling from barometer snapshot history
 - Network monitoring: NetInfo wrapper
 - App filesystem directories: created at boot
-- Content pack manifest: 8 starter packs with metadata
-- Sensor tools: compass, barometer, level, pedometer, light meter (real Expo Sensors)
+- Content pack manifest: real Kiwix ZIM URLs, public survival/medical PDFs, model GGUF URLs, checksums, source labels
+- Real download manager: resumable Expo file downloads, progress, pause/resume/cancel, free-space checks, MD5/SHA-256 verification, app-directory storage
+- Content readers: PDF/WebView guide reader with section jumps, ZIM detail screen, OS handoff to Kiwix, Android ArkZim native reader path behind dev builds
+- Document ingestion: text-file extraction, Android on-device ML Kit OCR through `ark-ocr`, visible OCR/indexing status, and document RAG cleanup on delete
+- Sensor tools: compass, barometer, level, pedometer, light meter, coordinates, offline weather, readiness checklist, with live readings in the sensor store
 
 ### MOCK / STUB / PLACEHOLDER:
-| Feature | Status | What's missing |
-|---------|--------|---------------|
-| Map rendering | STUB | `@maplibre/maplibre-react-native` not installed. MapService returns `available: false`. Map screen shows "not available" message. |
-| Offline map downloading | STUB | OfflineMapService.refreshRegion() returns `ok: false`. Region CRUD works on DB only, no actual tile download. |
-| Local LLM inference | MOCK | MockAIAdapter returns hardcoded text. LlamaAdapter.isAvailable() returns false. |
-| Model download manager | STUB | ModelManagerService.getStatus() returns static string. No download infrastructure. |
-| Content pack downloads | MOCK | DownloadManagerService immediately marks downloads "completed" without real downloading. |
-| DB encryption | NOT ACTIVE | SQLCipher plugin configured but no key path activated. Vault encryption is UI-level access gating only. |
-| Password KDF | WEAK | 750 iterations of SHA-256 in JS. No bcrypt/scrypt/argon2. Documented limitation. |
-| Password change | PLACEHOLDER | VaultService.changePassword() returns `ok: false`. |
-| Biometric toggle | PLACEHOLDER | Settings screen button is a no-op. |
-| RSS feed fetching | DEFERRED | RssService says "deferred until URLs are configured." |
-| ZIM reader | PLACEHOLDER | ZimService returns placeholder status. |
-| Document import | STUB | ImportService exists but never called from any screen. No UI to import files. |
-| Weather forecasts | MOCK | Hardcoded mock Portugal forecast in weather.repo.ts. |
-| Coordinates tool card | PLACEHOLDER | "Placeholder for location card once permission is granted." |
-| Emergency checklist | PLACEHOLDER | "Placeholder for saved checklists and unit conversion." |
-| Auto-lock service | STUB | Enforce function exists but never wired into app lifecycle. |
-| Sensor store | UNUSED | `sensor-store.ts` exists with all getters/setters but no screen reads from it. |
+
+| Feature                 | Status  | What's missing                                                                                                                                                                    |
+| ----------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Map rendering           | PARTIAL | MapLibre is installed and dynamically loaded; native map rendering needs on-device dev-build verification and a production style URL.                                             |
+| Offline map downloading | PARTIAL | MapLibre `OfflineManager.createPack()` is wired when native MapLibre exists; still needs real-device validation, drawn bounds, and offline geocoder/PMTiles index.                |
+| Local LLM inference     | PARTIAL | llama.rn is installed and dynamically loads installed GGUF models; still needs device memory tuning and runtime verification.                                                     |
+| DB encryption           | PARTIAL | SecureStore SQLCipher key path is wired; still needs fresh encrypted DB proof, plaintext migration, and final vault-passphrase/device-key decision.                               |
+| Password KDF            | PARTIAL | v3 SHA-512 stretching is in place with legacy upgrades; still needs native argon2/bcrypt/scrypt before production.                                                                |
+| ZIM reader              | PARTIAL | Android ArkZim module compiles with libkiwix/libzim and the UI can search/open articles when native is available; iOS CoreKiwix binding and real-archive device testing remain.   |
+| OCR                     | PARTIAL | Android `ark-ocr` compiles and uses bundled ML Kit text recognition; still needs real-device verification with camera/imported images and PDF page extraction is not implemented. |
+| Component tests         | PARTIAL | Route/static/service tests are broad; mounted React Native screen tests are still missing. Detox onboarding coverage is intentionally deprioritized.                              |
 
 ## Theme System
 
 Defined in `global.css`. Three themes as CSS variables:
 
-| Token | OLED (default) | Dark | Light |
-|-------|---------------|------|-------|
-| `--background` | `#000000` | `#09090B` | `#FFFFFF` |
-| `--foreground` | `#FAFAFA` | `#FAFAFA` | `#0A0A0A` |
-| `--card` | `#0A0A0A` | `#18181B` | `#FFFFFF` |
-| `--card-foreground` | `#FAFAFA` | `#FAFAFA` | `#0A0A0A` |
-| `--primary` | `#F2B84B` (amber) | `#F2B84B` | `#996515` |
-| `--primary-foreground` | `#0A0A0A` | `#0A0A0A` | `#FFFFFF` |
-| `--muted` | `#27272A` | `#27272A` | `#F4F4F5` |
-| `--muted-foreground` | `#A1A1AA` | `#A1A1AA` | `#71717A` |
-| `--border` | `#27272A` | `#27272A` | `#E4E4E7` |
-| `--destructive` | `#EF4444` | `#EF4444` | `#DC2626` |
+| Token                  | OLED (default)    | Dark      | Light     |
+| ---------------------- | ----------------- | --------- | --------- |
+| `--background`         | `#000000`         | `#09090B` | `#FFFFFF` |
+| `--foreground`         | `#FAFAFA`         | `#FAFAFA` | `#0A0A0A` |
+| `--card`               | `#0A0A0A`         | `#18181B` | `#FFFFFF` |
+| `--card-foreground`    | `#FAFAFA`         | `#FAFAFA` | `#0A0A0A` |
+| `--primary`            | `#F2B84B` (amber) | `#F2B84B` | `#996515` |
+| `--primary-foreground` | `#0A0A0A`         | `#0A0A0A` | `#FFFFFF` |
+| `--muted`              | `#27272A`         | `#27272A` | `#F4F4F5` |
+| `--muted-foreground`   | `#A1A1AA`         | `#A1A1AA` | `#71717A` |
+| `--border`             | `#27272A`         | `#27272A` | `#E4E4E7` |
+| `--destructive`        | `#EF4444`         | `#EF4444` | `#DC2626` |
 
 Applied via `Uniwind.setTheme()` called from `theme-store.ts`.
 
@@ -204,14 +202,11 @@ Applied via `Uniwind.setTheme()` called from `theme-store.ts`.
 
 ## Anti-Patterns & Known Issues
 
-1. **Duplicate components:** `components/ui/` at root is a dead directory. Screens import via `@/` which resolves to `src/components/ui/`. The root `components/ui/` versions have slightly different styling (h2 has border-b, different button sizes). DELETE the root `components/ui/` directory.
-2. **Unused sensor store:** `src/stores/sensor-store.ts` is fully implemented but no screen reads from it. Screens use local `useState` instead. Either wire it in or delete it.
-3. **Hardcoded placeholderTextColor:** `src/components/ui/input.tsx` hardcodes `#A1A1AA` as default placeholder color. This doesn't adapt to theme changes.
-4. **Crowded UI:** Home screen has too many cards. Tools screen has 9 action cards, 3 of which are placeholders. Content pack filter has 8 chips.
-5. **No SafeAreaView:** The app uses `contentInsetAdjustmentBehavior="automatic"` on ScrollViews but doesn't use SafeAreaView. May have notching issues on newer iPhones.
-6. **Weak KDF:** 750 SHA-256 iterations is documented as a limitation but is not production-grade.
-7. **No auto-lock:** The autolock service exists but is never started. No timer in the app lifecycle.
-8. **No actual encryption:** SQLCipher not keyed. Notes are stored in plaintext in SQLite.
+1. **Native verification remains the main risk:** SQLCipher, MapLibre offline packs, ArkZim, ArkOcr, and llama.rn all need real-device verification in development builds.
+2. **iOS ZIM support is still missing:** Android ArkZim compiles; iOS still needs CoreKiwix.xcframework integration.
+3. **Password KDF is improved but not production-grade:** v3 SHA-512 stretching replaced the old weak verifier path, but native argon2/bcrypt/scrypt is still required.
+4. **RAG embeddings are deterministic hash vectors:** useful for offline regression coverage, not semantic model-quality embeddings. llama.rn embedding model support is still needed for model-quality semantic search.
+5. **Mounted UI tests are still absent:** current coverage is route/static/service-level, not React Native render tests. E2E onboarding coverage is intentionally deprioritized for now.
 
 ## Build / Run Commands
 

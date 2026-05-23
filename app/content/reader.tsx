@@ -9,11 +9,13 @@ import type { ContentPack } from '@/types/content';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { ChevronLeft, ExternalLink, List, Share2, X } from 'lucide-react-native';
 import * as React from 'react';
+import Pdf from 'react-native-pdf';
 import {
   ActivityIndicator,
   Alert,
   BackHandler,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   View,
@@ -46,11 +48,17 @@ export default function GuideReaderScreen() {
   const [error, setError] = React.useState<string | null>(null);
   const [content, setContent] = React.useState<ReaderContent | null>(null);
   const [currentPage, setCurrentPage] = React.useState(1);
+  const [initialPage, setInitialPage] = React.useState(1);
   const [showToc, setShowToc] = React.useState(false);
   const [showControls, setShowControls] = React.useState(true);
   const [webViewLoadError, setWebViewLoadError] = React.useState<string | null>(null);
   const [webViewLoading, setWebViewLoading] = React.useState(false);
   const webViewRef = React.useRef<WebView>(null);
+  const pdfRef = React.useRef<any>(null);
+
+  const pdfSource = React.useMemo(() => {
+    return { uri: content?.uri || '' };
+  }, [content?.uri]);
 
   const controlsTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
@@ -107,6 +115,10 @@ export default function GuideReaderScreen() {
       setContent(readerContent);
       if (readerContent.page) {
         setCurrentPage(readerContent.page);
+        setInitialPage(readerContent.page);
+      } else {
+        setCurrentPage(1);
+        setInitialPage(1);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load content.');
@@ -145,14 +157,28 @@ export default function GuideReaderScreen() {
   function handleSectionSelect(targetSection: GuideSection) {
     setShowToc(false);
     setWebViewLoadError(null);
+
+    if (isPdf && targetSection.page) {
+      setCurrentPage(targetSection.page);
+      setInitialPage(targetSection.page);
+      setContent((prev) => prev ? { ...prev, sectionTitle: targetSection.title, page: targetSection.page } : null);
+      pdfRef.current?.setPage(targetSection.page);
+      return;
+    }
+
     setLoading(true);
     GuideReaderService.prepareContent(pack!, targetSection)
       .then((newContent) => {
         setContent(newContent);
-        if (newContent.page) setCurrentPage(newContent.page);
+        if (newContent.page) {
+          setCurrentPage(newContent.page);
+          setInitialPage(newContent.page);
+        }
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load section.'))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+      });
   }
 
   const isPdf = content?.format === 'pdf';
@@ -185,45 +211,111 @@ export default function GuideReaderScreen() {
     <View className="bg-background flex-1">
       <Stack.Screen options={{ headerShown: false }} />
 
+      {/* Header */}
+      {showControls && !webViewLoadError && (
+        <View
+          style={{ paddingTop: Math.max(20, insets.top), zIndex: 100 }}
+          className="bg-background border-b border-border"
+        >
+          <View className="flex-row items-center justify-between px-4 h-14">
+            <Button variant="ghost" size="icon" onPress={() => router.back()}>
+              <Icon as={ChevronLeft} className="text-foreground" />
+            </Button>
+            <View className="flex-1 mx-2">
+              <Text variant="small" className="text-foreground font-bold text-center" numberOfLines={1}>
+                {pack?.title}
+              </Text>
+            </View>
+            <View className="flex-row gap-1">
+              {sections.length > 0 && (
+                <Button variant="ghost" size="icon" onPress={() => setShowToc(true)}>
+                  <Icon as={List} className="text-foreground" />
+                </Button>
+              )}
+              <Button variant="ghost" size="icon" onPress={handleShare}>
+                <Icon as={Share2} className="text-foreground" />
+              </Button>
+            </View>
+          </View>
+        </View>
+      )}
+
       {/* Main Content Area */}
       <View className="flex-1">
         {content && (
-          <WebView
-            ref={webViewRef}
-            originWhitelist={['*']}
-            source={content.uri ? { uri: content.uri } : { html: content.html! }}
-            allowFileAccess
-            allowUniversalAccessFromFileURLs
-            allowingReadAccessToURL={content.allowReadAccessToURL}
-            style={{ width: '100%', height: '100%', marginTop: insets.top, marginBottom: insets.bottom }}
-            scalesPageToFit={isPdf}
-            injectedJavaScript={!isPdf ? TAP_DETECTION_SCRIPT : undefined}
-            onMessage={(event) => {
-              if (event.nativeEvent.data === 'tap' && canAutoHideControls) {
-                toggleControls();
+          isPdf ? (
+            <Pdf
+              ref={pdfRef}
+              source={pdfSource}
+              page={initialPage}
+              onPageChanged={(page) => {
+                setCurrentPage(page);
+                const currentSec = sections.find((s) => s.page === page);
+                if (currentSec && content.sectionTitle !== currentSec.title) {
+                  setContent((prev) => prev ? { ...prev, sectionTitle: currentSec.title } : null);
+                }
+              }}
+              onError={(err) => {
+                setWebViewLoadError(err && 'message' in err ? String((err as any).message) : String(err));
+              }}
+              style={{ flex: 1, backgroundColor: '#000000' }}
+            />
+          ) : (
+            <WebView
+              ref={webViewRef}
+              originWhitelist={['*']}
+              source={
+                content.uri
+                  ? { uri: content.uri }
+                  : { html: content.html!, baseUrl: content.allowReadAccessToURL }
               }
-            }}
-            onLoadStart={() => setWebViewLoading(true)}
-            onLoadEnd={() => setWebViewLoading(false)}
-            onError={(syntheticEvent) => {
-              const { nativeEvent } = syntheticEvent;
-              setWebViewLoadError(nativeEvent.description || 'Failed to load content.');
-              setWebViewLoading(false);
-            }}
-            onHttpError={(syntheticEvent) => {
-              const { nativeEvent } = syntheticEvent;
-              setWebViewLoadError(`HTTP ${nativeEvent.statusCode}: ${nativeEvent.description}`);
-              setWebViewLoading(false);
-            }}
-          />
+              allowFileAccess
+              allowUniversalAccessFromFileURLs
+              allowingReadAccessToURL={content.allowReadAccessToURL}
+              style={{ flex: 1 }}
+              scalesPageToFit={isPdf}
+              injectedJavaScript={!isPdf ? TAP_DETECTION_SCRIPT : undefined}
+              onMessage={(event) => {
+                if (event.nativeEvent.data === 'tap' && canAutoHideControls) {
+                  toggleControls();
+                }
+              }}
+              onLoadStart={() => setWebViewLoading(true)}
+              onLoadEnd={() => setWebViewLoading(false)}
+              onError={(syntheticEvent) => {
+                const { nativeEvent } = syntheticEvent;
+                setWebViewLoadError(nativeEvent.description || 'Failed to load content.');
+                setWebViewLoading(false);
+              }}
+              onHttpError={(syntheticEvent) => {
+                const { nativeEvent } = syntheticEvent;
+                setWebViewLoadError(`HTTP ${nativeEvent.statusCode}: ${nativeEvent.description}`);
+                setWebViewLoading(false);
+              }}
+            />
+          )
         )}
       </View>
+
+      {/* Footer */}
+      {showControls && !webViewLoadError && (
+        <View
+          style={{ paddingBottom: Math.max(12, insets.bottom), zIndex: 100 }}
+          className="bg-background border-t border-border"
+        >
+          <View className="px-6 h-14 justify-center">
+            <Text variant="small" className="text-muted-foreground font-medium">
+              {content?.sectionTitle || 'Reading Guide'}
+            </Text>
+          </View>
+        </View>
+      )}
 
       {/* WebView Error / Fallback Overlay */}
       {webViewLoadError && (
         <View
-          style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
-          className="absolute inset-0 z-[60] bg-background flex-col items-center justify-center p-8 gap-6"
+          style={{ paddingTop: Math.max(20, insets.top), paddingBottom: Math.max(12, insets.bottom), zIndex: 200 }}
+          className="absolute inset-0 bg-background flex-col items-center justify-center p-8 gap-6"
         >
           <Arky pose="thinking" size={160} />
           <View className="gap-2 items-center">
@@ -259,8 +351,8 @@ export default function GuideReaderScreen() {
       {/* Loading Overlay */}
       {(loading || webViewLoading) && content && (
         <View
-          style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
-          className="absolute inset-0 z-[60] bg-background/60 items-center justify-center"
+          style={{ paddingTop: Math.max(20, insets.top), paddingBottom: Math.max(12, insets.bottom), zIndex: 150 }}
+          className="absolute inset-0 bg-background/60 items-center justify-center"
         >
         <ActivityIndicator size="large" />
         </View>

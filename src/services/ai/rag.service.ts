@@ -2,6 +2,7 @@ import { randomUUID } from 'expo-crypto';
 import { DatabaseClient } from '@/services/db/client';
 import { NotesRepository } from '@/services/db/repositories/notes.repo';
 import { ContentRepository } from '@/services/db/repositories/content.repo';
+import { DocumentsRepository } from '@/services/db/repositories/documents.repo';
 import { chunkText, estimateTokens } from '@/services/ai/chunking';
 import {
   RAG_HASH_EMBEDDING_MODEL_ID,
@@ -12,8 +13,10 @@ import {
 } from '@/services/ai/rag-embedding';
 import { RagVectorService } from '@/services/ai/rag-vector.service';
 import { GuideService } from '@/services/content/guide.service';
+import { ZimService, type ZimSearchResult } from '@/services/content/zim.service';
 import type { AiCitation } from '@/types/ai';
 import type { ContentPack } from '@/types/content';
+import type { ArkDocument } from '@/types/db';
 
 const STOPWORDS = new Set([
   'a',
@@ -178,6 +181,39 @@ export class RagService {
     }
   }
 
+  static buildDocumentChunks(document: ArkDocument) {
+    const text = [
+      `Document: ${document.title}.`,
+      document.mimeType ? `Type: ${document.mimeType}.` : '',
+      document.extractedText,
+      document.ocrText ? `Text found in attached image:\n${document.ocrText}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+    return chunkText(text);
+  }
+
+  static async indexDocument(documentId: string) {
+    const document = await DocumentsRepository.get(documentId);
+    if (!document) return;
+    await this.replaceSource({
+      id: `document:${document.id}`,
+      kind: 'document',
+      sourceRef: document.id,
+      title: document.title,
+      chunks: this.buildDocumentChunks(document),
+    });
+    await DocumentsRepository.markIndexed(document.id);
+  }
+
+  static async indexImportedDocuments() {
+    const documents = await DocumentsRepository.list();
+    for (const document of documents) {
+      if (document.indexedAt && document.indexedAt >= document.updatedAt) continue;
+      await this.indexDocument(document.id);
+    }
+  }
+
   static async removeSource(sourceId: string) {
     const db = await DatabaseClient.getDb();
     await db.withTransactionAsync(async () => {
@@ -232,6 +268,7 @@ export class RagService {
   static async search(query: string, options: { limit?: number } = {}): Promise<AiCitation[]> {
     await this.seedCoreContent();
     await this.indexInstalledContentPacks();
+    await this.indexImportedDocuments();
     const ftsQueries = toFtsQueries(query);
     if (!ftsQueries.length) return [];
     const db = await DatabaseClient.getDb();
@@ -266,13 +303,94 @@ export class RagService {
       );
       if (rows.length) break;
     }
-    return rankRows(query, rows)
+    const ftsCitations = rankRows(query, rows)
       .slice(0, limit)
       .map((row) => ({
         ...citationForRow(row),
         snippet: snippetForRow(row),
       }));
+    const zimCitations =
+      ftsCitations.length < limit
+        ? await searchInstalledZimArticles(query, limit - ftsCitations.length)
+        : [];
+    return dedupeCitations([...ftsCitations, ...zimCitations]).slice(0, limit);
   }
+}
+
+async function searchInstalledZimArticles(query: string, limit: number): Promise<AiCitation[]> {
+  if (limit <= 0) return [];
+  const packs = (await ContentRepository.list()).filter(
+    (pack) => pack.installed && pack.localUri && pack.format === 'zim'
+  );
+  const citations: AiCitation[] = [];
+
+  for (const pack of packs) {
+    if (citations.length >= limit) break;
+    try {
+      const remaining = limit - citations.length;
+      const results = await ZimService.search(pack, query, remaining);
+      for (const result of results) {
+        if (citations.length >= limit) break;
+        citations.push(await citationForZimResult(pack, result));
+      }
+    } catch {
+      // Native ZIM search is optional. Keep RAG useful in Expo Go and other non-native builds.
+    }
+  }
+
+  return citations;
+}
+
+async function citationForZimResult(
+  pack: ContentPack,
+  result: ZimSearchResult
+): Promise<AiCitation> {
+  const title = result.title.trim() || result.path;
+  const articleText = await getZimArticleText(pack, result.path);
+  return {
+    sourceId: `zim:${pack.id}:${result.path}`,
+    title: `${pack.title}: ${title}`,
+    snippet: (articleText || result.snippet?.trim() || title).slice(0, 240),
+    sourceRef: pack.id,
+    sectionTitle: title,
+    targetHref: `/content/${encodeURIComponent(pack.id)}?article=${encodeURIComponent(
+      result.path
+    )}`,
+  };
+}
+
+async function getZimArticleText(pack: ContentPack, path: string) {
+  try {
+    const article = await ZimService.getArticle(pack, path);
+    return stripHtml(article.html)
+      .split('\n')
+      .map((line) => line.trim())
+      .find((line) => line.length > 40);
+  } catch {
+    return null;
+  }
+}
+
+function stripHtml(html: string) {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function dedupeCitations(citations: AiCitation[]) {
+  const seen = new Set<string>();
+  return citations.filter((citation) => {
+    if (seen.has(citation.sourceId)) return false;
+    seen.add(citation.sourceId);
+    return true;
+  });
 }
 
 function rankRows<T extends { embedding_blob: unknown }>(query: string, rows: T[]) {
@@ -307,6 +425,10 @@ function citationForRow(row: {
           section?.title ? `?section=${encodeURIComponent(section.title)}` : ''
         }`
       : undefined;
+  const documentTarget =
+    row.source_id.startsWith('document:') && row.source_ref
+      ? `/documents/${encodeURIComponent(row.source_ref)}`
+      : undefined;
 
   return {
     sourceId: row.source_id,
@@ -314,7 +436,7 @@ function citationForRow(row: {
     sourceRef: row.source_ref,
     sectionTitle: section?.title,
     page: section?.page,
-    targetHref: contentTarget,
+    targetHref: contentTarget ?? documentTarget,
   };
 }
 
@@ -329,9 +451,11 @@ function snippetForRow(row: {
       ? GuideService.getSections(row.source_ref)[row.chunk_index]
       : null;
   if (section?.detail) return section.detail;
-  return row.text
-    .split('\n')
-    .map((line) => line.trim())
-    .find((line) => line.length > 0)
-    ?.slice(0, 240) ?? row.text.slice(0, 240);
+  return (
+    row.text
+      .split('\n')
+      .map((line) => line.trim())
+      .find((line) => line.length > 0)
+      ?.slice(0, 240) ?? row.text.slice(0, 240)
+  );
 }

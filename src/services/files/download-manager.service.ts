@@ -3,6 +3,7 @@ import { ContentRepository } from '@/services/db/repositories/content.repo';
 import { FileSystemService } from '@/services/files/filesystem.service';
 import { RagService } from '@/services/ai/rag.service';
 import { FileDigestService } from '@/services/files/file-digest.service';
+import { ZimHeaderParser } from '@/services/content/zim-header';
 import type { AppDirectory } from '@/constants/app';
 import type { DownloadKind } from '@/types/downloads';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -14,6 +15,15 @@ type ActiveDownload = {
   localUri: string;
   stopReason?: 'paused' | 'canceled';
 };
+
+const DOWNLOAD_HEADERS = {
+  Accept: 'application/pdf,application/zim,application/octet-stream,*/*',
+  'Accept-Encoding': 'identity',
+  'User-Agent':
+    'Mozilla/5.0 (Linux; Android 14; Ark Offline) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125 Mobile Safari/537.36',
+};
+
+const MIN_EXPECTED_SIZE_RATIO = 0.98;
 
 function sanitizeFileName(value: string) {
   return value.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '');
@@ -83,6 +93,7 @@ export class DownloadManagerService {
       expectedChecksumMd5: input.expectedChecksumMd5,
       expectedChecksumSha256,
       resumeData: null,
+      expectedSizeBytes: input.expectedSizeBytes,
     });
     return id;
   }
@@ -97,9 +108,19 @@ export class DownloadManagerService {
     expectedChecksumMd5?: string | null;
     expectedChecksumSha256?: string | null;
     resumeData?: string | null;
+    expectedSizeBytes?: number | null;
   }) {
     let active: ActiveDownload | null = null;
     try {
+      if (!input.resumeData && (await this.canFinalizeExistingFile(input.localUri, input))) {
+        await this.finalizeDownloadedFile({
+          ...input,
+          resultUri: input.localUri,
+          checksumMd5: null,
+        });
+        return;
+      }
+
       await DownloadsRepository.updateProgress({
         id: input.id,
         progress: 0,
@@ -112,10 +133,7 @@ export class DownloadManagerService {
         {
           md5: true,
           sessionType: FileSystem.FileSystemSessionType.BACKGROUND,
-          headers: {
-            'User-Agent':
-              'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
-          },
+          headers: DOWNLOAD_HEADERS,
         },
         (event) => {
           const totalBytes = event.totalBytesExpectedToWrite || null;
@@ -167,6 +185,10 @@ export class DownloadManagerService {
       }
       if (!result?.uri && active.stopReason === 'paused') return;
       if (!result?.uri) throw new Error('Download finished without a local file URI.');
+      if (result.status && (result.status < 200 || result.status >= 300)) {
+        await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(() => undefined);
+        throw new Error(`Download failed with HTTP ${result.status}.`);
+      }
       if (
         input.expectedChecksumMd5 &&
         result.md5 &&
@@ -175,37 +197,10 @@ export class DownloadManagerService {
         await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(() => undefined);
         throw new Error('Downloaded file failed MD5 verification.');
       }
-      if (result.uri.endsWith('.pdf')) {
-        const headerText = await FileSystem.readAsStringAsync(result.uri, {
-          encoding: FileSystem.EncodingType.UTF8,
-          length: 10,
-        }).catch(() => '');
-        if (!headerText.startsWith('%PDF')) {
-          await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(() => undefined);
-          throw new Error('Verification failed: Remote server blocked download or URL is outdated.');
-        }
-      }
-      const info = await FileSystem.getInfoAsync(result.uri);
-      const sizeBytes = info.exists && 'size' in info ? info.size : null;
-      let checksumSha256: string | null = null;
-      if (input.expectedChecksumSha256) {
-        const digest = await FileDigestService.sha256FileIfReasonable(result.uri, sizeBytes);
-        checksumSha256 = digest.checksumSha256;
-        if (
-          checksumSha256 &&
-          checksumSha256.toLowerCase() !== input.expectedChecksumSha256.toLowerCase()
-        ) {
-          await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(() => undefined);
-          throw new Error('Downloaded file failed SHA-256 verification.');
-        }
-      }
-      await DownloadsRepository.complete({
-        id: input.id,
-        localUri: result.uri,
-        totalBytes: sizeBytes,
-        downloadedBytes: sizeBytes,
+      await this.finalizeDownloadedFile({
+        ...input,
+        resultUri: result.uri,
         checksumMd5: result.md5 ?? null,
-        checksumSha256,
       });
       if (input.packId) {
         await ContentRepository.updateInstallStatus({
@@ -279,6 +274,7 @@ export class DownloadManagerService {
       expectedChecksumMd5: row.expectedChecksumMd5,
       expectedChecksumSha256: row.expectedChecksumSha256,
       resumeData: row.resumeData,
+      expectedSizeBytes: row.totalBytes,
     });
   }
 
@@ -294,5 +290,126 @@ export class DownloadManagerService {
       await FileSystem.deleteAsync(row.localUri, { idempotent: true }).catch(() => undefined);
     }
     await DownloadsRepository.updateStatus(id, 'canceled', 0, null);
+  }
+
+  private static async canFinalizeExistingFile(
+    uri: string,
+    input: { kind: DownloadKind; expectedSizeBytes?: number | null }
+  ) {
+    const info = await FileSystem.getInfoAsync(uri).catch(() => null);
+    if (!info?.exists || info.isDirectory) return false;
+    const sizeBytes = 'size' in info ? (info.size ?? null) : null;
+    if (
+      input.expectedSizeBytes &&
+      (!sizeBytes || sizeBytes < input.expectedSizeBytes * MIN_EXPECTED_SIZE_RATIO)
+    ) {
+      return false;
+    }
+    if (input.kind === 'guide' && uri.toLowerCase().endsWith('.pdf')) {
+      const validPdf = await this.hasPdfHeader(uri);
+      if (!validPdf) {
+        await FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => undefined);
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private static async finalizeDownloadedFile(input: {
+    id: string;
+    kind: DownloadKind;
+    packId?: string | null;
+    resultUri: string;
+    expectedChecksumMd5?: string | null;
+    expectedChecksumSha256?: string | null;
+    expectedSizeBytes?: number | null;
+    checksumMd5?: string | null;
+  }) {
+    await DownloadsRepository.updateStatus(input.id, 'verifying', 1, null);
+    if (input.packId) {
+      await ContentRepository.updateInstallStatus({
+        id: input.packId,
+        status: 'verifying',
+        progress: 1,
+        localUri: input.resultUri,
+      });
+    }
+
+    const info = await FileSystem.getInfoAsync(input.resultUri);
+    const sizeBytes = info.exists && 'size' in info ? info.size : null;
+    if (
+      input.expectedSizeBytes &&
+      (!sizeBytes || sizeBytes < input.expectedSizeBytes * MIN_EXPECTED_SIZE_RATIO)
+    ) {
+      await FileSystem.deleteAsync(input.resultUri, { idempotent: true }).catch(() => undefined);
+      throw new Error('Downloaded file is smaller than expected. Retry from a stable connection.');
+    }
+
+    if (
+      input.expectedChecksumMd5 &&
+      input.checksumMd5 &&
+      input.expectedChecksumMd5.toLowerCase() !== input.checksumMd5.toLowerCase()
+    ) {
+      await FileSystem.deleteAsync(input.resultUri, { idempotent: true }).catch(() => undefined);
+      throw new Error('Downloaded file failed MD5 verification.');
+    }
+
+    if (input.kind === 'guide' && input.resultUri.toLowerCase().endsWith('.pdf')) {
+      const validPdf = await this.hasPdfHeader(input.resultUri);
+      if (!validPdf) {
+        await FileSystem.deleteAsync(input.resultUri, { idempotent: true }).catch(() => undefined);
+        throw new Error(
+          'Verification failed: the server returned a web page instead of the PDF. Retry later or use another network.'
+        );
+      }
+    }
+
+    if (input.kind === 'zim') {
+      const header = await ZimHeaderParser.parse(input.resultUri);
+      if (!header.valid) {
+        await FileSystem.deleteAsync(input.resultUri, { idempotent: true }).catch(() => undefined);
+        throw new Error('Downloaded file is not a valid ZIM archive.');
+      }
+    }
+
+    let checksumSha256: string | null = null;
+    if (input.expectedChecksumSha256) {
+      const digest = await FileDigestService.sha256FileIfReasonable(input.resultUri, sizeBytes);
+      checksumSha256 = digest.checksumSha256;
+      if (
+        checksumSha256 &&
+        checksumSha256.toLowerCase() !== input.expectedChecksumSha256.toLowerCase()
+      ) {
+        await FileSystem.deleteAsync(input.resultUri, { idempotent: true }).catch(() => undefined);
+        throw new Error('Downloaded file failed SHA-256 verification.');
+      }
+    }
+
+    await DownloadsRepository.complete({
+      id: input.id,
+      localUri: input.resultUri,
+      totalBytes: sizeBytes,
+      downloadedBytes: sizeBytes,
+      checksumMd5: input.checksumMd5 ?? null,
+      checksumSha256,
+    });
+    if (input.packId) {
+      await ContentRepository.updateInstallStatus({
+        id: input.packId,
+        status: 'installed',
+        progress: 1,
+        localUri: input.resultUri,
+        sizeBytes,
+      });
+      await RagService.indexContentPack(input.packId).catch(() => undefined);
+    }
+  }
+
+  private static async hasPdfHeader(uri: string) {
+    const headerText = await FileSystem.readAsStringAsync(uri, {
+      encoding: FileSystem.EncodingType.UTF8,
+      length: 10,
+    }).catch(() => '');
+    return headerText.startsWith('%PDF');
   }
 }

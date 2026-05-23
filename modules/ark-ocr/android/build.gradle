@@ -3,11 +3,11 @@ plugins {
   id 'expo-module-gradle-plugin'
 }
 
-group = 'expo.modules.arkzim'
+group = 'expo.modules.arkocr'
 version = '1.0.0'
 
 android {
-  namespace "expo.modules.arkzim"
+  namespace "expo.modules.arkocr"
   defaultConfig {
     versionCode 1
     versionName "1.0.0"
@@ -19,5 +19,5 @@ android {
 
 dependencies {
   implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.24"
-  implementation "org.kiwix:libkiwix:2.6.0"
+  implementation "com.google.mlkit:text-recognition:16.0.1"
 }

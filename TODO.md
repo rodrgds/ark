@@ -9,41 +9,42 @@
 
 ### Bugs
 
-- [ ] **Keyboard avoiding for vault inputs** — `Screen` and `OnboardingFrame` wrap content in `KeyboardAvoidingView` (iOS: `behavior="padding"`, offset 90), but the onboarding passphrase page still doesn't push content up reliably. The content should scroll up so the user can see the input fields when the keyboard pops up.
+- [x] **Keyboard avoiding for vault inputs** — `OnboardingFrame` now enables iOS keyboard insets and interactive keyboard dismissal on the onboarding ScrollView, so the vault inputs can scroll above the keyboard.
 - [x] **Hardcoded `placeholderTextColor="#A1A1AA"` in Input** — Fixed. `src/components/ui/input.tsx` now reads theme from Zustand store and returns correct color per theme (light: `#71717A`, dark/oled: `#A1A1AA`).
 - [x] **Home screen "Diagnostics in Tools" button is dead** — Fixed. `app/(tabs)/index.tsx` button now links to `/tools/diagnostics`.
-- [ ] **No SafeAreaView** — App uses `contentInsetAdjustmentBehavior="automatic"` on ScrollViews but wraps nothing in SafeAreaView. OLED theme will bleed into notch/horns on iPhone X+. Wrap the root layout shell.
-- [ ] **"Vault unlocked" header has no top spacing** — The lock state bar sits behind the status bar / notch area. Needs proper padding/margin so it clears the status bar.
-- [ ] **Top header pages show URL/path instead of page name** — Many top header bars display the route path (e.g. "/tools/compass") rather than a human-readable title like "Compass". Headers should show proper page names across all screens.
+- [x] **No SafeAreaView** — Fixed. Root layout now wraps the app in `SafeAreaProvider`, and the vault lock bar uses `SafeAreaView` for the top edge.
+- [x] **"Vault unlocked" header has no top spacing** — Fixed. `LockStateBar` clears the status bar/notch via `react-native-safe-area-context`.
+- [x] **Top header pages show URL/path instead of page name** — Fixed for tool stack screens with `app/tools/_layout.tsx` titles: Compass, Barometer, Level, Pedometer, Light Meter, Diagnostics.
 
 ### Security (vault = core product promise)
 
-- [ ] **Activate SQLCipher encryption** — `src/services/db/schema.ts` has `SQLCIPHER_ACTIVE = false`. Plugin is configured in `app.json`. Needs: (1) dev build with SQLCipher native module, (2) generate DB key from vault password at unlock, (3) pragma key call after unlock.
-- [ ] **Upgrade password KDF** — Current: 750 iterations of SHA-256 in pure JS (`src/services/security/keychain.service.ts`). Not production-grade. Need argon2/bcrypt/scrypt via native module in dev build. Document: this requires a dev build with a C++ KDF or native crypto.
-- [ ] **Wire auto-lock to app lifecycle** — `src/services/security/autolock.service.ts` exists with `enforce()` but is never called. Add an `AppState.addEventListener('change')` in `app/_layout.tsx` that checks `lastActivityAt` and locks if idle > `autoLockMinutes`.
-- [ ] **Implement password change** — `VaultService.changePassword()` at `src/services/security/vault.service.ts:65` returns `ok: false` hardcoded. Implement: verify current password, re-derive with same salt + new password, update verifier in SecureStore.
-- [ ] **Wire biometric toggle in Settings** — `app/(tabs)/settings.tsx:48-50` is a hardcoded no-op. Needs: read current biometric state from vault, toggle biometric token save/delete in KeychainService, update vault_state.
+- [ ] ~ **Activate SQLCipher encryption** — Partially wired. `DatabaseClient` now applies a SecureStore-backed `PRAGMA key` before migrations and records runtime `cipher_version` availability for Diagnostics, following Expo SQLCipher guidance. Android dev build compiles with `expo-sqlite` `useSQLCipher: true`. Still needed: on-device verification against a fresh encrypted DB, safe migration/re-key strategy for existing plaintext DBs, and final decision on whether DB keying must be vault-passphrase-derived instead of device-secret-derived.
+- [ ] ~ **Upgrade password KDF** — Partially improved. New vault verifiers now use a versioned SHA-512 stretched verifier and legacy 750-iteration SHA-256 verifiers are upgraded after successful unlock/change. Still not production-grade. Need argon2/bcrypt/scrypt via native module in dev build.
+- [x] **Wire auto-lock to app lifecycle** — `app/_layout.tsx` now listens to `AppState` changes and calls `AutoLockService.enforce()` when the app returns active.
+- [x] **Implement password change** — Settings now has a real passphrase-change flow. `VaultService.changePassword()` verifies the current passphrase, derives the new verifier with the existing salt, and stores it in SecureStore. SQLCipher re-keying remains part of the dev-build encryption task.
+- [x] **Wire biometric toggle in Settings** — Settings now reads biometric token state, enables biometric unlock after device authentication, disables by deleting the SecureStore token, and updates onboarding biometric state.
 
 ### Core offline capabilities (the "survival computer" part)
 
-- [ ] **Set up EAS Build for development builds** — Expo Go can't run MapLibre, llama.rn, or SQLCipher. A dev build profile is needed. Document the `eas.json` config and cloud build steps.
-- [ ] **Install and wire MapLibre** — Add `@maplibre/maplibre-react-native` to a dev build. Wire `MapService` to return `available: true` when the native module is present. Render actual map in `app/(tabs)/map.tsx`. Use a free vector tile style URL (e.g., OpenMapTiles or Maptiler free tier).
-- [ ] **Implement real offline map tile download** — `OfflineMapService.refreshRegion()` at `src/services/maps/offline-map.service.ts` returns `ok: false`. Wire to MapLibre's `OfflineManager.createPack()` with progress callbacks. Store pack IDs. Add "Download this area" UI (rectangle draw or radius circle on map).
-- [ ] **Real download system** — `DownloadManagerService` at `src/services/files/download-manager.service.ts` instantly marks downloads completed. Implement: (1) `expo-file-system.createDownloadResumable()`, (2) progress callbacks writing to SQLite, (3) pause/resume/retry, (4) background download support.
-- [ ] **Download actual ZIM knowledge files** — Source URLs needed:
-  - Wikipedia Simple English: `https://download.kiwix.org/zim/wikipedia/wikipedia_en_simple_all_nopic_YYYY-MM.zim` (~1.4 GB)
-  - Wikivoyage English: `https://download.kiwix.org/zim/wikivoyage/wikivoyage_en_all_nopic_YYYY-MM.zim` (~180 MB)
-  - Medical Wikipedia: `https://download.kiwix.org/zim/wikipedia/wikipedia_en_medicine_nopic_YYYY-MM.zim` (~100 MB)
+- [x] **Set up EAS Build for development builds** — Added `eas.json` development/preview/production profiles and `docs/development-build.md` with cloud and local build steps.
+- [ ] ~ **Install and wire MapLibre** — Partially done. `@maplibre/maplibre-react-native` is installed, the Expo config plugin is in `app.json`, `MapService` dynamically loads the native module, the Map tab renders a native map when available, and `bun run android:build:dev` completes successfully. Still needs on-device runtime verification and production style configuration.
+- [ ] ~ **Implement real offline map tile download** — Partially done. `OfflineMapService.refreshRegion()` now calls MapLibre `OfflineManager.createPack()` with progress callbacks and stores native pack IDs when the native module exists. Map now supports recommended regions and current-location 25 km/100 km planning. Still needs on-device dev-build verification and a map-drawn bounds workflow.
+- [ ] ~ **Real download system** — Partially implemented. `DownloadManagerService` now uses `expo-file-system/legacy.createDownloadResumable()`, requests background download sessions where supported, stores local files under Ark app directories, writes byte progress/resume data/expected MD5/actual MD5 fingerprints to SQLite, verifies expected MD5 when present, syncs content-pack status, and Library exposes pause/resume/cancel controls for large packs. Still needed: source-published checksum metadata for curated packs and on-device background behavior verification.
+- [ ] ~ **Download actual ZIM knowledge files** — Partially implemented. Library now exposes real Kiwix URLs for Simple English Wikipedia mini/nopic, Medical Wikipedia nopic, Wikivoyage English nopic, and a tiny Top 100 test archive. ZIM detail screen and external Kiwix handoff are wired; fully embedded in-app ZIM browsing still needs libzim or bundled Kiwix JS file access.
+  - Wikipedia Simple English nopic: `https://download.kiwix.org/zim/wikipedia/wikipedia_en_simple_all_nopic_2026-05.zim`
+  - Wikipedia Simple English mini: `https://download.kiwix.org/zim/wikipedia/wikipedia_en_simple_all_mini_2026-05.zim`
+  - Wikivoyage English nopic: `https://download.kiwix.org/zim/wikivoyage/wikivoyage_en_all_nopic_2026-03.zim`
+  - Medical Wikipedia nopic: `https://download.kiwix.org/zim/wikipedia/wikipedia_en_medicine_nopic_2026-04.zim`
   - Implement ZIM reader — either embed Kiwix JS in a WebView or use a native reader lib.
-- [ ] **Actual survival/medical content** — The 8 starter packs in `src/constants/packs.ts` are metadata only. Need real content: (1) First aid checklists (Red Cross public domain), (2) Survival guides (FM 21-76 US Army survival manual is public domain), (3) Medicine/triage reference, (4) Mushroom/plant safety guide. Bundle as Markdown files or fetch from URLs.
-- [ ] **Implement RSS feed fetching** — `RssService` at `src/services/rss/rss.service.ts` says "deferred." Add example survival/weather/news feed URLs, implement fetch with expo-file-system, parse with fast-xml-parser (already installed), cache items to rss_items table.
+- [ ] ~ **Actual survival/medical content** — Partially implemented. Starter packs now include real downloadable PDFs from Hesperian and the public-domain US Army FM 21-76 survival manual, plus a WebView-backed content reader with expanded section jump targets for first aid, shelter, water, fire, navigation, signaling, and field medical topics. Still needed: foraging/plant safety content with vetted licensing.
+- [x] **Implement RSS feed fetching** — `RssService` now seeds official emergency feeds, fetches RSS/Atom XML, parses with `fast-xml-parser`, and caches items to `rss_items`. Library exposes a refresh/readout surface.
 
 ### AI infrastructure
 
-- [ ] **Install llama.rn in dev build** — `LlamaAdapter.isAvailable()` always returns false. Install `llama.rn` (config plugin + native build). Implement: model loading/unloading, token streaming, context window management, memory budgeting.
-- [ ] **Implement model download manager** — `ModelManagerService` is a stub. Needs: list available models, download from HuggingFace mirror URLs, verify checksums, store in app models/ directory, track progress in SQLite.
-- [ ] **Real weather data** — `WeatherRepository.saveMockPortugalForecast()` inserts hardcoded data. Need: fetch from a free API (Open-Meteo, no API key required) when online, cache with timestamps, show staleness label. Use `https://api.open-meteo.com/v1/forecast` (free, no key).
-- [ ] **Upgrade RAG from FTS-only to vector search** — Currently uses FTS5 keyword search. Install `sqlite-vec` or `expo-vector-search` for embedding storage + cosine similarity KNN. Run an embedding model (llama.rn or a small ONNX embedder). Index all notes, guides, wiki content.
+- [ ] ~ **Install llama.rn in dev build** — Partially done. `llama.rn` and `expo-build-properties` are installed, native artifacts are present/cached for Android and iOS, the `llama.rn` config plugin is in `app.json`, Bun trusts the package for native artifact downloads, `LlamaAdapter` dynamically loads the first installed GGUF model in dev builds, and the Android dev build compiles. Build output reports CPU-only because Hexagon SDK is not installed. Still needed: on-device verification, token streaming, cancellation, context-window management, and memory budgeting.
+- [ ] ~ **Implement model download manager** — Partially implemented. Library now includes real Hugging Face GGUF downloads for Qwen2.5 1.5B Q4_0 and SmolLM2 1.7B Q4_0, local `.gguf` import, custom GGUF URL registration with optional MD5, progress-tracked downloads under app model storage, expected-MD5 verification when provided, and `ModelManagerService` availability/status. Still needed: published checksum metadata for curated models and on-device llama.rn runtime verification.
+- [x] **Real weather data** — Weather cache now refreshes from Open-Meteo when stale or empty, uses granted device location with a Lisbon fallback, stores provider/coordinates/forecast JSON, and Home shows cache freshness/staleness.
+- [ ] ~ **Upgrade RAG from FTS-only to vector search** — Partially implemented. Installed content packs are now indexed into FTS RAG sources with real guide section chunks and pack metadata, Chat citations include these offline sources, and `app.json` enables Expo's sqlite-vec extension for dev builds. RAG search now falls back from precise FTS to stopword-filtered OR search so natural questions can retrieve sources. Still needed: vector table migrations gated by extension availability, embeddings, paragraph/page-level extraction from full PDFs/ZIMs, and an on-device embedding model.
 
 ---
 
@@ -51,36 +52,34 @@
 
 ### Simplify the UI
 
-- [ ] **Full UI revamp** — The entire UI looks terrible and needs a comprehensive redesign. Every screen needs visual polish: spacing, typography, card design, layout, and consistency across all tabs.
-- [ ] **Update color scheme to final palette** — Current colors are placeholders. Need to define and apply the actual brand color scheme across all components and themes (OLED, dark, light).
-- [ ] **Set up logo and branding** — Replace text-based "Ark" headers with the actual logo. Add proper app icon assets, splash screen, and branded header components.
-- [ ] **Make OLED the recommended default theme** — OLED theme saves battery (true black pixels are off). Set OLED as the default, and label it as "OLED (Recommended — saves battery)" in the theme picker.
+- [ ] ~ **Full UI revamp** — Partially complete. Home, Chat, Map, Library, Notes, Settings, Tools, onboarding, content/document readers, color, branding, empty states, loading states, and destructive confirmations have been redesigned around the restrained Ark product UI. Still needs on-device visual QA across iOS/Android sizes and final pass after native MapLibre/ZIM/llama verification.
+- [x] **Update color scheme to final palette** — OLED, dark, and light themes now use the final restrained Ark palette: near-black field UI, warm bone text, amber command accent, moss status support, and non-placeholder navigation colors.
+- [x] **Set up logo and branding** — Added `ArkMark`/`ArkBrandLockup`, replaced key text-only headers, added an Ark SVG source mark, and regenerated app icon, adaptive icon, splash, and favicon PNG assets from `scripts/generate-brand-assets.mjs`.
+- [x] **Make OLED the recommended default theme** — OLED is already the default, and the theme picker now labels it as "OLED (Recommended - saves battery)".
 
-- [ ] **Redesign Home screen** — `app/(tabs)/index.tsx` currently has 5 action cards + a "Status" card + a "Native capability notes" card + branding. Too much. Proposed:
+- [x] **Redesign Home screen** — `app/(tabs)/index.tsx` now has compact Ark branding, one status card, 3 primary action cards, and an offline storage summary.
   - Keep: Ark branding header (smaller), quick status bar (online/offline dot + vault icon + weather one-liner)
   - Reduce to 3 action cards: "Ask Ark", "Open Map", "New Note"
   - Remove: "Compass" card (it's in Tools tab), "Download Pack" card (it's in Library tab), "Diagnostics in Tools" dead button
   - Add: a small "Offline storage" summary showing total KB/MB downloaded
-- [ ] **Clean up Tools screen** — `app/(tabs)/tools.tsx` has 9 cards, 3 are placeholders. Proposed:
-  - Keep only working sensors: Compass, Barometer, Level, Pedometer, Light, Diagnostics
-  - Move "Coordinates" placeholder → actually wire up expo-location to show lat/lon
-  - Move "Emergency checklist" → actually build a simple checklist editor
-  - Move "Offline weather cache" → show actual cached forecast freshness (not placeholder text)
-- [ ] **Reduce Library filter chips** — 8 chips (All + 7 categories). Merge "RSS" and "AI Models" and "Personal Documents" into "Other" if empty. Or use a dropdown instead of horizontal scroll chips.
-- [ ] **Add images/content previews for library packs** — Content packs in the library have no visual representation. Add cover images, thumbnails, or icons for each pack type (Wikipedia, survival guides, medical, etc.) so the library is visually scannable.
-- [ ] **Improve Chat UX** — `app/(tabs)/chat.tsx` has messages and input in the same ScrollView. Should split: messages in a FlatList (inverted for bottom-anchored scroll), input fixed at bottom. Add loading indicator while mock/model responds. Add "clear thread" button.
-- [ ] **Improve Map fallback UX** — `app/(tabs)/map.tsx` shows "MapLibre is not installed" which is hostile. Show a more helpful state: an illustration, explanation that maps work offline after a dev build, link to setup instructions.
-- [ ] **Improve Notes editor — full redesign** — `app/(tabs)/notes.tsx` has single-line title and body inputs that look terrible. Needs: multiline rich body editor with substantial height (not a tiny input), Markdown preview toggle, proper formatting toolbar (bold, italic, headings, lists), tags input (comma-separated or chip-based), created/updated timestamps, word/character count. The current editor is barely usable.
-- [ ] **Fix theme-adaptive `placeholderTextColor`** — `src/components/ui/input.tsx:5` hardcode `#A1A1AA`. Create a small hook that reads effective theme and returns the correct muted-foreground color from theme constants.
+- [x] **Rethink Tools screen around useful offline tools** — `app/(tabs)/tools.tsx` now keeps real sensors and adds working Coordinates, Offline Weather, and Readiness Checklist routes instead of placeholder cards. Coordinates captures GPS and saves spots to Map, Weather reads/refreshes the cached Open-Meteo forecast, and Checklist persists local readiness state.
+- [x] **Reduce Library filter chips** — Library filters are now a compact wrapped set: All, Wiki, Medical, Survival, Maps.
+- [x] **Add images/content previews for library packs** — Library packs now have scannable icon treatments by pack type/category, plus source labels and progress states.
+- [x] **Improve Chat UX** — Chat now uses an inverted `FlatList`, fixed bottom composer, source toggle, loading/send indicators, empty state, error recovery, and clear-thread action.
+- [x] **Improve Map fallback UX** — Map screen now explains the Expo Go/dev-build split, shows recommended offline regions, and references the PMTiles path instead of showing a hostile native-module error.
+- [x] **Improve Notes editor — full redesign** — Notes now has a full-height multiline editor, Markdown helper toolbar, preview mode, tags input, timestamps, word/character count, edit mode, empty/search states, and delete confirmation.
+- [x] **Fix theme-adaptive `placeholderTextColor`** — Done in `src/components/ui/input.tsx`; duplicate tracking item closed.
+- [x] **Improve onboarding UX** — Onboarding now uses Ark branding plus Arky, clearer nontechnical copy, subtle disableable motion, and a safer starter-pack default that avoids pushing huge Wikipedia/model downloads on first launch.
+- [x] **Improve Settings UX** — Settings now shows theme descriptions, real auto-lock choices, password change, biometric toggle, offline storage summary, management links, and a persisted subtle-motion preference without burying users in dev-build detail.
 
 ### Placeholders → real implementations
 
-- [ ] **Wire up document import UI** — `src/services/files/import.service.ts` uses `DocumentPicker` but no screen calls it. Add "Import file" button to Library screen or a new "Documents" tab. Create a simple file list with open/view actions.
-- [ ] **Wire up ZIM reader** — `ZimService.getStatus()` returns placeholder. Options: (a) embed Kiwix JS bundle in a WebView — simplest, works cross-platform, (b) use a native ZIM reader library if available. WebView approach: ship `kiwix-js` as bundled HTML/JS assets, open local ZIM via WebView.
-- [ ] **Wire up actual biometric toggle** — Settings screen buttons are no-ops. `BiometricsService` already has enroll/status checks. Need: UI to show current state, enable (save biometric token), disable (delete token).
-- [ ] **Wire up actual password change** — Settings screen has "Change password placeholder" button. Implement the flow in VaultService: verify current password → derive new verifier → update SecureStore.
-- [ ] **Wire up model manager** — Replace the stub `ModelManagerService` with: list available models from a manifest, show download/install status, allow delete, show model size warnings (models are 500MB-4GB).
-- [ ] **Wire up sensor store or delete it** — `src/stores/sensor-store.ts` has live value setters/getters but no screen subscribes. Either: (a) have each tool screen write to it on sensor update (useful for cross-screen sensor awareness), or (b) delete it and keep local `useState` pattern.
+- [x] **Wire up document import UI** — Library now imports files through `expo-document-picker`, copies them into Ark app storage, lists personal documents from SQLite, and opens `/documents/[id]` for preview/open/delete actions.
+- [ ] ~ **Wire up ZIM reader** — Placeholder status was replaced with a ZIM detail/reader-planning service and content screen. Installed `.zim` files can be shared/opened through the OS handoff path for Kiwix or another reader, and the UI documents the Kiwix JS/libzim limitation. Still needed: embedded Kiwix JS assets or a native libzim bridge that can read app-private local ZIM files directly.
+- [x] **Wire up actual biometric toggle** — Done in Settings and `VaultService.setBiometricsEnabled()`.
+- [x] **Wire up actual password change** — Done in Settings and `VaultService.changePassword()`.
+- [ ] ~ **Wire up model manager** — Partially done. Model packs are real Library entries with download status/delete via content-pack management, local GGUF import, custom GGUF URL import, optional MD5 verification, model size warnings, and `ModelManagerService` reports available/installed model packs. Still needed: published checksums for curated model URLs and on-device llama.rn runtime verification.
+- [x] **Wire up sensor store or delete it** — Tool screens now publish compass, barometer, level, pedometer, and light readings into `src/stores/sensor-store.ts`; Tools shows last live readings.
 
 ---
 
@@ -88,35 +87,36 @@
 
 ### Delete dead code
 
-- [ ] **Delete `components/ui/` at project root** — This is a duplicate of `src/components/ui/`. The tsconfig `@/` → `src/` alias means these are never imported. Slightly different variants cause confusion. `rm -rf components/ui/`.
-- [ ] **Delete or wire unused `react-native-keyboard-controller`** — Installed in package.json but never imported anywhere. We use built-in `KeyboardAvoidingView`. Remove: `bun remove react-native-keyboard-controller`.
-- [ ] **Audit unused `@rn-primitives/*` packages** — 20+ primitives packages are installed. Check which are actually imported (likely only `portal` and `slot`). Remove unused ones.
-- [ ] **Delete unused DB tables or implement their UI** — Tables with zero usage: `documents`, `map_markers`, `routes`, `rss_feeds`, `rss_items`. Either build screens that use them or drop them from migrations.
-- [ ] **Delete unused `download-store.ts`** — `src/stores/download-store.ts` loads downloads but no component reads from the store. Components call `DownloadManagerService` directly. Either wire the store or delete it.
-- [ ] **Enable zod validation** — `zod` v4 is installed, barely used. Add schemas for note creation inputs, vault password requirements, content pack selection, chat message payloads.
+- [x] **Delete `components/ui/` at project root** — Deleted duplicate root UI component files; active imports resolve to `src/components/ui/` through the `@/` alias.
+- [x] **Delete or wire unused `react-native-keyboard-controller`** — Removed from dependencies with `bun remove react-native-keyboard-controller`; the app continues to use built-in `KeyboardAvoidingView`.
+- [x] **Audit unused `@rn-primitives/*` packages** — Only `portal` and `slot` are imported; the remaining unused `@rn-primitives/*` packages were removed from `package.json`/`bun.lock`.
+- [x] **Delete unused DB tables or implement their UI** — Implemented UI/service usage for `documents`, `map_markers`, `routes`, `rss_feeds`, and `rss_items`.
+- [x] **Delete unused `download-store.ts`** — Deleted `src/stores/download-store.ts`; downloads continue through `DownloadManagerService`.
+- [x] **Enable zod validation** — Added `src/lib/validation.ts` and wired schemas into note creation/update, vault password requirements, content pack IDs, and chat message payloads.
 
 ### UX polish
 
-- [ ] **Add tab bar badges** — Show unread RSS count, pending download count, vault lock status on tab bar icons.
-- [ ] **Add pull-to-refresh** — Home screen (refresh network/weather/downloads), Library (refresh pack list), Notes (reload notes list).
-- [ ] **Add empty states** — Notes tab when no notes exist, Chat when no messages, Library when no packs installed. Currently screens just show nothing.
-- [ ] **Add loading skeletons** — While database queries run (notes list, chat history, content packs), show skeleton placeholders instead of a blank screen.
-- [ ] **Add haptic feedback** — expo-haptics is installed. Add subtle haptics for: vault lock/unlock, note save, chat message send, tool sensor reading snapshots.
-- [ ] **Add confirmation dialogs** — Before deleting notes/packs/regions, before locking vault.
+- [x] **Add tab bar badges** — Tabs now show vault lock status, Library activity/RSS count, and planned map-region count.
+- [x] **Add pull-to-refresh** — Home refreshes network/weather/download/storage state, Library refreshes packs/documents/RSS overview, and Notes reloads the note list.
+- [x] **Add empty states** — Notes, Chat, Library documents, and no-result states now show explicit empty-state UI.
+- [x] **Add loading skeletons** — Added reusable `Skeleton` UI and wired it into Chat, Library, and Notes initial loading states.
+- [x] **Add haptic feedback** — Added `HapticsService` and wired vault lock/unlock/password change, note create/update, chat send, and barometer snapshots.
+- [x] **Add confirmation dialogs** — Destructive flows now confirm before deleting notes, packs, imported documents, planned map regions, saved spots, route drafts, and before locking the vault.
 
 ### Testing
 
-- [ ] **Repository unit tests** — Test all 9 repositories against in-memory SQLite. Verify CRUD, FTS search, soft delete, migration integrity.
-- [ ] **Service integration tests** — Vault init/unlock/lock flow, AI send message flow with mock adapter, RAG indexing and search, content pack install flow.
-- [ ] **Component smoke tests** — Each screen renders without crashing in mock environment. Onboarding 5-step flow completes.
+- [x] **Baseline regression tests** — Added Bun tests for content-pack URLs/Wikipedia/model manifest shape, validation schemas, readiness checklist persistence/content contract, and tool route registration.
+- [x] **Repository unit tests** — Added Bun-backed SQLite repository coverage for migrations, app settings, content packs, downloads, notes + FTS + soft delete, map regions/markers/routes, RSS, weather, documents, and sensors. The suite caught and fixed an ambiguous RSS join order clause.
+- [x] **Service integration tests** — Added Expo-edge-mocked integration coverage for vault initialize/unlock/biometric/change-password, content pack install/download completion, RAG indexing/search, AI chat persistence with citations, and content pack removal clearing RAG sources.
+- [ ] ~ **Component smoke tests** — Partially covered with route contract tests for default exports, root stack registration, tab registration, onboarding step order, tools route registration, and placeholder-copy regressions. Still needs a React Native test renderer/Jest or Detox layer that actually mounts screens.
 - [ ] **Onboarding E2E test** — Full flow: intro → vault creation → permissions → pack selection → finish → tabs visible.
 
 ### Documentation
 
-- [ ] **EAS Build setup guide** — Step-by-step for creating a development build with MapLibre + llama.rn + SQLCipher.
-- [ ] **Map tile source configuration** — How to get a free Maptiler/OpenMapTiles API key, configure the style URL, set up offline regions.
-- [ ] **Model download setup** — Where to find GGUF models, size recommendations per device class, how to configure download URLs.
-- [ ] **Content pack URLs** — Document all real download URLs for ZIM files, PDF guides, Markdown bundles that users can install.
+- [x] **EAS Build setup guide** — Added `docs/development-build.md`.
+- [x] **Map tile source configuration** — Added `docs/map-tiles.md`.
+- [x] **Model download setup** — Added `docs/model-downloads.md`.
+- [x] **Content pack URLs** — Added `docs/content-pack-urls.md`.
 
 ---
 
@@ -125,47 +125,46 @@
 These are the actual URLs to configure once the download system is real:
 
 ### ZIM files (Wikipedia/Wikivoyage)
-- Wikipedia Simple English: `https://download.kiwix.org/zim/wikipedia/wikipedia_en_simple_all_nopic_YYYY-MM.zim`
-- Wikipedia Medical: `https://download.kiwix.org/zim/wikipedia/wikipedia_en_medicine_nopic_YYYY-MM.zim`  
-- Wikivoyage English: `https://download.kiwix.org/zim/wikivoyage/wikivoyage_en_all_nopic_YYYY-MM.zim`
+
+- Wikipedia Simple English nopic: `https://download.kiwix.org/zim/wikipedia/wikipedia_en_simple_all_nopic_2026-05.zim`
+- Wikipedia Simple English mini: `https://download.kiwix.org/zim/wikipedia/wikipedia_en_simple_all_mini_2026-05.zim`
+- Wikipedia Medical nopic: `https://download.kiwix.org/zim/wikipedia/wikipedia_en_medicine_nopic_2026-04.zim`
+- Wikivoyage English nopic: `https://download.kiwix.org/zim/wikivoyage/wikivoyage_en_all_nopic_2026-03.zim`
+- Wikipedia Top 100 nopic smoke-test archive: `https://download.kiwix.org/zim/wikipedia/wikipedia_en_100_nopic_2026-04.zim`
 
 ### Survival/Medical (public domain texts)
-- US Army FM 21-76 Survival Manual (public domain): PDF available from army.mil or various mirror sites. ~15 MB.
-- Where There Is No Doctor (Hesperian): Not public domain, but the organization provides digital copies for developing regions.
-- Red Cross First Aid: Multiple public domain sources available.
+
+- US Army FM 21-76 Survival Manual (public domain): `https://ia601604.us.archive.org/28/items/Fm21-76SurvivalManual/FM21-76_SurvivalManual.pdf`
+- Hesperian New Where There Is No Doctor: First Aid: `https://hesperian.org/wp-content/uploads/pdf/en_nwtnd_2011/en_nwtnd_2014_03g.pdf`
+- Hesperian Where There Is No Doctor: First Aid: `https://hesperian.org/wp-content/uploads/pdf/en_wtnd_2025/en_wtnd_2025_10.pdf`
+- TODO: add a vetted public-domain foraging/plant safety source. Do not ship mushroom identification content without source/licensing review.
 
 ### Weather (free API, no key required)
+
 - Open-Meteo: `https://api.open-meteo.com/v1/forecast?latitude=...&longitude=...&daily=...` (free, no API key, no account needed)
 
 ### Map tiles
+
 - Maptiler free tier (requires API key): `https://api.maptiler.com/maps/streets/style.json?key=YOUR_KEY`
 - OpenMapTiles: `https://tiles.openmaptiles.org/styles/` (free tier available)
 
 ### AI models (for llama.rn)
+
 - Qwen2.5 1.5B Q4_0 GGUF (~1 GB): Good starting model for mobile. From HuggingFace.
 - SmolLM2 1.7B Q4_0 GGUF (~1.2 GB): Alternative. Good instruction following.
-- Gemma 3 4B Q4_0 GGUF (~2.5 GB): Larger, for devices with 6GB+ RAM.
+- Gemma 3 4B Q4_0 GGUF (~3.2 GB): Larger, for devices with 6GB+ RAM. Not enabled in-app because the Google Gemma Hugging Face repository is gated and requires license acceptance.
 
 ---
 
 ## Summary: what to ship in MVP v1.0
 
 **Must have:**
+
 1. Bug fixes above (keyboard, dead button, safe area)
 2. Security baseline (SQLCipher + proper KDF in dev build)
 3. Real content packs with actual downloadable content
 4. Dev build setup with MapLibre rendering
 
-**Should have:**
-5. AI with real LLM in dev build
-6. Offline map tile downloads
-7. Real weather cache (Open-Meteo)
-8. RSS feed fetching
-9. ZIM reader
+**Should have:** 5. AI with real LLM in dev build 6. Offline map tile downloads 7. Real weather cache (Open-Meteo) 8. RSS feed fetching 9. ZIM reader
 
-**Nice to have:**
-10. Vector search RAG
-11. Vision model integration (mushroom ID, etc.)
-12. Voice dictation (whisper.rn)
-13. Cleaned up UI (decluttered home/tools/library)
-14. Tests
+**Nice to have:** 10. Vector search RAG 11. Vision model integration (mushroom ID, etc.) 12. Voice dictation (whisper.rn) 13. Cleaned up UI (decluttered home/tools/library) 14. Tests

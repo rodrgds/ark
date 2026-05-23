@@ -13,7 +13,9 @@ export class MockAIAdapter {
       content: [
         'Local AI is running in mock mode in this build.',
         hasSources
-          ? `I found ${input.citations.length} offline source item(s) that may be relevant. Use them as a starting point, then verify critical details.`
+          ? `I found ${input.citations.length} offline source item(s) that may be relevant:\n${input.citations
+              .map((citation, index) => `${index + 1}. ${citation.title}: ${citation.snippet}`)
+              .join('\n')}\n\nUse these as a starting point, then verify critical details.`
           : 'No offline RAG sources matched yet. Add notes or packs, then enable RAG again.',
         `Safety: ${SAFETY_COPY.ai}`,
       ].join('\n\n'),

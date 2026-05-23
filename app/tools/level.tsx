@@ -2,21 +2,30 @@ import { Screen } from '@/components/layout/screen';
 import { Card } from '@/components/ui/card';
 import { Text } from '@/components/ui/text';
 import { LevelService } from '@/services/sensors/level.service';
+import { useSensorStore } from '@/stores/sensor-store';
 import * as React from 'react';
 import { View } from 'react-native';
 
 export default function LevelTool() {
   const [available, setAvailable] = React.useState<boolean | null>(null);
   const [level, setLevel] = React.useState({ pitch: 0, roll: 0 });
+  const setStoreLevel = useSensorStore((state) => state.setLevel);
 
   React.useEffect(() => {
     let stop: undefined | (() => void);
     LevelService.isAvailable().then((ok) => {
       setAvailable(ok);
-      if (ok) stop = LevelService.start(setLevel);
+      if (ok)
+        stop = LevelService.start((nextLevel) => {
+          setLevel(nextLevel);
+          setStoreLevel(nextLevel.pitch, nextLevel.roll);
+        });
     });
-    return () => stop?.();
-  }, []);
+    return () => {
+      stop?.();
+      setStoreLevel(null, null);
+    };
+  }, [setStoreLevel]);
 
   return (
     <Screen>

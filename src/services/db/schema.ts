@@ -1,6 +1,10 @@
 export const DB_NAME = 'ark.db';
-export const DB_VERSION = 1;
+export const DB_VERSION = 5;
 
-export const SQLCIPHER_ACTIVE = false;
+export let SQLCIPHER_ACTIVE = false;
 export const SQLCIPHER_NOTE =
-  'SQLCipher is configured in Expo config where supported, but this Expo Go/dev runtime has not activated an encrypted database key path yet.';
+  'Ark applies a SecureStore-backed SQLCipher key before migrations. Expo Go may ignore SQLCipher pragmas; Diagnostics reports whether the native runtime exposes cipher_version.';
+
+export function setSqlCipherActive(active: boolean) {
+  SQLCIPHER_ACTIVE = active;
+}

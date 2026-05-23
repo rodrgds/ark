@@ -1,10 +1,14 @@
 import { randomUUID } from 'expo-crypto';
 import { DatabaseClient } from '@/services/db/client';
+import { HapticsService } from '@/services/device/haptics.service';
 import { RagService } from '@/services/ai/rag.service';
+import { LlamaAdapter } from '@/services/ai/llama-adapter';
 import { MockAIAdapter } from '@/services/ai/mock-ai-adapter';
+import { chatMessageSchema, parseOrThrow } from '@/lib/validation';
 import type { AiMessage, AiSendMessageInput } from '@/types/ai';
 
-const adapter = new MockAIAdapter();
+const mockAdapter = new MockAIAdapter();
+const llamaAdapter = new LlamaAdapter();
 
 export class AIService {
   static async listMessages(threadId: string) {
@@ -47,23 +51,35 @@ export class AIService {
     return row?.id ?? null;
   }
 
+  static async clearThread(threadId: string) {
+    const db = await DatabaseClient.getDb();
+    await db.withTransactionAsync(async () => {
+      await db.runAsync('DELETE FROM chat_messages WHERE thread_id = ?', [threadId]);
+      await db.runAsync('DELETE FROM chat_threads WHERE id = ?', [threadId]);
+    });
+  }
+
   static async sendMessage(input: AiSendMessageInput) {
+    const validated = parseOrThrow(chatMessageSchema, input);
     const db = await DatabaseClient.getDb();
     const threadId = await this.ensureThread(
-      input.threadId,
-      input.content.slice(0, 42) || 'Offline chat'
+      validated.threadId,
+      validated.content.slice(0, 42) || 'Offline chat'
     );
     const timestamp = Date.now();
     const userMessage: AiMessage = {
       id: randomUUID(),
       threadId,
       role: 'user',
-      content: input.content,
+      content: validated.content,
       citations: [],
       createdAt: timestamp,
     };
-    const citations = input.useRag ? await RagService.search(input.content, { limit: 4 }) : [];
-    const response = await adapter.sendMessage({ content: input.content, citations });
+    const citations = validated.useRag
+      ? await RagService.search(validated.content, { limit: 4 })
+      : [];
+    const adapter = (await llamaAdapter.isAvailable()) ? llamaAdapter : mockAdapter;
+    const response = await adapter.sendMessage({ content: validated.content, citations });
     const assistantMessage: AiMessage = {
       id: randomUUID(),
       threadId,
@@ -102,6 +118,7 @@ export class AIService {
       ]);
     });
 
+    void HapticsService.selection();
     return { threadId, messages: [userMessage, assistantMessage] };
   }
 }

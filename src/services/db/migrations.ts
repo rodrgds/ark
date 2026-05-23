@@ -86,6 +86,7 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
           local_uri TEXT,
           format TEXT NOT NULL,
           size_bytes INTEGER,
+          checksum_md5 TEXT,
           installed INTEGER DEFAULT 0,
           install_status TEXT DEFAULT 'not_installed',
           progress REAL DEFAULT 0,
@@ -103,6 +104,9 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
           progress REAL DEFAULT 0,
           total_bytes INTEGER,
           downloaded_bytes INTEGER,
+          resume_data TEXT,
+          expected_checksum_md5 TEXT,
+          checksum_md5 TEXT,
           error TEXT,
           created_at INTEGER,
           updated_at INTEGER
@@ -265,6 +269,46 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
         [now, now]
       );
       await db.runAsync('PRAGMA user_version = 1');
+    });
+  }
+
+  if (currentVersion < 2) {
+    await db.withTransactionAsync(async () => {
+      const columns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(downloads)');
+      if (!columns.some((column) => column.name === 'resume_data')) {
+        await db.execAsync('ALTER TABLE downloads ADD COLUMN resume_data TEXT');
+      }
+      await db.runAsync('PRAGMA user_version = 2');
+    });
+  }
+
+  if (currentVersion < 3) {
+    await db.withTransactionAsync(async () => {
+      const columns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(downloads)');
+      if (!columns.some((column) => column.name === 'checksum_md5')) {
+        await db.execAsync('ALTER TABLE downloads ADD COLUMN checksum_md5 TEXT');
+      }
+      await db.runAsync('PRAGMA user_version = 3');
+    });
+  }
+
+  if (currentVersion < 4) {
+    await db.withTransactionAsync(async () => {
+      const columns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(content_packs)');
+      if (!columns.some((column) => column.name === 'checksum_md5')) {
+        await db.execAsync('ALTER TABLE content_packs ADD COLUMN checksum_md5 TEXT');
+      }
+      await db.runAsync('PRAGMA user_version = 4');
+    });
+  }
+
+  if (currentVersion < 5) {
+    await db.withTransactionAsync(async () => {
+      const columns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(downloads)');
+      if (!columns.some((column) => column.name === 'expected_checksum_md5')) {
+        await db.execAsync('ALTER TABLE downloads ADD COLUMN expected_checksum_md5 TEXT');
+      }
+      await db.runAsync('PRAGMA user_version = 5');
     });
   }
 }

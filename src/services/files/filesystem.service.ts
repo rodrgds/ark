@@ -30,9 +30,41 @@ export class FileSystemService {
 
   static async getStorageSummary() {
     const dirs = await this.ensureAppDirectories();
+    let totalBytes = 0;
+    const directorySizes: Record<string, number> = {};
+    for (const [name, uri] of Object.entries(dirs)) {
+      const size = await this.sizeOfDirectory(uri);
+      directorySizes[name] = size;
+      totalBytes += size;
+    }
     return {
       directories: dirs,
-      note: 'Detailed recursive size accounting is deferred; directories are ready for downloads/imports.',
+      directorySizes,
+      totalBytes,
+      label: `${this.formatBytes(totalBytes)} stored offline`,
     };
+  }
+
+  private static async sizeOfDirectory(uri: string): Promise<number> {
+    const info = await FileSystem.getInfoAsync(uri);
+    if (!info.exists) return 0;
+    if (!info.isDirectory) return 'size' in info ? (info.size ?? 0) : 0;
+    const names = await FileSystem.readDirectoryAsync(uri).catch(() => []);
+    const sizes = await Promise.all(names.map((name) => this.sizeOfDirectory(`${uri}${name}`)));
+    return sizes.reduce((sum, size) => sum + size, 0);
+  }
+
+  static formatBytes(bytes: number) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+    if (bytes < 1024 * 1024 * 1024) return `${Math.round(bytes / 1024 / 1024)} MB`;
+    return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
+  }
+
+  static safeFileName(name: string) {
+    return name
+      .replace(/[^\w.\- ]+/g, '_')
+      .replace(/\s+/g, '-')
+      .slice(0, 120);
   }
 }

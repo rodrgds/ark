@@ -2,28 +2,39 @@ import { Screen } from '@/components/layout/screen';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Text } from '@/components/ui/text';
+import { HapticsService } from '@/services/device/haptics.service';
 import { BarometerService } from '@/services/sensors/barometer.service';
 import { PressureTrendService } from '@/services/weather/pressure-trend.service';
+import { useSensorStore } from '@/stores/sensor-store';
 import * as React from 'react';
 
 export default function BarometerTool() {
   const [available, setAvailable] = React.useState<boolean | null>(null);
   const [pressure, setPressure] = React.useState<number | null>(null);
   const [trend, setTrend] = React.useState<'rising' | 'stable' | 'falling'>('stable');
+  const setStorePressure = useSensorStore((state) => state.setPressure);
 
   React.useEffect(() => {
     let stop: undefined | (() => void);
     BarometerService.isAvailable().then((ok) => {
       setAvailable(ok);
-      if (ok) stop = BarometerService.start(setPressure);
+      if (ok)
+        stop = BarometerService.start((nextPressure) => {
+          setPressure(nextPressure);
+          setStorePressure(nextPressure);
+        });
     });
     PressureTrendService.computeTrend().then(setTrend);
-    return () => stop?.();
-  }, []);
+    return () => {
+      stop?.();
+      setStorePressure(null);
+    };
+  }, [setStorePressure]);
 
   async function snapshot() {
     if (pressure !== null) {
       await BarometerService.saveSnapshot(pressure);
+      void HapticsService.success();
       setTrend(await PressureTrendService.computeTrend());
     }
   }

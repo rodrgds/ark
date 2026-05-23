@@ -38,8 +38,7 @@ export default function SecurityScreen() {
       onNext={initialize}>
       <Card className="gap-3">
         <Text variant="muted">
-          Ark never stores raw passwords. This MVP uses a hash abstraction and is ready for a
-          stronger native KDF.
+          Choose a passphrase you can remember under pressure. Ark never stores the raw passphrase.
         </Text>
         <Input
           secureTextEntry
@@ -64,7 +63,7 @@ export default function SecurityScreen() {
         {error ? <Text className="text-destructive">{error}</Text> : null}
       </Card>
       <View>
-        <Text variant="muted">Biometrics unlock the local vault; data stays on device.</Text>
+        <Text variant="muted">Biometrics are optional and can be changed later in Settings.</Text>
       </View>
     </OnboardingFrame>
   );

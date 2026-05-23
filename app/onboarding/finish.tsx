@@ -1,4 +1,3 @@
-import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Text } from '@/components/ui/text';
 import { OnboardingFrame } from '@/components/onboarding/onboarding-frame';
@@ -17,15 +16,12 @@ export default function FinishScreen() {
   return (
     <OnboardingFrame title="Local AI setup" nextLabel="Enter Ark" onNext={finish}>
       <Card className="gap-3">
-        <Text variant="large">Optional model download</Text>
+        <Text variant="large">Ready for offline mode</Text>
         <Text variant="muted">
-          Ark is adapter-ready for llama.rn or @react-native-ai/llama, but this MVP uses a mock AI
-          adapter and does not download a large model automatically.
+          Library handles Wikipedia, guides, documents, and GGUF models with visible download
+          progress. Map handles regions and saved spots. Tools covers the field basics.
         </Text>
         <Text className="text-destructive">{SAFETY_COPY.ai}</Text>
-        <Button variant="outline">
-          <Text>Model manager placeholder</Text>
-        </Button>
       </Card>
     </OnboardingFrame>
   );

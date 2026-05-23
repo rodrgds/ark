@@ -16,3 +16,30 @@ export type MapRegion = {
   createdAt: number;
   updatedAt: number;
 };
+
+export type MapMarker = {
+  id: string;
+  title: string;
+  description: string | null;
+  latitude: number;
+  longitude: number;
+  icon: string | null;
+  color: string | null;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type SavedRoutePoint = {
+  latitude: number;
+  longitude: number;
+  title?: string;
+};
+
+export type SavedRoute = {
+  id: string;
+  title: string;
+  points: SavedRoutePoint[];
+  distanceMeters: number | null;
+  createdAt: number;
+  updatedAt: number;
+};

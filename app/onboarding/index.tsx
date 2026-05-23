@@ -3,10 +3,9 @@ import { OnboardingFrame } from '@/components/onboarding/onboarding-frame';
 import { SettingsRepository } from '@/services/db/repositories/settings.repo';
 
 const cards = [
-  ['Offline maps', 'Plan map packs and saved regions for no-service navigation.'],
-  ['Knowledge packs', 'Keep practical references cached locally.'],
-  ['Private vault', 'Secure notes and documents behind a local unlock step.'],
-  ['Local AI', 'Adapter-ready offline assistant with RAG sources.'],
+  ['Download before you leave', 'Maps, guides, weather, and references live on this device.'],
+  ['Keep private notes close', 'The vault puts notes and documents behind a local unlock step.'],
+  ['Ask with sources', 'Ark answers from downloaded material when a local model is available.'],
 ];
 
 export default function IntroScreen() {
@@ -17,6 +16,12 @@ export default function IntroScreen() {
       onNext={async () => {
         await SettingsRepository.updateOnboardingState({ hasSeenIntro: true });
       }}>
+      <Card className="border-primary/35 bg-primary/10 gap-2">
+        <CardHeader
+          title="Arky is your offline quartermaster"
+          description="No account, no cloud sync, no hidden service dependency. Set up the basics now, tune everything later."
+        />
+      </Card>
       {cards.map(([title, description]) => (
         <Card key={title}>
           <CardHeader title={title} description={description} />

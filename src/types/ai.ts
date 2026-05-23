@@ -2,6 +2,7 @@ export type AiCitation = {
   sourceId: string;
   title: string;
   snippet: string;
+  sourceRef?: string;
 };
 
 export type AiMessage = {

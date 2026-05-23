@@ -1,5 +1,7 @@
 import { randomUUID } from 'expo-crypto';
 import { DatabaseClient } from '@/services/db/client';
+import { HapticsService } from '@/services/device/haptics.service';
+import { noteInputSchema, notePatchSchema, parseOrThrow } from '@/lib/validation';
 import type { Note } from '@/types/db';
 
 function mapNote(row: {
@@ -63,13 +65,14 @@ export class NotesRepository {
   }
 
   static async create(input: { title: string; body: string; tags?: string[] }) {
+    const validated = parseOrThrow(noteInputSchema, input);
     const db = await DatabaseClient.getDb();
     const now = Date.now();
     const note: Note = {
       id: randomUUID(),
-      title: input.title.trim() || 'Untitled note',
-      body: input.body,
-      tags: input.tags ?? [],
+      title: validated.title || 'Untitled note',
+      body: validated.body,
+      tags: validated.tags,
       isFavorite: false,
       createdAt: now,
       updatedAt: now,
@@ -83,6 +86,7 @@ export class NotesRepository {
       );
       await this.syncFts(note);
     });
+    void HapticsService.success();
     return note;
   }
 
@@ -90,12 +94,13 @@ export class NotesRepository {
     id: string,
     patch: Partial<Pick<Note, 'title' | 'body' | 'tags' | 'isFavorite'>>
   ) {
+    const validatedPatch = parseOrThrow(notePatchSchema, patch);
     const current = await this.get(id);
     if (!current) return null;
     const next: Note = {
       ...current,
-      ...patch,
-      title: patch.title?.trim() || current.title,
+      ...validatedPatch,
+      title: validatedPatch.title || current.title,
       updatedAt: Date.now(),
     };
     const db = await DatabaseClient.getDb();
@@ -114,6 +119,7 @@ export class NotesRepository {
       );
       await this.syncFts(next);
     });
+    void HapticsService.selection();
     return next;
   }
 

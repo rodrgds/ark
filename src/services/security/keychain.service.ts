@@ -3,6 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 
 const PASSWORD_VERIFIER_KEY = 'ark.vault.passwordVerifier';
 const BIOMETRIC_TOKEN_KEY = 'ark.vault.biometricToken';
+const CURRENT_VERIFIER_PREFIX = 'ark-v2:sha512:5000:';
 
 export class KeychainService {
   static async generateSalt() {
@@ -11,6 +12,28 @@ export class KeychainService {
   }
 
   static async derivePasswordVerifier(password: string, salt: string) {
+    let digest = `${salt}:${password}`;
+    for (let i = 0; i < 5000; i += 1) {
+      digest = await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA512,
+        `${salt}:${i}:${digest}`
+      );
+    }
+    return `${CURRENT_VERIFIER_PREFIX}${digest}`;
+  }
+
+  static async verifyPassword(password: string, salt: string, expectedVerifier: string) {
+    const actual = expectedVerifier.startsWith(CURRENT_VERIFIER_PREFIX)
+      ? await this.derivePasswordVerifier(password, salt)
+      : await this.deriveLegacyPasswordVerifier(password, salt);
+    return actual === expectedVerifier;
+  }
+
+  static needsVerifierUpgrade(verifier: string) {
+    return !verifier.startsWith(CURRENT_VERIFIER_PREFIX);
+  }
+
+  private static async deriveLegacyPasswordVerifier(password: string, salt: string) {
     let digest = `${salt}:${password}`;
     for (let i = 0; i < 750; i += 1) {
       digest = await Crypto.digestStringAsync(
@@ -37,5 +60,9 @@ export class KeychainService {
 
   static async getBiometricToken() {
     return SecureStore.getItemAsync(BIOMETRIC_TOKEN_KEY);
+  }
+
+  static async deleteBiometricToken() {
+    await SecureStore.deleteItemAsync(BIOMETRIC_TOKEN_KEY);
   }
 }

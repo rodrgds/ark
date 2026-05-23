@@ -5,7 +5,7 @@ import { OnboardingFrame } from '@/components/onboarding/onboarding-frame';
 import { BiometricsService } from '@/services/security/biometrics.service';
 import { VaultService } from '@/services/security/vault.service';
 import * as React from 'react';
-import { View } from 'react-native';
+import { TextInput, View } from 'react-native';
 
 export default function SecurityScreen() {
   const [password, setPassword] = React.useState('');
@@ -14,9 +14,12 @@ export default function SecurityScreen() {
   const [biometrics, setBiometrics] = React.useState(false);
   const [available, setAvailable] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  const trimmedPassword = password.trim();
-  const passwordsMatch = trimmedPassword.length > 0 && password === confirmPassword;
-  const canContinue = trimmedPassword.length >= 8 && passwordsMatch;
+  const confirmInputRef = React.useRef<TextInput>(null);
+  const hintInputRef = React.useRef<TextInput>(null);
+  const hasPassphrase = password.trim().length > 0;
+  const passwordMeetsLength = hasPassphrase && password.length >= 8;
+  const passwordsMatch = hasPassphrase && password === confirmPassword;
+  const canContinue = passwordMeetsLength && passwordsMatch;
 
   React.useEffect(() => {
     BiometricsService.getStatus().then((status) =>
@@ -25,6 +28,10 @@ export default function SecurityScreen() {
   }, []);
 
   async function initialize() {
+    if (!passwordMeetsLength) {
+      setError('Use at least 8 characters for the vault passphrase.');
+      return false;
+    }
     if (password !== confirmPassword) {
       setError('Passphrases do not match.');
       return false;
@@ -51,30 +58,68 @@ export default function SecurityScreen() {
       onNext={initialize}>
       <View className="gap-4">
         <Text className="text-foreground leading-6">
-          Choose a passphrase you can remember under pressure. You will need it to unlock your
-          notes and private files.
+          Choose a passphrase you can remember under pressure. Confirm it now; Ark cannot recover
+          private notes or files without it.
         </Text>
 
-        <Input
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-          placeholder="Vault passphrase"
-          autoCapitalize="none"
-        />
-        <Input
-          secureTextEntry
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-          placeholder="Confirm passphrase"
-          autoCapitalize="none"
-        />
-        <Input value={hint} onChangeText={setHint} placeholder="Hint (optional)" />
+        <View className="gap-2">
+          <Text variant="small" className="text-muted-foreground">
+            Vault passphrase
+          </Text>
+          <Input
+            secureTextEntry
+            value={password}
+            onChangeText={(value) => {
+              setPassword(value);
+              setError(null);
+            }}
+            placeholder="Enter passphrase"
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="next"
+            textContentType="newPassword"
+            onSubmitEditing={() => confirmInputRef.current?.focus()}
+          />
+        </View>
+
+        <View className="gap-2">
+          <Text variant="small" className="text-muted-foreground">
+            Confirm passphrase
+          </Text>
+          <Input
+            ref={confirmInputRef}
+            secureTextEntry
+            value={confirmPassword}
+            onChangeText={(value) => {
+              setConfirmPassword(value);
+              setError(null);
+            }}
+            placeholder="Re-enter passphrase"
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="next"
+            textContentType="newPassword"
+            onSubmitEditing={() => hintInputRef.current?.focus()}
+          />
+        </View>
+
+        <View className="gap-2">
+          <Text variant="small" className="text-muted-foreground">
+            Recovery hint
+          </Text>
+          <Input
+            ref={hintInputRef}
+            value={hint}
+            onChangeText={setHint}
+            placeholder="Optional"
+            returnKeyType="done"
+          />
+        </View>
 
         {!passwordsMatch && confirmPassword.length > 0 ? (
           <Text className="text-destructive text-sm">Passphrases do not match.</Text>
         ) : null}
-        {trimmedPassword.length > 0 && trimmedPassword.length < 8 ? (
+        {hasPassphrase && !passwordMeetsLength ? (
           <Text className="text-destructive text-sm">
             Use at least 8 characters for the vault passphrase.
           </Text>

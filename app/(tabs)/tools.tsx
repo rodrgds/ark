@@ -94,8 +94,8 @@ export default function ToolsScreen() {
       <Link href={TOOL_ROUTES.weather} asChild>
         <ActionCard
           icon={SunMedium}
-          title="Offline weather"
-          description="View or refresh the cached local forecast."
+          title="Meteorology"
+          description="Cached local forecast, confidence, and trend charts."
         />
       </Link>
       <Link href={TOOL_ROUTES.checklist} asChild>

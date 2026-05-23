@@ -9,7 +9,7 @@ const titles: Record<string, string> = {
   pedometer: 'Pedometer',
   light: 'Light Meter',
   coordinates: 'Coordinates',
-  weather: 'Offline Weather',
+  weather: 'Meteorology',
   checklist: 'Checklist',
   diagnostics: 'Diagnostics',
 };

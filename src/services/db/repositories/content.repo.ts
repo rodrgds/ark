@@ -13,6 +13,12 @@ const LEGACY_PLACEHOLDER_PACK_IDS = [
   'mushrooms-safety-placeholder',
 ];
 
+const REMOVED_STARTER_PACK_IDS = [
+  ...LEGACY_PLACEHOLDER_PACK_IDS,
+  'model-gemma3-1b-it-q4-0',
+  'model-gemma4-e2b-it-q4-k-m',
+];
+
 function now() {
   return Date.now();
 }
@@ -75,7 +81,7 @@ export class ContentRepository {
   static async seedStarterPacks() {
     const db = await DatabaseClient.getDb();
     const timestamp = now();
-    for (const id of LEGACY_PLACEHOLDER_PACK_IDS) {
+    for (const id of REMOVED_STARTER_PACK_IDS) {
       await db.runAsync('DELETE FROM content_packs WHERE id = ?', [id]);
     }
     for (const pack of STARTER_PACKS) {

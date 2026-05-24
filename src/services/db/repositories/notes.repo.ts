@@ -1,5 +1,6 @@
 import { randomUUID } from 'expo-crypto';
 import { DatabaseClient } from '@/services/db/client';
+import { toFtsPrefixQuery } from '@/services/db/fts';
 import { HapticsService } from '@/services/device/haptics.service';
 import { noteInputSchema, notePatchSchema, parseOrThrow } from '@/lib/validation';
 import type { Note } from '@/types/db';
@@ -26,19 +27,10 @@ function mapNote(row: {
   };
 }
 
-function toFtsQuery(query: string) {
-  return query
-    .split(/\s+/)
-    .map((part) => part.replace(/[^a-zA-Z0-9_'-]/g, '').trim())
-    .filter(Boolean)
-    .map((part) => `${part}*`)
-    .join(' ');
-}
-
 export class NotesRepository {
   static async list(query?: string) {
     const db = await DatabaseClient.getDb();
-    const fts = query ? toFtsQuery(query) : '';
+    const fts = query ? toFtsPrefixQuery(query) : '';
     if (fts) {
       const rows = await db.getAllAsync<Parameters<typeof mapNote>[0]>(
         `SELECT n.* FROM notes n

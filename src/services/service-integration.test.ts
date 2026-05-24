@@ -795,6 +795,14 @@ describe('service integration', () => {
 
     const citations = await RagService.search('north spring water', { limit: 3 });
     expect(citations.some((citation) => citation.sourceRef === document?.id)).toBe(true);
+
+    const punctuationCitations = await RagService.search(
+      "what's on the trailhead-sign OR north spring?",
+      { limit: 3 }
+    );
+    expect(punctuationCitations.some((citation) => citation.sourceRef === document?.id)).toBe(
+      true
+    );
   });
 
   test('imported PDFs use text-layer extraction before OCR', async () => {
@@ -860,7 +868,7 @@ describe('service integration', () => {
     ).toBe(true);
   });
 
-  test('saved maps and cached weather become Ask Arky sources', async () => {
+  test('saved maps become Ask Arky sources while stale weather RAG rows are pruned', async () => {
     await OfflineMapService.createMarker({
       title: 'North bridge water cache',
       description: 'Spare filter and sealed canteen stored under the east stair.',
@@ -876,28 +884,118 @@ describe('service integration', () => {
       east: -8,
       west: -10,
     });
-    await WeatherRepository.saveForecast({
-      latitude: 38.711,
-      longitude: -9.139,
-      locationLabel: 'North bridge',
-      provider: 'open-meteo',
-      forecast: {
-        summary: 'High wind after sunset with rain near the bridge.',
-        pressureTrend: 'falling',
-      },
-    });
+    await testDb.runAsync(
+      `INSERT INTO rag_sources (id, kind, source_ref, title, created_at, updated_at)
+       VALUES ('weather:latest', 'weather', 'old-weather-row', 'Weather: stale', 1, 1)`
+    );
+    await testDb.runAsync(
+      `INSERT INTO rag_chunks
+        (id, source_id, chunk_index, text, token_count, embedding_model_id, embedding_blob, created_at)
+       VALUES ('old-weather-chunk', 'weather:latest', 0, 'Weather tomorrow: stale rain.', 6, NULL, NULL, 1)`
+    );
+    await testDb.runAsync(
+      'INSERT INTO rag_chunks_fts (chunk_id, text, source_title) VALUES (?, ?, ?)',
+      ['old-weather-chunk', 'Weather tomorrow: stale rain.', 'Weather: stale']
+    );
 
     const mapCitations = await RagService.search('where is the spare filter cache', { limit: 4 });
-    const weatherCitations = await RagService.search('north bridge high wind rain pressure', {
+    const weatherCitations = await RagService.search('what will the weather be like tomorrow', {
       limit: 4,
     });
+    const staleWeatherSource = await testDb.getFirstAsync<{ id: string }>(
+      'SELECT id FROM rag_sources WHERE id = ?',
+      ['weather:latest']
+    );
 
     expect(mapCitations.some((citation) => citation.sourceId.startsWith('map-marker:'))).toBe(true);
     expect(mapCitations.some((citation) => citation.targetHref === '/(tabs)/map')).toBe(true);
-    expect(weatherCitations.some((citation) => citation.sourceId === 'weather:latest')).toBe(true);
-    expect(weatherCitations.some((citation) => citation.targetHref === '/tools/weather')).toBe(
-      true
+    expect(weatherCitations.some((citation) => citation.sourceId === 'weather:latest')).toBe(
+      false
     );
+    expect(staleWeatherSource).toBeNull();
+  });
+
+  test('AI chat reads cached weather forecasts directly without RAG indexing', async () => {
+    await WeatherRepository.saveForecast({
+      latitude: 38.711,
+      longitude: -9.139,
+      locationLabel: 'North bridge cache',
+      provider: 'test-cache',
+      forecast: {
+        summary: 'Rain, 11C, 22 km/h wind, 1008 hPa',
+        conditionLabel: 'Rain',
+        weatherCode: 61,
+        temperatureC: 11,
+        apparentTemperatureC: 9,
+        humidityPct: 87,
+        windKph: 22,
+        windGustKph: 41,
+        pressureHpa: 1008,
+        precipitationMm: 2.4,
+        cloudCoverPct: 92,
+        confidencePct: 92,
+        daily: [
+          {
+            date: '2026-01-01',
+            weatherCode: 3,
+            label: 'Overcast',
+            highC: 14,
+            lowC: 9,
+            precipitationMm: 1.2,
+            precipitationProbabilityPct: 45,
+            windKph: 18,
+            gustKph: 32,
+            confidencePct: 90,
+          },
+          {
+            date: '2026-01-02',
+            weatherCode: 61,
+            label: 'Rain',
+            highC: 13,
+            lowC: 8,
+            precipitationMm: 12,
+            precipitationProbabilityPct: 82,
+            windKph: 35,
+            gustKph: 58,
+            confidencePct: 84,
+          },
+        ],
+        hourly: [
+          {
+            time: '2026-01-02T09:00',
+            weatherCode: 61,
+            temperatureC: 9,
+            precipitationProbabilityPct: 72,
+            precipitationMm: 3,
+            windKph: 28,
+            pressureHpa: 1006,
+          },
+        ],
+      },
+      expiresAt: Date.now() + 6 * 60 * 60 * 1000,
+    });
+    await testDb.runAsync(
+      `INSERT INTO rag_sources (id, kind, source_ref, title, created_at, updated_at)
+       VALUES ('weather:latest', 'weather', 'old-weather-row', 'Weather: stale', 1, 1)`
+    );
+
+    const result = await AIService.sendMessage({
+      content: 'What will the weather be like tomorrow?',
+      useRag: true,
+    });
+    const staleWeatherSource = await testDb.getFirstAsync<{ id: string }>(
+      'SELECT id FROM rag_sources WHERE id = ?',
+      ['weather:latest']
+    );
+
+    expect(result.messages).toHaveLength(3);
+    expect(result.messages[1].role).toBe('tool');
+    expect(result.messages[1].content).toContain('Opened cached weather forecast');
+    expect(result.messages[2].citations[0]?.sourceId).toBe('weather:cached');
+    expect(result.messages[2].citations[0]?.targetHref).toBe('/tools/weather');
+    expect(result.messages[2].citations[0]?.snippet).toContain('Tomorrow: Rain');
+    expect(result.messages[2].citations[0]?.snippet).toContain('precipitation chance 82%');
+    expect(staleWeatherSource).not.toBeNull();
   });
 
   test('image imports do not fake OCR when the native module is missing', async () => {
@@ -951,8 +1049,9 @@ describe('service integration', () => {
     expect(llamaStopCalls).toBe(1);
 
     releaseCompletion();
-    const result = await pending;
-    expect(result.messages[1].content).toBe('Local mocked llama response.');
+    await expect(pending).rejects.toThrow('AI request cancelled.');
+    const latestThread = await AIService.getLatestThread();
+    expect(latestThread ? await AIService.listMessages(latestThread) : []).toHaveLength(0);
   });
 
   test('model manager reports runtime readiness for installed local models', async () => {

@@ -6,11 +6,10 @@ import { Text } from '@/components/ui/text';
 import { NAV_COLORS } from '@/constants/theme';
 import { hexToRgba } from '@/lib/colors';
 import { RssService } from '@/services/rss/rss.service';
+import { useSensorStore } from '@/stores/sensor-store';
 import { useThemeStore } from '@/stores/theme-store';
 import { Link, type Href, useFocusEffect } from 'expo-router';
 import {
-  Battery,
-  BatteryCharging,
   CheckSquare,
   Compass,
   Crosshair,
@@ -59,111 +58,8 @@ const TOOL_ROUTES = {
   checklist: '/tools/checklist' as Href,
 };
 
-type BatterySnapshot = {
-  available: boolean;
-  level: number | null;
-  charging: boolean;
-  lowPower: boolean;
-};
-
-type BatteryModule = {
-  BatteryState?: Record<string, number>;
-  getPowerStateAsync?: () => Promise<{
-    batteryLevel: number;
-    batteryState: number;
-    lowPowerMode: boolean;
-  }>;
-  isAvailableAsync?: () => Promise<boolean>;
-  getBatteryLevelAsync?: () => Promise<number>;
-  getBatteryStateAsync?: () => Promise<number>;
-  isLowPowerModeEnabledAsync?: () => Promise<boolean>;
-};
-
-function getBatteryModule(): BatteryModule | null {
-  try {
-    return require('expo-battery') as BatteryModule;
-  } catch {
-    return null;
-  }
-}
-
-function batteryLabel(snapshot: BatterySnapshot) {
-  if (!snapshot.available || snapshot.level == null) return null;
-  const percent = Math.round(snapshot.level * 100);
-  if (snapshot.charging) return `Charging - ${percent}%`;
-  return snapshot.lowPower ? `${percent}% battery - Low Power Mode` : `${percent}% battery`;
-}
-
-function useBatterySnapshot() {
-  const [snapshot, setSnapshot] = React.useState<BatterySnapshot>({
-    available: true,
-    level: null,
-    charging: false,
-    lowPower: false,
-  });
-
-  React.useEffect(() => {
-    let active = true;
-
-    async function load() {
-      const BatteryModule = getBatteryModule();
-      if (!BatteryModule?.getBatteryLevelAsync) {
-        if (active) {
-          setSnapshot({ available: false, level: null, charging: false, lowPower: false });
-        }
-        return;
-      }
-
-      try {
-        const supported = await (BatteryModule.isAvailableAsync?.() ?? Promise.resolve(true));
-        if (!supported) {
-          if (active) {
-            setSnapshot({ available: false, level: null, charging: false, lowPower: false });
-          }
-          return;
-        }
-
-        const powerState = await BatteryModule.getPowerStateAsync?.();
-        const [level, state, lowPower] = powerState
-          ? [powerState.batteryLevel, powerState.batteryState, powerState.lowPowerMode]
-          : await Promise.all([
-              BatteryModule.getBatteryLevelAsync(),
-              BatteryModule.getBatteryStateAsync?.() ?? Promise.resolve(undefined),
-              BatteryModule.isLowPowerModeEnabledAsync?.() ?? Promise.resolve(false),
-            ]);
-        const chargingState = BatteryModule.BatteryState?.CHARGING;
-        const fullState = BatteryModule.BatteryState?.FULL;
-        if (active) {
-          setSnapshot({
-            available: level >= 0,
-            level: level >= 0 ? level : null,
-            charging: state === chargingState || state === fullState,
-            lowPower,
-          });
-        }
-      } catch {
-        if (active) {
-          setSnapshot({ available: false, level: null, charging: false, lowPower: false });
-        }
-      }
-    }
-
-    void load();
-    const interval = setInterval(() => {
-      void load();
-    }, 60_000);
-    return () => {
-      active = false;
-      clearInterval(interval);
-    };
-  }, []);
-
-  return snapshot;
-}
-
 export default function ToolsScreen() {
-  const battery = useBatterySnapshot();
-  const batteryStatus = batteryLabel(battery);
+  const { heading, pressure, pitch, roll, steps, lux } = useSensorStore();
   const [rssUnreadCount, setRssUnreadCount] = React.useState(0);
 
   useFocusEffect(
@@ -189,6 +85,7 @@ export default function ToolsScreen() {
       title: 'Compass',
       description: 'Heading and cardinal direction.',
       drain: 'medium' as Drain,
+      reading: heading == null ? 'No fix' : `${Math.round(heading)} deg`,
     },
     {
       href: '/tools/barometer' as Href,
@@ -196,6 +93,7 @@ export default function ToolsScreen() {
       title: 'Barometer',
       description: 'Pressure and trend snapshots.',
       drain: 'low' as Drain,
+      reading: pressure == null ? 'No reading' : `${Math.round(pressure)} hPa`,
     },
     {
       href: '/tools/level' as Href,
@@ -203,6 +101,8 @@ export default function ToolsScreen() {
       title: 'Level',
       description: 'Pitch and roll bubble level.',
       drain: 'low' as Drain,
+      reading:
+        pitch == null || roll == null ? 'No reading' : `${pitch.toFixed(1)} / ${roll.toFixed(1)}`,
     },
     {
       href: '/tools/chronometer' as Href,
@@ -210,6 +110,7 @@ export default function ToolsScreen() {
       title: 'Chronometer',
       description: 'Stopwatch with lap times.',
       drain: 'low' as Drain,
+      reading: 'Offline',
     },
     {
       href: '/tools/light' as Href,
@@ -217,6 +118,7 @@ export default function ToolsScreen() {
       title: 'Light meter',
       description: 'Ambient lux on supported devices.',
       drain: 'low' as Drain,
+      reading: lux == null ? 'No reading' : `${Math.round(lux)} lux`,
     },
     {
       href: TOOL_ROUTES.coordinates,
@@ -224,6 +126,7 @@ export default function ToolsScreen() {
       title: 'Coordinates',
       description: 'GPS fix and saved map spots.',
       drain: 'medium' as Drain,
+      reading: 'Location',
     },
     {
       href: TOOL_ROUTES.weather,
@@ -231,6 +134,7 @@ export default function ToolsScreen() {
       title: 'Meteorology',
       description: 'Cached forecast and confidence.',
       drain: 'low' as Drain,
+      reading: 'Cached',
     },
     {
       href: '/tools/news' as Href,
@@ -238,6 +142,7 @@ export default function ToolsScreen() {
       title: 'News',
       description: 'Emergency feeds for offline reading.',
       drain: 'low' as Drain,
+      reading: 'Feeds',
       badge: rssUnreadCount,
     },
     {
@@ -246,6 +151,7 @@ export default function ToolsScreen() {
       title: 'Checklist',
       description: 'Readiness tasks before leaving service.',
       drain: 'low' as Drain,
+      reading: 'Local',
     },
   ];
 
@@ -254,15 +160,6 @@ export default function ToolsScreen() {
       <View className="flex-row items-center justify-between gap-3">
         <View className="flex-1 gap-2">
           <Text variant="h1">Tools</Text>
-          {batteryStatus ? (
-            <View className="flex-row items-center gap-2">
-              <Icon
-                as={battery.charging ? BatteryCharging : Battery}
-                className="text-primary size-4"
-              />
-              <Text variant="muted">{batteryStatus}</Text>
-            </View>
-          ) : null}
         </View>
         <Arky pose="resourceful" size={80} />
       </View>
@@ -282,6 +179,7 @@ function ToolTile({
   title,
   description,
   drain,
+  reading,
   badge,
 }: {
   href: Href;
@@ -289,6 +187,7 @@ function ToolTile({
   title: string;
   description: string;
   drain: Drain;
+  reading: string;
   badge?: number;
 }) {
   return (
@@ -297,17 +196,17 @@ function ToolTile({
         <Card className="min-h-[154px] justify-between gap-3 p-3">
           <View className="gap-3">
             <View className="flex-row items-start justify-between gap-2">
-              <View className="bg-primary/12 size-10 items-center justify-center rounded-lg">
+              <View className="bg-primary/12 relative size-10 items-center justify-center rounded-lg">
                 <Icon as={icon} className="text-primary size-5" />
-              </View>
-              <View className="items-end gap-1">
                 {badge ? (
-                  <View className="bg-destructive min-w-5 items-center rounded-full px-1.5 py-0.5">
+                  <View className="bg-destructive absolute -right-2 -top-2 min-w-5 items-center rounded-full px-1.5 py-0.5">
                     <Text className="text-[10px] font-bold text-white" numberOfLines={1}>
                       {badge > 99 ? '99+' : badge}
                     </Text>
                   </View>
                 ) : null}
+              </View>
+              <View className="items-end gap-1">
                 <DrainBadge level={drain} />
               </View>
             </View>
@@ -320,6 +219,9 @@ function ToolTile({
               </Text>
             </View>
           </View>
+          <Text variant="small" className="text-muted-foreground font-mono">
+            {reading}
+          </Text>
         </Card>
       </Pressable>
     </Link>

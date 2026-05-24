@@ -87,11 +87,17 @@ export const ArkKeyboardAvoidingView = React.forwardRef<View, ArkKeyboardAvoidin
       keyboardVerticalOffset,
       ...viewProps
     } = props;
+    const fallbackBehavior =
+      _behavior === 'translate-with-padding'
+        ? Platform.OS === 'ios'
+          ? 'padding'
+          : 'height'
+        : (_behavior ?? (Platform.OS === 'ios' ? 'padding' : 'height'));
 
     return (
       <KeyboardAvoidingView
         ref={ref as any}
-        behavior="padding"
+        behavior={fallbackBehavior}
         keyboardVerticalOffset={keyboardVerticalOffset ?? 0}
         {...viewProps}
       />

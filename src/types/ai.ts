@@ -41,7 +41,7 @@ export type AiAdapterSendInput = {
     content: string;
   }>;
   toolTrace?: Array<{
-    tool: 'search_local_knowledge' | 'read_local_source';
+    tool: 'search_local_knowledge' | 'read_local_source' | 'read_cached_weather';
     summary: string;
   }>;
   onToken?: (content: string) => void;

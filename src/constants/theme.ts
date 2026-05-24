@@ -1,4 +1,4 @@
-export type ThemePreference = 'oled' | 'dark' | 'light' | 'system';
+export type ThemePreference = 'oled' | 'dark' | 'light';
 
 export const THEME_OPTIONS: Array<{ value: ThemePreference; label: string; description: string }> =
   [
@@ -16,11 +16,6 @@ export const THEME_OPTIONS: Array<{ value: ThemePreference; label: string; descr
       value: 'light',
       label: 'Light',
       description: 'Bright mode for daylight readability.',
-    },
-    {
-      value: 'system',
-      label: 'System',
-      description: 'Follow the device appearance setting.',
     },
   ];
 

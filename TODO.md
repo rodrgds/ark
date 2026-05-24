@@ -166,7 +166,6 @@ These are the actual URLs used by the current download system:
 
 - Qwen2.5 1.5B Q4_0 GGUF (~1 GB): Good starting model for mobile. From HuggingFace.
 - SmolLM2 1.7B Q4_0 GGUF (~1.2 GB): Alternative. Good instruction following.
-- Gemma 3 4B Q4_0 GGUF (~3.2 GB): Larger, for devices with 6GB+ RAM. Not enabled in-app because the Google Gemma Hugging Face repository is gated and requires license acceptance.
 
 ---
 

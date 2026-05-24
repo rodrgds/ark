@@ -24,5 +24,3 @@ small files through Expo Crypto and for large model files with Ark's chunked SHA
 
 `npx llama-rn-download-artifacts` reports cached Android `jniLibs` and iOS
 `rnllama.xcframework` artifacts in this workspace.
-
-Gemma-class models are intentionally not enabled in-app until license gates and device memory guidance are resolved.

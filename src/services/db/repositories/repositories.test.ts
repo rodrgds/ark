@@ -203,9 +203,17 @@ describe('repositories', () => {
   });
 
   test('content packs seed real packs and support install state changes', async () => {
+    await testDb.runAsync(
+      `INSERT INTO content_packs
+        (id, title, description, category, language, source_url, format, installed, install_status, progress, created_at, updated_at)
+       VALUES (?, 'Gemma old row', 'Removed model', 'AI Models', 'en', 'https://example.test/gemma.gguf', 'gguf', 0, 'not_installed', 0, 1, 1)`,
+      ['model-gemma3-1b-it-q4-0']
+    );
+
     const packs = await ContentRepository.list();
     expect(packs.length).toBeGreaterThan(4);
     expect(packs.some((pack) => pack.id.includes('placeholder'))).toBe(false);
+    expect(packs.some((pack) => pack.id.includes('gemma'))).toBe(false);
 
     const pack = packs.find((item) => item.id === 'wikipedia-en-top100-nopic');
     expect(pack?.sourceUrl).toMatch(/^https:\/\//);
@@ -279,6 +287,8 @@ describe('repositories', () => {
     });
 
     expect((await NotesRepository.list('boil'))[0]?.id).toBe(note.id);
+    expect((await NotesRepository.list('water-plan'))[0]?.id).toBe(note.id);
+    expect(await NotesRepository.list("what's water-plan?")).toEqual([]);
 
     await NotesRepository.update(note.id, { isFavorite: true, body: 'Boil and cool water.' });
     const updated = await NotesRepository.get(note.id);

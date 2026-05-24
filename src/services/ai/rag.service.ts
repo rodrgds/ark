@@ -1,13 +1,13 @@
 import { randomUUID } from 'expo-crypto';
 import * as FileSystem from 'expo-file-system/legacy';
 import { DatabaseClient } from '@/services/db/client';
+import { toFtsPrefixQueries } from '@/services/db/fts';
 import { NotesRepository } from '@/services/db/repositories/notes.repo';
 import { ContentRepository } from '@/services/db/repositories/content.repo';
 import { DocumentsRepository } from '@/services/db/repositories/documents.repo';
 import { DocumentPagesRepository } from '@/services/db/repositories/document-pages.repo';
 import { MapsRepository } from '@/services/db/repositories/maps.repo';
 import { RssRepository } from '@/services/db/repositories/rss.repo';
-import { WeatherRepository } from '@/services/db/repositories/weather.repo';
 import { chunkText, estimateTokens } from '@/services/ai/chunking';
 import {
   RAG_HASH_EMBEDDING_MODEL_ID,
@@ -53,19 +53,8 @@ const STOPWORDS = new Set([
   'with',
 ]);
 
-function tokenizeForFts(query: string) {
-  return query
-    .split(/\s+/)
-    .map((part) => part.replace(/[^a-zA-Z0-9_']/g, '').trim())
-    .filter(Boolean);
-}
-
 function toFtsQueries(query: string) {
-  const terms = tokenizeForFts(query);
-  const meaningful = terms.filter((term) => term.length > 2 && !STOPWORDS.has(term.toLowerCase()));
-  const precise = terms.map((part) => `${part}*`).join(' ');
-  const fallback = meaningful.map((part) => `${part}*`).join(' OR ');
-  return Array.from(new Set([precise, fallback].filter(Boolean)));
+  return toFtsPrefixQueries(query, { stopwords: STOPWORDS, meaningfulMinLength: 3 });
 }
 
 export class RagService {
@@ -403,34 +392,6 @@ export class RagService {
     }
   }
 
-  static async indexWeatherCache() {
-    const latest = await WeatherRepository.getLatest();
-    if (!latest) {
-      await this.removeSource('weather:latest');
-      return;
-    }
-    if (!(await this.shouldReindexSource('weather:latest', latest.fetched_at))) return;
-    await this.replaceSource({
-      id: 'weather:latest',
-      kind: 'weather',
-      sourceRef: latest.id,
-      title: latest.location_label ? `Weather: ${latest.location_label}` : 'Cached weather',
-      chunks: chunkText(
-        [
-          latest.location_label ? `Location: ${latest.location_label}.` : '',
-          latest.latitude !== null && latest.longitude !== null
-            ? `Coordinates: ${latest.latitude.toFixed(5)}, ${latest.longitude.toFixed(5)}.`
-            : '',
-          latest.provider ? `Provider: ${latest.provider}.` : '',
-          `Fetched: ${new Date(latest.fetched_at).toISOString()}.`,
-          weatherForecastText(latest.forecast_json),
-        ]
-          .filter(Boolean)
-          .join('\n')
-      ),
-    });
-  }
-
   static async cacheZimArticle(pack: ContentPack, path: string, article: ZimArticle) {
     const db = await DatabaseClient.getDb();
     const timestamp = Date.now();
@@ -564,7 +525,7 @@ export class RagService {
     await this.indexImportedDocuments();
     await this.indexRssItems();
     await this.indexMapData();
-    await this.indexWeatherCache();
+    await this.removeSourceIfExists('weather:latest');
     const ftsQueries = toFtsQueries(query);
     if (!ftsQueries.length) return [];
     const db = await DatabaseClient.getDb();
@@ -675,6 +636,14 @@ export class RagService {
     for (const row of rows) {
       if (!activeSourceIds.has(row.id)) await this.removeSource(row.id);
     }
+  }
+
+  private static async removeSourceIfExists(sourceId: string) {
+    const db = await DatabaseClient.getDb();
+    const row = await db.getFirstAsync<{ id: string }>('SELECT id FROM rag_sources WHERE id = ?', [
+      sourceId,
+    ]);
+    if (row) await this.removeSource(sourceId);
   }
 
   private static async buildPackChunks(pack: ContentPack) {
@@ -815,24 +784,6 @@ function hashText(text: string) {
   return hash.toString(16);
 }
 
-function weatherForecastText(rawJson: string) {
-  try {
-    const forecast = JSON.parse(rawJson);
-    if (forecast && typeof forecast === 'object') {
-      const parts = Object.entries(forecast as Record<string, unknown>).map(([key, value]) => {
-        if (Array.isArray(value)) return `${key}: ${JSON.stringify(value.slice(0, 8))}.`;
-        if (value && typeof value === 'object')
-          return `${key}: ${JSON.stringify(value).slice(0, 600)}.`;
-        return `${key}: ${String(value)}.`;
-      });
-      return parts.join('\n').slice(0, 4000);
-    }
-  } catch {
-    return rawJson.slice(0, 4000);
-  }
-  return rawJson.slice(0, 4000);
-}
-
 function dedupeCitations(citations: AiCitation[]) {
   const seen = new Set<string>();
   return citations.filter((citation) => {
@@ -914,7 +865,6 @@ function citationForRow(row: {
     row.source_id.startsWith('map-region:')
       ? '/(tabs)/map'
       : undefined;
-  const weatherTarget = row.source_id === 'weather:latest' ? '/tools/weather' : undefined;
 
   return {
     sourceId: row.source_id,
@@ -927,8 +877,7 @@ function citationForRow(row: {
       documentTarget ??
       zimArticleTarget ??
       rssTarget ??
-      mapTarget ??
-      weatherTarget,
+      mapTarget,
   };
 }
 

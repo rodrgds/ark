@@ -5,7 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
 import { Arky } from '@/components/brand/ark-logo';
-import { AIService } from '@/services/ai/ai.service';
+import { ArkKeyboardAvoidingView } from '@/components/layout/keyboard-controller';
+import { AIService, isAiRequestCancelledError } from '@/services/ai/ai.service';
 import { ModelManagerService } from '@/services/ai/model-manager.service';
 import type { AiCitation, AiMessage } from '@/types/ai';
 import type { ContentPack } from '@/types/content';
@@ -25,7 +26,6 @@ import {
   Alert,
   FlatList,
   Keyboard,
-  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -177,8 +177,8 @@ function MessageBubble({ message }: { message: AiMessage }) {
 
 function StreamingBubble({ content, onStop }: { content: string; onStop: () => void }) {
   return (
-    <View className="items-start">
-      <Card className="max-w-[92%] gap-2 rounded-lg">
+    <View className="px-3 pb-2">
+      <Card className="gap-2 rounded-lg px-3 py-2">
         <View className="flex-row items-center justify-between gap-3">
           <View className="flex-row items-center gap-2">
             <ActivityIndicator size="small" />
@@ -191,7 +191,7 @@ function StreamingBubble({ content, onStop }: { content: string; onStop: () => v
             <Text>Stop</Text>
           </Button>
         </View>
-        <Text selectable>
+        <Text selectable numberOfLines={4}>
           {content || 'Checking local sources...'}
         </Text>
       </Card>
@@ -201,7 +201,6 @@ function StreamingBubble({ content, onStop }: { content: string; onStop: () => v
 
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
-  const listRef = React.useRef<FlatList<AiMessage>>(null);
   const [threadId, setThreadId] = React.useState<string | undefined>();
   const [messages, setMessages] = React.useState<AiMessage[]>([]);
   const [content, setContent] = React.useState('');
@@ -215,6 +214,7 @@ export default function ChatScreen() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [keyboardVisible, setKeyboardVisible] = React.useState(false);
+  const sendRunIdRef = React.useRef(0);
 
   const refreshModels = React.useCallback(async () => {
     const [models, model, preferences] = await Promise.all([
@@ -263,6 +263,8 @@ export default function ChatScreen() {
   async function send() {
     const trimmed = content.trim();
     if (!trimmed || sending) return;
+    const runId = sendRunIdRef.current + 1;
+    sendRunIdRef.current = runId;
     setSending(true);
     setStreamingText('');
     setError(null);
@@ -270,16 +272,24 @@ export default function ChatScreen() {
     try {
       const result = await AIService.sendMessage(
         { threadId, content: trimmed, useRag: true },
-        { onToken: setStreamingText }
+        {
+          onToken: (token) => {
+            if (sendRunIdRef.current === runId) setStreamingText(token);
+          },
+        }
       );
+      if (sendRunIdRef.current !== runId) return;
       setThreadId(result.threadId);
       setMessages((current) => [...current, ...result.messages]);
     } catch (sendError) {
+      if (isAiRequestCancelledError(sendError)) return;
       setContent(trimmed);
       setError(sendError instanceof Error ? sendError.message : 'Unable to send message.');
     } finally {
-      setStreamingText('');
-      setSending(false);
+      if (sendRunIdRef.current === runId) {
+        setStreamingText('');
+        setSending(false);
+      }
     }
   }
 
@@ -291,6 +301,9 @@ export default function ChatScreen() {
   }
 
   async function stopResponse() {
+    sendRunIdRef.current += 1;
+    setSending(false);
+    setStreamingText('');
     await AIService.cancelActiveResponse();
   }
 
@@ -324,17 +337,12 @@ export default function ChatScreen() {
     ]);
   }
 
-  React.useEffect(() => {
-    const timeout = setTimeout(() => {
-      listRef.current?.scrollToEnd({ animated: true });
-    }, 40);
-    return () => clearTimeout(timeout);
-  }, [messages.length, sending, streamingText]);
+  const data = React.useMemo(() => [...messages].reverse(), [messages]);
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    <ArkKeyboardAvoidingView
       className="bg-background flex-1"
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={0}>
       <View className="border-border bg-background flex-row items-center gap-2 border-b px-4 py-3">
         <ModelPill
@@ -357,7 +365,7 @@ export default function ChatScreen() {
           <Skeleton className="h-28 w-[92%]" />
           <Text variant="muted">Loading local thread...</Text>
         </View>
-      ) : messages.length === 0 && !sending ? (
+      ) : messages.length === 0 ? (
         <View
           className={
             keyboardVisible
@@ -374,26 +382,23 @@ export default function ChatScreen() {
         </View>
       ) : (
         <FlatList
-          ref={listRef}
-          data={messages}
+          className="flex-1"
+          inverted
+          data={data}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => <MessageBubble message={item} />}
-          ListFooterComponent={
-            sending ? (
-              <StreamingBubble content={streamingText} onStop={() => void stopResponse()} />
-            ) : null
-          }
           contentContainerStyle={{
-            flexGrow: 1,
             gap: 12,
             padding: 16,
             paddingBottom: keyboardVisible ? 8 : 24,
           }}
           keyboardShouldPersistTaps="handled"
-          onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
-          onLayout={() => listRef.current?.scrollToEnd({ animated: false })}
         />
       )}
+
+      {sending ? (
+        <StreamingBubble content={streamingText} onStop={() => void stopResponse()} />
+      ) : null}
 
       {error ? (
         <View className="border-destructive/40 border-t px-4 py-2">
@@ -471,6 +476,6 @@ export default function ChatScreen() {
           </Pressable>
         </Pressable>
       </Modal>
-    </KeyboardAvoidingView>
+    </ArkKeyboardAvoidingView>
   );
 }

@@ -389,7 +389,7 @@ function ConfidencePill({ value, compact = false }: { value: number; compact?: b
           ? 'bg-muted rounded-full px-2 py-1'
           : 'border-border bg-muted rounded-full border px-3 py-1.5'
       }>
-      <Text variant="small">{Math.round(value)}% confidence</Text>
+      <Text variant="small">{Math.round(value)}% sure</Text>
     </View>
   );
 }

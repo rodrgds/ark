@@ -177,7 +177,7 @@ function ToolTile({
   title: string;
   description: string;
   drain: Drain;
-  reading: string;
+  reading?: string;
   badge?: number;
 }) {
   return (
@@ -189,7 +189,7 @@ function ToolTile({
               <View className="bg-primary/12 relative size-10 items-center justify-center rounded-lg">
                 <Icon as={icon} className="text-primary size-5" />
                 {badge ? (
-                  <View className="bg-destructive absolute -right-2 -top-2 min-w-5 items-center rounded-full px-1.5 py-0.5">
+                  <View className="bg-destructive absolute -top-2 -right-2 min-w-5 items-center rounded-full px-1.5 py-0.5">
                     <Text className="text-[10px] font-bold text-white" numberOfLines={1}>
                       {badge > 99 ? '99+' : badge}
                     </Text>
@@ -209,9 +209,11 @@ function ToolTile({
               </Text>
             </View>
           </View>
-          <Text variant="small" className="text-muted-foreground font-mono">
-            {reading}
-          </Text>
+          {reading ? (
+            <Text variant="small" className="text-muted-foreground font-mono">
+              {reading}
+            </Text>
+          ) : null}
         </Card>
       </Pressable>
     </Link>

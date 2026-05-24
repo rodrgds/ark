@@ -254,11 +254,14 @@ export function FunctionSearchButton() {
           position="top"
           containerClassName="px-4 pt-16"
           surfaceClassName="max-h-[82%] gap-3 p-3">
-          <View className="flex-row items-center gap-2">
+          <Pressable
+            accessibilityRole="none"
+            onPress={focusInput}
+            className="border-border bg-card h-11 min-h-11 flex-row items-center gap-2 rounded-md border px-3">
             <Icon as={Search} className="text-muted-foreground size-4" />
             <Input
               ref={inputRef}
-              className="h-11 min-h-11 flex-1 py-2"
+              className="h-11 min-h-11 flex-1 border-0 bg-transparent px-0 py-2"
               value={query}
               onChangeText={setQuery}
               placeholder="Search Ark"
@@ -267,7 +270,7 @@ export function FunctionSearchButton() {
               returnKeyType="search"
               accessibilityLabel="Search Ark functions"
             />
-          </View>
+          </Pressable>
 
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <View className="gap-1">

@@ -90,6 +90,10 @@ export function getPackIcon(pack: PackLike): LucideIcon {
   return PACK_ICONS[pack.id] ?? CATEGORY_ICONS[pack.category] ?? PackageOpen;
 }
 
+export function getCategoryIcon(category: ContentCategory): LucideIcon {
+  return CATEGORY_ICONS[category] ?? PackageOpen;
+}
+
 export function getPackModelRoleLabel(pack: Pick<ContentPackManifest, 'category' | 'modelRole'>) {
   if (pack.category !== 'AI Models') return null;
   if (pack.modelRole === 'embedding') return 'Search';

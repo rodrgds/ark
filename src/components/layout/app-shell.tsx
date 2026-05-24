@@ -90,23 +90,6 @@ export function LockStateBar() {
             className={unlocked ? 'text-primary size-4' : 'text-muted-foreground size-4'}
           />
           <Text variant="small">{unlocked ? 'Vault unlocked' : 'Vault locked'}</Text>
-          <ArkMark size={28} className="rounded-md" />
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-9 w-9 rounded-full"
-            onPress={() => {
-              if (unlocked) {
-                setConfirmLockOpen(true);
-                return;
-              }
-              void VaultService.unlockWithBiometrics();
-            }}>
-            <Icon
-              as={unlocked ? Unlock : Lock}
-              className={unlocked ? 'text-primary size-4' : 'text-muted-foreground size-4'}
-            />
-          </Button>
         </View>
 
         <View className="flex-row items-center gap-2">

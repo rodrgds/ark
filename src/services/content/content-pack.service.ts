@@ -8,7 +8,23 @@ import { DownloadManagerService } from '@/services/files/download-manager.servic
 import { FileSystemService } from '@/services/files/filesystem.service';
 import { contentPackIdSchema, parseOrThrow } from '@/lib/validation';
 import { Linking } from 'react-native';
-import type { ContentModelRole } from '@/types/content';
+import type { ContentFormat, ContentModelRole } from '@/types/content';
+
+function mimeTypeForFormat(format: ContentFormat) {
+  switch (format) {
+    case 'pdf':
+      return 'application/pdf';
+    case 'html':
+      return 'text/html';
+    case 'txt':
+    case 'markdown':
+      return 'text/plain';
+    case 'zim':
+      return 'application/zim';
+    default:
+      return undefined;
+  }
+}
 
 export class ContentPackService {
   static listPacks() {
@@ -97,7 +113,7 @@ export class ContentPackService {
     if (await Sharing.isAvailableAsync()) {
       await Sharing.shareAsync(pack.localUri, {
         dialogTitle: pack.format === 'zim' ? 'Open in...' : `Open ${pack.title}`,
-        mimeType: pack.format === 'zim' ? 'application/zim' : undefined,
+        mimeType: mimeTypeForFormat(pack.format),
       });
       return;
     }

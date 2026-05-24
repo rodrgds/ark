@@ -283,7 +283,13 @@ describe('repositories', () => {
     await NotesRepository.update(note.id, { isFavorite: true, body: 'Boil and cool water.' });
     const updated = await NotesRepository.get(note.id);
     expect(updated?.isFavorite).toBe(true);
+    expect(updated?.tags).toEqual(['water', 'field']);
     expect((await NotesRepository.list('cool'))[0]?.id).toBe(note.id);
+
+    await NotesRepository.update(note.id, { tags: ['water', 'storage'] });
+    const labeled = await NotesRepository.get(note.id);
+    expect(labeled?.body).toBe('Boil and cool water.');
+    expect(labeled?.tags).toEqual(['water', 'storage']);
 
     await NotesRepository.softDelete(note.id);
     expect(await NotesRepository.get(note.id)).toBeNull();

@@ -3,11 +3,12 @@ import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { Arky } from '@/components/brand/ark-logo';
 import { ContentPackService } from '@/services/content/content-pack.service';
+import { GuidePdfService } from '@/services/content/guide-pdf.service';
 import { GuideReaderService, type ReaderContent } from '@/services/content/guide-reader.service';
 import { GuideService, type GuideSection } from '@/services/content/guide.service';
 import type { ContentPack } from '@/types/content';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { ChevronLeft, ExternalLink, List, Share2, X } from 'lucide-react-native';
+import { ChevronLeft, ExternalLink, List, Printer, Share2, X } from 'lucide-react-native';
 import * as React from 'react';
 import {
   ActivityIndicator,
@@ -119,6 +120,7 @@ export default function GuideReaderScreen() {
   const [showToc, setShowToc] = React.useState(false);
   const [webViewLoadError, setWebViewLoadError] = React.useState<string | null>(null);
   const [webViewLoading, setWebViewLoading] = React.useState(false);
+  const [exportingPdf, setExportingPdf] = React.useState(false);
   const webViewRef = React.useRef<WebView>(null);
   const pdfRef = React.useRef<any>(null);
 
@@ -187,6 +189,27 @@ export default function GuideReaderScreen() {
     }
   }
 
+  async function handleExportPdf() {
+    if (!pack) return;
+    setExportingPdf(true);
+    try {
+      const { uri } = await GuidePdfService.export(pack);
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, {
+          dialogTitle: `Print ${pack.title}`,
+          mimeType: 'application/pdf',
+          UTI: 'com.adobe.pdf',
+        });
+        return;
+      }
+      await ContentPackService.openPack(pack.id);
+    } catch (err) {
+      Alert.alert('Error', err instanceof Error ? err.message : 'Unable to export guide.');
+    } finally {
+      setExportingPdf(false);
+    }
+  }
+
   function handleSectionSelect(targetSection: GuideSection) {
     setShowToc(false);
     setWebViewLoadError(null);
@@ -220,6 +243,7 @@ export default function GuideReaderScreen() {
   }
 
   const isPdf = content?.format === 'pdf';
+  const canOpenForPrint = content?.format === 'html' || content?.format === 'text';
   const Pdf = isPdf ? getNativePdf() : null;
 
   if (loading && !content) {
@@ -271,6 +295,15 @@ export default function GuideReaderScreen() {
                   <Icon as={List} className="text-foreground" />
                 </Button>
               )}
+              {canOpenForPrint ? (
+                <Button variant="ghost" size="icon" disabled={exportingPdf} onPress={handleExportPdf}>
+                  {exportingPdf ? (
+                    <ActivityIndicator size="small" />
+                  ) : (
+                    <Icon as={Printer} className="text-foreground" />
+                  )}
+                </Button>
+              ) : null}
               <Button variant="ghost" size="icon" onPress={handleShare}>
                 <Icon as={Share2} className="text-foreground" />
               </Button>

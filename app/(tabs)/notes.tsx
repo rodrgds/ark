@@ -11,14 +11,15 @@ import { Text } from '@/components/ui/text';
 import { getLabelColor, getLabelForegroundColor } from '@/lib/label-colors';
 import { NotesRepository } from '@/services/db/repositories/notes.repo';
 import { SettingsRepository } from '@/services/db/repositories/settings.repo';
+import { NotePdfService } from '@/services/notes/note-pdf.service';
 import { VaultService } from '@/services/security/vault.service';
 import { useAuthStore } from '@/stores/auth-store';
 import type { Note } from '@/types/db';
 import { router, useFocusEffect } from 'expo-router';
-import { Plus, Star, Tag, Trash2 } from 'lucide-react-native';
+import * as Sharing from 'expo-sharing';
+import { Plus, Printer, Star, Tag, Trash2 } from 'lucide-react-native';
 import * as React from 'react';
-import { Modal, Pressable, View } from 'react-native';
-import { RefreshControl } from 'react-native';
+import { Alert, Linking, Modal, Pressable, RefreshControl, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function NotesScreen() {
@@ -34,6 +35,7 @@ export default function NotesScreen() {
   const [actionNote, setActionNote] = React.useState<Note | null>(null);
   const [confirmDeleteNote, setConfirmDeleteNote] = React.useState<Note | null>(null);
   const [labelColors, setLabelColors] = React.useState<Record<string, string>>({});
+  const [printingNoteId, setPrintingNoteId] = React.useState<string | null>(null);
   const leftColumn = notes.filter((_, index) => index % 2 === 0);
   const rightColumn = notes.filter((_, index) => index % 2 === 1);
 
@@ -80,6 +82,30 @@ export default function NotesScreen() {
     setActionNote(null);
     setConfirmDeleteNote(null);
     await load(query);
+  }
+
+  async function printNote(note: Note) {
+    setPrintingNoteId(note.id);
+    try {
+      const { uri } = await NotePdfService.export(note);
+      setActionNote(null);
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, {
+          dialogTitle: `Print ${note.title || 'Untitled Note'}`,
+          mimeType: 'application/pdf',
+          UTI: 'com.adobe.pdf',
+        });
+        return;
+      }
+
+      const canOpen = await Linking.canOpenURL(uri);
+      if (!canOpen) throw new Error('No app is available to open this PDF.');
+      await Linking.openURL(uri);
+    } catch (error) {
+      Alert.alert('Print failed', error instanceof Error ? error.message : 'Unable to export note.');
+    } finally {
+      setPrintingNoteId(null);
+    }
   }
 
   if (!unlocked) {
@@ -259,6 +285,16 @@ export default function NotesScreen() {
           position="bottom"
           containerStyle={{ paddingBottom: Math.max(insets.bottom, 12) }}
           surfaceClassName="gap-1 p-2">
+          <Button
+            variant="ghost"
+            className="h-10 justify-start px-2"
+            disabled={!actionNote || printingNoteId === actionNote?.id}
+            onPress={() => {
+              if (actionNote) void printNote(actionNote);
+            }}>
+            <Icon as={Printer} className="size-4" />
+            <Text>{printingNoteId === actionNote?.id ? 'Preparing PDF...' : 'Print'}</Text>
+          </Button>
           <Button
             variant="ghost"
             className="h-10 justify-start px-2"

@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
+import { ModalFrame } from '@/components/ui/modal-frame';
 import { Text } from '@/components/ui/text';
 import { type Href, router } from 'expo-router';
 import {
@@ -217,61 +218,63 @@ export function FunctionSearchButton() {
         <Icon as={Search} className="size-4" />
       </Button>
 
-      <Modal transparent visible={open} animationType="fade" onRequestClose={() => setOpen(false)}>
-        <Pressable className="flex-1 bg-black/60" onPress={() => setOpen(false)}>
-          <View className="flex-1 justify-start px-4 pt-16">
-            <Pressable
-              className="border-border bg-card max-h-[82%] w-full gap-3 rounded-lg border p-3"
-              onPress={(event) => event.stopPropagation()}>
-              <View className="flex-row items-center gap-2">
-                <Icon as={Search} className="text-muted-foreground size-4" />
-                <Input
-                  ref={inputRef}
-                  className="h-11 min-h-11 flex-1 py-2"
-                  value={query}
-                  onChangeText={setQuery}
-                  placeholder="Search Ark"
-                  autoFocus
-                  returnKeyType="search"
-                  accessibilityLabel="Search Ark functions"
-                />
-              </View>
+      <Modal
+        transparent
+        visible={open}
+        animationType="fade"
+        onRequestClose={() => setOpen(false)}>
+        <ModalFrame
+          onDismiss={() => setOpen(false)}
+          position="top"
+          containerClassName="px-4 pt-16"
+          surfaceClassName="max-h-[82%] gap-3 p-3">
+          <View className="flex-row items-center gap-2">
+            <Icon as={Search} className="text-muted-foreground size-4" />
+            <Input
+              ref={inputRef}
+              className="h-11 min-h-11 flex-1 py-2"
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search Ark"
+              autoFocus
+              returnKeyType="search"
+              accessibilityLabel="Search Ark functions"
+            />
+          </View>
 
-              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-                <View className="gap-1">
-                  {results.map((entry) => (
-                    <Pressable
-                      key={`${entry.title}-${typeof entry.href === 'string' ? entry.href : entry.href.pathname}`}
-                      accessibilityRole="button"
-                      onPress={() => openEntry(entry)}
-                      className="active:bg-accent flex-row items-center gap-3 rounded-md p-3">
-                      <View className="bg-primary/10 h-10 w-10 items-center justify-center rounded-full">
-                        <Icon as={entry.icon} className="text-primary size-5" />
-                      </View>
-                      <View className="min-w-0 flex-1">
-                        <Text className="font-semibold" numberOfLines={1}>
-                          {entry.title}
-                        </Text>
-                        <Text variant="muted" className="leading-5" numberOfLines={2}>
-                          {entry.subtitle}
-                        </Text>
-                      </View>
-                    </Pressable>
-                  ))}
-                </View>
-
-                {results.length === 0 ? (
-                  <View className="items-center gap-2 py-6">
-                    <Text variant="large">No matching function</Text>
-                    <Text variant="muted" className="text-center">
-                      Try map, notes, weather, AI, security, or diagnostics.
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <View className="gap-1">
+              {results.map((entry) => (
+                <Pressable
+                  key={`${entry.title}-${typeof entry.href === 'string' ? entry.href : entry.href.pathname}`}
+                  accessibilityRole="button"
+                  onPress={() => openEntry(entry)}
+                  className="active:bg-accent flex-row items-center gap-3 rounded-md p-3">
+                  <View className="bg-primary/10 h-10 w-10 items-center justify-center rounded-full">
+                    <Icon as={entry.icon} className="text-primary size-5" />
+                  </View>
+                  <View className="min-w-0 flex-1">
+                    <Text className="font-semibold" numberOfLines={1}>
+                      {entry.title}
+                    </Text>
+                    <Text variant="muted" className="leading-5" numberOfLines={2}>
+                      {entry.subtitle}
                     </Text>
                   </View>
-                ) : null}
-              </ScrollView>
-            </Pressable>
-          </View>
-        </Pressable>
+                </Pressable>
+              ))}
+            </View>
+
+            {results.length === 0 ? (
+              <View className="items-center gap-2 py-6">
+                <Text variant="large">No matching function</Text>
+                <Text variant="muted" className="text-center">
+                  Try map, notes, weather, AI, security, or diagnostics.
+                </Text>
+              </View>
+            ) : null}
+          </ScrollView>
+        </ModalFrame>
       </Modal>
     </>
   );

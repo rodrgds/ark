@@ -31,7 +31,7 @@ export default function PermissionsScreen() {
       hideBranding
       arkyPose="navigator"
       step={3}
-      totalSteps={7}>
+      totalSteps={8}>
       <View className="gap-5">
         <Card className="gap-4 p-5">
           <View className="flex-row items-center gap-3">

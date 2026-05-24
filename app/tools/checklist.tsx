@@ -2,6 +2,7 @@ import { Arky } from '@/components/brand/ark-logo';
 import { Screen } from '@/components/layout/screen';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
 import { Text } from '@/components/ui/text';
 import { READINESS_CHECKLIST } from '@/constants/checklists';
 import {
@@ -44,12 +45,7 @@ export default function ChecklistTool() {
           A compact offline checklist for leaving service. It is intentionally practical and local,
           not a wall of advice.
         </Text>
-        <View className="bg-muted h-2 overflow-hidden rounded-full">
-          <View
-            className="bg-primary h-full rounded-full"
-            style={{ width: `${progress * 100}%` }}
-          />
-        </View>
+        <Progress value={progress} />
         <Text variant="muted">
           {completed} of {READINESS_CHECKLIST.length} ready
         </Text>

@@ -192,7 +192,7 @@ export default function NoteLabelsScreen() {
                             event.stopPropagation();
                             setOpenColorLabel((current) => (current === label ? null : label));
                           }}>
-                          <Icon as={Tag} className="size-6" style={{ color: labelColor }} />
+                          <Icon as={Tag} className="size-6" color={labelColor} />
                         </Pressable>
                         <View className="rounded-full px-3 py-1.5" style={{ backgroundColor: labelColor }}>
                           <Text className="text-base font-medium" style={{ color: labelForeground }}>

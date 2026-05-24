@@ -1,7 +1,17 @@
 import { TextClassContext } from '@/components/ui/text';
+import { useMotionEnabled } from '@/hooks/use-motion-enabled';
 import { cn } from '@/lib/utils';
 import { cva, type VariantProps } from 'class-variance-authority';
+import * as React from 'react';
 import { Platform, Pressable } from 'react-native';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 const buttonVariants = cva(
   cn(
@@ -70,12 +80,47 @@ type ButtonProps = React.ComponentProps<typeof Pressable> &
   React.RefAttributes<typeof Pressable> &
   VariantProps<typeof buttonVariants>;
 
-function Button({ className, variant, size, ...props }: ButtonProps) {
+function Button({ className, variant, size, onPressIn, onPressOut, style, ...props }: ButtonProps) {
+  const motionEnabled = useMotionEnabled();
+  const scale = useSharedValue(1);
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const handlePressIn = React.useCallback<NonNullable<ButtonProps['onPressIn']>>(
+    (event) => {
+      if (motionEnabled && !props.disabled) {
+        scale.value = withTiming(0.98, {
+          duration: 90,
+          easing: Easing.out(Easing.quad),
+        });
+      }
+      onPressIn?.(event);
+    },
+    [motionEnabled, onPressIn, props.disabled, scale]
+  );
+
+  const handlePressOut = React.useCallback<NonNullable<ButtonProps['onPressOut']>>(
+    (event) => {
+      if (motionEnabled) {
+        scale.value = withTiming(1, {
+          duration: 140,
+          easing: Easing.out(Easing.quad),
+        });
+      }
+      onPressOut?.(event);
+    },
+    [motionEnabled, onPressOut, scale]
+  );
+
   return (
     <TextClassContext.Provider value={buttonTextVariants({ variant, size })}>
-      <Pressable
+      <AnimatedPressable
         className={cn(props.disabled && 'opacity-50', buttonVariants({ variant, size }), className)}
         role="button"
+        style={[animatedStyle, style]}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
         {...props}
       />
     </TextClassContext.Provider>

@@ -1,5 +1,8 @@
 import { Screen } from '@/components/layout/screen';
 import { Text } from '@/components/ui/text';
+import { NAV_COLORS } from '@/constants/theme';
+import { hexToRgba } from '@/lib/colors';
+import { useThemeStore } from '@/stores/theme-store';
 import * as React from 'react';
 import { Dimensions, FlatList, StyleSheet, TouchableOpacity, View } from 'react-native';
 
@@ -24,6 +27,8 @@ function formatTime(ms: number) {
 type Lap = { index: number; split: number; total: number };
 
 export default function ChronometerTool() {
+  const theme = useThemeStore((state) => state.effectiveTheme);
+  const palette = NAV_COLORS[theme];
   const [running, setRunning] = React.useState(false);
   const [elapsed, setElapsed] = React.useState(0);
   const [laps, setLaps]       = React.useState<Lap[]>([]);
@@ -72,6 +77,8 @@ export default function ChronometerTool() {
   const slowestMs = laps.length > 1 ? Math.max(...laps.map(l => l.split)) : -1;
 
   const { base, cs } = formatTime(elapsed);
+  const success = '#22c55e';
+  const danger = palette.destructive;
 
   const lapFormatted = (ms: number) => {
     const { base, cs } = formatTime(ms);
@@ -79,16 +86,35 @@ export default function ChronometerTool() {
   };
 
   return (
-    <Screen style={styles.screen}>
+    <Screen style={[styles.screen, { backgroundColor: palette.background }]}>
 
-      <View style={[styles.ring, { width: RING_SIZE, height: RING_SIZE, borderRadius: RING_R }]}>
-        <View style={[styles.ringInner, { width: INNER_SIZE, height: INNER_SIZE, borderRadius: INNER_SIZE / 2 }]}>
+      <View
+        style={[
+          styles.ring,
+          {
+            width: RING_SIZE,
+            height: RING_SIZE,
+            borderRadius: RING_R,
+            backgroundColor: palette.card,
+            borderColor: palette.border,
+          },
+        ]}>
+        <View
+          style={[
+            styles.ringInner,
+            {
+              width: INNER_SIZE,
+              height: INNER_SIZE,
+              borderRadius: INNER_SIZE / 2,
+              borderColor: hexToRgba(palette.foreground, 0.12),
+            },
+          ]}>
           <View style={styles.timeRow}>
-            <Text style={styles.timeBase}>{base}</Text>
-            <Text style={styles.timeCs}>.{cs}</Text>
+            <Text style={[styles.timeBase, { color: palette.foreground }]}>{base}</Text>
+            <Text style={[styles.timeCs, { color: palette.mutedForeground }]}>.{cs}</Text>
           </View>
           {laps.length > 0 && (
-            <Text style={styles.lapHint}>
+            <Text style={[styles.lapHint, { color: palette.mutedForeground }]}>
               Lap {laps[0].index}  {lapFormatted(laps[0].split)}
             </Text>
           )}
@@ -98,22 +124,39 @@ export default function ChronometerTool() {
       <View style={styles.controls}>
         <View style={styles.btnSlot}>
           <TouchableOpacity
-            style={[styles.btn, styles.btnGray, (!running && elapsed === 0) && styles.btnDisabled]}
+            style={[
+              styles.btn,
+              styles.btnGray,
+              {
+                backgroundColor: palette.card,
+                borderColor: palette.border,
+              },
+              (!running && elapsed === 0) && styles.btnDisabled,
+            ]}
             onPress={running ? lap : reset}
             disabled={!running && elapsed === 0}
             activeOpacity={0.75}
           >
-            <Text style={styles.btnGrayText}>{running ? 'Lap' : 'Reset'}</Text>
+            <Text style={[styles.btnGrayText, { color: palette.mutedForeground }]}>
+              {running ? 'Lap' : 'Reset'}
+            </Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.btnSlot}>
           <TouchableOpacity
-            style={[styles.btn, running ? styles.btnRed : styles.btnGreen]}
+            style={[
+              styles.btn,
+              running ? styles.btnRed : styles.btnGreen,
+              {
+                backgroundColor: hexToRgba(running ? danger : success, theme === 'light' ? 0.12 : 0.18),
+                borderColor: running ? danger : success,
+              },
+            ]}
             onPress={running ? pause : start}
             activeOpacity={0.75}
           >
-            <Text style={running ? styles.btnRedText : styles.btnGreenText}>
+            <Text style={[running ? styles.btnRedText : styles.btnGreenText, { color: running ? danger : success }]}>
               {running ? 'Stop' : elapsed === 0 ? 'Start' : 'Resume'}
             </Text>
           </TouchableOpacity>
@@ -121,11 +164,20 @@ export default function ChronometerTool() {
       </View>
 
       {laps.length > 0 && (
-        <View style={[styles.lapList, { width: SW - 32, height: SH * 0.34 }]}>
-          <View style={styles.lapHeader}>
-            <Text style={[styles.lapColNarrow, styles.lapHeadText]}>LAP</Text>
-            <Text style={[styles.lapColWide,   styles.lapHeadText]}>SPLIT</Text>
-            <Text style={[styles.lapColWide,   styles.lapHeadText]}>TOTAL</Text>
+        <View
+          style={[
+            styles.lapList,
+            {
+              width: SW - 32,
+              height: SH * 0.34,
+              backgroundColor: palette.card,
+              borderColor: palette.border,
+            },
+          ]}>
+          <View style={[styles.lapHeader, { borderBottomColor: palette.border }]}>
+            <Text style={[styles.lapColNarrow, styles.lapHeadText, { color: palette.mutedForeground }]}>LAP</Text>
+            <Text style={[styles.lapColWide, styles.lapHeadText, { color: palette.mutedForeground }]}>SPLIT</Text>
+            <Text style={[styles.lapColWide, styles.lapHeadText, { color: palette.mutedForeground }]}>TOTAL</Text>
           </View>
           <FlatList
             data={laps}
@@ -133,17 +185,18 @@ export default function ChronometerTool() {
             style={{ flex: 1 }}
             showsVerticalScrollIndicator={false}
             renderItem={({ item }) => (
-              <View style={styles.lapRow}>
-                <Text style={[styles.lapColNarrow, styles.lapRowText]}>{item.index}</Text>
+              <View style={[styles.lapRow, { borderBottomColor: hexToRgba(palette.foreground, 0.08) }]}>
+                <Text style={[styles.lapColNarrow, styles.lapRowText, { color: palette.foreground }]}>{item.index}</Text>
                 <Text style={[
                   styles.lapColWide,
                   styles.lapRowText,
-                  item.split === fastestMs && styles.colorGreen,
-                  item.split === slowestMs && styles.colorRed,
+                  { color: palette.foreground },
+                  item.split === fastestMs && { color: success },
+                  item.split === slowestMs && { color: danger },
                 ]}>
                   {lapFormatted(item.split)}
                 </Text>
-                <Text style={[styles.lapColWide, styles.lapRowText, styles.colorDim]}>
+                <Text style={[styles.lapColWide, styles.lapRowText, { color: palette.mutedForeground }]}>
                   {lapFormatted(item.total)}
                 </Text>
               </View>
@@ -161,7 +214,6 @@ const BTN = 84;
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#000000',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 32,
@@ -169,15 +221,12 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   ring: {
-    backgroundColor: '#0d0d0d',
     borderWidth: 1.5,
-    borderColor: '#2a2a2a',
     alignItems: 'center',
     justifyContent: 'center',
   },
   ringInner: {
     borderWidth: 1,
-    borderColor: '#1c1c1c',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
@@ -189,15 +238,13 @@ const styles = StyleSheet.create({
   timeBase: {
     fontSize: 68,
     fontWeight: '700',
-    color: '#ffffff',
-    letterSpacing: -1,
+    letterSpacing: 0,
     lineHeight: 72,
     includeFontPadding: false,
   },
   timeCs: {
     fontSize: 36,
     fontWeight: '400',
-    color: '#666666',
     letterSpacing: 0,
     lineHeight: 44,
     includeFontPadding: false,
@@ -206,7 +253,6 @@ const styles = StyleSheet.create({
   lapHint: {
     fontSize: 18,
     fontWeight: '500',
-    color: '#555555',
     letterSpacing: 0.5,
   },
 
@@ -229,19 +275,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   btnGreen: {
-    backgroundColor: '#0d2a0d',
     borderWidth: 2.5,
-    borderColor: '#30d158',
   },
   btnRed: {
-    backgroundColor: '#2a0d0d',
     borderWidth: 2.5,
-    borderColor: '#ff453a',
   },
   btnGray: {
-    backgroundColor: '#1c1c1e',
     borderWidth: 1.5,
-    borderColor: '#3a3a3c',
   },
   btnDisabled: {
     opacity: 0.2,
@@ -249,22 +289,19 @@ const styles = StyleSheet.create({
   btnGreenText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#30d158',
   },
   btnRedText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#ff453a',
   },
   btnGrayText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#8e8e93',
   },
 
   lapList: {
-    backgroundColor: '#1c1c1e',
     borderRadius: 16,
+    borderWidth: 1,
     overflow: 'hidden',
   },
   lapHeader: {
@@ -272,12 +309,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#3a3a3c',
   },
   lapHeadText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#555555',
     letterSpacing: 1.2,
   },
   lapRow: {
@@ -285,16 +320,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#222222',
   },
   lapRowText: {
     fontSize: 17,
     fontWeight: '500',
-    color: '#ffffff',
   },
   lapColNarrow: { width: 44 },
   lapColWide:   { flex: 1 },
-  colorGreen:   { color: '#30d158' },
-  colorRed:     { color: '#ff453a' },
-  colorDim:     { color: '#555555' },
 });

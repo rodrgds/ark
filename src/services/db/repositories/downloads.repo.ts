@@ -51,6 +51,17 @@ export class DownloadsRepository {
     return rows.map(mapDownload);
   }
 
+  static async listByStatuses(statuses: DownloadStatus[]) {
+    if (!statuses.length) return [];
+    const db = await DatabaseClient.getDb();
+    const placeholders = statuses.map(() => '?').join(', ');
+    const rows = await db.getAllAsync<Parameters<typeof mapDownload>[0]>(
+      `SELECT * FROM downloads WHERE status IN (${placeholders}) ORDER BY created_at ASC`,
+      statuses
+    );
+    return rows.map(mapDownload);
+  }
+
   static async get(id: string) {
     const db = await DatabaseClient.getDb();
     const row = await db.getFirstAsync<Parameters<typeof mapDownload>[0]>(
@@ -103,6 +114,20 @@ export class DownloadsRepository {
     );
   }
 
+  static async markQueued(input: { id: string; progress?: number; clearResumeData?: boolean }) {
+    const db = await DatabaseClient.getDb();
+    await db.runAsync(
+      `UPDATE downloads
+       SET status = 'queued',
+           progress = ?,
+           resume_data = CASE WHEN ? THEN NULL ELSE resume_data END,
+           error = NULL,
+           updated_at = ?
+       WHERE id = ?`,
+      [input.progress ?? 0, input.clearResumeData ? 1 : 0, Date.now(), input.id]
+    );
+  }
+
   static async pause(input: { id: string; progress: number; resumeData?: string | null }) {
     const db = await DatabaseClient.getDb();
     await db.runAsync(
@@ -131,10 +156,10 @@ export class DownloadsRepository {
            total_bytes = COALESCE(?, total_bytes),
            downloaded_bytes = COALESCE(?, downloaded_bytes),
            local_uri = COALESCE(?, local_uri),
-           resume_data = NULL,
            error = NULL,
            updated_at = ?
-       WHERE id = ?`,
+       WHERE id = ?
+         AND status IN ('queued', 'downloading')`,
       [
         input.progress,
         input.totalBytes ?? null,

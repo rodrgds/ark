@@ -1,8 +1,11 @@
 import { Screen } from '@/components/layout/screen';
 import { Text } from '@/components/ui/text';
+import { NAV_COLORS } from '@/constants/theme';
 import { useSensorSubscription } from '@/hooks/use-sensor-subscription';
+import { hexToRgba } from '@/lib/colors';
 import { LightMeterService } from '@/services/sensors/light.service';
 import { useSensorStore } from '@/stores/sensor-store';
+import { useThemeStore } from '@/stores/theme-store';
 import * as React from 'react';
 import { Animated, Dimensions, Easing, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
@@ -41,6 +44,8 @@ const RAY_COUNT  = 16;
 const RAY_ANGLES = Array.from({ length: RAY_COUNT }, (_, i) => (i * 360) / RAY_COUNT);
 
 export default function LightTool() {
+  const theme = useThemeStore((state) => state.effectiveTheme);
+  const palette = NAV_COLORS[theme];
   const setStoreLux = useSensorStore((state) => state.setLux);
   const { available, value: lux } = useSensorSubscription(LightMeterService, setStoreLux);
 
@@ -102,7 +107,7 @@ export default function LightTool() {
   const displayLux = lux === null ? '--' : Math.round(safeLux).toLocaleString();
 
   return (
-    <Screen style={styles.screen}>
+    <Screen style={[styles.screen, { backgroundColor: palette.background }]}>
 
       {/* ── Sun / glow disc ── */}
       <View style={[styles.discWrap, { width: DISC_SIZE, height: DISC_SIZE }]}>
@@ -168,7 +173,7 @@ export default function LightTool() {
               <Stop offset="100%" stopColor={zone.color} stopOpacity="0"   />
             </RadialGradient>
             <RadialGradient id="core" cx="50%" cy="50%" r="50%">
-              <Stop offset="0%"   stopColor="#ffffff" stopOpacity="0.95" />
+              <Stop offset="0%"   stopColor="#FAFAFA" stopOpacity="0.95" />
               <Stop offset="60%"  stopColor={zone.color} stopOpacity="0.8" />
               <Stop offset="100%" stopColor={zone.color} stopOpacity="0"   />
             </RadialGradient>
@@ -193,10 +198,10 @@ export default function LightTool() {
 
         {/* Lux number overlay */}
         <View style={styles.overlay} pointerEvents="none">
-          <Text style={[styles.luxNum, { color: progress > 0.5 ? '#ffffff' : '#cccccc' }]}>
+          <Text style={[styles.luxNum, { color: palette.foreground }]}>
             {displayLux}
           </Text>
-          <Text style={[styles.luxUnit, { color: progress > 0.5 ? '#ffffffaa' : '#888888' }]}>
+          <Text style={[styles.luxUnit, { color: palette.mutedForeground }]}>
             lux
           </Text>
         </View>
@@ -204,7 +209,14 @@ export default function LightTool() {
       </View>
 
       {/* ── Zone label ── */}
-      <View style={[styles.zonePill, { backgroundColor: zone.color + '33', borderColor: zone.color + '66' }]}>
+      <View
+        style={[
+          styles.zonePill,
+          {
+            backgroundColor: hexToRgba(zone.color, theme === 'light' ? 0.12 : 0.2),
+            borderColor: hexToRgba(zone.color, 0.4),
+          },
+        ]}>
         <Text style={[styles.zoneText, { color: zone.color === '#1a1a2e' ? '#aaaacc' : zone.color }]}>
           {zone.label}
         </Text>
@@ -212,7 +224,7 @@ export default function LightTool() {
 
       {/* ── Reference scale ── */}
       <View style={[styles.scaleCard, { width: DISC_SIZE }]}>
-        <View style={styles.scaleTrack}>
+        <View style={[styles.scaleTrack, { backgroundColor: hexToRgba(palette.foreground, 0.14) }]}>
           <Animated.View
             style={[
               styles.scaleFill,
@@ -227,15 +239,15 @@ export default function LightTool() {
           />
         </View>
         <View style={styles.scaleLabels}>
-          <Text style={styles.scaleLabel}>dark</Text>
-          <Text style={styles.scaleLabel}>room</Text>
-          <Text style={styles.scaleLabel}>day</Text>
-          <Text style={styles.scaleLabel}>sun</Text>
+          <Text style={[styles.scaleLabel, { color: palette.mutedForeground }]}>dark</Text>
+          <Text style={[styles.scaleLabel, { color: palette.mutedForeground }]}>room</Text>
+          <Text style={[styles.scaleLabel, { color: palette.mutedForeground }]}>day</Text>
+          <Text style={[styles.scaleLabel, { color: palette.mutedForeground }]}>sun</Text>
         </View>
       </View>
 
       {available === false && (
-        <Text style={styles.unavailable}>
+        <Text style={[styles.unavailable, { color: palette.destructive }]}>
           Light sensor is not available on this device.
         </Text>
       )}
@@ -247,7 +259,6 @@ export default function LightTool() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#000000',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 24,
@@ -271,7 +282,7 @@ const styles = StyleSheet.create({
     fontSize: 52,
     fontWeight: '700',
     lineHeight: 56,
-    letterSpacing: -1,
+    letterSpacing: 0,
     fontVariant: ['tabular-nums'],
   },
   luxUnit: {
@@ -297,7 +308,6 @@ const styles = StyleSheet.create({
   scaleTrack: {
     width: '100%',
     height: 6,
-    backgroundColor: '#2a2a2a',
     borderRadius: 3,
     overflow: 'hidden',
   },
@@ -311,13 +321,11 @@ const styles = StyleSheet.create({
   },
   scaleLabel: {
     fontSize: 11,
-    color: '#555555',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   unavailable: {
     fontSize: 13,
-    color: '#ff453a',
     textAlign: 'center',
   },
 });

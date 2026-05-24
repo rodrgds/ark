@@ -2,7 +2,10 @@ import { ActionCard } from '@/components/cards/action-card';
 import { Arky } from '@/components/brand/ark-logo';
 import { Screen } from '@/components/layout/screen';
 import { Text } from '@/components/ui/text';
+import { NAV_COLORS } from '@/constants/theme';
+import { hexToRgba } from '@/lib/colors';
 import { useSensorStore } from '@/stores/sensor-store';
+import { useThemeStore } from '@/stores/theme-store';
 import { Link, type Href } from 'expo-router';
 import {
   CheckSquare,
@@ -20,21 +23,23 @@ import { View } from 'react-native';
 type Drain = 'low' | 'medium' | 'high';
 
 function DrainBadge({ level }: { level: Drain }) {
-  const colors: Record<Drain, { bg: string; text: string; label: string }> = {
-    low: { bg: '#0d2a0d', text: '#30d158', label: 'Low' },
-    medium: { bg: '#2a1f0d', text: '#f5a623', label: 'Med' },
-    high: { bg: '#2a0d0d', text: '#ff453a', label: 'High' },
+  const theme = useThemeStore((state) => state.effectiveTheme);
+  const palette = NAV_COLORS[theme];
+  const colors: Record<Drain, { text: string; label: string }> = {
+    low: { text: '#22c55e', label: 'Low' },
+    medium: { text: '#f59e0b', label: 'Med' },
+    high: { text: palette.destructive, label: 'High' },
   };
   const c = colors[level];
   return (
     <View
       style={{
-        backgroundColor: c.bg,
+        backgroundColor: hexToRgba(c.text, theme === 'light' ? 0.12 : 0.18),
         paddingHorizontal: 8,
         paddingVertical: 3,
         borderRadius: 6,
         borderWidth: 1,
-        borderColor: c.text + '44',
+        borderColor: hexToRgba(c.text, 0.36),
       }}
     >
       <Text style={{ fontSize: 10, fontWeight: '700', color: c.text, letterSpacing: 0.5 }}>
@@ -86,7 +91,7 @@ export default function ToolsScreen() {
           right={<DrainBadge level="low" />}
         />
       </Link>
-      <Link href="/tools/chronometer" asChild>
+      <Link href={'/tools/chronometer' as Href} asChild>
         <ActionCard
           icon={Timer}
           title="Chronometer"

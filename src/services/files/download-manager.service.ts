@@ -5,16 +5,30 @@ import { RagService } from '@/services/ai/rag.service';
 import { FileDigestService } from '@/services/files/file-digest.service';
 import { ZimHeaderParser } from '@/services/content/zim-header';
 import type { AppDirectory } from '@/constants/app';
-import type { DownloadKind } from '@/types/downloads';
+import type { DownloadKind, DownloadRow } from '@/types/downloads';
 import * as FileSystem from 'expo-file-system/legacy';
 
 type ActiveDownload = {
+  kind: DownloadKind;
   download?: FileSystem.DownloadResumable;
   packId?: string | null;
   progress: number;
   localUri: string;
   stopReason?: 'paused' | 'canceled';
   cancel?: () => Promise<void>;
+};
+
+type DownloadRunInput = {
+  id: string;
+  kind: DownloadKind;
+  title: string;
+  packId?: string | null;
+  sourceUrl: string;
+  localUri: string;
+  expectedChecksumMd5?: string | null;
+  expectedChecksumSha256?: string | null;
+  resumeData?: string | null;
+  expectedSizeBytes?: number | null;
 };
 
 const DOWNLOAD_HEADERS = {
@@ -24,6 +38,7 @@ const DOWNLOAD_HEADERS = {
     'Mozilla/5.0 (Linux; Android 14; Ark Offline) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125 Mobile Safari/537.36',
 };
 
+const MAX_ACTIVE_DOWNLOADS = 1;
 const MIN_EXPECTED_SIZE_RATIO = 0.98;
 const SNAPSHOT_ACCEPT_HEADER = 'text/html,application/xhtml+xml,*/*';
 const SNAPSHOT_THEME_CSS = `
@@ -169,7 +184,12 @@ function extractTitle(html: string, fallback: string) {
   const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
   const h1Match = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
   const raw = titleMatch?.[1] ?? h1Match?.[1] ?? fallback;
-  return raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() || fallback;
+  return (
+    raw
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim() || fallback
+  );
 }
 
 function extractReadableBody(html: string) {
@@ -247,8 +267,30 @@ function isHtmlSnapshotUri(uri: string) {
   return uri.toLowerCase().endsWith('/index.html');
 }
 
+function isActiveStatus(status: DownloadRow['status']) {
+  return (
+    status === 'queued' || status === 'downloading' || status === 'verifying' || status === 'paused'
+  );
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_resolve, reject) => {
+        timeout = setTimeout(() => reject(new Error('Operation timed out.')), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
 export class DownloadManagerService {
   private static activeDownloads = new Map<string, ActiveDownload>();
+  private static downloadPackIds = new Map<string, string | null | undefined>();
+  private static drainingQueue = false;
 
   static async queueDownload(input: {
     kind: DownloadKind;
@@ -270,6 +312,40 @@ export class DownloadManagerService {
     const localUri = input.snapshotHtml
       ? `${snapshotRootUri(directory, fileName, input.title)}index.html`
       : `${FileSystemService.dir(directory)}${fileName}`;
+
+    const existing = (await DownloadsRepository.list()).find(
+      (download) =>
+        isActiveStatus(download.status) &&
+        (download.sourceUrl === input.sourceUrl || download.localUri === localUri)
+    );
+    if (existing) {
+      this.downloadPackIds.set(existing.id, input.packId);
+      const active = this.activeDownloads.has(existing.id);
+      const status =
+        active && (existing.status === 'downloading' || existing.status === 'verifying')
+          ? existing.status
+          : existing.status === 'paused'
+            ? 'paused'
+            : 'queued';
+      if (!active && existing.status !== 'paused') {
+        await DownloadsRepository.markQueued({
+          id: existing.id,
+          progress: existing.progress,
+          clearResumeData: false,
+        });
+      }
+      if (input.packId) {
+        await ContentRepository.updateInstallStatus({
+          id: input.packId,
+          status,
+          progress: existing.progress,
+          localUri,
+        });
+      }
+      this.drainQueueSoon();
+      return existing.id;
+    }
+
     const expectedChecksumSha256 = await FileDigestService.resolveExpectedSha256({
       checksumSha256: input.expectedChecksumSha256,
       checksumSha256Url: input.expectedChecksumSha256Url,
@@ -282,55 +358,116 @@ export class DownloadManagerService {
       expectedChecksumMd5: input.expectedChecksumMd5,
       expectedChecksumSha256,
     });
+    this.downloadPackIds.set(id, input.packId);
     if (input.packId) {
       await ContentRepository.updateInstallStatus({
         id: input.packId,
-        status: 'downloading',
+        status: 'queued',
         progress: 0,
         localUri,
       });
     }
 
-    if (input.snapshotHtml) {
-      void this.runHtmlSnapshot({
-        id,
-        kind: input.kind,
-        title: input.title,
-        packId: input.packId,
-        sourceUrl: input.sourceUrl,
-        localUri,
-      });
-    } else {
-      void this.runDownload({
-        id,
-        kind: input.kind,
-        title: input.title,
-        packId: input.packId,
-        sourceUrl: input.sourceUrl,
-        localUri,
-        expectedChecksumMd5: input.expectedChecksumMd5,
-        expectedChecksumSha256,
-        resumeData: null,
-        expectedSizeBytes: input.expectedSizeBytes,
-      });
-    }
+    this.drainQueueSoon();
     return id;
   }
 
-  private static async runDownload(input: {
-    id: string;
-    kind: DownloadKind;
-    title: string;
-    packId?: string | null;
-    sourceUrl: string;
-    localUri: string;
-    expectedChecksumMd5?: string | null;
-    expectedChecksumSha256?: string | null;
-    resumeData?: string | null;
-    expectedSizeBytes?: number | null;
-  }) {
+  static async recoverPendingDownloads() {
+    const pending = await DownloadsRepository.listByStatuses([
+      'queued',
+      'downloading',
+      'verifying',
+    ]);
+    for (const row of pending) {
+      if (!row.sourceUrl || !row.localUri) continue;
+      const packId = await this.resolvePackIdForDownload(row);
+      this.downloadPackIds.set(row.id, packId);
+      await DownloadsRepository.markQueued({
+        id: row.id,
+        progress: row.progress,
+        clearResumeData: false,
+      });
+      if (packId) {
+        await ContentRepository.updateInstallStatus({
+          id: packId,
+          status: 'queued',
+          progress: row.progress,
+          localUri: row.localUri,
+        });
+      }
+    }
+    this.drainQueueSoon();
+  }
+
+  private static drainQueueSoon() {
+    void this.drainQueue();
+  }
+
+  private static async drainQueue() {
+    if (this.drainingQueue) return;
+    this.drainingQueue = true;
+    try {
+      if (this.activeDownloads.size >= MAX_ACTIVE_DOWNLOADS) return;
+      const queued = (await DownloadsRepository.listByStatuses(['queued'])).find(
+        (row) => row.sourceUrl && row.localUri && !this.activeDownloads.has(row.id)
+      );
+      if (!queued?.sourceUrl || !queued.localUri) return;
+
+      const packId = await this.resolvePackIdForDownload(queued);
+      const latest = await DownloadsRepository.get(queued.id);
+      if (latest?.status !== 'queued') return;
+      this.downloadPackIds.set(queued.id, packId);
+
+      if (queued.kind === 'guide' && isHtmlSnapshotUri(queued.localUri)) {
+        void this.runHtmlSnapshot({
+          id: queued.id,
+          kind: queued.kind,
+          title: queued.title,
+          packId,
+          sourceUrl: queued.sourceUrl,
+          localUri: queued.localUri,
+        });
+      } else {
+        void this.runDownload({
+          id: queued.id,
+          kind: queued.kind,
+          title: queued.title,
+          packId,
+          sourceUrl: queued.sourceUrl,
+          localUri: queued.localUri,
+          expectedChecksumMd5: queued.expectedChecksumMd5,
+          expectedChecksumSha256: queued.expectedChecksumSha256,
+          resumeData: queued.resumeData,
+          expectedSizeBytes: queued.totalBytes,
+        });
+      }
+    } finally {
+      this.drainingQueue = false;
+    }
+  }
+
+  private static async resolvePackIdForDownload(row: DownloadRow) {
+    if (this.downloadPackIds.has(row.id)) return this.downloadPackIds.get(row.id);
+    const packs = await ContentRepository.list();
+    const pack = packs.find(
+      (candidate) =>
+        (row.sourceUrl && candidate.sourceUrl === row.sourceUrl) ||
+        (row.localUri && candidate.localUri === row.localUri)
+    );
+    return pack?.id ?? null;
+  }
+
+  private static async runDownload(input: DownloadRunInput) {
     let active: ActiveDownload | null = null;
     try {
+      active = {
+        kind: input.kind,
+        packId: input.packId,
+        progress: 0,
+        localUri: input.localUri,
+      };
+      this.activeDownloads.set(input.id, active);
+
       if (!input.resumeData && (await this.canFinalizeExistingFile(input.localUri, input))) {
         await this.finalizeDownloadedFile({
           ...input,
@@ -345,6 +482,14 @@ export class DownloadManagerService {
         progress: 0,
         localUri: input.localUri,
       });
+      if (input.packId) {
+        await ContentRepository.updateInstallStatus({
+          id: input.packId,
+          status: 'downloading',
+          progress: 0,
+          localUri: input.localUri,
+        });
+      }
       let lastWriteAt = 0;
       const download = FileSystem.createDownloadResumable(
         input.sourceUrl,
@@ -382,13 +527,7 @@ export class DownloadManagerService {
         },
         input.resumeData ?? undefined
       );
-      active = {
-        download,
-        packId: input.packId,
-        progress: 0,
-        localUri: input.localUri,
-      };
-      this.activeDownloads.set(input.id, active);
+      active.download = download;
       const result = await download.downloadAsync();
       if (!result?.uri && active.stopReason === 'canceled') {
         await DownloadsRepository.updateStatus(input.id, 'canceled', active.progress, null);
@@ -437,6 +576,8 @@ export class DownloadManagerService {
       if (this.activeDownloads.get(input.id) === active) {
         this.activeDownloads.delete(input.id);
       }
+      this.downloadPackIds.delete(input.id);
+      this.drainQueueSoon();
     }
   }
 
@@ -456,6 +597,7 @@ export class DownloadManagerService {
 
     try {
       active = {
+        kind: input.kind,
         packId: input.packId,
         progress: 0,
         localUri: input.localUri,
@@ -468,6 +610,14 @@ export class DownloadManagerService {
         },
       };
       this.activeDownloads.set(input.id, active);
+      if (input.packId) {
+        await ContentRepository.updateInstallStatus({
+          id: input.packId,
+          status: 'downloading',
+          progress: 0,
+          localUri: input.localUri,
+        });
+      }
 
       await FileSystem.deleteAsync(snapshotRoot, { idempotent: true }).catch(() => undefined);
       await FileSystem.makeDirectoryAsync(snapshotRoot, { intermediates: true }).catch(
@@ -507,15 +657,11 @@ export class DownloadManagerService {
           'image'
         )}`;
         const destinationUri = `${assetRoot}${assetFileName}`;
-        currentAssetDownload = FileSystem.createDownloadResumable(
-          imageUrl,
-          destinationUri,
-          {
-            md5: false,
-            sessionType: FileSystem.FileSystemSessionType.BACKGROUND,
-            headers: DOWNLOAD_HEADERS,
-          }
-        );
+        currentAssetDownload = FileSystem.createDownloadResumable(imageUrl, destinationUri, {
+          md5: false,
+          sessionType: FileSystem.FileSystemSessionType.BACKGROUND,
+          headers: DOWNLOAD_HEADERS,
+        });
 
         try {
           const result = await currentAssetDownload.downloadAsync();
@@ -592,6 +738,8 @@ export class DownloadManagerService {
       if (this.activeDownloads.get(input.id) === active) {
         this.activeDownloads.delete(input.id);
       }
+      this.downloadPackIds.delete(input.id);
+      this.drainQueueSoon();
     }
   }
 
@@ -605,14 +753,17 @@ export class DownloadManagerService {
     if (!row) throw new Error('Download not found.');
     if (!active) {
       await DownloadsRepository.updateStatus(id, 'paused', row.progress, null);
+      this.drainQueueSoon();
       return;
     }
     if (!active.download) {
       throw new Error('This download is short and cannot be paused. Cancel it and restart later.');
     }
     active.stopReason = 'paused';
-    const pauseState = await active.download.pauseAsync();
-    const resumeData = pauseState.resumeData ?? active.download.savable().resumeData ?? null;
+    const pauseState = await withTimeout(active.download.pauseAsync(), 2500).catch(() =>
+      active.download?.savable()
+    );
+    const resumeData = pauseState?.resumeData ?? active.download.savable().resumeData ?? null;
     await DownloadsRepository.pause({
       id,
       progress: active.progress || row.progress,
@@ -631,29 +782,13 @@ export class DownloadManagerService {
   static async resumeDownload(id: string, packId?: string | null) {
     const row = await DownloadsRepository.get(id);
     if (!row?.sourceUrl || !row.localUri) throw new Error('Download cannot be resumed.');
-    if (row.kind === 'guide' && isHtmlSnapshotUri(row.localUri)) {
-      await this.runHtmlSnapshot({
-        id: row.id,
-        kind: row.kind,
-        title: row.title,
-        packId,
-        sourceUrl: row.sourceUrl,
-        localUri: row.localUri,
-      });
-      return;
-    }
-    await this.runDownload({
-      id: row.id,
-      kind: row.kind,
-      title: row.title,
-      packId,
-      sourceUrl: row.sourceUrl,
-      localUri: row.localUri,
-      expectedChecksumMd5: row.expectedChecksumMd5,
-      expectedChecksumSha256: row.expectedChecksumSha256,
-      resumeData: row.resumeData,
-      expectedSizeBytes: row.totalBytes,
+    this.downloadPackIds.set(id, packId);
+    await DownloadsRepository.markQueued({
+      id,
+      progress: row.progress,
+      clearResumeData: row.kind === 'guide' && isHtmlSnapshotUri(row.localUri),
     });
+    this.drainQueueSoon();
   }
 
   static async cancelDownload(id: string) {
@@ -662,8 +797,9 @@ export class DownloadManagerService {
     const active = this.activeDownloads.get(id);
     if (active) {
       active.stopReason = 'canceled';
-      if (active.cancel) await active.cancel();
-      else if (active.download) await active.download.cancelAsync();
+      if (active.cancel) await withTimeout(active.cancel(), 2500).catch(() => undefined);
+      else if (active.download)
+        await withTimeout(active.download.cancelAsync(), 2500).catch(() => undefined);
     }
     if (row.localUri) {
       const targetUri =
@@ -673,6 +809,8 @@ export class DownloadManagerService {
       await FileSystem.deleteAsync(targetUri, { idempotent: true }).catch(() => undefined);
     }
     await DownloadsRepository.updateStatus(id, 'canceled', 0, null);
+    this.downloadPackIds.delete(id);
+    this.drainQueueSoon();
   }
 
   private static async canFinalizeExistingFile(
@@ -709,6 +847,7 @@ export class DownloadManagerService {
     checksumMd5?: string | null;
     resolvedSizeBytes?: number | null;
   }) {
+    this.assertDownloadNotCanceled(input.id);
     await DownloadsRepository.updateStatus(input.id, 'verifying', 1, null);
     if (input.packId) {
       await ContentRepository.updateInstallStatus({
@@ -719,6 +858,7 @@ export class DownloadManagerService {
       });
     }
 
+    this.assertDownloadNotCanceled(input.id);
     const info = await FileSystem.getInfoAsync(input.resultUri);
     const fileSizeBytes = info.exists && 'size' in info ? info.size : null;
     const sizeBytes = input.resolvedSizeBytes ?? fileSizeBytes;
@@ -740,6 +880,7 @@ export class DownloadManagerService {
     }
 
     if (input.kind === 'guide' && input.resultUri.toLowerCase().endsWith('.pdf')) {
+      this.assertDownloadNotCanceled(input.id);
       const validPdf = await this.hasPdfHeader(input.resultUri);
       if (!validPdf) {
         await FileSystem.deleteAsync(input.resultUri, { idempotent: true }).catch(() => undefined);
@@ -750,6 +891,7 @@ export class DownloadManagerService {
     }
 
     if (input.kind === 'zim') {
+      this.assertDownloadNotCanceled(input.id);
       const header = await ZimHeaderParser.parse(input.resultUri);
       if (!header.valid) {
         await FileSystem.deleteAsync(input.resultUri, { idempotent: true }).catch(() => undefined);
@@ -759,7 +901,10 @@ export class DownloadManagerService {
 
     let checksumSha256: string | null = null;
     if (input.expectedChecksumSha256) {
-      const digest = await FileDigestService.sha256FileIfReasonable(input.resultUri, sizeBytes);
+      const digest = await FileDigestService.sha256FileIfReasonable(input.resultUri, sizeBytes, {
+        shouldCancel: () => this.activeDownloads.get(input.id)?.stopReason === 'canceled',
+      });
+      this.assertDownloadNotCanceled(input.id);
       checksumSha256 = digest.checksumSha256;
       if (
         checksumSha256 &&
@@ -787,6 +932,12 @@ export class DownloadManagerService {
         sizeBytes,
       });
       await RagService.indexContentPack(input.packId).catch(() => undefined);
+    }
+  }
+
+  private static assertDownloadNotCanceled(id: string) {
+    if (this.activeDownloads.get(id)?.stopReason === 'canceled') {
+      throw new Error('Download canceled.');
     }
   }
 

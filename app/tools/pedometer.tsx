@@ -1,14 +1,19 @@
 import { Screen } from '@/components/layout/screen';
 import { Card } from '@/components/ui/card';
 import { Text } from '@/components/ui/text';
+import { NAV_COLORS } from '@/constants/theme';
+import { hexToRgba } from '@/lib/colors';
 import { PedometerService } from '@/services/sensors/pedometer.service';
 import { useSensorStore } from '@/stores/sensor-store';
+import { useThemeStore } from '@/stores/theme-store';
 import * as React from 'react';
 import { Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
 
 type Status = 'idle' | 'requesting' | 'denied' | 'unavailable' | 'ready';
 
 export default function PedometerTool() {
+  const theme = useThemeStore((state) => state.effectiveTheme);
+  const palette = NAV_COLORS[theme];
   const [status, setStatus]       = React.useState<Status>('idle');
   const [baseSteps, setBaseSteps] = React.useState(0);
   const [session, setSession]     = React.useState(0);
@@ -78,19 +83,28 @@ export default function PedometerTool() {
   const progress   = Math.min(total / goal, 1);
   const distanceKm = (total * 0.000762).toFixed(2);
   const calories   = Math.round(total * 0.04);
+  const success = '#22c55e';
+  const cardStyle = [
+    styles.card,
+    { backgroundColor: palette.card, borderColor: palette.border },
+  ];
 
   if (status === 'denied') {
     return (
-      <Screen style={styles.screen}>
-        <Card style={styles.card}>
-          <Text style={styles.permTitle}>Permission Denied</Text>
-          <Text style={styles.permBody}>
+      <Screen style={[styles.screen, { backgroundColor: palette.background }]}>
+        <Card style={cardStyle}>
+          <Text style={[styles.permTitle, { color: palette.foreground }]}>Permission Denied</Text>
+          <Text style={[styles.permBody, { color: palette.mutedForeground }]}>
             {Platform.OS === 'android'
               ? 'Go to Settings → Apps → Ark → Permissions and enable Physical Activity.'
               : 'Go to Settings → Privacy → Motion & Fitness and enable access for Ark.'}
           </Text>
-          <TouchableOpacity style={styles.btn} onPress={retryAfterDenied}>
-            <Text style={styles.btnText}>Try Again</Text>
+          <TouchableOpacity
+            style={[styles.btn, { backgroundColor: palette.primary }]}
+            onPress={retryAfterDenied}>
+            <Text style={[styles.btnText, { color: theme === 'light' ? '#FFFFFF' : '#0A0A0A' }]}>
+              Try Again
+            </Text>
           </TouchableOpacity>
         </Card>
       </Screen>
@@ -99,10 +113,12 @@ export default function PedometerTool() {
 
   if (status === 'unavailable') {
     return (
-      <Screen style={styles.screen}>
-        <Card style={styles.card}>
-          <Text style={styles.permTitle}>Not Available</Text>
-          <Text style={styles.permBody}>This device does not have a pedometer sensor.</Text>
+      <Screen style={[styles.screen, { backgroundColor: palette.background }]}>
+        <Card style={cardStyle}>
+          <Text style={[styles.permTitle, { color: palette.foreground }]}>Not Available</Text>
+          <Text style={[styles.permBody, { color: palette.mutedForeground }]}>
+            This device does not have a pedometer sensor.
+          </Text>
         </Card>
       </Screen>
     );
@@ -110,9 +126,9 @@ export default function PedometerTool() {
 
   if (status === 'idle' || status === 'requesting') {
     return (
-      <Screen style={styles.screen}>
-        <Card style={styles.card}>
-          <Text style={styles.muted}>
+      <Screen style={[styles.screen, { backgroundColor: palette.background }]}>
+        <Card style={cardStyle}>
+          <Text style={[styles.muted, { color: palette.mutedForeground }]}>
             {status === 'requesting' ? 'Requesting permission…' : 'Starting…'}
           </Text>
         </Card>
@@ -121,35 +137,45 @@ export default function PedometerTool() {
   }
 
   return (
-    <Screen style={styles.screen}>
-      <Card style={styles.card}>
+    <Screen style={[styles.screen, { backgroundColor: palette.background }]}>
+      <Card style={cardStyle}>
 
         <View style={styles.stepsRow}>
-          <Text style={styles.stepsNum}>{total.toLocaleString()}</Text>
-          <Text style={styles.stepsLabel}>steps today</Text>
+          <Text style={[styles.stepsNum, { color: palette.foreground }]}>
+            {total.toLocaleString()}
+          </Text>
+          <Text style={[styles.stepsLabel, { color: palette.mutedForeground }]}>steps today</Text>
         </View>
 
-        <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: `${(progress * 100).toFixed(1)}%` as any }]} />
+        <View style={[styles.progressTrack, { backgroundColor: hexToRgba(palette.foreground, 0.14) }]}>
+          <View
+            style={[
+              styles.progressFill,
+              {
+                backgroundColor: success,
+                width: `${(progress * 100).toFixed(1)}%` as any,
+              },
+            ]}
+          />
         </View>
-        <Text style={styles.goalText}>
+        <Text style={[styles.goalText, { color: palette.mutedForeground }]}>
           {total.toLocaleString()} / {goal.toLocaleString()} goal
         </Text>
 
-        <View style={styles.statsRow}>
+        <View style={[styles.statsRow, { borderTopColor: palette.border }]}>
           <View style={styles.statBox}>
-            <Text style={styles.statValue}>{distanceKm}</Text>
-            <Text style={styles.statLabel}>km</Text>
+            <Text style={[styles.statValue, { color: palette.foreground }]}>{distanceKm}</Text>
+            <Text style={[styles.statLabel, { color: palette.mutedForeground }]}>km</Text>
           </View>
-          <View style={styles.statDivider} />
+          <View style={[styles.statDivider, { backgroundColor: palette.border }]} />
           <View style={styles.statBox}>
-            <Text style={styles.statValue}>{calories}</Text>
-            <Text style={styles.statLabel}>kcal</Text>
+            <Text style={[styles.statValue, { color: palette.foreground }]}>{calories}</Text>
+            <Text style={[styles.statLabel, { color: palette.mutedForeground }]}>kcal</Text>
           </View>
-          <View style={styles.statDivider} />
+          <View style={[styles.statDivider, { backgroundColor: palette.border }]} />
           <View style={styles.statBox}>
-            <Text style={styles.statValue}>{session}</Text>
-            <Text style={styles.statLabel}>session</Text>
+            <Text style={[styles.statValue, { color: palette.foreground }]}>{session}</Text>
+            <Text style={[styles.statLabel, { color: palette.mutedForeground }]}>session</Text>
           </View>
         </View>
 
@@ -161,15 +187,14 @@ export default function PedometerTool() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#000000',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 16,
   },
   card: {
     width: '100%',
-    backgroundColor: '#1c1c1e',
     borderRadius: 20,
+    borderWidth: 1,
     paddingVertical: 32,
     paddingHorizontal: 28,
     alignItems: 'center',
@@ -182,32 +207,27 @@ const styles = StyleSheet.create({
   stepsNum: {
     fontSize: 72,
     fontWeight: '700',
-    color: '#ffffff',
     lineHeight: 76,
-    letterSpacing: -2,
+    letterSpacing: 0,
   },
   stepsLabel: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#8e8e93',
     letterSpacing: 1,
   },
   progressTrack: {
     width: '100%',
     height: 6,
-    backgroundColor: '#3a3a3c',
     borderRadius: 3,
     overflow: 'hidden',
     marginTop: 8,
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#30d158',
     borderRadius: 3,
   },
   goalText: {
     fontSize: 13,
-    color: '#636366',
     marginTop: -8,
   },
   statsRow: {
@@ -217,7 +237,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingTop: 16,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#3a3a3c',
   },
   statBox: {
     flex: 1,
@@ -227,38 +246,31 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 24,
     fontWeight: '600',
-    color: '#ffffff',
   },
   statLabel: {
     fontSize: 12,
-    color: '#8e8e93',
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
   statDivider: {
     width: StyleSheet.hairlineWidth,
     height: 36,
-    backgroundColor: '#3a3a3c',
   },
   muted: {
     fontSize: 13,
-    color: '#636366',
     textAlign: 'center',
   },
   permTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#ffffff',
     textAlign: 'center',
   },
   permBody: {
     fontSize: 14,
-    color: '#8e8e93',
     textAlign: 'center',
     lineHeight: 20,
   },
   btn: {
-    backgroundColor: '#30d158',
     borderRadius: 12,
     paddingVertical: 14,
     paddingHorizontal: 32,
@@ -267,6 +279,5 @@ const styles = StyleSheet.create({
   btnText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#000000',
   },
 });

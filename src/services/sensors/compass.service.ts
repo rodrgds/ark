@@ -6,7 +6,7 @@ export class CompassService {
   }
 
   static start(listener: (heading: number) => void) {
-    Magnetometer.setUpdateInterval(500);
+    Magnetometer.setUpdateInterval(100);
     const subscription = Magnetometer.addListener(({ x, y }) => {
       const angle = Math.atan2(y, x) * (180 / Math.PI);
       listener((angle + 360) % 360);

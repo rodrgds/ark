@@ -14,7 +14,6 @@ import {
   Alert,
   BackHandler,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   View,
@@ -36,20 +35,76 @@ function getNativePdf() {
   return NativePdf;
 }
 
-const TAP_DETECTION_SCRIPT = `
+const HTML_READER_SCRIPT = `
 (function() {
-  if (window._arkTapInjected) return;
-  window._arkTapInjected = true;
-  let lastTap = 0;
-  document.addEventListener('click', function() {
-    const now = Date.now();
-    if (now - lastTap < 300) return;
-    lastTap = now;
-    window.ReactNativeWebView.postMessage('tap');
-  });
+  if (window._arkReaderInjected) return;
+  window._arkReaderInjected = true;
+
+  var style = document.createElement('style');
+  style.textContent = 'img{max-width:100%!important;width:auto!important;height:auto!important;} .ark-snapshot img{width:auto!important;max-width:100%!important;}';
+  document.head.appendChild(style);
+
+  function decodeHash(hash) {
+    try {
+      return decodeURIComponent(String(hash || '').replace(/^#/, ''));
+    } catch (_) {
+      return String(hash || '').replace(/^#/, '');
+    }
+  }
+
+  function findAnchorTarget(hash) {
+    var id = decodeHash(hash);
+    if (!id) return null;
+    if (window.CSS && CSS.escape) {
+      var escaped = CSS.escape(id);
+      var byId = document.querySelector('#' + escaped);
+      if (byId) return byId;
+    }
+    return document.getElementById(id) || document.getElementsByName(id)[0] || null;
+  }
+
+  function scrollToHash(hash) {
+    var target = findAnchorTarget(hash);
+    if (!target) return false;
+    target.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    if (history.replaceState) history.replaceState(null, '', '#' + decodeHash(hash));
+    return true;
+  }
+
+  document.addEventListener('click', function(event) {
+    var link = event.target && event.target.closest ? event.target.closest('a[href]') : null;
+    if (!link) return;
+    var href = link.getAttribute('href') || '';
+    var hash = link.hash || (href.charAt(0) === '#' ? href : '');
+    if (!hash) return;
+    event.preventDefault();
+    scrollToHash(hash);
+  }, true);
+
+  window.__arkScrollToHash = scrollToHash;
 })();
 true;
 `;
+
+function sectionScrollScript(sectionTitle: string) {
+  return `
+    (function() {
+      var targetTitle = ${JSON.stringify(sectionTitle)};
+      var normalize = function(value) {
+        return String(value || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+      };
+      var wanted = normalize(targetTitle);
+      var headings = Array.prototype.slice.call(document.querySelectorAll('h1,h2,h3,h4,h5,h6,[role="heading"]'));
+      var target = headings.find(function(node) { return normalize(node.textContent).indexOf(wanted) !== -1; });
+      if (!target) {
+        var id = wanted.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+        target = document.getElementById(id) || document.getElementsByName(id)[0] || null;
+      }
+      if (target) target.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    })();
+    true;
+  `;
+}
 
 export default function GuideReaderScreen() {
   const { packId, section } = useLocalSearchParams<{ packId: string; section?: string }>();
@@ -62,7 +117,6 @@ export default function GuideReaderScreen() {
   const [currentPage, setCurrentPage] = React.useState(1);
   const [initialPage, setInitialPage] = React.useState(1);
   const [showToc, setShowToc] = React.useState(false);
-  const [showControls, setShowControls] = React.useState(true);
   const [webViewLoadError, setWebViewLoadError] = React.useState<string | null>(null);
   const [webViewLoading, setWebViewLoading] = React.useState(false);
   const webViewRef = React.useRef<WebView>(null);
@@ -71,39 +125,6 @@ export default function GuideReaderScreen() {
   const pdfSource = React.useMemo(() => {
     return { uri: content?.uri || '' };
   }, [content?.uri]);
-
-  const controlsTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
-
-  // PDFs in WebView cannot receive injected JS tap events, so keep controls visible
-  const canAutoHideControls = content ? content.format !== 'pdf' : true;
-
-  const resetControlsTimeout = React.useCallback(() => {
-    if (controlsTimeoutRef.current) {
-      clearTimeout(controlsTimeoutRef.current);
-    }
-    controlsTimeoutRef.current = setTimeout(() => {
-      setShowControls(false);
-    }, 5000);
-  }, []);
-
-  React.useEffect(() => {
-    if (!canAutoHideControls) {
-      setShowControls(true);
-      return;
-    }
-    if (showControls) {
-      resetControlsTimeout();
-    }
-    return () => {
-      if (controlsTimeoutRef.current) {
-        clearTimeout(controlsTimeoutRef.current);
-      }
-    };
-  }, [showControls, canAutoHideControls, resetControlsTimeout]);
-
-  const toggleControls = React.useCallback(() => {
-    setShowControls((prev) => !prev);
-  }, []);
 
   async function loadPackAndContent() {
     if (!packId) return;
@@ -186,6 +207,11 @@ export default function GuideReaderScreen() {
           setCurrentPage(newContent.page);
           setInitialPage(newContent.page);
         }
+        if (newContent.format === 'html') {
+          requestAnimationFrame(() => {
+            webViewRef.current?.injectJavaScript(sectionScrollScript(targetSection.title));
+          });
+        }
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load section.'))
       .finally(() => {
@@ -225,12 +251,12 @@ export default function GuideReaderScreen() {
       <Stack.Screen options={{ headerShown: false }} />
 
       {/* Header */}
-      {showControls && !webViewLoadError && (
+      {!webViewLoadError && (
         <View
-          style={{ paddingTop: Math.max(20, insets.top), zIndex: 100 }}
+          style={{ paddingTop: Math.max(8, insets.top), zIndex: 100 }}
           className="bg-background border-b border-border"
         >
-          <View className="flex-row items-center justify-between px-4 h-14">
+          <View className="flex-row items-center justify-between px-3 h-12">
             <Button variant="ghost" size="icon" onPress={() => router.back()}>
               <Icon as={ChevronLeft} className="text-foreground" />
             </Button>
@@ -287,14 +313,14 @@ export default function GuideReaderScreen() {
               allowingReadAccessToURL={content.allowReadAccessToURL}
               style={{ flex: 1 }}
               scalesPageToFit={isPdf}
-              injectedJavaScript={!isPdf ? TAP_DETECTION_SCRIPT : undefined}
-              onMessage={(event) => {
-                if (event.nativeEvent.data === 'tap' && canAutoHideControls) {
-                  toggleControls();
+              injectedJavaScript={!isPdf ? HTML_READER_SCRIPT : undefined}
+              onLoadStart={() => setWebViewLoading(true)}
+              onLoadEnd={() => {
+                setWebViewLoading(false);
+                if (content.sectionTitle) {
+                  webViewRef.current?.injectJavaScript(sectionScrollScript(content.sectionTitle));
                 }
               }}
-              onLoadStart={() => setWebViewLoading(true)}
-              onLoadEnd={() => setWebViewLoading(false)}
               onError={(syntheticEvent) => {
                 const { nativeEvent } = syntheticEvent;
                 setWebViewLoadError(nativeEvent.description || 'Failed to load content.');
@@ -309,20 +335,6 @@ export default function GuideReaderScreen() {
           )
         )}
       </View>
-
-      {/* Footer */}
-      {showControls && !webViewLoadError && (
-        <View
-          style={{ paddingBottom: Math.max(12, insets.bottom), zIndex: 100 }}
-          className="bg-background border-t border-border"
-        >
-          <View className="px-6 h-14 justify-center">
-            <Text variant="small" className="text-muted-foreground font-medium">
-              {content?.sectionTitle || 'Reading Guide'}
-            </Text>
-          </View>
-        </View>
-      )}
 
       {/* WebView Error / Fallback Overlay */}
       {webViewLoadError && (
@@ -342,7 +354,7 @@ export default function GuideReaderScreen() {
           </View>
           <View className="gap-3 w-full">
             <Button
-              className="h-14 w-full rounded-2xl bg-primary"
+              className="h-14 w-full bg-primary"
               onPress={() => {
                 if (pack?.localUri) {
                   ContentPackService.openPack(pack.id).catch((err) => {
@@ -369,50 +381,6 @@ export default function GuideReaderScreen() {
         >
         <ActivityIndicator size="large" />
         </View>
-      )}
-
-      {/* Overlays */}
-      {showControls && !webViewLoadError && (
-        <>
-          {/* Header */}
-          <View
-            style={{ paddingTop: insets.top }}
-            className="absolute top-0 left-0 right-0 z-50 bg-background/80 border-b border-border"
-          >
-            <View className="flex-row items-center justify-between px-4 h-14">
-              <Button variant="ghost" size="icon" onPress={() => router.back()}>
-                <Icon as={ChevronLeft} className="text-foreground" />
-              </Button>
-              <View className="flex-1 mx-2">
-                <Text variant="small" className="text-foreground font-bold text-center" numberOfLines={1}>
-                  {pack?.title}
-                </Text>
-              </View>
-              <View className="flex-row gap-1">
-                {sections.length > 0 && (
-                  <Button variant="ghost" size="icon" onPress={() => setShowToc(true)}>
-                    <Icon as={List} className="text-foreground" />
-                  </Button>
-                )}
-                <Button variant="ghost" size="icon" onPress={handleShare}>
-                  <Icon as={Share2} className="text-foreground" />
-                </Button>
-              </View>
-            </View>
-          </View>
-
-          {/* Footer */}
-          <View
-            style={{ paddingBottom: insets.bottom }}
-            className="absolute bottom-0 left-0 right-0 z-50 bg-background/80 border-t border-border"
-          >
-            <View className="px-6 h-14 justify-center">
-              <Text variant="small" className="text-muted-foreground font-medium">
-                {content?.sectionTitle || 'Reading Guide'}
-              </Text>
-            </View>
-          </View>
-        </>
       )}
 
       {/* TOC Drawer */}

@@ -19,7 +19,6 @@ const RECOMMENDED_PACK_IDS = [
   'hesperian-first-aid',
   'us-army-survival-fm-21-76',
   'wikipedia-en-top100-nopic',
-  'embedding-nomic-v15-q4-k-m',
 ];
 
 export default function PacksScreen() {
@@ -41,65 +40,26 @@ export default function PacksScreen() {
     return groups;
   }, []);
   const orderedCategories = React.useMemo(() => getOrderedContentCategories(STARTER_PACKS), []);
+  const contentCategories = orderedCategories.filter((category) => category !== 'AI Models');
 
   return (
     <OnboardingFrame
-      title="Offline Intelligence"
-      nextHref="/onboarding/finish"
-      nextLabel="Finish Setup"
+      title="Starter Library"
+      nextHref="/onboarding/models"
+      nextLabel="Continue"
       onNext={saveSelection}
       hideBranding
       arkyPose="resourceful"
       step={6}
-      totalSteps={7}>
+      totalSteps={8}>
       <View className="gap-4">
         <Text className="text-foreground leading-6">
-          Arky starts with lightweight essentials. Large archives and AI models can be added later
-          from the Library.
+          Choose a few references to keep available offline. You can add larger archives later from
+          the Library.
         </Text>
 
-        <View className="bg-muted/50 rounded-xl p-4 gap-2">
-          <Text className="text-sm font-semibold">How the AI downloads work</Text>
-          <Text variant="muted" className="text-xs leading-relaxed">
-            <Text className="text-primary font-medium">Search / RAG models</Text> help Ark find the
-            right passages in your guides, notes, and imported documents before it answers.
-          </Text>
-          <Text variant="muted" className="text-xs leading-relaxed">
-            <Text className="text-primary font-medium">Chat models</Text> write the full reply you
-            read in the chat screen.
-          </Text>
-          <Text variant="muted" className="text-xs leading-relaxed">
-            Most people only need <Text className="text-primary font-medium">one search model</Text>{' '}
-            and, if they want local chat, <Text className="text-primary font-medium">one chat model</Text>.
-          </Text>
-        </View>
-
-        {orderedCategories.map((category) => {
+        {contentCategories.map((category) => {
           const packs = packsByCategory[category] ?? [];
-          if (category === 'AI Models') {
-            const embeddingPacks = packs.filter((pack) => pack.modelRole === 'embedding');
-            const chatPacks = packs.filter((pack) => pack.modelRole === 'chat');
-            return (
-              <View key={category} className="gap-3">
-                <CategoryHeader title={category} />
-                <ModelGroup
-                  title="Search / RAG models"
-                  description="Needed for better retrieval from your offline library."
-                  packs={embeddingPacks}
-                  selected={selected}
-                  setSelected={setSelected}
-                />
-                <ModelGroup
-                  title="Chat models"
-                  description="Used for full text replies in Ark chat. Larger and optional."
-                  packs={chatPacks}
-                  selected={selected}
-                  setSelected={setSelected}
-                />
-              </View>
-            );
-          }
-
           return (
             <View key={category} className="gap-2">
               <CategoryHeader title={category} />
@@ -131,54 +91,10 @@ export default function PacksScreen() {
 function CategoryHeader({ title }: { title: string }) {
   return (
     <View className="flex-row items-center gap-2">
-      <Text className="text-muted-foreground text-xs font-bold uppercase tracking-widest">
+      <Text className="text-muted-foreground text-xs font-bold tracking-widest uppercase">
         {title}
       </Text>
       <View className="bg-muted h-px flex-1" />
-    </View>
-  );
-}
-
-function ModelGroup({
-  title,
-  description,
-  packs,
-  selected,
-  setSelected,
-}: {
-  title: string;
-  description: string;
-  packs: ContentPackManifest[];
-  selected: Set<string>;
-  setSelected: React.Dispatch<React.SetStateAction<Set<string>>>;
-}) {
-  if (!packs.length) return null;
-
-  return (
-    <View className="gap-2">
-      <View className="gap-1">
-        <Text className="text-sm font-semibold">{title}</Text>
-        <Text variant="muted" className="text-xs leading-relaxed">
-          {description}
-        </Text>
-      </View>
-      <View className="gap-2">
-        {packs.map((pack) => (
-          <PackCard
-            key={pack.id}
-            pack={pack}
-            isSelected={selected.has(pack.id)}
-            onToggle={() =>
-              setSelected((current) => {
-                const next = new Set(current);
-                if (next.has(pack.id)) next.delete(pack.id);
-                else next.add(pack.id);
-                return next;
-              })
-            }
-          />
-        ))}
-      </View>
     </View>
   );
 }

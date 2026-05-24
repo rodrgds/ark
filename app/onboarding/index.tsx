@@ -20,7 +20,7 @@ export default function IntroScreen() {
       hideBranding
       arkyPose="tactical"
       step={1}
-      totalSteps={7}
+      totalSteps={8}
       onNext={async () => {
         await SettingsRepository.updateOnboardingState({ hasSeenIntro: true });
       }}>
@@ -36,7 +36,7 @@ export default function IntroScreen() {
               className="bg-muted flex-row items-center gap-2 rounded-xl px-2.5 py-2"
               style={{ width: '48%', minWidth: 0 }}>
               <Icon as={item.icon} className="text-primary size-3.5 shrink-0" />
-              <Text className="min-w-0 flex-1 text-[11px] font-medium leading-4">{item.title}</Text>
+              <Text className="min-w-0 flex-1 text-[11px] leading-4 font-medium">{item.title}</Text>
             </View>
           ))}
         </View>

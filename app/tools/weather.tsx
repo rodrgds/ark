@@ -1,5 +1,4 @@
 import { Screen } from '@/components/layout/screen';
-import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
@@ -21,7 +20,6 @@ import {
   CloudSun,
   Droplets,
   Gauge,
-  RefreshCw,
   SunMedium,
   Umbrella,
   Wind,
@@ -29,7 +27,13 @@ import {
   type LucideIcon,
 } from 'lucide-react-native';
 import * as React from 'react';
-import { ActivityIndicator, View, useWindowDimensions } from 'react-native';
+import {
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import Svg, { Circle, Line, Polyline, Rect } from 'react-native-svg';
 
 type CachedWeather = Awaited<ReturnType<typeof WeatherCacheService.getLatest>>;
@@ -74,20 +78,15 @@ export default function WeatherTool() {
   }
 
   return (
-    <Screen>
-      <View className="flex-row items-start justify-between gap-3">
-        <View className="flex-1 gap-2">
-          <Text variant="h1">Meteorology</Text>
-          <Text variant="muted">
-            Cached local forecast, symbols, trend charts, and confidence estimates.
-          </Text>
-        </View>
-        <Button onPress={refresh} disabled={busy} size="sm" variant="outline">
-          {busy ? <ActivityIndicator /> : <Icon as={RefreshCw} className="size-4" />}
-          <Text>Refresh</Text>
-        </Button>
-      </View>
-
+    <Screen
+      refreshControl={
+        <RefreshControl
+          refreshing={busy}
+          onRefresh={refresh}
+          tintColor={palette.primary}
+          colors={[palette.primary]}
+        />
+      }>
       {message ? (
         <Card className="border-destructive/40 bg-destructive/10">
           <Text className="text-destructive">{message}</Text>
@@ -111,11 +110,8 @@ export default function WeatherTool() {
       ) : (
         <Card className="gap-2">
           <Text variant="large">No cached forecast yet</Text>
-          <Text variant="muted">Refresh once while online so this tool works with no service.</Text>
-          <Button onPress={refresh} disabled={busy}>
-            {busy ? <ActivityIndicator /> : null}
-            <Text>Refresh Forecast</Text>
-          </Button>
+          <Text variant="muted">Pull down while online to cache a forecast for offline use.</Text>
+          {busy ? <ActivityIndicator /> : null}
         </Card>
       )}
     </Screen>
@@ -148,7 +144,7 @@ function CurrentConditionsCard({
       </View>
 
       <View className="flex-row items-center gap-4">
-        <View className="border-border bg-muted h-20 w-20 items-center justify-center rounded-2xl border">
+        <View className="border-border bg-muted h-20 w-20 items-center justify-center rounded-lg border">
           <Icon as={IconComponent} className="text-primary size-10" strokeWidth={1.7} />
         </View>
         <View className="flex-1">
@@ -178,26 +174,13 @@ function CurrentConditionsCard({
           value={formatNumber(forecast.precipitationMm, 'mm')}
         />
       </View>
-
-      <View
-        className="h-1.5 rounded-full"
-        style={{ backgroundColor: palette.border, overflow: 'hidden' }}>
-        <View
-          className="h-1.5 rounded-full"
-          style={{ width: `${confidence}%`, backgroundColor: palette.primary }}
-        />
-      </View>
     </Card>
   );
 }
 
 function NearTermStrip({ hours, ageHours }: { hours: CachedForecastHour[]; ageHours: number }) {
   const samples = hours.filter((hour) => new Date(hour.time).getTime() >= Date.now()).slice(0, 24);
-  const checkpoints = [0, 5, 11, 17, 23]
-    .map((index) => samples[index])
-    .filter(Boolean) as CachedForecastHour[];
-
-  if (checkpoints.length === 0) return null;
+  if (samples.length === 0) return null;
 
   return (
     <Card className="gap-3">
@@ -205,13 +188,16 @@ function NearTermStrip({ hours, ageHours }: { hours: CachedForecastHour[]; ageHo
         <Text variant="large">Next 24 hours</Text>
         <Text variant="muted">{ageHours > 24 ? 'aged cache' : 'fresh cache'}</Text>
       </View>
-      <View className="flex-row gap-2">
-        {checkpoints.map((hour) => {
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ gap: 8, paddingRight: 8 }}>
+        {samples.map((hour) => {
           const IconComponent = SYMBOL_ICONS[hour.symbol];
           return (
             <View
               key={hour.time}
-              className="border-border bg-muted/50 min-w-[64px] flex-1 items-center gap-1 rounded-xl border p-2">
+              className="border-border bg-muted/50 w-[76px] items-center gap-1 rounded-xl border p-2">
               <Text variant="small">{formatHour(hour.time)}</Text>
               <Icon as={IconComponent} className="text-primary size-5" />
               <Text>{formatNumber(hour.temperatureC, 'C')}</Text>
@@ -221,7 +207,7 @@ function NearTermStrip({ hours, ageHours }: { hours: CachedForecastHour[]; ageHo
             </View>
           );
         })}
-      </View>
+      </ScrollView>
     </Card>
   );
 }
@@ -259,11 +245,15 @@ function ForecastChart({ days, palette }: { days: CachedForecastDay[]; palette: 
 
   return (
     <Card className="gap-3">
-      <View className="flex-row items-center justify-between">
-        <Text variant="large">14-day trend</Text>
-        <View className="flex-row items-center gap-3">
+      <View className="flex-row flex-wrap items-start justify-between gap-2">
+        <View className="min-w-0 flex-1">
+          <Text variant="large">14-day trend from today</Text>
+          <Text variant="muted">Temperature lines with daily rain totals below.</Text>
+        </View>
+        <View className="flex-row items-center gap-3 pt-1">
           <LegendDot color={palette.primary} label="High" />
           <LegendDot color={palette.mutedForeground} label="Low" />
+          <LegendDot color={palette.primary} label="Rain" muted />
         </View>
       </View>
       <Svg width="100%" height={chartHeight} viewBox={`0 0 ${chartWidth} ${chartHeight}`}>
@@ -317,9 +307,8 @@ function ForecastChart({ days, palette }: { days: CachedForecastDay[]; palette: 
         />
       </Svg>
       <View className="flex-row justify-between">
-        <Text variant="muted">{formatDay(days[0]?.date)}</Text>
-        <Text variant="muted">rain bars</Text>
-        <Text variant="muted">{formatDay(days[days.length - 1]?.date)}</Text>
+        <Text variant="muted">Today, {formatDate(days[0]?.date)}</Text>
+        <Text variant="muted">{formatDate(days[days.length - 1]?.date)}</Text>
       </View>
     </Card>
   );
@@ -378,7 +367,6 @@ function MetricChip({ icon, label, value }: { icon: LucideIcon; label: string; v
 }
 
 function ConfidencePill({ value, compact = false }: { value: number; compact?: boolean }) {
-  const label = value >= 75 ? 'high' : value >= 55 ? 'guarded' : 'low';
   return (
     <View
       className={
@@ -386,17 +374,26 @@ function ConfidencePill({ value, compact = false }: { value: number; compact?: b
           ? 'bg-muted rounded-full px-2 py-1'
           : 'border-border bg-muted rounded-full border px-3 py-1.5'
       }>
-      <Text variant="small">
-        {Math.round(value)}% {compact ? '' : label}
-      </Text>
+      <Text variant="small">{Math.round(value)}% confidence</Text>
     </View>
   );
 }
 
-function LegendDot({ color, label }: { color: string; label: string }) {
+function LegendDot({
+  color,
+  label,
+  muted = false,
+}: {
+  color: string;
+  label: string;
+  muted?: boolean;
+}) {
   return (
     <View className="flex-row items-center gap-1">
-      <View className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+      <View
+        className="h-2 w-2 rounded-full"
+        style={{ backgroundColor: color, opacity: muted ? 0.35 : 1 }}
+      />
       <Text variant="muted">{label}</Text>
     </View>
   );
@@ -417,7 +414,8 @@ function formatDay(date: string | undefined) {
   return format(new Date(`${date}T00:00:00`), 'EEE');
 }
 
-function formatDate(date: string) {
+function formatDate(date: string | undefined) {
+  if (!date) return '--';
   return format(new Date(`${date}T00:00:00`), 'MMM d');
 }
 

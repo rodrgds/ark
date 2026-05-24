@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
+import { ModalFrame } from '@/components/ui/modal-frame';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
 import { getLabelColor, getLabelForegroundColor } from '@/lib/label-colors';
@@ -157,7 +158,12 @@ export default function NotesScreen() {
               {leftColumn.map((note) => (
                 <Pressable
                   key={note.id}
-                  onPress={() => router.push({ pathname: '/notes/editor', params: { id: note.id } })}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/notes/editor' as never,
+                      params: { id: note.id } as never,
+                    })
+                  }
                   onLongPress={() => setActionNote(note)}
                   delayLongPress={220}>
                   <Card className="gap-2">
@@ -196,7 +202,12 @@ export default function NotesScreen() {
               {rightColumn.map((note) => (
                 <Pressable
                   key={note.id}
-                  onPress={() => router.push({ pathname: '/notes/editor', params: { id: note.id } })}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/notes/editor' as never,
+                      params: { id: note.id } as never,
+                    })
+                  }
                   onLongPress={() => setActionNote(note)}
                   delayLongPress={220}>
                   <Card className="gap-2">
@@ -238,53 +249,54 @@ export default function NotesScreen() {
       <Button
         size="icon"
         className="absolute bottom-6 right-6 h-14 w-14 rounded-full"
-        onPress={() => router.push('/notes/editor')}>
+        onPress={() => router.push('/notes/editor' as never)}>
         <Icon as={Plus} className="size-6" />
       </Button>
 
       <Modal transparent visible={!!actionNote} animationType="fade" onRequestClose={() => setActionNote(null)}>
-        <Pressable className="flex-1 bg-black/50" onPress={() => setActionNote(null)}>
-          <View className="flex-1 justify-end p-4" style={{ paddingBottom: Math.max(insets.bottom, 12) }}>
-            <Pressable className="bg-card border-border gap-1 rounded-2xl border px-2 py-2" onPress={() => {}}>
-              <Button
-                variant="ghost"
-                className="h-10 justify-start px-2"
-                onPress={() => {
-                  if (actionNote) void toggleStar(actionNote);
-                }}>
-                <Icon as={Star} className="size-4" />
-                <Text>{actionNote?.isFavorite ? 'Unstar' : 'Star'}</Text>
-              </Button>
-              <Button
-                variant="ghost"
-                className="h-10 justify-start px-2"
-                onPress={() => {
-                  if (!actionNote) return;
-                  setActionNote(null);
-                  router.push({ pathname: '/notes/labels' as never, params: { noteId: actionNote.id } as never });
-                }}>
-                <Icon as={Tag} className="size-4" />
-                <Text>Labels</Text>
-              </Button>
-              <Button
-                variant="ghost"
-                className="h-10 justify-start px-2"
-                onPress={() => {
-                  if (!actionNote) return;
-                  setConfirmDeleteNote(actionNote);
-                  setActionNote(null);
-                }}>
-                <Icon as={Trash2} className="text-white size-4" />
-                <Text className="text-white">Delete</Text>
-              </Button>
-            </Pressable>
-          </View>
-        </Pressable>
+        <ModalFrame
+          onDismiss={() => setActionNote(null)}
+          position="bottom"
+          containerStyle={{ paddingBottom: Math.max(insets.bottom, 12) }}
+          surfaceClassName="gap-1 p-2">
+          <Button
+            variant="ghost"
+            className="h-10 justify-start px-2"
+            onPress={() => {
+              if (actionNote) void toggleStar(actionNote);
+            }}>
+            <Icon as={Star} className="size-4" />
+            <Text>{actionNote?.isFavorite ? 'Unstar' : 'Star'}</Text>
+          </Button>
+          <Button
+            variant="ghost"
+            className="h-10 justify-start px-2"
+            onPress={() => {
+              if (!actionNote) return;
+              setActionNote(null);
+              router.push({ pathname: '/notes/labels' as never, params: { noteId: actionNote.id } as never });
+            }}>
+            <Icon as={Tag} className="size-4" />
+            <Text>Labels</Text>
+          </Button>
+          <Button
+            variant="ghost"
+            className="h-10 justify-start px-2"
+            onPress={() => {
+              if (!actionNote) return;
+              setConfirmDeleteNote(actionNote);
+              setActionNote(null);
+            }}>
+            <Icon as={Trash2} className="text-destructive size-4" />
+            <Text className="text-destructive">Delete</Text>
+          </Button>
+        </ModalFrame>
       </Modal>
 
       <ConfirmModal
         visible={!!confirmDeleteNote}
         title="Delete note?"
+        description="This removes the note from active use and keeps it out of your vault views."
         confirmVariant="destructive"
         onCancel={() => setConfirmDeleteNote(null)}
         onConfirm={() => {

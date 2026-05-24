@@ -14,9 +14,25 @@ import {
 } from '@/services/content/zim.service';
 import type { ContentPack } from '@/types/content';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
-import { BookOpen, ChevronLeft, Download, ExternalLink, Search, Trash2 } from 'lucide-react-native';
+import {
+  BookOpen,
+  ChevronLeft,
+  Download,
+  ExternalLink,
+  Search,
+  Trash2,
+  TriangleAlert,
+} from 'lucide-react-native';
 import * as React from 'react';
-import { ActivityIndicator, Alert, Linking, Modal, ScrollView, View, Pressable } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Linking,
+  Modal,
+  ScrollView,
+  View,
+  Pressable,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { Input } from '@/components/ui/input';
@@ -314,13 +330,53 @@ export default function ContentDetailScreen() {
                   <Icon as={Trash2} className="text-destructive size-4" />
                 </Button>
               </>
+            ) : pack.installStatus === 'downloading' ||
+              pack.installStatus === 'queued' ||
+              pack.installStatus === 'verifying' ? (
+              <View className="flex-1 flex-row gap-2">
+                <Button className="flex-1" disabled>
+                  <ActivityIndicator size="small" />
+                  <Text className="text-primary-foreground font-bold">
+                    {pack.installStatus === 'verifying' ? 'Verifying' : 'Downloading'}
+                  </Text>
+                </Button>
+                <Button
+                  size="icon"
+                  variant="outline"
+                  className="border-border active:bg-muted"
+                  disabled={busy}
+                  onPress={() =>
+                    Alert.alert('Cancel download?', pack.title, [
+                      { text: 'Keep', style: 'cancel' },
+                      {
+                        text: 'Cancel',
+                        style: 'destructive',
+                        onPress: () =>
+                          runAction(() => ContentPackService.cancelPackDownload(pack.id)),
+                      },
+                    ])
+                  }>
+                  <Icon as={Trash2} className="text-destructive size-4" />
+                </Button>
+              </View>
+            ) : pack.installStatus === 'paused' ? (
+              <Button
+                className="bg-primary active:bg-primary/90 flex-1"
+                disabled={busy}
+                onPress={() => runAction(() => ContentPackService.resumePackDownload(pack.id))}>
+                {busy ? (
+                  <ActivityIndicator size="small" />
+                ) : (
+                  <Icon as={Download} className="size-5" />
+                )}
+                <Text className="text-primary-foreground font-bold">Resume Download</Text>
+              </Button>
             ) : (
               <Button
-                className="flex-1 bg-primary active:bg-primary/90"
-                disabled={busy || pack.installStatus === 'downloading' || pack.installStatus === 'verifying'}
-                onPress={() => runAction(() => ContentPackService.installPack(pack.id))}
-              >
-                {busy || pack.installStatus === 'downloading' || pack.installStatus === 'verifying' ? (
+                className="bg-primary active:bg-primary/90 flex-1"
+                disabled={busy}
+                onPress={() => runAction(() => ContentPackService.installPack(pack.id))}>
+                {busy ? (
                   <ActivityIndicator size="small" />
                 ) : (
                   <Icon as={Download} className="size-5" />
@@ -333,11 +389,18 @@ export default function ContentDetailScreen() {
 
         {/* Disclaimer / Safety Copy if any */}
         {pack.disclaimer ? (
-          <View className="rounded-r-lg border-l-2 border-amber-500/50 bg-amber-500/5 p-4">
-            <Text variant="small" className="leading-relaxed font-semibold text-amber-500/80">
-              {pack.disclaimer}
-            </Text>
-          </View>
+          <Card className="gap-3 border-amber-500/30 bg-amber-500/5">
+            <View className="flex-row items-start gap-3">
+              <View className="mt-0.5 rounded-md bg-amber-500/12 p-2">
+                <Icon as={TriangleAlert} className="size-4 text-amber-500" />
+              </View>
+              <Text
+                variant="small"
+                className="flex-1 leading-relaxed font-medium text-amber-500/90">
+                {pack.disclaimer}
+              </Text>
+            </View>
+          </Card>
         ) : null}
 
         {/* Guide Table of Contents (for non-ZIM packages) */}
@@ -352,8 +415,9 @@ export default function ContentDetailScreen() {
                   key={section.title}
                   disabled={!pack.installed}
                   onPress={() => handleReadGuide(section)}
-                  className={`border-border active:bg-muted/30 flex-row items-center justify-between border-b p-4 last:border-b-0 ${!pack.installed ? 'opacity-50' : ''
-                    }`}>
+                  className={`border-border active:bg-muted/30 flex-row items-center justify-between border-b p-4 last:border-b-0 ${
+                    !pack.installed ? 'opacity-50' : ''
+                  }`}>
                   <View className="flex-1 pr-4">
                     <Text variant="default" className="text-foreground font-bold">
                       {section.title}
@@ -390,21 +454,23 @@ export default function ContentDetailScreen() {
                 </Text>
                 <View className="flex-row items-center justify-between">
                   <View className="flex-1 pr-2">
-                    <Text variant="large" className="text-foreground">In-App Search</Text>
+                    <Text variant="large" className="text-foreground">
+                      In-App Search
+                    </Text>
                   </View>
                   <View className="flex-row gap-1.5">
                     {zimMetadata?.hasFulltextIndex && (
-                      <View className="bg-primary/10 px-2 py-0.5 rounded-full">
+                      <View className="bg-primary/10 rounded-full px-2 py-0.5">
                         <Text className="text-primary text-xs">Full-text</Text>
                       </View>
                     )}
                     {zimMetadata?.hasTitleIndex && (
-                      <View className="bg-primary/10 px-2 py-0.5 rounded-full">
+                      <View className="bg-primary/10 rounded-full px-2 py-0.5">
                         <Text className="text-primary text-xs">Title</Text>
                       </View>
                     )}
                     {!zimMetadata?.hasFulltextIndex && !zimMetadata?.hasTitleIndex && (
-                      <View className="bg-destructive/10 px-2 py-0.5 rounded-full">
+                      <View className="bg-destructive/10 rounded-full px-2 py-0.5">
                         <Text className="text-destructive text-xs">No index</Text>
                       </View>
                     )}
@@ -432,8 +498,11 @@ export default function ContentDetailScreen() {
                     variant="outline"
                     className="border-border active:bg-muted"
                     onPress={runZimSearch}
-                    disabled={zimBusy || !zimQuery.trim() || (!zimMetadata?.hasFulltextIndex && !zimMetadata?.hasTitleIndex)}
-                  >
+                    disabled={
+                      zimBusy ||
+                      !zimQuery.trim() ||
+                      (!zimMetadata?.hasFulltextIndex && !zimMetadata?.hasTitleIndex)
+                    }>
                     {zimBusy ? (
                       <ActivityIndicator size="small" />
                     ) : (
@@ -446,16 +515,13 @@ export default function ContentDetailScreen() {
                   <Button
                     variant="secondary"
                     className="flex-1"
-                    onPress={() => openZimArticle(zimMetadata.mainPath)}
-                  >
+                    onPress={() => openZimArticle(zimMetadata.mainPath)}>
                     <Icon as={BookOpen} className="size-4" />
                     <Text>Read Main Article</Text>
                   </Button>
                 )}
 
-                {zimError ? (
-                  <Text className="text-destructive text-sm">{zimError}</Text>
-                ) : null}
+                {zimError ? <Text className="text-destructive text-sm">{zimError}</Text> : null}
 
                 {zimResults.length > 0 && (
                   <View className="gap-1">
@@ -466,7 +532,10 @@ export default function ContentDetailScreen() {
                         className="bg-muted/40 active:bg-muted/60 rounded-lg p-3">
                         <Text className="text-foreground font-semibold">{result.title}</Text>
                         {result.snippet ? (
-                          <Text variant="small" className="text-muted-foreground mt-1" numberOfLines={3}>
+                          <Text
+                            variant="small"
+                            className="text-muted-foreground mt-1"
+                            numberOfLines={3}>
                             {stripHtml(result.snippet)}
                           </Text>
                         ) : null}
@@ -488,13 +557,17 @@ export default function ContentDetailScreen() {
               </Card>
             ) : zimPlan?.nativeReaderError ? (
               /* Native module was found but failed to initialize — explain why */
-              <Card className="gap-3 border-border bg-destructive/5">
-                <Text variant="large" className="text-destructive">In-App Reader Unavailable</Text>
+              <Card className="border-border bg-destructive/5 gap-3">
+                <Text variant="large" className="text-destructive">
+                  In-App Reader Unavailable
+                </Text>
                 <Text className="text-destructive text-sm leading-relaxed">
                   {zimPlan.nativeReaderError}
                 </Text>
                 <Text variant="muted" className="text-xs leading-relaxed">
-                  The ArkZim native module is present in this build but could not open the archive. This usually means the iOS implementation is not yet complete, or the module crashed at runtime.
+                  The ArkZim native module is present in this build but could not open the archive.
+                  This usually means the iOS implementation is not yet complete, or the module
+                  crashed at runtime.
                 </Text>
               </Card>
             ) : (
@@ -560,7 +633,7 @@ export default function ContentDetailScreen() {
             </Card>
 
             {/* Capabilities notice */}
-            <View className="bg-muted/60 p-4 border border-border rounded-lg">
+            <View className="bg-muted/60 border-border rounded-lg border p-4">
               <Text variant="small" className="text-muted-foreground leading-normal">
                 {zimPlan?.nativeReaderError
                   ? `⚠️ ${zimPlan.nativeReaderError} The ArkZim module is present but non-functional in this build.`
@@ -581,14 +654,16 @@ export default function ContentDetailScreen() {
             {/* Header */}
             <View
               style={{ paddingTop: Math.max(20, insets.top) }}
-              className="bg-background border-b border-border"
-            >
-              <View className="flex-row items-center justify-between px-4 h-14">
+              className="bg-background border-border border-b">
+              <View className="h-14 flex-row items-center justify-between px-4">
                 <Button variant="ghost" size="icon" onPress={() => setZimArticle(null)}>
                   <Icon as={ChevronLeft} className="text-foreground" />
                 </Button>
-                <View className="flex-1 mx-2">
-                  <Text variant="small" className="text-foreground font-bold text-center" numberOfLines={1}>
+                <View className="mx-2 flex-1">
+                  <Text
+                    variant="small"
+                    className="text-foreground text-center font-bold"
+                    numberOfLines={1}>
                     {zimArticle?.title || 'Article'}
                   </Text>
                 </View>
@@ -608,9 +683,8 @@ export default function ContentDetailScreen() {
             {/* Footer */}
             <View
               style={{ paddingBottom: Math.max(12, insets.bottom) }}
-              className="bg-background border-t border-border"
-            >
-              <View className="px-4 h-10 justify-center">
+              className="bg-background border-border border-t">
+              <View className="h-10 justify-center px-4">
                 <Text variant="small" className="text-muted-foreground text-center">
                   {zimArticle?.mimeType || 'HTML'}
                 </Text>

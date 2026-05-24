@@ -1,27 +1,20 @@
 import { cn } from '@/lib/utils';
+import { ArkKeyboardAwareScrollView } from '@/components/layout/keyboard-controller';
 import * as React from 'react';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  View,
-  type ScrollViewProps,
-} from 'react-native';
+import { Platform, View, type ScrollViewProps } from 'react-native';
 
 export function Screen({ className, contentContainerStyle, ...props }: ScrollViewProps) {
   return (
-    <KeyboardAvoidingView
-      className="flex-1"
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
-      <ScrollView
-        className={cn('bg-background flex-1', className)}
-        contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={[{ padding: 12, gap: 12, paddingBottom: 24 }, contentContainerStyle]}
-        keyboardShouldPersistTaps="handled"
-        {...props}
-      />
-    </KeyboardAvoidingView>
+    <ArkKeyboardAwareScrollView
+      className={cn('bg-background flex-1', className)}
+      bottomOffset={Platform.OS === 'ios' ? 90 : 0}
+      contentInsetAdjustmentBehavior="automatic"
+      contentContainerStyle={[{ padding: 12, gap: 12, paddingBottom: 24 }, contentContainerStyle]}
+      extraKeyboardSpace={Platform.OS === 'android' ? 12 : 0}
+      keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+      keyboardShouldPersistTaps="handled"
+      {...props}
+    />
   );
 }
 

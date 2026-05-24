@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
 import { Arky } from '@/components/brand/ark-logo';
-import { ArkKeyboardAvoidingView } from '@/components/layout/keyboard-controller';
 import { AIService } from '@/services/ai/ai.service';
 import { ModelManagerService } from '@/services/ai/model-manager.service';
 import type { AiCitation, AiMessage } from '@/types/ai';
@@ -21,7 +20,17 @@ import {
   Trash2,
 } from 'lucide-react-native';
 import * as React from 'react';
-import { ActivityIndicator, Alert, FlatList, Keyboard, Modal, Pressable, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Keyboard,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function CitationItem({ citation }: { citation: AiCitation }) {
@@ -168,8 +177,8 @@ function MessageBubble({ message }: { message: AiMessage }) {
 
 function StreamingBubble({ content, onStop }: { content: string; onStop: () => void }) {
   return (
-    <View className="px-3 pb-2">
-      <Card className="gap-2 rounded-lg px-3 py-2">
+    <View className="items-start">
+      <Card className="max-w-[92%] gap-2 rounded-lg">
         <View className="flex-row items-center justify-between gap-3">
           <View className="flex-row items-center gap-2">
             <ActivityIndicator size="small" />
@@ -182,7 +191,7 @@ function StreamingBubble({ content, onStop }: { content: string; onStop: () => v
             <Text>Stop</Text>
           </Button>
         </View>
-        <Text selectable numberOfLines={4}>
+        <Text selectable>
           {content || 'Checking local sources...'}
         </Text>
       </Card>
@@ -192,6 +201,7 @@ function StreamingBubble({ content, onStop }: { content: string; onStop: () => v
 
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
+  const listRef = React.useRef<FlatList<AiMessage>>(null);
   const [threadId, setThreadId] = React.useState<string | undefined>();
   const [messages, setMessages] = React.useState<AiMessage[]>([]);
   const [content, setContent] = React.useState('');
@@ -314,12 +324,17 @@ export default function ChatScreen() {
     ]);
   }
 
-  const data = React.useMemo(() => [...messages].reverse(), [messages]);
+  React.useEffect(() => {
+    const timeout = setTimeout(() => {
+      listRef.current?.scrollToEnd({ animated: true });
+    }, 40);
+    return () => clearTimeout(timeout);
+  }, [messages.length, sending, streamingText]);
 
   return (
-    <ArkKeyboardAvoidingView
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       className="bg-background flex-1"
-      behavior="translate-with-padding"
       keyboardVerticalOffset={0}>
       <View className="border-border bg-background flex-row items-center gap-2 border-b px-4 py-3">
         <ModelPill
@@ -342,7 +357,7 @@ export default function ChatScreen() {
           <Skeleton className="h-28 w-[92%]" />
           <Text variant="muted">Loading local thread...</Text>
         </View>
-      ) : messages.length === 0 ? (
+      ) : messages.length === 0 && !sending ? (
         <View
           className={
             keyboardVisible
@@ -359,22 +374,26 @@ export default function ChatScreen() {
         </View>
       ) : (
         <FlatList
-          inverted
-          data={data}
+          ref={listRef}
+          data={messages}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => <MessageBubble message={item} />}
+          ListFooterComponent={
+            sending ? (
+              <StreamingBubble content={streamingText} onStop={() => void stopResponse()} />
+            ) : null
+          }
           contentContainerStyle={{
+            flexGrow: 1,
             gap: 12,
             padding: 16,
             paddingBottom: keyboardVisible ? 8 : 24,
           }}
           keyboardShouldPersistTaps="handled"
+          onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+          onLayout={() => listRef.current?.scrollToEnd({ animated: false })}
         />
       )}
-
-      {sending ? (
-        <StreamingBubble content={streamingText} onStop={() => void stopResponse()} />
-      ) : null}
 
       {error ? (
         <View className="border-destructive/40 border-t px-4 py-2">
@@ -452,6 +471,6 @@ export default function ChatScreen() {
           </Pressable>
         </Pressable>
       </Modal>
-    </ArkKeyboardAvoidingView>
+    </KeyboardAvoidingView>
   );
 }

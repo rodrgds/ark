@@ -30,6 +30,14 @@ describe('MapService runtime status', () => {
     expect(MapService.isDemoStyle('https://example.test/style.json')).toBe(false);
   });
 
+  test('uses a local low-detail overview style for the default map shell', () => {
+    const style = MapService.getOverviewStyle('oled');
+
+    expect(typeof style).toBe('object');
+    expect(style.sources).toEqual({});
+    expect(style.layers.map((layer) => layer.type)).toEqual(['background']);
+  });
+
   test('guards MapLibre network mode behind the native manager', () => {
     const calls: boolean[] = [];
 

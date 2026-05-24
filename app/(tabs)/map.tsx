@@ -11,7 +11,6 @@ import { MapPresetsService } from '@/services/maps/map-presets.service';
 import { OfflineMapService } from '@/services/maps/offline-map.service';
 import { useThemeStore } from '@/stores/theme-store';
 import type { MapMarker, MapRegion, OfflineMapSearchResult, SavedRoute } from '@/types/maps';
-import * as DocumentPicker from 'expo-document-picker';
 import * as Location from 'expo-location';
 import { useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
 import {
@@ -19,24 +18,21 @@ import {
   Camera,
   Check,
   CheckCircle2,
-  ChevronDown,
   Clock3,
   Download,
   ImageIcon,
   Layers,
   List,
-  LocateFixed,
   Map as MapIcon,
   MapPin,
   Maximize2,
   Minimize2,
+  Navigation2,
   Pause,
   Pencil,
   Play,
-  Plus,
   Route,
   Search,
-  Star,
   Trash2,
   X,
 } from 'lucide-react-native';
@@ -45,6 +41,7 @@ import * as React from 'react';
 import {
   ActivityIndicator,
   Alert,
+  BackHandler,
   Image,
   Keyboard,
   KeyboardAvoidingView,
@@ -52,6 +49,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  type TextInput,
   View,
 } from 'react-native';
 import Animated, {
@@ -64,17 +62,79 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
 
 type Panel = 'offline' | 'saved' | null;
 type ManagerTab = 'downloaded' | 'browse';
 type TopMode = 'compact' | 'search' | 'map';
 type LngLat = [number, number];
 
-const DEFAULT_CENTER: LngLat = [-9.1393, 38.7223];
+const DEFAULT_CENTER: LngLat = [0, 20];
+const WORLD_OVERVIEW_ZOOM = 1.1;
+const OFFLINE_REGION_ZOOM = 8;
 const TOP_TRANSITION = LinearTransition.duration(180).easing(Easing.out(Easing.quad));
 const SEARCH_INSET_WITH_COMPASS = 64;
 const SEARCH_INSET_WITHOUT_COMPASS = 12;
 const COMPASS_NORTH_EPSILON_DEGREES = 1.25;
+const SEARCH_GESTURE_SUPPRESS_MS = 450;
+const WORLD_OVERVIEW_PATHS = [
+  'M42 58L72 45L101 53L116 72L107 94L80 100L58 88Z',
+  'M118 95L135 105L128 134L113 154L98 132L103 110Z',
+  'M151 58L190 43L225 51L243 76L221 92L184 85L157 78Z',
+  'M190 91L219 97L229 124L210 152L185 142L172 116Z',
+  'M237 64L295 55L329 75L319 101L284 105L252 91Z',
+  'M266 126L303 128L321 145L308 160L274 153Z',
+];
+const WORLD_OVERVIEW_POLYGONS: LngLat[][] = [
+  [
+    [-168, 72],
+    [-52, 72],
+    [-50, 8],
+    [-88, -8],
+    [-126, 15],
+    [-168, 50],
+    [-168, 72],
+  ],
+  [
+    [-82, 12],
+    [-34, 6],
+    [-44, -56],
+    [-72, -54],
+    [-86, -20],
+    [-82, 12],
+  ],
+  [
+    [-12, 72],
+    [46, 72],
+    [72, 36],
+    [45, 6],
+    [5, 24],
+    [-12, 72],
+  ],
+  [
+    [-18, 34],
+    [50, 34],
+    [58, -35],
+    [24, -36],
+    [5, -4],
+    [-18, 34],
+  ],
+  [
+    [40, 68],
+    [178, 68],
+    [150, 8],
+    [92, 6],
+    [58, 30],
+    [40, 68],
+  ],
+  [
+    [110, -10],
+    [156, -10],
+    [154, -44],
+    [112, -44],
+    [110, -10],
+  ],
+];
 
 export default function MapScreen() {
   const navigation = useNavigation();
@@ -108,8 +168,6 @@ export default function MapScreen() {
   const [mapReady, setMapReady] = React.useState(false);
   const [busy, setBusy] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
-  const [styleReachable, setStyleReachable] = React.useState<boolean | null>(null);
-  const [checkingStyle, setCheckingStyle] = React.useState(false);
   const [catalogMeta, setCatalogMeta] = React.useState(() => MapPresetsService.getCatalogMeta());
   const [catalogVersion, setCatalogVersion] = React.useState(0);
   const [userLocation, setUserLocation] = React.useState<{
@@ -120,7 +178,11 @@ export default function MapScreen() {
     MapPresetsService.recommendedForLocation(null)
   );
   const [isPlacing, setIsPlacing] = React.useState(false);
+  const [searchFocused, setSearchFocused] = React.useState(false);
+  const [mapBearing, setMapBearing] = React.useState(0);
   const [compassVisible, setCompassVisible] = React.useState(false);
+  const searchInputRef = React.useRef<TextInput>(null);
+  const searchGestureSuppressUntilRef = React.useRef(0);
   const searchRightInset = useSharedValue(SEARCH_INSET_WITHOUT_COMPASS);
   const animatedSearchStyle = useAnimatedStyle(() => ({
     right: searchRightInset.value,
@@ -134,19 +196,14 @@ export default function MapScreen() {
     if (downloadedRegions.length > 0) {
       return MapService.getLocalStyle(theme);
     }
-    return MapService.getThemedStyle(theme);
+    return MapService.getOverviewStyle(theme);
   }, [downloadedRegions.length, theme]);
-  const mapStyleUrl =
-    typeof mapStyle === 'string' ? mapStyle : MapService.getDefaultStyleUrl(theme);
-  const mapInstanceKey = typeof mapStyle === 'string' ? mapStyle : 'offline-map';
+  const mapInstanceKey = downloadedRegions.length > 0 ? 'offline-regions-map' : 'world-overview-map';
   const activeMapKeyRef = React.useRef(mapInstanceKey);
   const status = MapService.getRuntimeStatus(maplibre, maplibreChecked);
   const nativeMapAvailable = Boolean(getMapComponent(maplibre) && getCameraComponent(maplibre));
-  // Allow mounting the map if:
-  //  - we have a downloaded region (can render fully offline), OR
-  //  - the online style is reachable (for live browsing without a downloaded pack)
   const hasDownloadedRegion = downloadedRegions.length > 0;
-  const canMountMap = nativeMapAvailable && (hasDownloadedRegion || styleReachable === true);
+  const canMountMap = nativeMapAvailable;
 
   const filteredMarkers = React.useMemo(() => {
     const query = savedSearch.trim().toLowerCase();
@@ -207,35 +264,10 @@ export default function MapScreen() {
   }, [canMountMap, mapInstanceKey]);
 
   React.useEffect(() => {
-    let canceled = false;
-    if (!maplibre) {
-      setStyleReachable(null);
-      return;
-    }
-    // If we have a downloaded offline pack selected, the map works offline — skip the check
-    if (hasDownloadedRegion) {
-      setStyleReachable(true);
-      setCheckingStyle(false);
-      return;
-    }
-    setCheckingStyle(true);
-    MapService.canReachStyleUrl(mapStyleUrl)
-      .then((reachable) => {
-        if (!canceled) setStyleReachable(reachable);
-      })
-      .finally(() => {
-        if (!canceled) setCheckingStyle(false);
-      });
-    return () => {
-      canceled = true;
-    };
-  }, [maplibre, mapStyleUrl, hasDownloadedRegion]);
-
-  React.useEffect(() => {
     if (!maplibre || !nativeMapAvailable) return;
-    MapService.setNetworkConnected(maplibre, !hasDownloadedRegion);
+    MapService.setNetworkConnected(maplibre, false);
     return () => MapService.setNetworkConnected(maplibre, true);
-  }, [hasDownloadedRegion, maplibre, nativeMapAvailable]);
+  }, [maplibre, nativeMapAvailable]);
 
   React.useEffect(() => {
     if (selectedMarkerId && !markers.some((marker) => marker.id === selectedMarkerId)) {
@@ -301,6 +333,40 @@ export default function MapScreen() {
   React.useEffect(() => {
     setRecommendedPresets(MapPresetsService.recommendedForLocation(userLocation));
   }, [catalogVersion, userLocation]);
+
+  const closeSearchKeyboard = React.useCallback(() => {
+    searchGestureSuppressUntilRef.current = Date.now() + SEARCH_GESTURE_SUPPRESS_MS;
+    searchInputRef.current?.blur();
+    Keyboard.dismiss();
+    setSearchFocused(false);
+    setTopMode('compact');
+  }, []);
+
+  React.useEffect(() => {
+    const visible = bearingDistanceFromNorth(mapBearing) > COMPASS_NORTH_EPSILON_DEGREES;
+    setCompassVisible(visible);
+    searchRightInset.value = withTiming(
+      visible ? SEARCH_INSET_WITH_COMPASS : SEARCH_INSET_WITHOUT_COMPASS,
+      { duration: 180, easing: Easing.out(Easing.quad) }
+    );
+  }, [mapBearing, searchRightInset]);
+
+  React.useEffect(() => {
+    if (!searchFocused && topMode !== 'search') return undefined;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      closeSearchKeyboard();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [closeSearchKeyboard, searchFocused, topMode]);
+
+  React.useEffect(() => {
+    if (!searchFocused && topMode !== 'search') return undefined;
+    return navigation.addListener('beforeRemove', (event) => {
+      event.preventDefault();
+      closeSearchKeyboard();
+    });
+  }, [closeSearchKeyboard, navigation, searchFocused, topMode]);
 
   function openSpotDialog(lngLat: LngLat) {
     setPendingSpot(lngLat);
@@ -485,7 +551,7 @@ export default function MapScreen() {
       if (!result.ok) setError(result.reason ?? 'Unable to download this map region.');
     } finally {
       await load({ syncNative: true });
-      MapService.setNetworkConnected(maplibre, !hasDownloadedRegion);
+      MapService.setNetworkConnected(maplibre, false);
       setBusy(null);
     }
   }
@@ -549,6 +615,16 @@ export default function MapScreen() {
     });
   }
 
+  function resetNorth() {
+    setMapBearing(0);
+    if (!mapReady || !canMountMap) return;
+    cameraRef.current?.easeTo?.({
+      center,
+      bearing: 0,
+      duration: 220,
+    });
+  }
+
   function fitRegion(region: MapRegion) {
     const bounds = regionBounds(region);
     if (!bounds) return;
@@ -576,6 +652,9 @@ export default function MapScreen() {
   function openSearchResult(result: OfflineMapSearchResult) {
     setSearch('');
     setTopMode('compact');
+    setSearchFocused(false);
+    searchInputRef.current?.blur();
+    Keyboard.dismiss();
     if (
       (result.kind === 'spot' || result.kind === 'poi') &&
       result.longitude != null &&
@@ -594,10 +673,9 @@ export default function MapScreen() {
     if (route) centerOnRoute(route);
   }
 
-  const mapStatus =
-    nativeMapAvailable && styleReachable === false && !hasDownloadedRegion
-      ? 'Download regions to use offline maps.'
-      : status.reason;
+  const mapStatus = nativeMapAvailable
+    ? 'Low-detail world overview is available without network tiles.'
+    : status.reason;
 
   return (
     <View className="bg-background flex-1">
@@ -605,8 +683,9 @@ export default function MapScreen() {
         cameraRef={cameraRef}
         canMount={canMountMap}
         center={center}
-        checkingSource={checkingStyle}
         fullscreen={fullscreen}
+        hasDownloadedRegion={hasDownloadedRegion}
+        isSearchActive={searchFocused || topMode === 'search'}
         mapKey={mapInstanceKey}
         mapStyle={mapStyle}
         maplibre={maplibre}
@@ -614,8 +693,11 @@ export default function MapScreen() {
         routes={routes}
         selectedMarker={selectedMarker}
         status={mapStatus}
+        suppressLongPressUntilRef={searchGestureSuppressUntilRef}
+        onBearingChange={setMapBearing}
         onCenterChange={setCenter}
         onCloseMarkerPopup={() => setSelectedMarkerId(null)}
+        onDismissSearch={closeSearchKeyboard}
         onLongPress={openSpotDialog}
         onMapLoadFailed={() =>
           setError(
@@ -643,16 +725,24 @@ export default function MapScreen() {
         <Animated.View
           layout={LinearTransition}
           className="absolute left-3 gap-2"
-          style={{ top: 6, right: 64 }}>
+          style={[{ top: 6 }, animatedSearchStyle]}>
           <TopMapControls
             mode={topMode}
+            noDownloadedRegions={!hasDownloadedRegion}
             offlineResults={offlineResults}
+            searchInputRef={searchInputRef}
             search={search}
+            onChangeFocus={setSearchFocused}
             onChangeMode={setTopMode}
             onChangeSearch={setSearch}
+            onCloseSearch={closeSearchKeyboard}
             onOpenResult={openSearchResult}
           />
         </Animated.View>
+      ) : null}
+
+      {!isPlacing && compassVisible ? (
+        <CompassButton bearing={mapBearing} top={6} onPress={resetNorth} />
       ) : null}
 
       {!isPlacing ? (
@@ -807,8 +897,9 @@ function MapCanvas({
   cameraRef,
   canMount,
   center,
-  checkingSource,
   fullscreen,
+  hasDownloadedRegion,
+  isSearchActive,
   mapKey,
   mapStyle,
   maplibre,
@@ -816,8 +907,11 @@ function MapCanvas({
   routes,
   selectedMarker,
   status,
+  suppressLongPressUntilRef,
+  onBearingChange,
   onCenterChange,
   onCloseMarkerPopup,
+  onDismissSearch,
   onLongPress,
   onMapLoadFailed,
   onMapReady,
@@ -827,8 +921,9 @@ function MapCanvas({
   cameraRef: React.MutableRefObject<any>;
   canMount: boolean;
   center: LngLat;
-  checkingSource: boolean;
   fullscreen: boolean;
+  hasDownloadedRegion: boolean;
+  isSearchActive: boolean;
   mapKey: string;
   mapStyle: unknown;
   maplibre: MapLibreModule | null;
@@ -836,8 +931,11 @@ function MapCanvas({
   routes: SavedRoute[];
   selectedMarker: MapMarker | null;
   status: string;
+  suppressLongPressUntilRef: React.MutableRefObject<number>;
+  onBearingChange: (bearing: number) => void;
   onCenterChange: (center: LngLat) => void;
   onCloseMarkerPopup: () => void;
+  onDismissSearch: () => void;
   onLongPress: (center: LngLat) => void;
   onMapLoadFailed: () => void;
   onMapReady: (mapKey: string) => void;
@@ -852,25 +950,12 @@ function MapCanvas({
   const UserLocation = getUserLocationComponent(maplibre);
   const routeData = React.useMemo(() => routeFeatureCollection(routes), [routes]);
   const markerData = React.useMemo(() => markerFeatureCollection(markers), [markers]);
+  const overviewData = React.useMemo(() => worldOverviewFeatureCollection(), []);
 
   React.useEffect(() => () => onMapUnmount(mapKey), [mapKey]);
 
   if (!Map || !Camera || !canMount) {
-    return (
-      <View className="bg-background flex-1 items-center justify-center gap-4 p-8">
-        <View className="border-primary/40 bg-primary/15 size-20 items-center justify-center rounded-lg border">
-          <Icon as={Layers} className="text-primary size-9" />
-        </View>
-        <View className="max-w-80 gap-1">
-          <Text variant="h3" className="text-center">
-            No regions available
-          </Text>
-          <Text variant="muted" className="text-center">
-            {checkingSource ? 'Checking map source availability.' : status}
-          </Text>
-        </View>
-      </View>
-    );
+    return <WorldOverviewFallback status={status} />;
   }
 
   return (
@@ -880,23 +965,57 @@ function MapCanvas({
       mapStyle={mapStyle as never}
       logo={false}
       attribution={false}
-      compass
+      compass={false}
       scaleBar={fullscreen}
       onDidFailLoadingMap={onMapLoadFailed}
       onDidFinishLoadingMap={() => onMapReady(mapKey)}
-      onPress={() => Keyboard.dismiss()}
-      onLongPress={(event: any) => onLongPress(event.nativeEvent.lngLat)}
+      onPress={() => {
+        if (isSearchActive) onDismissSearch();
+        else Keyboard.dismiss();
+      }}
+      onLongPress={(event: any) => {
+        if (isSearchActive || Date.now() < suppressLongPressUntilRef.current) {
+          onDismissSearch();
+          return;
+        }
+        onLongPress(event.nativeEvent.lngLat);
+      }}
+      onRegionIsChanging={(event: any) => {
+        onBearingChange(event.nativeEvent.bearing ?? 0);
+      }}
       onRegionDidChange={(event: any) => {
         onCenterChange(event.nativeEvent.center);
+        onBearingChange(event.nativeEvent.bearing ?? 0);
       }}>
       <Camera
         ref={cameraRef}
         initialViewState={{
           center,
-          zoom: 8,
+          zoom: hasDownloadedRegion ? OFFLINE_REGION_ZOOM : WORLD_OVERVIEW_ZOOM,
         }}
       />
       {UserLocation ? <UserLocation animated /> : null}
+      {!hasDownloadedRegion && GeoJSONSource && Layer ? (
+        <GeoJSONSource id="ark-world-overview" data={overviewData}>
+          <Layer
+            id="ark-world-land"
+            type="fill"
+            style={{
+              fillColor: '#2f3a2a',
+              fillOpacity: 0.72,
+            }}
+          />
+          <Layer
+            id="ark-world-coast"
+            type="line"
+            style={{
+              lineColor: '#95a78b',
+              lineOpacity: 0.75,
+              lineWidth: 1,
+            }}
+          />
+        </GeoJSONSource>
+      ) : null}
       {GeoJSONSource && Layer && routes.length ? (
         <GeoJSONSource id="ark-routes" data={routeData}>
           <Layer
@@ -971,6 +1090,64 @@ function MapCanvas({
   );
 }
 
+function CompassButton({
+  bearing,
+  top,
+  onPress,
+}: {
+  bearing: number;
+  top: number;
+  onPress: () => void;
+}) {
+  return (
+    <Animated.View
+      entering={FadeIn.duration(140)}
+      exiting={FadeOut.duration(120)}
+      className="absolute right-3"
+      style={{ top }}>
+      <Pressable
+        accessibilityLabel="Reset map north"
+        className="border-primary/40 bg-card/95 size-12 items-center justify-center rounded-lg border"
+        onPress={onPress}>
+        <Animated.View style={{ transform: [{ rotate: `${-normalizeBearing(bearing)}deg` }] }}>
+          <Icon as={Navigation2} className="text-primary size-5" />
+        </Animated.View>
+        <Text variant="small" className="text-primary absolute bottom-1 text-[10px] leading-3">
+          N
+        </Text>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+function WorldOverviewFallback({ status }: { status: string }) {
+  return (
+    <View className="bg-background flex-1">
+      <View className="absolute inset-0">
+        <Svg viewBox="0 0 360 180" preserveAspectRatio="xMidYMid slice" style={{ flex: 1 }}>
+          <Path d="M0 0H360V180H0Z" fill="#181d16" />
+          {WORLD_OVERVIEW_PATHS.map((path) => (
+            <Path key={path} d={path} fill="#2f3a2a" stroke="#95a78b" strokeWidth={0.9} />
+          ))}
+        </Svg>
+      </View>
+      <View className="flex-1 items-center justify-center gap-4 p-8">
+        <View className="border-primary/40 bg-background/80 size-20 items-center justify-center rounded-lg border">
+          <Icon as={Layers} className="text-primary size-9" />
+        </View>
+        <View className="bg-background/80 border-border max-w-80 gap-1 rounded-lg border p-3">
+          <Text variant="h3" className="text-center">
+            World overview
+          </Text>
+          <Text variant="muted" className="text-center">
+            {status}
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 function MarkerDot({ marker, selected }: { marker: MapMarker; selected: boolean }) {
   const color = marker.color || '#F2B84B';
   return (
@@ -999,17 +1176,25 @@ function MarkerDot({ marker, selected }: { marker: MapMarker; selected: boolean 
 
 function TopMapControls({
   mode,
+  noDownloadedRegions,
   offlineResults,
+  searchInputRef,
   search,
+  onChangeFocus,
   onChangeMode,
   onChangeSearch,
+  onCloseSearch,
   onOpenResult,
 }: {
   mode: TopMode;
+  noDownloadedRegions: boolean;
   offlineResults: OfflineMapSearchResult[];
+  searchInputRef: React.RefObject<TextInput | null>;
   search: string;
+  onChangeFocus: (focused: boolean) => void;
   onChangeMode: (mode: TopMode) => void;
   onChangeSearch: (value: string) => void;
+  onCloseSearch: () => void;
   onOpenResult: (result: OfflineMapSearchResult) => void;
 }) {
   return (
@@ -1019,11 +1204,17 @@ function TopMapControls({
           <View className="border-border bg-card/95 h-12 flex-row items-center gap-2 rounded-lg border px-3">
             <Icon as={Search} className="text-muted-foreground size-4" />
             <Input
+              ref={searchInputRef}
               className="h-8 min-h-0 flex-1 border-0 bg-transparent px-0 py-0"
               value={search}
               onChangeText={onChangeSearch}
-              onFocus={() => onChangeMode('search')}
-              onBlur={() => Keyboard.dismiss()}
+              onFocus={() => {
+                onChangeFocus(true);
+                onChangeMode('search');
+              }}
+              onBlur={() => {
+                onChangeFocus(false);
+              }}
               placeholder="Search map and saved data"
               autoCapitalize="none"
               autoCorrect={false}
@@ -1035,8 +1226,7 @@ function TopMapControls({
                 className="size-8"
                 onPress={() => {
                   onChangeSearch('');
-                  onChangeMode('compact');
-                  Keyboard.dismiss();
+                  onCloseSearch();
                 }}>
                 <Icon as={X} className="size-4" />
               </Button>
@@ -1044,6 +1234,15 @@ function TopMapControls({
           </View>
         </Animated.View>
       </View>
+
+      {noDownloadedRegions ? (
+        <Animated.View entering={FadeIn.duration(120)} exiting={FadeOut.duration(100)}>
+          <View className="border-primary/40 bg-card/95 self-start flex-row items-center gap-2 rounded-full border px-3 py-2">
+            <Icon as={AlertTriangle} className="text-primary size-4" />
+            <Text variant="small">No downloaded map regions</Text>
+          </View>
+        </Animated.View>
+      ) : null}
 
       {mode === 'search' && search.trim().length >= 2 ? (
         <Animated.View entering={FadeIn.duration(120)} exiting={FadeOut.duration(100)}>
@@ -1915,6 +2114,20 @@ function markerFeatureCollection(markers: MapMarker[]) {
   };
 }
 
+function worldOverviewFeatureCollection() {
+  return {
+    type: 'FeatureCollection',
+    features: WORLD_OVERVIEW_POLYGONS.map((polygon, index) => ({
+      type: 'Feature',
+      properties: { id: `overview-${index}` },
+      geometry: {
+        type: 'Polygon',
+        coordinates: [polygon],
+      },
+    })),
+  };
+}
+
 function regionBounds(region: MapRegion): [number, number, number, number] | null {
   if (region.west == null || region.south == null || region.east == null || region.north == null) {
     return null;
@@ -1968,4 +2181,13 @@ function statusLabel(status: MapRegion['status']) {
 
 function formatPoint(latitude: number, longitude: number) {
   return `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+}
+
+function normalizeBearing(bearing: number) {
+  return ((bearing % 360) + 360) % 360;
+}
+
+function bearingDistanceFromNorth(bearing: number) {
+  const normalized = normalizeBearing(bearing);
+  return Math.min(normalized, 360 - normalized);
 }

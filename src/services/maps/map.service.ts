@@ -131,6 +131,10 @@ export class MapService {
     return this.getDefaultStyleUrl(theme);
   }
 
+  static getOverviewStyle(theme: MapTheme = 'oled'): StyleSpecification {
+    return createOverviewStyle(theme);
+  }
+
   static getLocalStyle(theme: MapTheme = 'oled'): StyleSpecification {
     return createTacticalStyle(theme);
   }
@@ -168,6 +172,23 @@ export class MapService {
   static isDemoStyle(styleUrl = this.getDefaultStyleUrl()) {
     return styleUrl === LEGACY_DEMO_MAP_STYLE_URL || styleUrl.includes('demotiles.maplibre.org');
   }
+}
+
+export function createOverviewStyle(theme: MapTheme): StyleSpecification {
+  const colors = MAP_THEME_COLORS[theme];
+  return {
+    version: 8,
+    sources: {},
+    layers: [
+      {
+        id: 'background',
+        type: 'background',
+        paint: {
+          'background-color': colors.water,
+        },
+      },
+    ],
+  };
 }
 
 export function createTacticalStyle(theme: MapTheme): StyleSpecification {

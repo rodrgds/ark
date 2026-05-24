@@ -108,7 +108,7 @@ export function OnboardingFrame({
 
       {hideBranding && arkyPose && (
         <Animated.View
-          className="items-center py-2"
+          className="items-center py-6"
           entering={
             motionEnabled ? FadeInDown.duration(400).easing(Easing.out(Easing.quad)) : undefined
           }>

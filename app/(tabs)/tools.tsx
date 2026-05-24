@@ -6,7 +6,6 @@ import { Text } from '@/components/ui/text';
 import { NAV_COLORS } from '@/constants/theme';
 import { hexToRgba } from '@/lib/colors';
 import { RssService } from '@/services/rss/rss.service';
-import { useSensorStore } from '@/stores/sensor-store';
 import { useThemeStore } from '@/stores/theme-store';
 import { Link, type Href, useFocusEffect } from 'expo-router';
 import {
@@ -163,7 +162,6 @@ function useBatterySnapshot() {
 }
 
 export default function ToolsScreen() {
-  const { heading, pressure, pitch, roll, steps, lux } = useSensorStore();
   const battery = useBatterySnapshot();
   const batteryStatus = batteryLabel(battery);
   const [rssUnreadCount, setRssUnreadCount] = React.useState(0);
@@ -191,7 +189,6 @@ export default function ToolsScreen() {
       title: 'Compass',
       description: 'Heading and cardinal direction.',
       drain: 'medium' as Drain,
-      reading: heading == null ? 'No fix' : `${Math.round(heading)} deg`,
     },
     {
       href: '/tools/barometer' as Href,
@@ -199,7 +196,6 @@ export default function ToolsScreen() {
       title: 'Barometer',
       description: 'Pressure and trend snapshots.',
       drain: 'low' as Drain,
-      reading: pressure == null ? 'No reading' : `${Math.round(pressure)} hPa`,
     },
     {
       href: '/tools/level' as Href,
@@ -207,8 +203,6 @@ export default function ToolsScreen() {
       title: 'Level',
       description: 'Pitch and roll bubble level.',
       drain: 'low' as Drain,
-      reading:
-        pitch == null || roll == null ? 'No reading' : `${pitch.toFixed(1)} / ${roll.toFixed(1)}`,
     },
     {
       href: '/tools/chronometer' as Href,
@@ -216,7 +210,6 @@ export default function ToolsScreen() {
       title: 'Chronometer',
       description: 'Stopwatch with lap times.',
       drain: 'low' as Drain,
-      reading: 'Offline',
     },
     {
       href: '/tools/light' as Href,
@@ -224,7 +217,6 @@ export default function ToolsScreen() {
       title: 'Light meter',
       description: 'Ambient lux on supported devices.',
       drain: 'low' as Drain,
-      reading: lux == null ? 'No reading' : `${Math.round(lux)} lux`,
     },
     {
       href: TOOL_ROUTES.coordinates,
@@ -232,7 +224,6 @@ export default function ToolsScreen() {
       title: 'Coordinates',
       description: 'GPS fix and saved map spots.',
       drain: 'medium' as Drain,
-      reading: 'Location',
     },
     {
       href: TOOL_ROUTES.weather,
@@ -240,7 +231,6 @@ export default function ToolsScreen() {
       title: 'Meteorology',
       description: 'Cached forecast and confidence.',
       drain: 'low' as Drain,
-      reading: 'Cached',
     },
     {
       href: '/tools/news' as Href,
@@ -248,7 +238,6 @@ export default function ToolsScreen() {
       title: 'News',
       description: 'Emergency feeds for offline reading.',
       drain: 'low' as Drain,
-      reading: 'Feeds',
       badge: rssUnreadCount,
     },
     {
@@ -257,7 +246,6 @@ export default function ToolsScreen() {
       title: 'Checklist',
       description: 'Readiness tasks before leaving service.',
       drain: 'low' as Drain,
-      reading: 'Local',
     },
   ];
 
@@ -294,7 +282,6 @@ function ToolTile({
   title,
   description,
   drain,
-  reading,
   badge,
 }: {
   href: Href;
@@ -302,7 +289,6 @@ function ToolTile({
   title: string;
   description: string;
   drain: Drain;
-  reading: string;
   badge?: number;
 }) {
   return (
@@ -334,9 +320,6 @@ function ToolTile({
               </Text>
             </View>
           </View>
-          <Text variant="small" className="text-muted-foreground font-mono">
-            {reading}
-          </Text>
         </Card>
       </Pressable>
     </Link>

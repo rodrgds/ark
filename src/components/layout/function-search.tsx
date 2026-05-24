@@ -85,7 +85,7 @@ const FUNCTION_ENTRIES: SearchEntry[] = [
     subtitle: 'Cached feeds and unread alerts',
     keywords: 'news rss feeds alerts articles cache',
     icon: Newspaper,
-    href: '/tools/news',
+    href: '/tools/news' as Href,
   },
   {
     title: 'Compass',

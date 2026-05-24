@@ -74,6 +74,7 @@ export default function RootLayout() {
               <Stack.Screen name="tools" options={{ headerShown: false }} />
               <Stack.Screen name="content" options={{ headerShown: false }} />
               <Stack.Screen name="documents" options={{ headerShown: false }} />
+              <Stack.Screen name="easter-egg" options={{ headerShown: false }} />
               <Stack.Screen name="notes" />
             </Stack>
             {error ? (

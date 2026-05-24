@@ -7,15 +7,19 @@ import { Text } from '@/components/ui/text';
 import { useAuthStore } from '@/stores/auth-store';
 import { VaultService } from '@/services/security/vault.service';
 import NetInfo from '@react-native-community/netinfo';
+import { useRouter } from 'expo-router';
 import { Lock, Unlock } from 'lucide-react-native';
 import * as React from 'react';
 import { Animated, View, Easing, Modal, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export function LockStateBar() {
+  const router = useRouter();
   const unlocked = useAuthStore((state) => state.unlocked);
   const [confirmLockOpen, setConfirmLockOpen] = React.useState(false);
   const [locking, setLocking] = React.useState(false);
+  const [isOnline, setIsOnline] = React.useState<boolean | null>(true);
+  const tapTimestampsRef = React.useRef<number[]>([]);
   const anim = React.useRef(new Animated.Value(0)).current;
 
   const scale = anim.interpolate({
@@ -57,35 +61,35 @@ export function LockStateBar() {
       VaultService.lock();
     });
   }
-  const [isOnline, setIsOnline] = React.useState<boolean | null>(true);
-
   React.useEffect(() => {
     return NetInfo.addEventListener((state) => {
       setIsOnline(state.isConnected);
     });
   }, []);
 
+  function handleSecretTap() {
+    const now = Date.now();
+    const recent = tapTimestampsRef.current.filter((time) => now - time < 800);
+    recent.push(now);
+    tapTimestampsRef.current = recent;
+    if (recent.length >= 2) {
+      tapTimestampsRef.current = [];
+      router.push('/easter-egg' as never);
+    }
+  }
+
   return (
     <SafeAreaView edges={['top']} className="border-border bg-card border-b">
       <View className="flex-row items-center justify-between gap-3 px-4 py-2">
         <View className="flex-row items-center gap-2">
-          <ArkMark size={28} className="rounded-md" />
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-9 w-9 rounded-full"
-            onPress={() => {
-              if (unlocked) {
-                setConfirmLockOpen(true);
-                return;
-              }
-              void VaultService.unlockWithBiometrics();
-            }}>
-            <Icon
-              as={unlocked ? Unlock : Lock}
-              className={unlocked ? 'text-primary size-4' : 'text-muted-foreground size-4'}
-            />
-          </Button>
+          <Pressable onPress={handleSecretTap} hitSlop={10}>
+            <ArkMark size={28} className="rounded-md" />
+          </Pressable>
+          <Icon
+            as={unlocked ? Unlock : Lock}
+            className={unlocked ? 'text-primary size-4' : 'text-muted-foreground size-4'}
+          />
+          <Text variant="small">{unlocked ? 'Vault unlocked' : 'Vault locked'}</Text>
         </View>
 
         <View className="flex-row items-center gap-2">
@@ -96,6 +100,12 @@ export function LockStateBar() {
               {isOnline ? 'Online' : 'Offline'}
             </Text>
           </View>
+
+          {unlocked ? (
+            <Button size="sm" variant="ghost" onPress={() => setConfirmLockOpen(true)}>
+              <Text>Lock</Text>
+            </Button>
+          ) : null}
         </View>
       </View>
 

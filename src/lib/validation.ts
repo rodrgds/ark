@@ -6,7 +6,10 @@ export const noteInputSchema = z.object({
   tags: z.array(z.string().trim().min(1).max(32)).max(12).default([]),
 });
 
-export const notePatchSchema = noteInputSchema.partial().extend({
+export const notePatchSchema = z.object({
+  title: z.string().trim().max(140).optional(),
+  body: z.string().max(200_000).optional(),
+  tags: z.array(z.string().trim().min(1).max(32)).max(12).optional(),
   isFavorite: z.boolean().optional(),
 });
 

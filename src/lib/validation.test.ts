@@ -3,6 +3,7 @@ import {
   chatMessageSchema,
   contentPackIdSchema,
   noteInputSchema,
+  notePatchSchema,
   parseOrThrow,
   vaultPasswordSchema,
 } from '@/lib/validation';
@@ -19,6 +20,15 @@ describe('validation schemas', () => {
       title: 'Field note',
       body: 'Water source north of camp.',
       tags: ['water', 'camp'],
+    });
+  });
+
+  test('note patches do not default omitted fields', () => {
+    expect(parseOrThrow(notePatchSchema, { tags: [' field '] })).toEqual({
+      tags: ['field'],
+    });
+    expect(parseOrThrow(notePatchSchema, { body: 'Keep body' })).toEqual({
+      body: 'Keep body',
     });
   });
 

@@ -49,6 +49,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   completeOnboarding: async () => {
     await SettingsRepository.updateOnboardingState({
+      hasSeenIntro: true,
+      hasCreatedVault: true,
       completedAt: Date.now(),
     });
     await get().refresh();

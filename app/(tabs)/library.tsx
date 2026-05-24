@@ -3,45 +3,26 @@ import { Arky } from '@/components/brand/ark-logo';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
-import { Input } from '@/components/ui/input';
-import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
-import {
-  getOrderedContentCategories,
-  getPackIcon,
-  getPackModelRoleLabel,
-} from '@/constants/pack-presentation';
-import { ModelManagerService } from '@/services/ai/model-manager.service';
+import { getOrderedContentCategories, getPackIcon } from '@/constants/pack-presentation';
 import { ContentPackService } from '@/services/content/content-pack.service';
 import { ImportService } from '@/services/files/import.service';
 import { FileSystemService } from '@/services/files/filesystem.service';
-import { RssService } from '@/services/rss/rss.service';
 import type { ContentCategory, ContentPack } from '@/types/content';
 import type { ArkDocument } from '@/types/db';
 import { formatDistanceToNow } from 'date-fns';
 import { router } from 'expo-router';
-import {
-  Bot,
-  Check,
-  Download,
-  FileText,
-  Pause,
-  Play,
-  Plus,
-  RefreshCcw,
-  Rss,
-  Trash2,
-  Upload,
-} from 'lucide-react-native';
+import { Check, Download, FileText, Pause, Play, Plus, Trash2 } from 'lucide-react-native';
 import * as React from 'react';
 import { ActivityIndicator, Alert, RefreshControl, View } from 'react-native';
+import { Progress } from '@/components/ui/progress';
 
 function actionLabel(pack: ContentPack) {
   if (pack.installStatus === 'downloading' || pack.installStatus === 'queued') return 'Downloading';
   if (pack.installStatus === 'verifying') return 'Verifying';
   if (pack.installStatus === 'paused') return 'Resume';
-  if (pack.installStatus === 'failed') return 'Retry';
+  if (pack.installStatus === 'failed') return 'Retry download';
   if (pack.installed) return 'Installed';
   return 'Download';
 }
@@ -58,12 +39,6 @@ function storageWarning(pack: ContentPack, freeBytes?: number | null) {
 export default function LibraryScreen() {
   const [packs, setPacks] = React.useState<ContentPack[]>([]);
   const [documents, setDocuments] = React.useState<ArkDocument[]>([]);
-  const [rssOverview, setRssOverview] = React.useState<Awaited<
-    ReturnType<typeof RssService.getOverview>
-  > | null>(null);
-  const [modelStatus, setModelStatus] = React.useState<Awaited<
-    ReturnType<typeof ModelManagerService.getStatus>
-  > | null>(null);
   const [storageCapacity, setStorageCapacity] = React.useState<Awaited<
     ReturnType<typeof FileSystemService.getDiskCapacity>
   > | null>(null);
@@ -72,27 +47,23 @@ export default function LibraryScreen() {
   const [error, setError] = React.useState<string | null>(null);
   const [refreshing, setRefreshing] = React.useState(false);
   const [initialLoading, setInitialLoading] = React.useState(true);
-  const [modelTitle, setModelTitle] = React.useState('');
-  const [modelUrl, setModelUrl] = React.useState('');
-  const [modelChecksum, setModelChecksum] = React.useState('');
-  const filters = React.useMemo<Array<ContentCategory | 'All' | 'Documents'>>(
-    () => ['All', ...getOrderedContentCategories(packs), 'Documents'],
+  const libraryPacks = React.useMemo(
+    () => packs.filter((pack) => pack.category !== 'AI Models' && pack.category !== 'RSS'),
     [packs]
+  );
+  const filters = React.useMemo<Array<ContentCategory | 'All' | 'Documents'>>(
+    () => ['All', ...getOrderedContentCategories(libraryPacks), 'Documents'],
+    [libraryPacks]
   );
 
   async function load() {
-    const [nextPacks, nextDocuments, nextRssOverview, nextModelStatus, nextStorageCapacity] =
-      await Promise.all([
-        ContentPackService.listPacks(),
-        ImportService.listDocuments(),
-        RssService.getOverview(),
-        ModelManagerService.getStatus(),
-        FileSystemService.getDiskCapacity(),
-      ]);
+    const [nextPacks, nextDocuments, nextStorageCapacity] = await Promise.all([
+      ContentPackService.listPacks(),
+      ImportService.listDocuments(),
+      FileSystemService.getDiskCapacity(),
+    ]);
     setPacks(nextPacks);
     setDocuments(nextDocuments);
-    setRssOverview(nextRssOverview);
-    setModelStatus(nextModelStatus);
     setStorageCapacity(nextStorageCapacity);
     setInitialLoading(false);
   }
@@ -120,13 +91,12 @@ export default function LibraryScreen() {
 
   const visible =
     filter === 'All' || filter === 'Documents'
-      ? packs
-      : packs.filter((pack) => pack.category === filter);
+      ? libraryPacks
+      : libraryPacks.filter((pack) => pack.category === filter);
   const showPacks = filter !== 'Documents';
   const showDocuments = filter === 'All' || filter === 'Documents';
-  const showModelTools = filter === 'All' || filter === 'AI Models';
-  const installedCount = packs.filter((pack) => pack.installed).length;
-  const activeCount = packs.filter(
+  const installedCount = libraryPacks.filter((pack) => pack.installed).length;
+  const activeCount = libraryPacks.filter(
     (pack) =>
       pack.installStatus === 'queued' ||
       pack.installStatus === 'downloading' ||
@@ -149,59 +119,60 @@ export default function LibraryScreen() {
         />
       }>
       <View className="flex-row items-center justify-between">
-        <View className="flex-1 gap-2">
+        <View className="min-w-0 flex-1 gap-2 pr-4">
           <Text variant="h1">Library</Text>
           <Text variant="muted">
-            Real offline packs from Kiwix, Hesperian, and public-domain survival archives.
+            Your downloaded field references and imported files, organized for fast offline access.
           </Text>
         </View>
         <Arky pose="download" size={80} />
       </View>
 
       <Card className="gap-3">
-        <View className="flex-row justify-between gap-3">
-          <View>
+        <View className="flex-row flex-wrap gap-2">
+          <View className="border-border min-w-24 flex-1 rounded-md border px-3 py-2">
             <Text variant="muted">Installed</Text>
-            <Text variant="h2">{installedCount}</Text>
+            <Text variant="large">{installedCount}</Text>
           </View>
-          <View>
-            <Text variant="muted">Active</Text>
-            <Text variant="h2">{activeCount}</Text>
+          <View className="border-border min-w-24 flex-1 rounded-md border px-3 py-2">
+            <Text variant="muted">In progress</Text>
+            <Text variant="large">{activeCount}</Text>
           </View>
-          <View>
-            <Text variant="muted">Available</Text>
-            <Text variant="h2">{packs.length}</Text>
-          </View>
-          <View>
-            <Text variant="muted">Docs</Text>
-            <Text variant="h2">{documents.length}</Text>
+          <View className="border-border min-w-24 flex-1 rounded-md border px-3 py-2">
+            <Text variant="muted">Imported</Text>
+            <Text variant="large">{documents.length}</Text>
           </View>
         </View>
-        {storageCapacity?.freeBytes != null ? (
-          <Text variant="small">
-            {FileSystemService.formatBytes(storageCapacity.freeBytes)} free for downloads
-          </Text>
-        ) : null}
-        <Button
-          variant="secondary"
-          disabled={workingId === 'import'}
-          onPress={async () => {
-            setWorkingId('import');
-            setError(null);
-            try {
-              await ImportService.importDocument();
-              await load();
-            } catch (importError) {
-              setError(
-                importError instanceof Error ? importError.message : 'Unable to import file.'
-              );
-            } finally {
-              setWorkingId(null);
-            }
-          }}>
-          {workingId === 'import' ? <ActivityIndicator /> : <Icon as={Plus} className="size-4" />}
-          <Text>Import File</Text>
-        </Button>
+        <View className="flex-row items-center gap-3">
+          {storageCapacity?.freeBytes != null ? (
+            <Text variant="small" className="text-muted-foreground min-w-0 flex-1">
+              {FileSystemService.formatBytes(storageCapacity.freeBytes)} free
+            </Text>
+          ) : (
+            <View className="flex-1" />
+          )}
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={workingId === 'import'}
+            onPress={async () => {
+              setWorkingId('import');
+              setError(null);
+              try {
+                await ImportService.importDocument();
+                await load();
+              } catch (importError) {
+                setError(
+                  importError instanceof Error ? importError.message : 'Unable to import file.'
+                );
+              } finally {
+                setWorkingId(null);
+              }
+            }}>
+            {workingId === 'import' ? <ActivityIndicator /> : <Icon as={Plus} className="size-4" />}
+            <Text>Import</Text>
+          </Button>
+        </View>
       </Card>
 
       {error ? (
@@ -230,181 +201,6 @@ export default function LibraryScreen() {
         </View>
       ) : null}
 
-      {!initialLoading && filter === 'All' ? (
-        <Card className="gap-3">
-          <View className="flex-row gap-3">
-            <View className="bg-primary/15 size-11 items-center justify-center rounded-md">
-              <Icon as={Rss} className="text-primary size-6" />
-            </View>
-            <View className="min-w-0 flex-1 gap-1">
-              <Text variant="large">Emergency feeds</Text>
-              <Text variant="muted">
-                FEMA disaster declarations, NHC tropical cyclone advisories, and USGS significant
-                earthquakes cached for offline review.
-              </Text>
-            </View>
-          </View>
-          <View className="flex-row flex-wrap gap-x-4 gap-y-1">
-            <Text variant="muted">{rssOverview?.feeds.length ?? 0} feeds</Text>
-            <Text variant="muted">{rssOverview?.recentItems.length ?? 0} recent items</Text>
-            <Text variant="muted">
-              {rssOverview?.lastFetchedAt
-                ? `Updated ${formatDistanceToNow(rssOverview.lastFetchedAt, { addSuffix: true })}`
-                : 'Not refreshed yet'}
-            </Text>
-          </View>
-          <Button
-            variant="outline"
-            disabled={workingId === 'rss'}
-            onPress={async () => {
-              setWorkingId('rss');
-              setError(null);
-              try {
-                const result = await RssService.refreshAll();
-                setRssOverview(result.overview);
-                if (result.errors.length) {
-                  setError(result.errors.join('\n'));
-                }
-              } catch (rssError) {
-                setError(rssError instanceof Error ? rssError.message : 'Unable to refresh feeds.');
-              } finally {
-                setWorkingId(null);
-              }
-            }}>
-            {workingId === 'rss' ? (
-              <ActivityIndicator />
-            ) : (
-              <Icon as={RefreshCcw} className="size-4" />
-            )}
-            <Text>Refresh Feeds</Text>
-          </Button>
-          {rssOverview?.recentItems.length ? (
-            <View className="gap-2">
-              {rssOverview.recentItems.map((item) => (
-                <View key={item.id} className="border-border border-t pt-2">
-                  <Text>{item.title}</Text>
-                  <Text variant="small">
-                    {item.feed_title}
-                    {item.published_at
-                      ? ` - ${formatDistanceToNow(item.published_at, { addSuffix: true })}`
-                      : ''}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          ) : null}
-        </Card>
-      ) : null}
-
-      {!initialLoading && showModelTools ? (
-        <Card className="gap-3">
-          <View className="flex-row gap-3">
-            <View className="bg-primary/15 size-11 items-center justify-center rounded-md">
-              <Icon as={Bot} className="text-primary size-6" />
-            </View>
-            <View className="min-w-0 flex-1 gap-1">
-              <Text variant="large">Local AI models</Text>
-              <Text variant="muted">
-                Download a curated GGUF model or import your own. Ark will use it when the local
-                runtime is available in this build.
-              </Text>
-            </View>
-          </View>
-          {modelStatus ? (
-            <View className="bg-muted/40 gap-1 rounded-md p-3">
-              <View className="flex-row flex-wrap gap-x-3 gap-y-1">
-                <Text variant="small">
-                  {modelStatus.installedModels}/{modelStatus.availableModels} installed
-                </Text>
-                <Text variant="small">
-                  {modelStatus.adapter === 'llama' ? 'Offline runtime ready' : 'Mock response mode'}
-                </Text>
-              </View>
-              {modelStatus.activeModelTitle ? (
-                <Text variant="muted">Active model: {modelStatus.activeModelTitle}</Text>
-              ) : null}
-              <Text variant="muted">{modelStatus.message}</Text>
-            </View>
-          ) : null}
-          <Button
-            variant="outline"
-            disabled={workingId === 'model-import'}
-            onPress={async () => {
-              setWorkingId('model-import');
-              setError(null);
-              try {
-                await ContentPackService.importLocalModel();
-                await load();
-              } catch (modelError) {
-                setError(
-                  modelError instanceof Error ? modelError.message : 'Unable to import model.'
-                );
-              } finally {
-                setWorkingId(null);
-              }
-            }}>
-            {workingId === 'model-import' ? (
-              <ActivityIndicator />
-            ) : (
-              <Icon as={Upload} className="size-4" />
-            )}
-            <Text>Import GGUF File</Text>
-          </Button>
-          <View className="gap-2">
-            <Input value={modelTitle} onChangeText={setModelTitle} placeholder="Model name" />
-            <Input
-              value={modelUrl}
-              onChangeText={setModelUrl}
-              placeholder="https://.../model.gguf"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            <Input
-              value={modelChecksum}
-              onChangeText={setModelChecksum}
-              placeholder="Checksum (optional)"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            <Button
-              variant="outline"
-              disabled={workingId === 'model-url' || !modelUrl.trim()}
-              onPress={async () => {
-                setWorkingId('model-url');
-                setError(null);
-                try {
-                  await ContentPackService.addModelUrl({
-                    title: modelTitle,
-                    sourceUrl: modelUrl,
-                    checksum: modelChecksum,
-                  });
-                  setModelTitle('');
-                  setModelUrl('');
-                  setModelChecksum('');
-                  await load();
-                } catch (modelError) {
-                  setError(
-                    modelError instanceof Error ? modelError.message : 'Unable to add model URL.'
-                  );
-                } finally {
-                  setWorkingId(null);
-                }
-              }}>
-              {workingId === 'model-url' ? (
-                <ActivityIndicator />
-              ) : (
-                <Icon as={Plus} className="size-4" />
-              )}
-              <Text>Add Model URL</Text>
-            </Button>
-          </View>
-          <Text variant="small">
-            Prefer 1-2B Q4 models on phones. If the source publishes a checksum, paste it here so
-            Ark can reject corrupted downloads when verification is available.
-          </Text>
-        </Card>
-      ) : null}
-
       {!initialLoading && showDocuments ? (
         <View className="gap-3">
           <View className="flex-row items-center justify-between gap-3">
@@ -422,14 +218,11 @@ export default function LibraryScreen() {
                     <Text variant="large" className="min-w-0">
                       {document.title}
                     </Text>
-                    <Text variant="muted">
-                      {document.mimeType ?? 'Unknown type'} -{' '}
+                    <Text variant="muted" numberOfLines={1}>
                       {document.sizeBytes
                         ? FileSystemService.formatBytes(document.sizeBytes)
-                        : 'Unknown size'}
-                    </Text>
-                    <Text variant="small">
-                      Imported {formatDistanceToNow(document.createdAt, { addSuffix: true })}
+                        : 'Unknown size'}{' '}
+                      - imported {formatDistanceToNow(document.createdAt, { addSuffix: true })}
                     </Text>
                     <Text variant="small">{documentSearchStatus(document)}</Text>
                   </View>
@@ -493,12 +286,18 @@ export default function LibraryScreen() {
               Library is empty
             </Text>
             <Text variant="muted" className="text-center">
-              Ark organizes downloaded knowledge packs, documents, maps, and models here.
+              Download a guide or import a file to start building your offline reference shelf.
             </Text>
           </View>
         ) : (
           visible.map((pack) => {
             const packStorageWarning = storageWarning(pack, storageCapacity?.freeBytes);
+            const isWorkingDownload =
+              pack.installStatus === 'queued' ||
+              pack.installStatus === 'downloading' ||
+              pack.installStatus === 'verifying' ||
+              pack.installStatus === 'paused' ||
+              pack.installStatus === 'failed';
             return (
               <Card key={pack.id} className="gap-4">
                 <View className="flex-row gap-3">
@@ -512,36 +311,34 @@ export default function LibraryScreen() {
                       </Text>
                       {pack.installed ? <Icon as={Check} className="text-primary size-5" /> : null}
                     </View>
-                    {getPackModelRoleLabel(pack) ? (
-                      <Text className="text-primary text-xs font-medium">
-                        {getPackModelRoleLabel(pack)}
-                      </Text>
-                    ) : null}
-                    <Text variant="muted">{pack.description}</Text>
+                    <Text variant="muted" numberOfLines={2}>
+                      {pack.description}
+                    </Text>
+                    <Text variant="small" className="text-muted-foreground" numberOfLines={1}>
+                      {[pack.category, pack.format.toUpperCase(), pack.estimatedSize].join(' - ')}
+                      {pack.sourceLabel ? ` - ${pack.sourceLabel}` : ''}
+                    </Text>
                   </View>
                 </View>
 
-                <View className="gap-2">
-                  <View className="flex-row flex-wrap gap-x-3 gap-y-1">
-                    <Text variant="muted">
-                      {[pack.category, pack.format.toUpperCase(), pack.estimatedSize].join(' - ')}
+                {isWorkingDownload ? (
+                  <View className="gap-2">
+                    <Progress value={pack.progress} />
+                    <Text variant="small">
+                      {pack.installStatus === 'failed'
+                        ? 'Download failed. Check connection and retry.'
+                        : pack.installStatus === 'verifying'
+                          ? 'Verifying file before installing'
+                          : `${Math.round(pack.progress * 100)}% - ${pack.installStatus.replace('_', ' ')}`}
                     </Text>
-                    {pack.sourceLabel ? <Text variant="muted">{pack.sourceLabel}</Text> : null}
                   </View>
-                  <Progress value={pack.progress} />
-                  <Text variant="small">
-                    {pack.installStatus === 'failed'
-                      ? 'Download failed. Check connection and retry.'
-                      : pack.installStatus === 'verifying'
-                        ? 'Verifying file before installing'
-                        : `${Math.round(pack.progress * 100)}% - ${pack.installStatus.replace('_', ' ')}`}
+                ) : null}
+
+                {packStorageWarning ? (
+                  <Text variant="small" className="text-destructive">
+                    {packStorageWarning}
                   </Text>
-                  {packStorageWarning ? (
-                    <Text variant="small" className="text-destructive">
-                      {packStorageWarning}
-                    </Text>
-                  ) : null}
-                </View>
+                ) : null}
 
                 {pack.disclaimer ? (
                   <Text className="text-destructive text-sm">{pack.disclaimer}</Text>
@@ -791,15 +588,6 @@ export default function LibraryScreen() {
           })
         )
       ) : null}
-
-      {!initialLoading && showPacks ? (
-        <View className="items-center justify-center py-8">
-          <Text variant="small" className="px-4 text-center leading-relaxed text-zinc-500">
-            To protect your safety offline, Ark automatically verifies the integrity of all
-            downloaded files.
-          </Text>
-        </View>
-      ) : null}
     </Screen>
   );
 }
@@ -813,7 +601,7 @@ function documentSearchStatus(document: ArkDocument) {
   if (document.ocrStatus === 'ocr_needed') return 'PDF OCR available';
   if (document.ocrStatus === 'searchable') return 'Indexed for offline search';
   if (document.ocrStatus === 'pending') return 'Queued for text extraction';
-  if (document.ocrStatus === 'unavailable') return 'OCR available in Android dev build';
+  if (document.ocrStatus === 'unavailable') return 'OCR available on supported Android builds';
   if (document.ocrStatus === 'failed') return 'OCR needs attention';
   return 'Stored offline';
 }

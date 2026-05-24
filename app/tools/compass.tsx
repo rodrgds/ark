@@ -1,8 +1,7 @@
 import { Text } from '@/components/ui/text';
 import { NAV_COLORS } from '@/constants/theme';
-import { useSensorSubscription } from '@/hooks/use-sensor-subscription';
 import { hexToRgba } from '@/lib/colors';
-import { CompassService } from '@/services/sensors/compass.service';
+import { CompassService, type CompassReading } from '@/services/sensors/compass.service';
 import { useSensorStore } from '@/stores/sensor-store';
 import { useThemeStore } from '@/stores/theme-store';
 import * as React from 'react';
@@ -83,6 +82,11 @@ const INTERCARDINALS = [
 
 const DIR_NAMES = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
 function getCardinal(h: number) { return DIR_NAMES[Math.round(h / 22.5) % 16]; }
+
+function formatSensorValue(value: number | null | undefined) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '--';
+  return value.toFixed(1);
+}
 
 function arcPath(heading: number): string {
   const startAngle = -Math.PI / 2;
@@ -238,11 +242,34 @@ export default function CompassTool() {
   const theme = useThemeStore((state) => state.effectiveTheme);
   const palette = NAV_COLORS[theme];
   const setStoreHeading = useSensorStore((state) => state.setHeading);
-  const { available, value: heading } = useSensorSubscription(CompassService, setStoreHeading);
 
   const rotateAnim  = useRef(new Animated.Value(0)).current;
   const lastHeading = useRef(0);
+  const [available, setAvailable] = React.useState<boolean | null>(null);
+  const [heading, setHeading] = React.useState<number | null>(null);
   const [liveHeading, setLiveHeading] = React.useState(0);
+  const [reading, setReading] = React.useState<CompassReading | null>(null);
+
+  useEffect(() => {
+    let stop: (() => void) | undefined;
+    let mounted = true;
+    CompassService.isAvailable().then((ok) => {
+      if (!mounted) return;
+      setAvailable(ok);
+      if (ok) {
+        stop = CompassService.startReading((next) => {
+          setReading(next);
+          setHeading(next.heading);
+          setStoreHeading(next.heading);
+        });
+      }
+    });
+    return () => {
+      mounted = false;
+      stop?.();
+      setStoreHeading(null);
+    };
+  }, [setStoreHeading]);
 
   useEffect(() => {
     if (heading === null) return;
@@ -290,6 +317,27 @@ export default function CompassTool() {
           ? 'Magnetometer is not available on this device.'
           : 'Move in a figure-eight pattern if readings drift.'}
       </Text>
+
+      <View style={[styles.debugPanel, { borderColor: palette.border, backgroundColor: hexToRgba(palette.card, 0.72) }]}>
+        <Text style={[styles.debugTitle, { color: palette.foreground }]}>Sensor diagnostics</Text>
+        <View style={styles.debugGrid}>
+          <Text style={[styles.debugText, { color: palette.mutedForeground }]}>
+            X {formatSensorValue(reading?.x)}
+          </Text>
+          <Text style={[styles.debugText, { color: palette.mutedForeground }]}>
+            Y {formatSensorValue(reading?.y)}
+          </Text>
+          <Text style={[styles.debugText, { color: palette.mutedForeground }]}>
+            Z {formatSensorValue(reading?.z)}
+          </Text>
+          <Text style={[styles.debugText, { color: palette.mutedForeground }]}>
+            Field {formatSensorValue(reading?.fieldStrength)} uT
+          </Text>
+        </View>
+        <Text style={[styles.debugNote, { color: palette.mutedForeground }]}>
+          Heading uses atan2(x, y) with no fixed offset.
+        </Text>
+      </View>
     </View>
   );
 }
@@ -326,5 +374,31 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: 'center',
     lineHeight: 19,
+  },
+  debugPanel: {
+    width: '100%',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    gap: 8,
+  },
+  debugTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  debugGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  debugText: {
+    minWidth: '45%',
+    fontSize: 12,
+    fontVariant: ['tabular-nums'],
+  },
+  debugNote: {
+    fontSize: 12,
+    lineHeight: 17,
   },
 });

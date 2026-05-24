@@ -11,6 +11,7 @@ const titles: Record<string, string> = {
   light: 'Light Meter',
   coordinates: 'Coordinates',
   weather: 'Meteorology',
+  news: 'News',
   checklist: 'Checklist',
   diagnostics: 'Diagnostics',
 };

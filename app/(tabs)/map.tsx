@@ -54,7 +54,15 @@ import {
   ScrollView,
   View,
 } from 'react-native';
-import Animated, { Easing, FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
+import Animated, {
+  Easing,
+  FadeIn,
+  FadeOut,
+  LinearTransition,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Panel = 'offline' | 'saved' | null;
@@ -64,6 +72,9 @@ type LngLat = [number, number];
 
 const DEFAULT_CENTER: LngLat = [-9.1393, 38.7223];
 const TOP_TRANSITION = LinearTransition.duration(180).easing(Easing.out(Easing.quad));
+const SEARCH_INSET_WITH_COMPASS = 64;
+const SEARCH_INSET_WITHOUT_COMPASS = 12;
+const COMPASS_NORTH_EPSILON_DEGREES = 1.25;
 
 export default function MapScreen() {
   const navigation = useNavigation();
@@ -109,6 +120,11 @@ export default function MapScreen() {
     MapPresetsService.recommendedForLocation(null)
   );
   const [isPlacing, setIsPlacing] = React.useState(false);
+  const [compassVisible, setCompassVisible] = React.useState(false);
+  const searchRightInset = useSharedValue(SEARCH_INSET_WITHOUT_COMPASS);
+  const animatedSearchStyle = useAnimatedStyle(() => ({
+    right: searchRightInset.value,
+  }));
 
   const downloadedRegions = React.useMemo(
     () => regions.filter((region) => region.status === 'downloaded'),
@@ -580,7 +596,7 @@ export default function MapScreen() {
 
   const mapStatus =
     nativeMapAvailable && styleReachable === false && !hasDownloadedRegion
-      ? 'Map source unreachable. Downloaded maps can still render when online.'
+      ? 'Download regions to use offline maps.'
       : status.reason;
 
   return (
@@ -676,12 +692,6 @@ export default function MapScreen() {
           <Card className="border-destructive bg-background/95 flex-row items-start gap-2 p-3">
             <Icon as={AlertTriangle} className="text-destructive mt-0.5 size-4" />
             <Text className="text-destructive flex-1 text-sm">{error}</Text>
-          </Card>
-        ) : null}
-        {!canMountMap ? (
-          <Card className="bg-background/95 gap-1 p-3">
-            <Text variant="small">Map engine</Text>
-            <Text variant="muted">{checkingStyle ? 'Checking map source.' : mapStatus}</Text>
           </Card>
         ) : null}
       </View>
@@ -853,7 +863,7 @@ function MapCanvas({
         </View>
         <View className="max-w-80 gap-1">
           <Text variant="h3" className="text-center">
-            Offline map console
+            No regions available
           </Text>
           <Text variant="muted" className="text-center">
             {checkingSource ? 'Checking map source availability.' : status}
@@ -1045,7 +1055,10 @@ function TopMapControls({
                   className="h-auto min-h-14 items-start justify-start px-2 py-2"
                   variant="ghost"
                   onPress={() => onOpenResult(result)}>
-                  <Icon as={iconForSearchResult(result.kind)} className="text-primary mt-0.5 size-4" />
+                  <Icon
+                    as={iconForSearchResult(result.kind)}
+                    className="text-primary mt-0.5 size-4"
+                  />
                   <View className="min-w-0 flex-1 items-start gap-1">
                     <Text className="text-sm leading-5" numberOfLines={1}>
                       {result.title}
@@ -1510,7 +1523,11 @@ function MarkerPopup({ marker }: { marker: MapMarker }) {
             <Text variant="large" className="leading-5" numberOfLines={2} ellipsizeMode="tail">
               {marker.title}
             </Text>
-            <Text variant="muted" className="mt-1 text-sm leading-5" numberOfLines={2} ellipsizeMode="tail">
+            <Text
+              variant="muted"
+              className="mt-1 text-sm leading-5"
+              numberOfLines={2}
+              ellipsizeMode="tail">
               {marker.description || 'No description saved.'}
             </Text>
             <Text variant="small" className="text-muted-foreground mt-1" numberOfLines={1}>
@@ -1519,7 +1536,7 @@ function MarkerPopup({ marker }: { marker: MapMarker }) {
           </View>
           <View
             accessibilityLabel="Close spot details"
-            className="absolute right-1 top-1 size-8 items-center justify-center rounded-md"
+            className="absolute top-1 right-1 size-8 items-center justify-center rounded-md"
             pointerEvents="none">
             <Icon as={X} className="text-muted-foreground size-4" />
           </View>

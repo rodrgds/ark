@@ -35,5 +35,14 @@ export type AiAdapterResponse = {
 export type AiAdapterSendInput = {
   content: string;
   citations: AiCitation[];
+  sourceContext?: Array<{
+    sourceId: string;
+    title: string;
+    content: string;
+  }>;
+  toolTrace?: Array<{
+    tool: 'search_local_knowledge' | 'read_local_source';
+    summary: string;
+  }>;
   onToken?: (content: string) => void;
 };

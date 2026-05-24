@@ -1,16 +1,36 @@
 import { Magnetometer } from 'expo-sensors';
 
+export type CompassReading = {
+  heading: number;
+  x: number;
+  y: number;
+  z: number;
+  fieldStrength: number;
+};
+
+export function calculateCompassReading(input: { x: number; y: number; z: number }): CompassReading {
+  const heading = Math.atan2(input.x, input.y) * (180 / Math.PI);
+  return {
+    heading: (heading + 360) % 360,
+    x: input.x,
+    y: input.y,
+    z: input.z,
+    fieldStrength: Math.sqrt(input.x * input.x + input.y * input.y + input.z * input.z),
+  };
+}
+
 export class CompassService {
   static async isAvailable() {
     return Magnetometer.isAvailableAsync().catch(() => false);
   }
 
   static start(listener: (heading: number) => void) {
+    return this.startReading((reading) => listener(reading.heading));
+  }
+
+  static startReading(listener: (reading: CompassReading) => void) {
     Magnetometer.setUpdateInterval(100);
-    const subscription = Magnetometer.addListener(({ x, y }) => {
-      const angle = Math.atan2(y, x) * (180 / Math.PI);
-      listener((angle + 360) % 360);
-    });
+    const subscription = Magnetometer.addListener((reading) => listener(calculateCompassReading(reading)));
     return () => subscription.remove();
   }
 

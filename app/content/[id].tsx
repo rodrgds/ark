@@ -99,38 +99,6 @@ export default function ContentDetailScreen() {
     }
   }, [pack?.installStatus]);
 
-  // Load native ZIM archive if installed and native module is available
-  React.useEffect(() => {
-    if (!pack || pack.format !== 'zim' || !pack.installed || !zimPlan?.nativeReaderAvailable) {
-      return;
-    }
-
-    let canceled = false;
-    setZimBusy(true);
-    setZimError(null);
-
-    ZimService.openArchive(pack)
-      .then((metadata) => {
-        if (!canceled) setZimMetadata(metadata);
-      })
-      .catch((archiveError) => {
-        if (!canceled) {
-          setZimError(
-            archiveError instanceof Error
-              ? archiveError.message
-              : 'Failed to initialize local ZIM search.'
-          );
-        }
-      })
-      .finally(() => {
-        if (!canceled) setZimBusy(false);
-      });
-
-    return () => {
-      canceled = true;
-    };
-  }, [pack?.id, pack?.installed, pack?.localUri, zimPlan?.nativeReaderAvailable]);
-
   React.useEffect(() => {
     const articlePath = Array.isArray(article) ? article[0] : article;
     if (
@@ -166,9 +134,27 @@ export default function ContentDetailScreen() {
     setZimBusy(true);
     setZimError(null);
     try {
+      if (!zimMetadata) {
+        setZimMetadata(await ZimService.openArchive(pack));
+      }
       setZimResults(await ZimService.search(pack, zimQuery));
     } catch (searchError) {
       setZimError(searchError instanceof Error ? searchError.message : 'Search failed.');
+    } finally {
+      setZimBusy(false);
+    }
+  }
+
+  async function prepareZimSearch() {
+    if (!pack) return;
+    setZimBusy(true);
+    setZimError(null);
+    try {
+      setZimMetadata(await ZimService.openArchive(pack));
+    } catch (archiveError) {
+      setZimError(
+        archiveError instanceof Error ? archiveError.message : 'Search could not be prepared.'
+      );
     } finally {
       setZimBusy(false);
     }
@@ -221,6 +207,8 @@ export default function ContentDetailScreen() {
   }
 
   const isZim = pack.format === 'zim';
+  const canSearchInArk = Boolean(zimPlan?.nativeReaderAvailable);
+  const searchableZimMetadata = canSearchInArk ? zimMetadata : null;
 
   return (
     <View className="bg-background flex-1">
@@ -302,20 +290,13 @@ export default function ContentDetailScreen() {
                     <Icon as={BookOpen} className="size-5" />
                     <Text className="text-primary-foreground font-bold">Read Guide</Text>
                   </Button>
-                ) : (
-                  <Button
-                    className="bg-primary active:bg-primary/90 flex-1"
-                    disabled={busy}
-                    onPress={handleHandoffToKiwix}>
-                    <Icon as={ExternalLink} className="size-5" />
-                    <Text className="text-primary-foreground font-bold">Open in Reader</Text>
-                  </Button>
-                )}
+                ) : null}
 
                 <Button
-                  size="icon"
                   variant="outline"
-                  className="border-border active:bg-muted"
+                  className={
+                    isZim ? 'border-border active:bg-muted flex-1' : 'border-border active:bg-muted'
+                  }
                   disabled={busy}
                   onPress={() =>
                     Alert.alert('Remove Pack?', `Delete ${pack.title} from offline storage?`, [
@@ -328,6 +309,7 @@ export default function ContentDetailScreen() {
                     ])
                   }>
                   <Icon as={Trash2} className="text-destructive size-4" />
+                  <Text className="text-destructive">{isZim ? 'Remove Archive' : 'Remove'}</Text>
                 </Button>
               </>
             ) : pack.installStatus === 'downloading' ||
@@ -442,36 +424,26 @@ export default function ContentDetailScreen() {
         {/* ZIM Metadata & Fallbacks (for ZIM packages) */}
         {isZim && pack.installed && (
           <View className="mt-2 gap-4">
-            <Text variant="h3" className="text-foreground px-1 font-bold tracking-tight">
-              Offline ZIM Archive
-            </Text>
-
-            {/* If native reader is available, offer in-app searching */}
-            {zimPlan?.nativeReaderAvailable && zimMetadata ? (
+            {searchableZimMetadata ? (
               <Card className="border-border gap-4">
-                <Text variant="large" className="text-foreground">
-                  In-App Search
-                </Text>
-                <View className="flex-row items-center justify-between">
-                  <View className="flex-1 pr-2">
+                <View className="flex-row items-center justify-between gap-3">
+                  <View className="min-w-0 flex-1 gap-1">
                     <Text variant="large" className="text-foreground">
-                      In-App Search
+                      Search this archive
+                    </Text>
+                    <Text variant="muted">
+                      Find articles inside the downloaded archive and open them directly in Ark.
                     </Text>
                   </View>
                   <View className="flex-row gap-1.5">
-                    {zimMetadata?.hasFulltextIndex && (
+                    {searchableZimMetadata.hasFulltextIndex && (
                       <View className="bg-primary/10 rounded-full px-2 py-0.5">
-                        <Text className="text-primary text-xs">Full-text</Text>
+                        <Text className="text-primary text-xs">Article text</Text>
                       </View>
                     )}
-                    {zimMetadata?.hasTitleIndex && (
+                    {searchableZimMetadata.hasTitleIndex && (
                       <View className="bg-primary/10 rounded-full px-2 py-0.5">
-                        <Text className="text-primary text-xs">Title</Text>
-                      </View>
-                    )}
-                    {!zimMetadata?.hasFulltextIndex && !zimMetadata?.hasTitleIndex && (
-                      <View className="bg-destructive/10 rounded-full px-2 py-0.5">
-                        <Text className="text-destructive text-xs">No index</Text>
+                        <Text className="text-primary text-xs">Titles</Text>
                       </View>
                     )}
                   </View>
@@ -481,9 +453,9 @@ export default function ContentDetailScreen() {
                   <Input
                     className="flex-1"
                     placeholder={
-                      zimMetadata?.hasFulltextIndex
+                      searchableZimMetadata.hasFulltextIndex
                         ? 'Search articles...'
-                        : zimMetadata?.hasTitleIndex
+                        : searchableZimMetadata.hasTitleIndex
                           ? 'Search by title...'
                           : 'Search unavailable'
                     }
@@ -491,7 +463,9 @@ export default function ContentDetailScreen() {
                     onChangeText={setZimQuery}
                     onSubmitEditing={runZimSearch}
                     returnKeyType="search"
-                    editable={!!zimMetadata?.hasFulltextIndex || !!zimMetadata?.hasTitleIndex}
+                    editable={
+                      searchableZimMetadata.hasFulltextIndex || searchableZimMetadata.hasTitleIndex
+                    }
                   />
                   <Button
                     size="icon"
@@ -501,7 +475,8 @@ export default function ContentDetailScreen() {
                     disabled={
                       zimBusy ||
                       !zimQuery.trim() ||
-                      (!zimMetadata?.hasFulltextIndex && !zimMetadata?.hasTitleIndex)
+                      (!searchableZimMetadata.hasFulltextIndex &&
+                        !searchableZimMetadata.hasTitleIndex)
                     }>
                     {zimBusy ? (
                       <ActivityIndicator size="small" />
@@ -511,15 +486,15 @@ export default function ContentDetailScreen() {
                   </Button>
                 </View>
 
-                {zimMetadata?.mainPath && (
+                {searchableZimMetadata.mainPath ? (
                   <Button
                     variant="secondary"
                     className="flex-1"
-                    onPress={() => openZimArticle(zimMetadata.mainPath)}>
+                    onPress={() => openZimArticle(searchableZimMetadata.mainPath)}>
                     <Icon as={BookOpen} className="size-4" />
                     <Text>Read Main Article</Text>
                   </Button>
-                )}
+                ) : null}
 
                 {zimError ? <Text className="text-destructive text-sm">{zimError}</Text> : null}
 
@@ -547,100 +522,77 @@ export default function ContentDetailScreen() {
                 {zimResults.length === 0 && zimQuery.trim() && !zimBusy && !zimError && (
                   <Text variant="muted" className="text-sm">
                     No results found.
-                    {!zimMetadata?.hasFulltextIndex && zimMetadata?.hasTitleIndex
+                    {!searchableZimMetadata.hasFulltextIndex && searchableZimMetadata.hasTitleIndex
                       ? ' This archive only supports title search.'
-                      : !zimMetadata?.hasFulltextIndex && !zimMetadata?.hasTitleIndex
+                      : !searchableZimMetadata.hasFulltextIndex &&
+                          !searchableZimMetadata.hasTitleIndex
                         ? ' This archive has no search index.'
                         : ''}
                   </Text>
                 )}
               </Card>
-            ) : zimPlan?.nativeReaderError ? (
-              /* Native module was found but failed to initialize — explain why */
-              <Card className="border-border bg-destructive/5 gap-3">
-                <Text variant="large" className="text-destructive">
-                  In-App Reader Unavailable
-                </Text>
-                <Text className="text-destructive text-sm leading-relaxed">
-                  {zimPlan.nativeReaderError}
-                </Text>
-                <Text variant="muted" className="text-xs leading-relaxed">
-                  The ArkZim native module is present in this build but could not open the archive.
-                  This usually means the iOS implementation is not yet complete, or the module
-                  crashed at runtime.
-                </Text>
-              </Card>
-            ) : (
-              /* If JS reader metadata is parsed */
-              zimPlan?.headerInfo && (
-                <Card className="border-border bg-card/30 gap-3">
-                  <Text variant="large" className="text-foreground">
-                    Archive Details
-                  </Text>
-                  <View className="gap-2">
-                    <View className="border-border flex-row justify-between border-b pb-2">
-                      <Text variant="muted">Total Articles</Text>
-                      <Text className="text-foreground font-semibold">
-                        {zimPlan.headerInfo.articleCount.toLocaleString()}
-                      </Text>
-                    </View>
-                    <View className="border-border flex-row justify-between border-b pb-2">
-                      <Text variant="muted">Format version</Text>
-                      <Text className="text-foreground font-semibold">
-                        ZIM v{zimPlan.headerInfo.majorVersion}.{zimPlan.headerInfo.minorVersion}
-                      </Text>
-                    </View>
-                    <View className="flex-row justify-between">
-                      <Text variant="muted">Content Types</Text>
-                      <Text className="text-foreground font-semibold" numberOfLines={1}>
-                        {zimPlan.headerInfo.mimeTypes.join(', ') || 'HTML'}
-                      </Text>
-                    </View>
+            ) : canSearchInArk ? (
+              <Card className="border-border gap-3">
+                <View className="flex-row items-center justify-between gap-3">
+                  <View className="min-w-0 flex-1 gap-1">
+                    <Text variant="large">Search this archive</Text>
+                    <Text variant="muted">
+                      Prepare search when you need it. Large archives may take a moment the first
+                      time.
+                    </Text>
                   </View>
-                </Card>
-              )
-            )}
-
-            {/* Read Option / App Handoff */}
-            <Card className="border-border gap-3">
-              <View className="flex-row items-center gap-2">
-                <Icon as={BookOpen} className="text-primary size-5" />
-                <Text variant="large" className="text-foreground">
-                  How to Open Offline
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={zimBusy}
+                    onPress={() => void prepareZimSearch()}>
+                    {zimBusy ? (
+                      <ActivityIndicator size="small" />
+                    ) : (
+                      <Icon as={Search} className="size-4" />
+                    )}
+                    <Text>Prepare</Text>
+                  </Button>
+                </View>
+                {zimError ? <Text className="text-destructive text-sm">{zimError}</Text> : null}
+              </Card>
+            ) : zimPlan?.nativeReaderError ? (
+              <View className="bg-muted/30 gap-2 rounded-lg px-4 py-3">
+                <Text variant="large">Search is unavailable</Text>
+                <Text variant="muted">
+                  Use another reader for this archive on the current build.
                 </Text>
               </View>
-              <Text variant="muted" className="leading-relaxed">
-                ZIM archives are optimized for high-performance reading. You can view this archive
-                using the official, privacy-respecting Kiwix app or by uploading it to the Kiwix web
-                reader.
-              </Text>
-              <View className="mt-2 flex-row gap-2">
+            ) : null}
+
+            <View className="border-border bg-muted/20 gap-3 rounded-lg border px-4 py-4">
+              <View className="gap-1">
+                <View className="flex-row items-center gap-2">
+                  <Icon as={BookOpen} className="text-primary size-5" />
+                  <Text variant="large" className="text-foreground">
+                    Open elsewhere
+                  </Text>
+                </View>
+                <Text variant="muted" className="leading-relaxed">
+                  Use another reader on this device, or open the web reader for a larger screen.
+                </Text>
+              </View>
+              <View className="flex-row gap-2">
                 <Button
                   className="border-border active:bg-muted flex-1"
                   variant="outline"
                   onPress={handleHandoffToKiwix}>
                   <Icon as={ExternalLink} className="size-4" />
-                  <Text>Share to Kiwix App</Text>
+                  <Text>Open in...</Text>
                 </Button>
                 <Button
                   className="border-border active:bg-muted flex-1"
                   variant="outline"
                   onPress={() => void Linking.openURL(ZimService.getKiwixJsUrl())}>
                   <Icon as={ExternalLink} className="size-4" />
-                  <Text>Kiwix Web Reader</Text>
+                  <Text>Web reader</Text>
                 </Button>
               </View>
-            </Card>
-
-            {/* Capabilities notice */}
-            <View className="bg-muted/60 border-border rounded-lg border p-4">
-              <Text variant="small" className="text-muted-foreground leading-normal">
-                {zimPlan?.nativeReaderError
-                  ? `⚠️ ${zimPlan.nativeReaderError} The ArkZim module is present but non-functional in this build.`
-                  : !zimPlan?.nativeReaderAvailable
-                    ? `ℹ️ In-app ZIM reading requires a development build with the native ArkZim engine. It does not work in Expo Go. Build a dev build to search and read Wikipedia articles inside Ark.`
-                    : `ℹ️ Full in-app reading, fast local FTS5 indexing, and AI/RAG chat integration on Wikipedia archives are supported in dev builds containing the custom C++ native ZIM engine (ArkZim).`}
-              </Text>
             </View>
           </View>
         )}
@@ -680,16 +632,7 @@ export default function ContentDetailScreen() {
               />
             )}
 
-            {/* Footer */}
-            <View
-              style={{ paddingBottom: Math.max(12, insets.bottom) }}
-              className="bg-background border-border border-t">
-              <View className="h-10 justify-center px-4">
-                <Text variant="small" className="text-muted-foreground text-center">
-                  {zimArticle?.mimeType || 'HTML'}
-                </Text>
-              </View>
-            </View>
+            <View style={{ height: Math.max(8, insets.bottom) }} />
           </View>
         </Modal>
       </ScrollView>

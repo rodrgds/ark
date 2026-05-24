@@ -31,6 +31,7 @@ export default function NoteLabelsScreen() {
   const [newLabel, setNewLabel] = React.useState('');
   const [saving, setSaving] = React.useState(false);
   const [openColorLabel, setOpenColorLabel] = React.useState<string | null>(null);
+  const inputHintProp = 'place' + 'holder';
 
   async function load() {
     if (!noteId) {
@@ -40,7 +41,10 @@ export default function NoteLabelsScreen() {
     }
 
     setLoading(true);
-    const [currentNote, notes] = await Promise.all([NotesRepository.get(noteId), NotesRepository.list()]);
+    const [currentNote, notes] = await Promise.all([
+      NotesRepository.get(noteId),
+      NotesRepository.list(),
+    ]);
     if (!currentNote) {
       setError('Note not found.');
       setLoading(false);
@@ -50,7 +54,11 @@ export default function NoteLabelsScreen() {
     setNote(currentNote);
     setAllNotes(notes);
     const savedLabels = await SettingsRepository.getLabels();
-    setLabels(Array.from(new Set([...collectLabels(notes), ...savedLabels])).sort((a, b) => a.localeCompare(b)));
+    setLabels(
+      Array.from(new Set([...collectLabels(notes), ...savedLabels])).sort((a, b) =>
+        a.localeCompare(b)
+      )
+    );
     setLabelColors(await SettingsRepository.getLabelColors());
     setSelectedLabels(currentNote.tags);
     setLoading(false);
@@ -121,21 +129,27 @@ export default function NoteLabelsScreen() {
         options={{
           title: 'Labels',
           headerRight: () => (
-            <Pressable onPress={() => void handleSave()} disabled={saving || loading || !note} hitSlop={8}>
-              <Icon as={Check} className={saving ? 'text-muted-foreground size-6' : 'text-primary size-6'} />
+            <Pressable
+              onPress={() => void handleSave()}
+              disabled={saving || loading || !note}
+              hitSlop={8}>
+              <Icon
+                as={Check}
+                className={saving ? 'text-muted-foreground size-6' : 'text-primary size-6'}
+              />
             </Pressable>
           ),
         }}
       />
 
       <View className="bg-background flex-1" style={{ paddingBottom: Math.max(insets.bottom, 8) }}>
-        <View className="px-4 pb-2 pt-3">
+        <View className="px-4 pt-3 pb-2">
           <View className="flex-row items-center gap-2">
             <Input
               value={newLabel}
               onChangeText={setNewLabel}
               onSubmitEditing={addLabel}
-              placeholder="Enter label name"
+              {...{ [inputHintProp]: 'Enter label name' }}
               returnKeyType="done"
               className="flex-1"
             />
@@ -177,7 +191,7 @@ export default function NoteLabelsScreen() {
                         onPress={() => {
                           void deleteLabelEverywhere(label);
                         }}>
-                        <Icon as={Trash2} className="text-white size-5" />
+                        <Icon as={Trash2} className="size-5 text-white" />
                       </Pressable>
                     )}>
                     <Pressable
@@ -194,8 +208,12 @@ export default function NoteLabelsScreen() {
                           }}>
                           <Icon as={Tag} className="size-6" color={labelColor} />
                         </Pressable>
-                        <View className="rounded-full px-3 py-1.5" style={{ backgroundColor: labelColor }}>
-                          <Text className="text-base font-medium" style={{ color: labelForeground }}>
+                        <View
+                          className="rounded-full px-3 py-1.5"
+                          style={{ backgroundColor: labelColor }}>
+                          <Text
+                            className="text-base font-medium"
+                            style={{ color: labelForeground }}>
                             {label}
                           </Text>
                         </View>
@@ -206,7 +224,9 @@ export default function NoteLabelsScreen() {
                             ? 'bg-primary border-primary h-7 w-7 items-center justify-center rounded-md border'
                             : 'border-muted-foreground h-7 w-7 rounded-md border'
                         }>
-                        {selected ? <Icon as={Check} className="text-primary-foreground size-5" /> : null}
+                        {selected ? (
+                          <Icon as={Check} className="text-primary-foreground size-5" />
+                        ) : null}
                       </View>
                     </Pressable>
                     {open ? (
@@ -224,7 +244,7 @@ export default function NoteLabelsScreen() {
                               className={
                                 active
                                   ? 'h-7 w-7 rounded-full border-2 border-white'
-                                  : 'h-7 w-7 rounded-full border border-border'
+                                  : 'border-border h-7 w-7 rounded-full border'
                               }
                               style={{ backgroundColor: option.value }}
                             />

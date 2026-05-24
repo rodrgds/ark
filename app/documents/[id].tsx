@@ -165,8 +165,8 @@ export default function DocumentReaderScreen() {
           </View>
           {document.encryptionStatus !== 'encrypted' ? (
             <Text className="text-destructive text-sm">
-              Stored in app-private files. Database/file encryption still requires the SQLCipher dev
-              build work.
+              Stored privately on this device. Stronger file protection is available in supported
+              builds.
             </Text>
           ) : null}
           {error ? <Text className="text-destructive text-sm">{error}</Text> : null}
@@ -181,7 +181,7 @@ export default function DocumentReaderScreen() {
             {document.ocrStatus === 'processing' ? <ActivityIndicator /> : null}
           </View>
           {document.extractedText ? (
-            <Text variant="small">Text document indexed for offline search and chat sources.</Text>
+            <Text variant="small">Ready for offline search and Ask Arky.</Text>
           ) : null}
           {document.ocrText ? (
             <View className="bg-muted/40 max-h-44 rounded-md p-3">
@@ -240,7 +240,7 @@ export default function DocumentReaderScreen() {
 }
 
 function ocrStatusCopy(document: ArkDocument) {
-  if (document.extractedText) return 'This file text is indexed and available to RAG.';
+  if (document.extractedText) return 'This file text is ready for offline search and Ask Arky.';
   switch (document.ocrStatus) {
     case 'pending':
       return 'Waiting to inspect this file.';
@@ -250,17 +250,17 @@ function ocrStatusCopy(document: ArkDocument) {
       return 'Reading the PDF text layer on this device.';
     case 'text_extracted':
     case 'searchable':
-      return 'This document is indexed and available to RAG.';
+      return 'This document is ready for offline search and Ask Arky.';
     case 'ocr_needed':
       return 'This looks like a scanned PDF. OCR is available, but Ark will not run a large OCR job without you asking.';
     case 'ocr_running':
       return 'Running OCR on PDF pages on this device.';
     case 'ready':
       return document.ocrText
-        ? 'Image text is indexed and available to RAG.'
+        ? 'Image text is ready for offline search and Ask Arky.'
         : 'No readable text was found in this image.';
     case 'unavailable':
-      return 'OCR needs the Android development build with Ark OCR.';
+      return 'OCR is available on Android builds with image text recognition enabled.';
     case 'failed':
       return 'OCR failed. You can retry from this screen.';
     default:

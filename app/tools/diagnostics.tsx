@@ -1,7 +1,6 @@
 import { Screen } from '@/components/layout/screen';
 import { Card } from '@/components/ui/card';
 import { Text } from '@/components/ui/text';
-import { SQLCIPHER_NOTE } from '@/services/db/schema';
 import { DiagnosticsService } from '@/services/sensors/diagnostics.service';
 import type { DiagnosticReport } from '@/types/sensors';
 import * as React from 'react';
@@ -32,17 +31,13 @@ export default function DiagnosticsTool() {
           <Card className="gap-1">
             <Text variant="large">Runtime</Text>
             <Text>Network: {report.network}</Text>
-            <Text>FTS: {report.ftsAvailable ? 'available' : 'not available'}</Text>
-            <Text>
-              SQLCipher/vault encryption: {report.sqlCipherActive ? 'active' : 'not active'}
-            </Text>
-            <Text variant="muted">{SQLCIPHER_NOTE}</Text>
+            <Text>Search index: {report.ftsAvailable ? 'available' : 'not available'}</Text>
+            <Text>Vault protection: {report.sqlCipherActive ? 'active' : 'limited'}</Text>
             <Text variant="muted">
-              Database key: {report.databaseEncryption.keyStored ? 'stored' : 'not created yet'} ·{' '}
-              {report.databaseEncryption.keyStrategy}
+              Local key: {report.databaseEncryption.keyStored ? 'ready' : 'not created yet'}
             </Text>
             <Text variant="muted">{report.databaseEncryption.migrationStatus}</Text>
-            <Text>AI adapter: {report.aiAdapter}</Text>
+            <Text>AI engine: {report.aiAdapter}</Text>
             <Text variant="muted">{report.aiStatusMessage}</Text>
           </Card>
           <Card className="gap-1">

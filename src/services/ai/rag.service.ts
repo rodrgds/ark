@@ -1,9 +1,13 @@
 import { randomUUID } from 'expo-crypto';
+import * as FileSystem from 'expo-file-system/legacy';
 import { DatabaseClient } from '@/services/db/client';
 import { NotesRepository } from '@/services/db/repositories/notes.repo';
 import { ContentRepository } from '@/services/db/repositories/content.repo';
 import { DocumentsRepository } from '@/services/db/repositories/documents.repo';
 import { DocumentPagesRepository } from '@/services/db/repositories/document-pages.repo';
+import { MapsRepository } from '@/services/db/repositories/maps.repo';
+import { RssRepository } from '@/services/db/repositories/rss.repo';
+import { WeatherRepository } from '@/services/db/repositories/weather.repo';
 import { chunkText, estimateTokens } from '@/services/ai/chunking';
 import {
   RAG_HASH_EMBEDDING_MODEL_ID,
@@ -17,6 +21,7 @@ import { RagVectorService } from '@/services/ai/rag-vector.service';
 import { EmbeddingService, type EmbeddingResult } from '@/services/ai/embedding.service';
 import { GuideService } from '@/services/content/guide.service';
 import { ZimService, type ZimArticle, type ZimSearchResult } from '@/services/content/zim.service';
+import { OcrService } from '@/services/ocr/ocr.service';
 import type { AiCitation } from '@/types/ai';
 import type { ContentPack } from '@/types/content';
 import type { ArkDocument } from '@/types/db';
@@ -51,7 +56,7 @@ const STOPWORDS = new Set([
 function tokenizeForFts(query: string) {
   return query
     .split(/\s+/)
-    .map((part) => part.replace(/[^a-zA-Z0-9_'-]/g, '').trim())
+    .map((part) => part.replace(/[^a-zA-Z0-9_']/g, '').trim())
     .filter(Boolean);
 }
 
@@ -64,6 +69,14 @@ function toFtsQueries(query: string) {
 }
 
 export class RagService {
+  private static sourceWriteQueue: Promise<unknown> = Promise.resolve();
+
+  private static async queueSourceWrite<T>(operation: () => Promise<T>) {
+    const next = this.sourceWriteQueue.then(operation, operation);
+    this.sourceWriteQueue = next.catch(() => undefined);
+    return next;
+  }
+
   private static async replaceSource(input: {
     id: string;
     kind: string;
@@ -71,7 +84,6 @@ export class RagService {
     title: string;
     chunks: string[];
   }) {
-    const db = await DatabaseClient.getDb();
     const timestamp = Date.now();
     const embeddedChunks: Array<{
       text: string;
@@ -86,68 +98,71 @@ export class RagService {
         embedding: serializeEmbedding(embeddingResult.vector),
       });
     }
-    await db.withTransactionAsync(async () => {
+    await this.queueSourceWrite(async () => {
+      const db = await DatabaseClient.getDb();
       const oldChunks = await db.getAllAsync<{ id: string }>(
         'SELECT id FROM rag_chunks WHERE source_id = ?',
         [input.id]
       );
-      await db.runAsync(
-        `INSERT INTO rag_sources (id, kind, source_ref, title, created_at, updated_at)
+      await db.withTransactionAsync(async () => {
+        await db.runAsync(
+          `INSERT INTO rag_sources (id, kind, source_ref, title, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            kind = excluded.kind,
            source_ref = excluded.source_ref,
            title = excluded.title,
            updated_at = excluded.updated_at`,
-        [input.id, input.kind, input.sourceRef, input.title, timestamp, timestamp]
-      );
-      await db.runAsync(
-        'DELETE FROM rag_chunks_fts WHERE chunk_id IN (SELECT id FROM rag_chunks WHERE source_id = ?)',
-        [input.id]
-      );
-      await RagVectorService.removeChunks(
-        db,
-        oldChunks.map((chunk) => chunk.id)
-      );
-      await db.runAsync(
-        'DELETE FROM chunk_embeddings WHERE chunk_id IN (SELECT id FROM rag_chunks WHERE source_id = ?)',
-        [input.id]
-      );
-      await db.runAsync('DELETE FROM rag_chunks WHERE source_id = ?', [input.id]);
-      for (let index = 0; index < embeddedChunks.length; index += 1) {
-        const { text, embeddingResult, embedding } = embeddedChunks[index];
-        const id = randomUUID();
+          [input.id, input.kind, input.sourceRef, input.title, timestamp, timestamp]
+        );
         await db.runAsync(
-          `INSERT INTO rag_chunks
-            (id, source_id, chunk_index, text, token_count, embedding_model_id, embedding_blob, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            id,
-            input.id,
-            index,
-            text,
-            estimateTokens(text),
-            embeddingResult.modelId,
+          'DELETE FROM rag_chunks_fts WHERE chunk_id IN (SELECT id FROM rag_chunks WHERE source_id = ?)',
+          [input.id]
+        );
+        await RagVectorService.removeChunks(
+          db,
+          oldChunks.map((chunk) => chunk.id)
+        );
+        await db.runAsync(
+          'DELETE FROM chunk_embeddings WHERE chunk_id IN (SELECT id FROM rag_chunks WHERE source_id = ?)',
+          [input.id]
+        );
+        await db.runAsync('DELETE FROM rag_chunks WHERE source_id = ?', [input.id]);
+        for (let index = 0; index < embeddedChunks.length; index += 1) {
+          const { text, embeddingResult, embedding } = embeddedChunks[index];
+          const id = randomUUID();
+          await db.runAsync(
+            `INSERT INTO rag_chunks
+              (id, source_id, chunk_index, text, token_count, embedding_model_id, embedding_blob, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              id,
+              input.id,
+              index,
+              text,
+              estimateTokens(text),
+              embeddingResult.modelId,
+              embedding,
+              timestamp,
+            ]
+          );
+          await db.runAsync(
+            `INSERT OR REPLACE INTO chunk_embeddings
+              (chunk_id, model_id, dimension, embedding_blob, created_at)
+             VALUES (?, ?, ?, ?, ?)`,
+            [id, embeddingResult.modelId, embeddingResult.dimensions, embedding, timestamp]
+          );
+          await db.runAsync(
+            'INSERT INTO rag_chunks_fts (chunk_id, text, source_title) VALUES (?, ?, ?)',
+            [id, text, input.title]
+          );
+          await RagVectorService.upsertChunk(db, {
+            chunkId: id,
             embedding,
-            timestamp,
-          ]
-        );
-        await db.runAsync(
-          `INSERT OR REPLACE INTO chunk_embeddings
-            (chunk_id, model_id, dimension, embedding_blob, created_at)
-           VALUES (?, ?, ?, ?, ?)`,
-          [id, embeddingResult.modelId, embeddingResult.dimensions, embedding, timestamp]
-        );
-        await db.runAsync(
-          'INSERT INTO rag_chunks_fts (chunk_id, text, source_title) VALUES (?, ?, ?)',
-          [id, text, input.title]
-        );
-        await RagVectorService.upsertChunk(db, {
-          chunkId: id,
-          embedding,
-          modelId: embeddingResult.modelId,
-        });
-      }
+            modelId: embeddingResult.modelId,
+          });
+        }
+      });
     });
   }
 
@@ -155,6 +170,7 @@ export class RagService {
     const note = await NotesRepository.get(noteId);
     if (!note) return;
     const sourceId = `note:${note.id}`;
+    if (!(await this.shouldReindexSource(sourceId, note.updatedAt))) return;
     await this.replaceSource({
       id: sourceId,
       kind: 'note',
@@ -162,6 +178,21 @@ export class RagService {
       title: note.title,
       chunks: chunkText(`${note.title}\n${note.body}\n${note.tags.join(' ')}`),
     });
+  }
+
+  static async indexNotes() {
+    const notes = await NotesRepository.list();
+    const activeSourceIds = new Set(notes.map((note) => `note:${note.id}`));
+    const db = await DatabaseClient.getDb();
+    const indexedNoteSources = await db.getAllAsync<{ id: string }>(
+      "SELECT id FROM rag_sources WHERE kind = 'note'"
+    );
+    for (const source of indexedNoteSources) {
+      if (!activeSourceIds.has(source.id)) await this.removeSource(source.id);
+    }
+    for (const note of notes) {
+      await this.indexNote(note.id);
+    }
   }
 
   static buildContentChunks(pack: ContentPack) {
@@ -195,18 +226,20 @@ export class RagService {
   static async indexContentPack(packId: string) {
     const pack = (await ContentRepository.list()).find((item) => item.id === packId);
     if (!pack) return;
+    if (pack.category === 'AI Models') return;
+    if (!(await this.shouldReindexSource(`content:${pack.id}`, pack.updatedAt))) return;
     await this.replaceSource({
       id: `content:${pack.id}`,
-      kind: pack.format === 'zim' ? 'zim' : pack.category === 'AI Models' ? 'model' : 'guide',
+      kind: pack.format === 'zim' ? 'zim' : 'guide',
       sourceRef: pack.id,
       title: pack.title,
-      chunks: this.buildContentChunks(pack),
+      chunks: await this.buildPackChunks(pack),
     });
   }
 
   static async indexInstalledContentPacks() {
     const packs = await ContentRepository.list();
-    for (const pack of packs.filter((item) => item.installed)) {
+    for (const pack of packs.filter((item) => item.installed && item.category !== 'AI Models')) {
       await this.indexContentPack(pack.id);
     }
   }
@@ -259,6 +292,145 @@ export class RagService {
     }
   }
 
+  static async indexRssItems() {
+    const items = await RssRepository.listRecentItems(50);
+    for (const item of items) {
+      if (!(await this.shouldReindexSource(`rss:${item.id}`, item.created_at))) continue;
+      await this.replaceSource({
+        id: `rss:${item.id}`,
+        kind: 'rss',
+        sourceRef: item.id,
+        title: `${item.feed_title}: ${item.title}`,
+        chunks: chunkText(
+          [
+            `Feed: ${item.feed_title}.`,
+            `Headline: ${item.title}.`,
+            item.published_at ? `Published: ${new Date(item.published_at).toISOString()}.` : '',
+            item.summary,
+            item.content,
+            item.url ? `Source URL: ${item.url}.` : '',
+          ]
+            .filter(Boolean)
+            .join('\n')
+        ),
+      });
+    }
+  }
+
+  static async indexMapData() {
+    const [markers, routes, regions] = await Promise.all([
+      MapsRepository.listMarkers(),
+      MapsRepository.listRoutes(),
+      MapsRepository.listRegions(),
+    ]);
+    const activeSourceIds = new Set([
+      ...markers.map((marker) => `map-marker:${marker.id}`),
+      ...routes.map((route) => `map-route:${route.id}`),
+      ...regions.map((region) => `map-region:${region.id}`),
+    ]);
+    await this.removeMissingSources(['map_marker', 'map_route', 'map_region'], activeSourceIds);
+
+    for (const marker of markers) {
+      if (!(await this.shouldReindexSource(`map-marker:${marker.id}`, marker.updatedAt))) continue;
+      await this.replaceSource({
+        id: `map-marker:${marker.id}`,
+        kind: 'map_marker',
+        sourceRef: marker.id,
+        title: `Saved spot: ${marker.title}`,
+        chunks: chunkText(
+          [
+            `Saved map spot: ${marker.title}.`,
+            marker.description,
+            `Coordinates: ${marker.latitude.toFixed(5)}, ${marker.longitude.toFixed(5)}.`,
+            marker.photoUri ? 'A local photo is attached to this spot.' : '',
+          ]
+            .filter(Boolean)
+            .join('\n')
+        ),
+      });
+    }
+
+    for (const route of routes) {
+      if (!(await this.shouldReindexSource(`map-route:${route.id}`, route.updatedAt))) continue;
+      await this.replaceSource({
+        id: `map-route:${route.id}`,
+        kind: 'map_route',
+        sourceRef: route.id,
+        title: `Route: ${route.title}`,
+        chunks: chunkText(
+          [
+            `Saved route: ${route.title}.`,
+            route.distanceMeters ? `Distance: ${(route.distanceMeters / 1000).toFixed(1)} km.` : '',
+            `Points: ${route.points
+              .map((point) =>
+                [point.title, `${point.latitude.toFixed(5)}, ${point.longitude.toFixed(5)}`]
+                  .filter(Boolean)
+                  .join(' at ')
+              )
+              .join('; ')}.`,
+          ]
+            .filter(Boolean)
+            .join('\n')
+        ),
+      });
+    }
+
+    for (const region of regions) {
+      if (!(await this.shouldReindexSource(`map-region:${region.id}`, region.updatedAt))) continue;
+      await this.replaceSource({
+        id: `map-region:${region.id}`,
+        kind: 'map_region',
+        sourceRef: region.id,
+        title: `Offline map: ${region.name}`,
+        chunks: chunkText(
+          [
+            `Offline map region: ${region.name}.`,
+            `Status: ${region.status}.`,
+            region.north !== null &&
+            region.south !== null &&
+            region.east !== null &&
+            region.west !== null
+              ? `Bounds: north ${region.north}, south ${region.south}, east ${region.east}, west ${region.west}.`
+              : '',
+            region.minZoom !== null || region.maxZoom !== null
+              ? `Zoom: ${region.minZoom ?? 'default'} to ${region.maxZoom ?? 'default'}.`
+              : '',
+          ]
+            .filter(Boolean)
+            .join('\n')
+        ),
+      });
+    }
+  }
+
+  static async indexWeatherCache() {
+    const latest = await WeatherRepository.getLatest();
+    if (!latest) {
+      await this.removeSource('weather:latest');
+      return;
+    }
+    if (!(await this.shouldReindexSource('weather:latest', latest.fetched_at))) return;
+    await this.replaceSource({
+      id: 'weather:latest',
+      kind: 'weather',
+      sourceRef: latest.id,
+      title: latest.location_label ? `Weather: ${latest.location_label}` : 'Cached weather',
+      chunks: chunkText(
+        [
+          latest.location_label ? `Location: ${latest.location_label}.` : '',
+          latest.latitude !== null && latest.longitude !== null
+            ? `Coordinates: ${latest.latitude.toFixed(5)}, ${latest.longitude.toFixed(5)}.`
+            : '',
+          latest.provider ? `Provider: ${latest.provider}.` : '',
+          `Fetched: ${new Date(latest.fetched_at).toISOString()}.`,
+          weatherForecastText(latest.forecast_json),
+        ]
+          .filter(Boolean)
+          .join('\n')
+      ),
+    });
+  }
+
   static async cacheZimArticle(pack: ContentPack, path: string, article: ZimArticle) {
     const db = await DatabaseClient.getDb();
     const timestamp = Date.now();
@@ -308,7 +480,7 @@ export class RagService {
     });
 
     await this.replaceSource({
-      id: `zim-article:${pack.id}:${article.finalPath || path}`,
+      id: `zim:${pack.id}:${article.finalPath || path}`,
       kind: 'zim_article',
       sourceRef: pack.id,
       title: `${pack.title}: ${article.title || path}`,
@@ -323,18 +495,20 @@ export class RagService {
   }
 
   static async removeSource(sourceId: string) {
-    const db = await DatabaseClient.getDb();
-    await db.withTransactionAsync(async () => {
-      await db.runAsync(
-        'DELETE FROM rag_chunks_fts WHERE chunk_id IN (SELECT id FROM rag_chunks WHERE source_id = ?)',
-        [sourceId]
-      );
-      await db.runAsync(
-        'DELETE FROM chunk_embeddings WHERE chunk_id IN (SELECT id FROM rag_chunks WHERE source_id = ?)',
-        [sourceId]
-      );
-      await db.runAsync('DELETE FROM rag_chunks WHERE source_id = ?', [sourceId]);
-      await db.runAsync('DELETE FROM rag_sources WHERE id = ?', [sourceId]);
+    await this.queueSourceWrite(async () => {
+      const db = await DatabaseClient.getDb();
+      await db.withTransactionAsync(async () => {
+        await db.runAsync(
+          'DELETE FROM rag_chunks_fts WHERE chunk_id IN (SELECT id FROM rag_chunks WHERE source_id = ?)',
+          [sourceId]
+        );
+        await db.runAsync(
+          'DELETE FROM chunk_embeddings WHERE chunk_id IN (SELECT id FROM rag_chunks WHERE source_id = ?)',
+          [sourceId]
+        );
+        await db.runAsync('DELETE FROM rag_chunks WHERE source_id = ?', [sourceId]);
+        await db.runAsync('DELETE FROM rag_sources WHERE id = ?', [sourceId]);
+      });
     });
   }
 
@@ -385,8 +559,12 @@ export class RagService {
 
   static async search(query: string, options: { limit?: number } = {}): Promise<AiCitation[]> {
     await this.seedCoreContent();
+    await this.indexNotes();
     await this.indexInstalledContentPacks();
     await this.indexImportedDocuments();
+    await this.indexRssItems();
+    await this.indexMapData();
+    await this.indexWeatherCache();
     const ftsQueries = toFtsQueries(query);
     if (!ftsQueries.length) return [];
     const db = await DatabaseClient.getDb();
@@ -432,6 +610,81 @@ export class RagService {
         ? await searchInstalledZimArticles(query, limit - ftsCitations.length)
         : [];
     return dedupeCitations([...ftsCitations, ...zimCitations]).slice(0, limit);
+  }
+
+  static async expandCitations(
+    citations: AiCitation[],
+    options: { maxSources?: number; maxCharsPerSource?: number } = {}
+  ) {
+    const maxSources = options.maxSources ?? 3;
+    const maxCharsPerSource = options.maxCharsPerSource ?? 1600;
+    const selected = citations.slice(0, maxSources);
+    return Promise.all(
+      selected.map(async (citation) => ({
+        sourceId: citation.sourceId,
+        title: citation.title,
+        content: await this.readSourceContext(citation, maxCharsPerSource),
+      }))
+    );
+  }
+
+  static async readSourceContext(citation: AiCitation, maxChars = 1600) {
+    const db = await DatabaseClient.getDb();
+    let rows = await db.getAllAsync<{ text: string }>(
+      'SELECT text FROM rag_chunks WHERE source_id = ? ORDER BY chunk_index ASC LIMIT 4',
+      [citation.sourceId]
+    );
+
+    if (!rows.length && citation.sourceId.startsWith('zim:')) {
+      const [, packId, ...pathParts] = citation.sourceId.split(':');
+      const path = pathParts.join(':');
+      const pack = (await ContentRepository.list()).find((item) => item.id === packId);
+      if (pack && path) {
+        await getZimArticleText(pack, path);
+      }
+      rows = await db.getAllAsync<{ text: string }>(
+        'SELECT text FROM rag_chunks WHERE source_id = ? ORDER BY chunk_index ASC LIMIT 4',
+        [citation.sourceId]
+      );
+    }
+
+    const content = rows
+      .map((row) => row.text.trim())
+      .filter(Boolean)
+      .join('\n\n')
+      .slice(0, maxChars);
+
+    return content || citation.snippet;
+  }
+
+  private static async shouldReindexSource(sourceId: string, updatedAt: number) {
+    const db = await DatabaseClient.getDb();
+    const row = await db.getFirstAsync<{ updated_at: number | null }>(
+      'SELECT updated_at FROM rag_sources WHERE id = ?',
+      [sourceId]
+    );
+    return !row?.updated_at || row.updated_at < updatedAt;
+  }
+
+  private static async removeMissingSources(kinds: string[], activeSourceIds: Set<string>) {
+    const db = await DatabaseClient.getDb();
+    const rows = await db.getAllAsync<{ id: string }>(
+      `SELECT id FROM rag_sources WHERE kind IN (${kinds.map(() => '?').join(', ')})`,
+      kinds
+    );
+    for (const row of rows) {
+      if (!activeSourceIds.has(row.id)) await this.removeSource(row.id);
+    }
+  }
+
+  private static async buildPackChunks(pack: ContentPack) {
+    const metadataChunks = this.buildContentChunks(pack);
+    if (!pack.installed || !pack.localUri) return metadataChunks;
+    if (pack.format === 'zim') return metadataChunks;
+
+    const bodyChunks = await readInstalledPackBody(pack);
+    if (!bodyChunks.length) return metadataChunks;
+    return bodyChunks;
   }
 }
 
@@ -522,6 +775,37 @@ function stripHtml(html: string) {
     .trim();
 }
 
+async function readInstalledPackBody(pack: ContentPack) {
+  const header = [
+    `${pack.title}.`,
+    pack.description,
+    pack.sourceLabel ? `Source: ${pack.sourceLabel}.` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  if (pack.format === 'html' || pack.format === 'markdown' || pack.format === 'txt') {
+    const fileText = await FileSystem.readAsStringAsync(pack.localUri!, {
+      encoding: FileSystem.EncodingType.UTF8,
+    }).catch(() => '');
+    const normalized =
+      pack.format === 'html' ? stripHtml(fileText) : fileText.replace(/\r\n/g, '\n').trim();
+    if (!normalized) return [];
+    return chunkText(`${header}\n${normalized.slice(0, 40000)}`);
+  }
+
+  if (pack.format === 'pdf') {
+    const extracted = await OcrService.extractPdfText(pack.localUri!, 120);
+    if (extracted.status === 'ready' && extracted.pages.some((page) => page.text.trim())) {
+      return extracted.pages.flatMap((page) =>
+        chunkText([header, `Page ${page.pageNumber}.`, page.text.trim()].filter(Boolean).join('\n'))
+      );
+    }
+  }
+
+  return [];
+}
+
 function hashText(text: string) {
   let hash = 2166136261;
   for (let index = 0; index < text.length; index += 1) {
@@ -529,6 +813,23 @@ function hashText(text: string) {
     hash = Math.imul(hash, 16777619);
   }
   return hash.toString(16);
+}
+
+function weatherForecastText(rawJson: string) {
+  try {
+    const forecast = JSON.parse(rawJson);
+    if (forecast && typeof forecast === 'object') {
+      const parts = Object.entries(forecast as Record<string, unknown>).map(([key, value]) => {
+        if (Array.isArray(value)) return `${key}: ${JSON.stringify(value.slice(0, 8))}.`;
+        if (value && typeof value === 'object') return `${key}: ${JSON.stringify(value).slice(0, 600)}.`;
+        return `${key}: ${String(value)}.`;
+      });
+      return parts.join('\n').slice(0, 4000);
+    }
+  } catch {
+    return rawJson.slice(0, 4000);
+  }
+  return rawJson.slice(0, 4000);
 }
 
 function dedupeCitations(citations: AiCitation[]) {
@@ -589,13 +890,21 @@ function citationForRow(row: {
     row.source_id.startsWith('document:') && row.source_ref
       ? `/documents/${encodeURIComponent(row.source_ref)}`
       : undefined;
-  const zimArticlePath = row.source_id.startsWith('zim-article:')
+  const zimArticlePath = row.source_id.startsWith('zim:')
     ? row.source_id.split(':').slice(2).join(':')
     : null;
   const zimArticleTarget =
     zimArticlePath && row.source_ref
       ? `/content/${encodeURIComponent(row.source_ref)}?article=${encodeURIComponent(zimArticlePath)}`
       : undefined;
+  const rssTarget = row.source_id.startsWith('rss:') ? '/tools/news' : undefined;
+  const mapTarget =
+    row.source_id.startsWith('map-marker:') ||
+    row.source_id.startsWith('map-route:') ||
+    row.source_id.startsWith('map-region:')
+      ? '/(tabs)/map'
+      : undefined;
+  const weatherTarget = row.source_id === 'weather:latest' ? '/tools/weather' : undefined;
 
   return {
     sourceId: row.source_id,
@@ -603,7 +912,7 @@ function citationForRow(row: {
     sourceRef: row.source_ref,
     sectionTitle: section?.title,
     page: section?.page,
-    targetHref: contentTarget ?? documentTarget ?? zimArticleTarget,
+    targetHref: contentTarget ?? documentTarget ?? zimArticleTarget ?? rssTarget ?? mapTarget ?? weatherTarget,
   };
 }
 

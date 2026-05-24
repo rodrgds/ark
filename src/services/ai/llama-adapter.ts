@@ -1,6 +1,7 @@
 import { SAFETY_COPY } from '@/constants/app';
 import { ContentPackService } from '@/services/content/content-pack.service';
 import { isEmbeddingModelPack } from '@/services/ai/embedding-models';
+import { PreferencesService } from '@/services/preferences/preferences.service';
 import type { AiAdapterResponse } from '@/types/ai';
 import type { AiAdapterSendInput } from '@/types/ai';
 
@@ -13,6 +14,11 @@ let activeCompletionContext: LlamaContext | null = null;
 
 export function resetLlamaAdapterForTests() {
   llamaModulePromise = null;
+  contextPromise = null;
+  activeCompletionContext = null;
+}
+
+export function resetLlamaRuntimeContext() {
   contextPromise = null;
   activeCompletionContext = null;
 }
@@ -30,7 +36,7 @@ export class LlamaAdapter {
     if (!context) {
       return {
         content:
-          'llama.rn is installed, but no native runtime/model is available in this build. Download an AI model and use a development build to enable on-device inference.',
+          'No on-device AI runtime is available in this build. Download a chat model and use a build with local AI enabled.',
         citations: input.citations,
       };
     }
@@ -49,30 +55,42 @@ export class LlamaAdapter {
           })
           .join('\n')
       : 'No retrieved sources.';
+    const sourceContextText =
+      input.sourceContext && input.sourceContext.length
+        ? input.sourceContext
+            .map(
+              (source, index) => `${index + 1}. ${source.title}\n${source.content.slice(0, 1800)}`
+            )
+            .join('\n\n')
+        : 'No expanded source content.';
+    const toolTraceText =
+      input.toolTrace?.map((entry) => `- ${entry.summary}`).join('\n') ?? 'No tools used.';
     let streamedText = '';
     activeCompletionContext = context;
-    const result = (await context.completion(
-      {
-        messages: [
-          {
-            role: 'system',
-            content: `You are Ark, an offline survival-grade assistant. Be concise, cite retrieved local sources when relevant, and include this safety rule: ${SAFETY_COPY.ai}`,
-          },
-          {
-            role: 'user',
-            content: `Retrieved local sources:\n${sourceText}\n\nUser question:\n${input.content}`,
-          },
-        ],
-        n_predict: 384,
-        temperature: 0.2,
-      },
-      (data) => {
-        streamedText = data.accumulated_text ?? `${streamedText}${data.token ?? ''}`;
-        if (streamedText) input.onToken?.(streamedText);
-      }
-    ).finally(() => {
-      if (activeCompletionContext === context) activeCompletionContext = null;
-    })) as { text?: string; content?: string };
+    const result = (await context
+      .completion(
+        {
+          messages: [
+            {
+              role: 'system',
+              content: `You are Ark, an offline survival-grade assistant. Be concise, use the tool results and opened source context below as ground truth, cite retrieved local sources when relevant, and include this safety rule: ${SAFETY_COPY.ai}`,
+            },
+            {
+              role: 'user',
+              content: `Tools used:\n${toolTraceText}\n\nRetrieved local sources:\n${sourceText}\n\nOpened source context:\n${sourceContextText}\n\nUser question:\n${input.content}`,
+            },
+          ],
+          n_predict: 384,
+          temperature: 0.2,
+        },
+        (data) => {
+          streamedText = data.accumulated_text ?? `${streamedText}${data.token ?? ''}`;
+          if (streamedText) input.onToken?.(streamedText);
+        }
+      )
+      .finally(() => {
+        if (activeCompletionContext === context) activeCompletionContext = null;
+      })) as { text?: string; content?: string };
 
     return {
       content:
@@ -119,7 +137,8 @@ async function getInstalledModel() {
       pack.localUri &&
       !isEmbeddingModelPack(pack)
   );
-  return models[0] ?? null;
+  const selectedId = await PreferencesService.getSelectedAiModelId();
+  return models.find((model) => model.id === selectedId) ?? models[0] ?? null;
 }
 
 async function getContext() {

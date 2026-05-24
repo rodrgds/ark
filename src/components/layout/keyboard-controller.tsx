@@ -1,6 +1,6 @@
 import Constants from 'expo-constants';
 import * as React from 'react';
-import { Platform, ScrollView, TurboModuleRegistry } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, TurboModuleRegistry } from 'react-native';
 import type {
   KeyboardAwareScrollViewProps,
   KeyboardAwareScrollViewRef,
@@ -76,11 +76,18 @@ export const ArkKeyboardAwareScrollView = React.forwardRef<
   } = props;
 
   return (
-    <ScrollView
-      ref={ref as React.Ref<ScrollView>}
-      automaticallyAdjustKeyboardInsets={automaticallyAdjustKeyboardInsets ?? Platform.OS === 'ios'}
-      {...scrollProps}
-    />
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? (_bottomOffset ?? 0) : 0}
+      style={{ flex: 1 }}>
+      <ScrollView
+        ref={ref as React.Ref<ScrollView>}
+        automaticallyAdjustKeyboardInsets={
+          automaticallyAdjustKeyboardInsets ?? Platform.OS === 'ios'
+        }
+        {...scrollProps}
+      />
+    </KeyboardAvoidingView>
   );
 });
 ArkKeyboardAwareScrollView.displayName = 'ArkKeyboardAwareScrollView';

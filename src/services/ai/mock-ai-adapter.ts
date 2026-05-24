@@ -6,6 +6,7 @@ export class MockAIAdapter {
 
   async sendMessage(input: AiAdapterSendInput): Promise<AiAdapterResponse> {
     const hasSources = input.citations.length > 0;
+    const toolTrace = input.toolTrace?.map((entry) => `- ${entry.summary}`).join('\n');
     const sourceLines = input.citations.map((citation, index) => {
       const location = [
         citation.sectionTitle,
@@ -22,15 +23,25 @@ export class MockAIAdapter {
       content: hasSources
         ? [
             'Based on the local sources Ark found:',
-            sourceLines.join('\n'),
+            toolTrace ? `Tools used:\n${toolTrace}` : null,
+            input.sourceContext?.length
+              ? input.sourceContext
+                  .map((source, index) => `${index + 1}. ${source.title}\n${source.content}`)
+                  .join('\n\n')
+              : sourceLines.join('\n'),
             'Treat this as a source-grounded offline summary. Open the cited items for full context before acting on critical details.',
             `Safety: ${SAFETY_COPY.ai}`,
-          ].join('\n\n')
+          ]
+            .filter(Boolean)
+            .join('\n\n')
         : [
             'I could not find matching offline sources for that question.',
+            toolTrace ? `Tools used:\n${toolTrace}` : null,
             'Download or import reference packs, save map spots or routes, add notes, or refresh cached feeds/weather while online, then ask again.',
             `Safety: ${SAFETY_COPY.ai}`,
-          ].join('\n\n'),
+          ]
+            .filter(Boolean)
+            .join('\n\n'),
       citations: input.citations,
     };
   }

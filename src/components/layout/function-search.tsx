@@ -12,7 +12,6 @@ import {
   Compass,
   Footprints,
   Gauge,
-  Home,
   Library,
   Lightbulb,
   LocateFixed,
@@ -20,6 +19,7 @@ import {
   NotebookPen,
   Ruler,
   Search,
+  Newspaper,
   Settings,
   Shield,
   SlidersHorizontal,
@@ -27,7 +27,14 @@ import {
   type LucideIcon,
 } from 'lucide-react-native';
 import * as React from 'react';
-import { InteractionManager, Modal, Pressable, ScrollView, type TextInput, View } from 'react-native';
+import {
+  InteractionManager,
+  Modal,
+  Pressable,
+  ScrollView,
+  type TextInput,
+  View,
+} from 'react-native';
 
 type SearchEntry = {
   title: string;
@@ -39,16 +46,9 @@ type SearchEntry = {
 
 const FUNCTION_ENTRIES: SearchEntry[] = [
   {
-    title: 'Home',
-    subtitle: 'Status dashboard and quick actions',
-    keywords: 'dashboard status home readiness',
-    icon: Home,
-    href: '/(tabs)',
-  },
-  {
     title: 'Ask Arky',
     subtitle: 'AI chat with downloaded references',
-    keywords: 'ai arky chat assistant rag question',
+    keywords: 'ai arky chat assistant question',
     icon: Bot,
     href: '/(tabs)/chat',
   },
@@ -61,8 +61,8 @@ const FUNCTION_ENTRIES: SearchEntry[] = [
   },
   {
     title: 'Library',
-    subtitle: 'Content packs, RSS, documents, and models',
-    keywords: 'library content downloads documents rss models zim pdf',
+    subtitle: 'Guides, wikis, and imported documents',
+    keywords: 'library content downloads documents zim pdf guides wiki',
     icon: Library,
     href: '/(tabs)/library',
   },
@@ -79,6 +79,13 @@ const FUNCTION_ENTRIES: SearchEntry[] = [
     keywords: 'tools sensors utility field',
     icon: Compass,
     href: '/(tabs)/tools',
+  },
+  {
+    title: 'News',
+    subtitle: 'Cached feeds and unread alerts',
+    keywords: 'news rss feeds alerts articles cache',
+    icon: Newspaper,
+    href: '/tools/news',
   },
   {
     title: 'Compass',
@@ -218,11 +225,7 @@ export function FunctionSearchButton() {
         <Icon as={Search} className="size-4" />
       </Button>
 
-      <Modal
-        transparent
-        visible={open}
-        animationType="fade"
-        onRequestClose={() => setOpen(false)}>
+      <Modal transparent visible={open} animationType="fade" onRequestClose={() => setOpen(false)}>
         <ModalFrame
           onDismiss={() => setOpen(false)}
           position="top"

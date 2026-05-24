@@ -53,6 +53,21 @@ export class RssRepository {
     return db.getAllAsync<RssFeedRow>('SELECT * FROM rss_feeds WHERE enabled = 1 ORDER BY title');
   }
 
+  static async setFeedEnabled(id: string, enabled: boolean) {
+    const db = await DatabaseClient.getDb();
+    await db.runAsync('UPDATE rss_feeds SET enabled = ?, updated_at = ? WHERE id = ?', [
+      enabled ? 1 : 0,
+      Date.now(),
+      id,
+    ]);
+  }
+
+  static async removeFeed(id: string) {
+    const db = await DatabaseClient.getDb();
+    await db.runAsync('DELETE FROM rss_items WHERE feed_id = ?', [id]);
+    await db.runAsync('DELETE FROM rss_feeds WHERE id = ?', [id]);
+  }
+
   static async updateFeedFetchedAt(id: string, timestamp: number) {
     const db = await DatabaseClient.getDb();
     await db.runAsync('UPDATE rss_feeds SET last_fetched_at = ?, updated_at = ? WHERE id = ?', [
@@ -108,5 +123,15 @@ export class RssRepository {
        LIMIT ?`,
       [limit]
     );
+  }
+
+  static async markItemRead(id: string, read: boolean) {
+    const db = await DatabaseClient.getDb();
+    await db.runAsync('UPDATE rss_items SET read_at = ? WHERE id = ?', [read ? Date.now() : null, id]);
+  }
+
+  static async markAllRead() {
+    const db = await DatabaseClient.getDb();
+    await db.runAsync('UPDATE rss_items SET read_at = ? WHERE read_at IS NULL', [Date.now()]);
   }
 }

@@ -1,7 +1,7 @@
 import { randomUUID } from 'expo-crypto';
 import { DatabaseClient } from '@/services/db/client';
 import { HapticsService } from '@/services/device/haptics.service';
-import { RagService } from '@/services/ai/rag.service';
+import { AiToolService } from '@/services/ai/ai-tools.service';
 import { LlamaAdapter } from '@/services/ai/llama-adapter';
 import { MockAIAdapter } from '@/services/ai/mock-ai-adapter';
 import { chatMessageSchema, parseOrThrow } from '@/lib/validation';
@@ -75,13 +75,25 @@ export class AIService {
       citations: [],
       createdAt: timestamp,
     };
-    const citations = validated.useRag
-      ? await RagService.search(validated.content, { limit: 4 })
-      : [];
+    const toolRun = validated.useRag
+      ? await AiToolService.runLocalKnowledgeTools(validated.content)
+      : AiToolService.emptyRun();
+    const toolMessage: AiMessage | null = toolRun.toolTrace.length
+      ? {
+          id: randomUUID(),
+          threadId,
+          role: 'tool',
+          content: toolRun.toolTrace.map((entry) => entry.summary).join('\n'),
+          citations: toolRun.citations,
+          createdAt: timestamp + 1,
+        }
+      : null;
     const adapter = (await llamaAdapter.isAvailable()) ? llamaAdapter : mockAdapter;
     const response = await adapter.sendMessage({
       content: validated.content,
-      citations,
+      citations: toolRun.citations,
+      sourceContext: toolRun.sourceContext,
+      toolTrace: toolRun.toolTrace,
       onToken: options.onToken,
     });
     const assistantMessage: AiMessage = {
@@ -90,7 +102,7 @@ export class AIService {
       role: 'assistant',
       content: response.content,
       citations: response.citations,
-      createdAt: Date.now(),
+      createdAt: Math.max(Date.now(), timestamp + 2),
     };
 
     await db.withTransactionAsync(async () => {
@@ -105,6 +117,19 @@ export class AIService {
           userMessage.createdAt,
         ]
       );
+      if (toolMessage) {
+        await db.runAsync(
+          'INSERT INTO chat_messages (id, thread_id, role, content, citations_json, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+          [
+            toolMessage.id,
+            threadId,
+            toolMessage.role,
+            toolMessage.content,
+            JSON.stringify(toolMessage.citations),
+            toolMessage.createdAt,
+          ]
+        );
+      }
       await db.runAsync(
         'INSERT INTO chat_messages (id, thread_id, role, content, citations_json, created_at) VALUES (?, ?, ?, ?, ?, ?)',
         [
@@ -123,7 +148,10 @@ export class AIService {
     });
 
     void HapticsService.selection();
-    return { threadId, messages: [userMessage, assistantMessage] };
+    return {
+      threadId,
+      messages: [userMessage, ...(toolMessage ? [toolMessage] : []), assistantMessage],
+    };
   }
 
   static async cancelActiveResponse() {

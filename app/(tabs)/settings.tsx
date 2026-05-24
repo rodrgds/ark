@@ -2,21 +2,28 @@ import { ArkBrandLockup, Arky } from '@/components/brand/ark-logo';
 import { Screen } from '@/components/layout/screen';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
+import { getPackIcon, getPackModelRoleLabel } from '@/constants/pack-presentation';
 import { THEME_OPTIONS } from '@/constants/theme';
+import { ContentPackService } from '@/services/content/content-pack.service';
 import { ModelManagerService } from '@/services/ai/model-manager.service';
 import { SettingsRepository } from '@/services/db/repositories/settings.repo';
 import { FileSystemService } from '@/services/files/filesystem.service';
 import { PreferencesService } from '@/services/preferences/preferences.service';
 import { VaultService } from '@/services/security/vault.service';
 import { useThemeStore } from '@/stores/theme-store';
-import type { ContentPack } from '@/types/content';
-import { Link, useLocalSearchParams } from 'expo-router';
+import type { ContentModelRole, ContentPack } from '@/types/content';
+import { useLocalSearchParams } from 'expo-router';
+import { Bot, Download, ExternalLink, Trash2, Upload } from 'lucide-react-native';
 import * as React from 'react';
-import { ActivityIndicator, Alert, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, ScrollView, View } from 'react-native';
 
 type SettingsTab = 'appearance' | 'security' | 'ai' | 'storage';
+
+const GEMMA_DOCS_URL = 'https://deepmind.google/models/gemma/gemma-4/';
+const GEMMA_GGUF_URL = 'https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF';
 
 const SETTINGS_TABS: Array<{ value: SettingsTab; label: string }> = [
   { value: 'appearance', label: 'Appearance' },
@@ -37,6 +44,7 @@ export default function SettingsScreen() {
   const [biometricsEnabled, setBiometricsEnabled] = React.useState(false);
   const [motionEnabled, setMotionEnabled] = React.useState(true);
   const [modelPickerEnabled, setModelPickerEnabled] = React.useState(true);
+  const [availableModels, setAvailableModels] = React.useState<ContentPack[]>([]);
   const [installedModels, setInstalledModels] = React.useState<ContentPack[]>([]);
   const [activeModel, setActiveModel] = React.useState<ContentPack | null>(null);
   const [storage, setStorage] = React.useState<Awaited<
@@ -47,38 +55,56 @@ export default function SettingsScreen() {
   > | null>(null);
   const [busy, setBusy] = React.useState<string | null>(null);
   const [securityMessage, setSecurityMessage] = React.useState<string | null>(null);
+  const [aiMessage, setAiMessage] = React.useState<string | null>(null);
+  const [modelTitle, setModelTitle] = React.useState('');
+  const [modelUrl, setModelUrl] = React.useState('');
+  const [modelChecksum, setModelChecksum] = React.useState('');
+  const [customModelRole, setCustomModelRole] = React.useState<ContentModelRole>('chat');
+
+  const chatModels = React.useMemo(
+    () => availableModels.filter((model) => model.modelRole === 'chat'),
+    [availableModels]
+  );
+  const embeddingModels = React.useMemo(
+    () => availableModels.filter((model) => model.modelRole === 'embedding'),
+    [availableModels]
+  );
+
+  async function load() {
+    const [
+      vault,
+      biometricState,
+      motionState,
+      storageState,
+      nextModelStatus,
+      nextAvailableModels,
+      nextInstalledModels,
+      nextActiveModel,
+      aiPreferences,
+    ] = await Promise.all([
+      SettingsRepository.getVaultState(),
+      VaultService.getBiometricsEnabled(),
+      PreferencesService.getMotionEnabled(),
+      FileSystemService.getStorageSummary(),
+      ModelManagerService.getStatus(),
+      ModelManagerService.listAvailableModels(),
+      ModelManagerService.listInstalledChatModels(),
+      ModelManagerService.getActiveModel(),
+      ModelManagerService.getPreferences(),
+    ]);
+    setAutoLock(vault.autoLockMinutes);
+    setPasswordHint(vault.passwordHint ?? '');
+    setBiometricsEnabled(biometricState);
+    setMotionEnabled(motionState);
+    setStorage(storageState);
+    setModelStatus(nextModelStatus);
+    setAvailableModels(nextAvailableModels);
+    setInstalledModels(nextInstalledModels);
+    setActiveModel(nextActiveModel);
+    setModelPickerEnabled(aiPreferences.modelPickerEnabled);
+  }
 
   React.useEffect(() => {
-    async function load() {
-      const [
-        vault,
-        biometricState,
-        motionState,
-        storageState,
-        nextModelStatus,
-        nextInstalledModels,
-        nextActiveModel,
-        aiPreferences,
-      ] = await Promise.all([
-        SettingsRepository.getVaultState(),
-        VaultService.getBiometricsEnabled(),
-        PreferencesService.getMotionEnabled(),
-        FileSystemService.getStorageSummary(),
-        ModelManagerService.getStatus(),
-        ModelManagerService.listInstalledModels(),
-        ModelManagerService.getActiveModel(),
-        ModelManagerService.getPreferences(),
-      ]);
-      setAutoLock(vault.autoLockMinutes);
-      setPasswordHint(vault.passwordHint ?? '');
-      setBiometricsEnabled(biometricState);
-      setMotionEnabled(motionState);
-      setStorage(storageState);
-      setModelStatus(nextModelStatus);
-      setInstalledModels(nextInstalledModels);
-      setActiveModel(nextActiveModel);
-      setModelPickerEnabled(aiPreferences.modelPickerEnabled);
-    }
     void load();
   }, []);
 
@@ -146,6 +172,87 @@ export default function SettingsScreen() {
     await ModelManagerService.setSelectedModel(model.id);
     setActiveModel(model);
     setModelStatus(await ModelManagerService.getStatus());
+  }
+
+  async function importLocalModel() {
+    setBusy('model-import');
+    setAiMessage(null);
+    try {
+      await ContentPackService.importLocalModel(customModelRole);
+      await load();
+    } catch (modelError) {
+      setAiMessage(modelError instanceof Error ? modelError.message : 'Unable to import model.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function addModelUrl() {
+    setBusy('model-url');
+    setAiMessage(null);
+    try {
+      await ContentPackService.addModelUrl({
+        title: modelTitle,
+        sourceUrl: modelUrl,
+        modelRole: customModelRole,
+        checksum: modelChecksum,
+      });
+      setModelTitle('');
+      setModelUrl('');
+      setModelChecksum('');
+      await load();
+    } catch (modelError) {
+      setAiMessage(modelError instanceof Error ? modelError.message : 'Unable to add model URL.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function runModelAction(model: ContentPack) {
+    setBusy(model.id);
+    setAiMessage(null);
+    try {
+      if (
+        model.installStatus === 'downloading' ||
+        model.installStatus === 'queued' ||
+        model.installStatus === 'verifying'
+      ) {
+        await ContentPackService.cancelPackDownload(model.id);
+      } else if (model.installStatus === 'paused') {
+        await ContentPackService.resumePackDownload(model.id);
+      } else if (model.installed) {
+        if (model.modelRole === 'chat') {
+          await selectModel(model);
+        }
+      } else {
+        await ContentPackService.installPack(model.id);
+      }
+      await load();
+    } catch (modelError) {
+      setAiMessage(
+        modelError instanceof Error ? modelError.message : 'Unable to update this model.'
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function removeModel(model: ContentPack) {
+    setBusy(`remove-${model.id}`);
+    setAiMessage(null);
+    try {
+      await ContentPackService.removePack(model.id);
+      if (activeModel?.id === model.id) {
+        await ModelManagerService.setSelectedModel(null);
+      }
+      await load();
+    } catch (modelError) {
+      setAiMessage(
+        modelError instanceof Error ? modelError.message : 'Unable to remove this model.'
+      );
+    } finally {
+      setBusy(null);
+    }
   }
 
   const currentTheme = THEME_OPTIONS.find((option) => option.value === preference);
@@ -287,7 +394,7 @@ export default function SettingsScreen() {
             </Button>
             {securityMessage ? <Text className="text-destructive">{securityMessage}</Text> : null}
             <Text variant="small" className="text-muted-foreground">
-              Database encryption is a development-build task.
+              Stronger device encryption is enabled in supported builds.
             </Text>
           </Card>
         </>
@@ -307,17 +414,41 @@ export default function SettingsScreen() {
               </Text>
               {modelStatus ? <Text variant="muted">{modelStatus.message}</Text> : null}
             </View>
-            <View className="flex-row flex-wrap gap-2">
-              <Link href="/(tabs)/library" asChild>
-                <Button className="flex-1" variant="outline">
-                  <Text>Models</Text>
+            <View className="bg-muted/40 gap-1 rounded-md px-3 py-3">
+              <Text variant="small">Chat models installed: {installedModels.length}</Text>
+              <Text variant="small">
+                Search models installed: {embeddingModels.filter((model) => model.installed).length}
+              </Text>
+              {activeModel ? (
+                <Text variant="muted">Current chat model: {activeModel.title}</Text>
+              ) : null}
+            </View>
+            <View className="border-border bg-muted/30 gap-3 rounded-md border px-3 py-3">
+              <View className="gap-1">
+                <Text variant="large">Gemma recommendations</Text>
+                <Text variant="muted">
+                  Use Gemma 4 E2B Q4_K_M on newer devices with several GB free. Keep Gemma 3 1B for
+                  lower-memory phones or quick fallback testing.
+                </Text>
+              </View>
+              <View className="flex-row flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1"
+                  onPress={() => void Linking.openURL(GEMMA_DOCS_URL)}>
+                  <Icon as={ExternalLink} className="size-4" />
+                  <Text>Gemma 4 guide</Text>
                 </Button>
-              </Link>
-              <Link href="/tools/diagnostics" asChild>
-                <Button className="flex-1" variant="outline">
-                  <Text>Diagnostics</Text>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1"
+                  onPress={() => void Linking.openURL(GEMMA_GGUF_URL)}>
+                  <Icon as={ExternalLink} className="size-4" />
+                  <Text>GGUF variants</Text>
                 </Button>
-              </Link>
+              </View>
             </View>
           </Card>
 
@@ -340,31 +471,89 @@ export default function SettingsScreen() {
 
           <Card className="gap-3">
             <View className="gap-1">
-              <Text variant="large">Active model</Text>
+              <Text variant="large">Add your own model</Text>
               <Text variant="muted">
-                {activeModel
-                  ? activeModel.title
-                  : 'Download or import a GGUF model before choosing one.'}
+                Import a GGUF file you already have, or save a custom download URL for later.
               </Text>
             </View>
-            {installedModels.length > 1 ? (
-              <View className="gap-2">
-                {installedModels.map((model) => (
+            <Button
+              variant="outline"
+              disabled={busy === 'model-import'}
+              onPress={() => void importLocalModel()}>
+              {busy === 'model-import' ? (
+                <ActivityIndicator />
+              ) : (
+                <Icon as={Upload} className="size-4" />
+              )}
+              <Text>Import GGUF file</Text>
+            </Button>
+            <View className="gap-2">
+              <View className="border-border bg-muted/20 flex-row rounded-md border p-1">
+                {(['chat', 'embedding'] as const).map((role) => (
                   <Button
-                    key={model.id}
-                    className="justify-start"
-                    variant={activeModel?.id === model.id ? 'default' : 'outline'}
-                    onPress={() => void selectModel(model)}>
-                    <Text numberOfLines={1}>{model.title}</Text>
+                    key={role}
+                    className="flex-1"
+                    size="sm"
+                    variant={customModelRole === role ? 'default' : 'ghost'}
+                    onPress={() => setCustomModelRole(role)}>
+                    <Text>{role === 'chat' ? 'Chat' : 'Search'}</Text>
                   </Button>
                 ))}
               </View>
-            ) : installedModels.length === 1 ? (
-              <View className="border-border rounded-md border px-3 py-2">
-                <Text>{installedModels[0]?.title}</Text>
-              </View>
-            ) : null}
+              <Input value={modelTitle} onChangeText={setModelTitle} placeholder="Model name" />
+              <Input
+                value={modelUrl}
+                onChangeText={setModelUrl}
+                placeholder="https://.../model.gguf"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <Input
+                value={modelChecksum}
+                onChangeText={setModelChecksum}
+                placeholder="Checksum (optional)"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <Button
+                variant="outline"
+                disabled={busy === 'model-url' || !modelUrl.trim()}
+                onPress={() => void addModelUrl()}>
+                {busy === 'model-url' ? (
+                  <ActivityIndicator />
+                ) : (
+                  <Icon as={Bot} className="size-4" />
+                )}
+                <Text>{customModelRole === 'chat' ? 'Add chat URL' : 'Add search URL'}</Text>
+              </Button>
+            </View>
+            <Text variant="small" className="text-muted-foreground">
+              Choose Chat for Ask Arky responses or Search for Nomic/Qwen embedding GGUFs before
+              importing a file or adding a URL.
+            </Text>
           </Card>
+
+          <ModelSection
+            title="Chat models"
+            description="These are the only models Ask Arky can switch between."
+            models={chatModels}
+            activeModelId={activeModel?.id ?? null}
+            busy={busy}
+            onPrimaryAction={runModelAction}
+            onRemove={removeModel}
+          />
+
+          <ModelSection
+            title="Search models"
+            description="These help Ask Arky find relevant notes, documents, guides, and Wikipedia articles. They do not appear in chat model selection."
+            models={embeddingModels}
+            activeModelId={null}
+            busy={busy}
+            onPrimaryAction={runModelAction}
+            onRemove={removeModel}
+          />
+
+          {aiMessage ? <Text className="text-destructive">{aiMessage}</Text> : null}
         </>
       ) : null}
 
@@ -402,4 +591,102 @@ export default function SettingsScreen() {
       ) : null}
     </Screen>
   );
+}
+
+function ModelSection({
+  title,
+  description,
+  models,
+  activeModelId,
+  busy,
+  onPrimaryAction,
+  onRemove,
+}: {
+  title: string;
+  description: string;
+  models: ContentPack[];
+  activeModelId: string | null;
+  busy: string | null;
+  onPrimaryAction: (model: ContentPack) => Promise<void>;
+  onRemove: (model: ContentPack) => Promise<void>;
+}) {
+  if (!models.length) return null;
+
+  return (
+    <Card className="gap-3">
+      <View className="gap-1">
+        <Text variant="large">{title}</Text>
+        <Text variant="muted">{description}</Text>
+      </View>
+      <View className="gap-3">
+        {models.map((model) => {
+          const roleLabel = getPackModelRoleLabel(model);
+          const isActive = activeModelId === model.id;
+          const primaryBusy = busy === model.id;
+          const removeBusy = busy === `remove-${model.id}`;
+          return (
+            <View key={model.id} className="bg-muted/30 gap-3 rounded-lg px-3 py-3">
+              <View className="flex-row gap-3">
+                <View className="bg-primary/12 size-11 items-center justify-center rounded-xl">
+                  <Icon as={getPackIcon(model)} className="text-primary size-5" />
+                </View>
+                <View className="min-w-0 flex-1 gap-1">
+                  <View className="flex-row items-start justify-between gap-3">
+                    <Text variant="large" className="min-w-0 flex-1">
+                      {model.title}
+                    </Text>
+                    <Text variant="small" className="text-muted-foreground">
+                      {model.estimatedSize}
+                    </Text>
+                  </View>
+                  {roleLabel ? (
+                    <Text className="text-primary text-xs font-medium">{roleLabel}</Text>
+                  ) : null}
+                  <Text variant="muted">{model.description}</Text>
+                  {model.sourceLabel ? (
+                    <Text variant="small" className="text-muted-foreground">
+                      {model.sourceLabel}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+              <View className="flex-row gap-2">
+                <Button
+                  className="flex-1"
+                  variant={model.installed && isActive ? 'default' : 'outline'}
+                  disabled={primaryBusy || (model.installed && model.modelRole !== 'chat')}
+                  onPress={() => void onPrimaryAction(model)}>
+                  {primaryBusy ? <ActivityIndicator /> : <Icon as={Download} className="size-4" />}
+                  <Text>{primaryLabel(model, isActive)}</Text>
+                </Button>
+                {(model.installed ||
+                  model.installStatus === 'downloading' ||
+                  model.installStatus === 'queued' ||
+                  model.installStatus === 'verifying' ||
+                  model.installStatus === 'paused') && (
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    disabled={removeBusy}
+                    onPress={() => void onRemove(model)}>
+                    {removeBusy ? <ActivityIndicator /> : <Icon as={Trash2} className="size-4" />}
+                  </Button>
+                )}
+              </View>
+            </View>
+          );
+        })}
+      </View>
+    </Card>
+  );
+}
+
+function primaryLabel(model: ContentPack, isActive: boolean) {
+  if (model.installStatus === 'downloading' || model.installStatus === 'queued')
+    return 'Cancel download';
+  if (model.installStatus === 'verifying') return 'Verifying';
+  if (model.installStatus === 'paused') return 'Resume';
+  if (model.installed && model.modelRole === 'chat') return isActive ? 'In use' : 'Use for chat';
+  if (model.installed) return 'Installed';
+  return 'Download';
 }

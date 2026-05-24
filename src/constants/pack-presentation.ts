@@ -48,6 +48,8 @@ const PACK_ICONS: Record<string, LucideIcon> = {
   'embedding-qwen3-06b-q8': Languages,
   'model-qwen25-15b-q4-0': MessageSquareText,
   'model-smollm2-17b-q4-0': BrainCircuit,
+  'model-gemma3-1b-it-q4-0': MessageSquareText,
+  'model-gemma4-e2b-it-q4-k-m': BrainCircuit,
   'disaster-power-outage': HousePlug,
   'disaster-floods': Waves,
   'disaster-earthquakes': House,
@@ -92,7 +94,7 @@ export function getPackIcon(pack: PackLike): LucideIcon {
 
 export function getPackModelRoleLabel(pack: Pick<ContentPackManifest, 'category' | 'modelRole'>) {
   if (pack.category !== 'AI Models') return null;
-  if (pack.modelRole === 'embedding') return 'Search / RAG';
+  if (pack.modelRole === 'embedding') return 'Search';
   if (pack.modelRole === 'chat') return 'Chat';
   return 'AI';
 }

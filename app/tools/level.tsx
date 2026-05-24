@@ -8,9 +8,15 @@ import { useSensorStore } from '@/stores/sensor-store';
 import { useThemeStore } from '@/stores/theme-store';
 import * as React from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
-import Svg, { Circle, Line } from 'react-native-svg';
+import Svg, { Circle, Line, Rect } from 'react-native-svg';
 
-type LevelValue = { pitch: number; roll: number };
+type LevelValue = {
+  pitch: number;
+  roll: number;
+  mode: 'flat' | 'upright';
+  tubeAngle: number;
+  tubeAxis: 'portrait' | 'landscape';
+};
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
@@ -34,14 +40,34 @@ export default function LevelTool() {
   const travel = radius - bubbleRadius - 18;
   const pitch = level?.pitch ?? 0;
   const roll = level?.roll ?? 0;
+  const mode = level?.mode ?? 'flat';
+  const tubeAngle = level?.tubeAngle ?? 0;
+  const tubeAxis = level?.tubeAxis ?? 'portrait';
   const bubbleX = clamp(roll / 18, -1, 1) * travel;
   const bubbleY = clamp(-pitch / 18, -1, 1) * travel;
   const error = Math.hypot(pitch, roll);
+  const tubeTravel = Math.min(width - 96, 320) / 2 - bubbleRadius - 16;
+  const tubeOffset = clamp(tubeAngle / 12, -1, 1) * tubeTravel;
   const centered = error <= 1.5;
   const near = error <= 4;
+  const tubeCentered = Math.abs(tubeAngle) <= 1;
+  const tubeNear = Math.abs(tubeAngle) <= 3;
   const signal = centered ? '#22c55e' : near ? '#f59e0b' : palette.primary;
-  const centerText = centered ? 'Level' : `${Math.round(error)}°`;
-  const centerLabel = centered ? 'centered' : 'off level';
+  const tubeSignal = tubeCentered ? '#22c55e' : tubeNear ? '#f59e0b' : palette.primary;
+  const centerText =
+    mode === 'upright'
+      ? tubeCentered
+        ? 'Level'
+        : `${Math.abs(tubeAngle).toFixed(1)}°`
+      : centered
+        ? 'Level'
+        : `${Math.round(error)}°`;
+  const centerLabel =
+    mode === 'upright'
+      ? `${tubeAxis === 'portrait' ? 'upright' : 'sideways'} ruler mode`
+      : centered
+        ? 'centered'
+        : 'off level';
 
   return (
     <Screen
@@ -54,63 +80,127 @@ export default function LevelTool() {
         <Text variant="muted">{centerLabel}</Text>
       </View>
 
-      <View
-        style={[
-          styles.disc,
-          {
-            width: size,
-            height: size,
-            borderRadius: radius,
-            backgroundColor: palette.card,
-            borderColor: palette.border,
-          },
-        ]}>
-        <Svg width={size} height={size} style={StyleSheet.absoluteFillObject}>
-          {[0.25, 0.5, 0.75, 1].map((scale) => (
-            <Circle
-              key={scale}
-              cx={radius}
-              cy={radius}
-              r={(radius - 12) * scale}
-              fill="none"
-              stroke={scale === 0.5 ? hexToRgba(signal, 0.48) : hexToRgba(palette.foreground, 0.12)}
-              strokeWidth={scale === 0.5 ? 2 : 1}
-            />
-          ))}
-          <Line
-            x1={radius}
-            y1={18}
-            x2={radius}
-            y2={size - 18}
-            stroke={hexToRgba(palette.foreground, 0.14)}
-            strokeWidth={1}
-          />
-          <Line
-            x1={18}
-            y1={radius}
-            x2={size - 18}
-            y2={radius}
-            stroke={hexToRgba(palette.foreground, 0.14)}
-            strokeWidth={1}
-          />
-          <Circle cx={radius} cy={radius} r={5} fill={hexToRgba(palette.foreground, 0.34)} />
-        </Svg>
-
+      {mode === 'flat' ? (
         <View
           style={[
-            styles.bubble,
+            styles.disc,
             {
-              width: bubbleRadius * 2,
-              height: bubbleRadius * 2,
-              borderRadius: bubbleRadius,
-              borderColor: signal,
-              backgroundColor: hexToRgba(signal, theme === 'light' ? 0.16 : 0.22),
-              transform: [{ translateX: bubbleX }, { translateY: bubbleY }],
+              width: size,
+              height: size,
+              borderRadius: radius,
+              backgroundColor: palette.card,
+              borderColor: palette.border,
             },
           ]}>
-          <View style={[styles.bubbleCore, { backgroundColor: signal }]} />
+          <Svg width={size} height={size} style={StyleSheet.absoluteFillObject}>
+            {[0.25, 0.5, 0.75, 1].map((scale) => (
+              <Circle
+                key={scale}
+                cx={radius}
+                cy={radius}
+                r={(radius - 12) * scale}
+                fill="none"
+                stroke={
+                  scale === 0.5 ? hexToRgba(signal, 0.48) : hexToRgba(palette.foreground, 0.12)
+                }
+                strokeWidth={scale === 0.5 ? 2 : 1}
+              />
+            ))}
+            <Line
+              x1={radius}
+              y1={18}
+              x2={radius}
+              y2={size - 18}
+              stroke={hexToRgba(palette.foreground, 0.14)}
+              strokeWidth={1}
+            />
+            <Line
+              x1={18}
+              y1={radius}
+              x2={size - 18}
+              y2={radius}
+              stroke={hexToRgba(palette.foreground, 0.14)}
+              strokeWidth={1}
+            />
+            <Circle cx={radius} cy={radius} r={5} fill={hexToRgba(palette.foreground, 0.34)} />
+          </Svg>
+
+          <View
+            style={[
+              styles.bubble,
+              {
+                width: bubbleRadius * 2,
+                height: bubbleRadius * 2,
+                borderRadius: bubbleRadius,
+                borderColor: signal,
+                backgroundColor: hexToRgba(signal, theme === 'light' ? 0.16 : 0.22),
+                transform: [{ translateX: bubbleX }, { translateY: bubbleY }],
+              },
+            ]}>
+            <View style={[styles.bubbleCore, { backgroundColor: signal }]} />
+          </View>
         </View>
-      </View>
+      ) : (
+        <View
+          style={[
+            styles.tube,
+            {
+              width: Math.min(width - 48, 360),
+              backgroundColor: palette.card,
+              borderColor: palette.border,
+            },
+          ]}>
+          <Svg width="100%" height={120} viewBox="0 0 360 120" style={StyleSheet.absoluteFillObject}>
+            <Rect
+              x={14}
+              y={34}
+              width={332}
+              height={52}
+              rx={26}
+              fill={hexToRgba(palette.background, theme === 'light' ? 0.55 : 0.72)}
+              stroke={hexToRgba(palette.foreground, 0.1)}
+            />
+            <Line
+              x1={180}
+              y1={28}
+              x2={180}
+              y2={92}
+              stroke={hexToRgba(tubeSignal, 0.8)}
+              strokeWidth={2}
+            />
+            <Line
+              x1={120}
+              y1={40}
+              x2={120}
+              y2={80}
+              stroke={hexToRgba(palette.foreground, 0.2)}
+              strokeWidth={1}
+            />
+            <Line
+              x1={240}
+              y1={40}
+              x2={240}
+              y2={80}
+              stroke={hexToRgba(palette.foreground, 0.2)}
+              strokeWidth={1}
+            />
+          </Svg>
+          <View
+            style={[
+              styles.tubeBubble,
+              {
+                width: bubbleRadius * 1.8,
+                height: bubbleRadius * 1.8,
+                borderRadius: bubbleRadius,
+                borderColor: tubeSignal,
+                backgroundColor: hexToRgba(tubeSignal, theme === 'light' ? 0.16 : 0.22),
+                transform: [{ translateX: tubeOffset }],
+              },
+            ]}>
+            <View style={[styles.bubbleCore, { backgroundColor: tubeSignal }]} />
+          </View>
+        </View>
+      )}
 
       <View style={styles.metrics}>
         <Metric label="Pitch" value={pitch} palette={palette} />
@@ -120,7 +210,9 @@ export default function LevelTool() {
       <Text variant="muted" className="text-center">
         {available === false
           ? 'Accelerometer is not available on this device.'
-          : 'Place the phone flat. The bubble moves toward the high side.'}
+          : mode === 'upright'
+            ? 'Stand the phone upright and use it like a ruler level.'
+            : 'Place the phone flat. The bubble moves toward the high side.'}
       </Text>
     </Screen>
   );
@@ -166,11 +258,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
   },
+  tube: {
+    alignItems: 'center',
+    borderRadius: 24,
+    borderWidth: 1,
+    height: 120,
+    justifyContent: 'center',
+    overflow: 'hidden',
+    paddingHorizontal: 16,
+  },
   bubble: {
     alignItems: 'center',
     borderWidth: 2,
     justifyContent: 'center',
     position: 'absolute',
+  },
+  tubeBubble: {
+    alignItems: 'center',
+    borderWidth: 2,
+    justifyContent: 'center',
   },
   bubbleCore: {
     borderRadius: 5,

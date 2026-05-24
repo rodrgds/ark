@@ -5,6 +5,7 @@ const secureStore = new Map<string, string>();
 let llamaStopCalls = 0;
 let llamaCompletionGate: Promise<void> | null = null;
 let llamaCompletionStarted: (() => void) | null = null;
+let lastLlamaInitModel: string | null = null;
 let freeDiskStorageBytes = 10 * 1024 * 1024 * 1024;
 const mockFiles = new Map<string, { isDirectory: boolean; size?: number; text?: string }>();
 let mockDownloadStatus = 200;
@@ -179,25 +180,28 @@ mock.module('react-native', () => ({
 }));
 
 mock.module('llama.rn', () => ({
-  initLlama: async () => ({
-    completion: async (
-      _params: unknown,
-      callback?: (data: { token?: string; accumulated_text?: string }) => void
-    ) => {
-      callback?.({ token: 'Local ', accumulated_text: 'Local ' });
-      llamaCompletionStarted?.();
-      if (llamaCompletionGate) await llamaCompletionGate;
-      return { text: 'Local mocked llama response.' };
-    },
-    stopCompletion: async () => {
-      llamaStopCalls += 1;
-    },
-    embedding: async (text: string) => ({
-      embedding: Array.from({ length: 768 }, (_, index) =>
-        text.toLowerCase().includes('water') && index === 0 ? 1 : index === 1 ? 0.5 : 0
-      ),
-    }),
-  }),
+  initLlama: async (params: { model?: string }) => {
+    lastLlamaInitModel = params.model ?? null;
+    return {
+      completion: async (
+        _params: unknown,
+        callback?: (data: { token?: string; accumulated_text?: string }) => void
+      ) => {
+        callback?.({ token: 'Local ', accumulated_text: 'Local ' });
+        llamaCompletionStarted?.();
+        if (llamaCompletionGate) await llamaCompletionGate;
+        return { text: 'Local mocked llama response.' };
+      },
+      stopCompletion: async () => {
+        llamaStopCalls += 1;
+      },
+      embedding: async (text: string) => ({
+        embedding: Array.from({ length: 768 }, (_, index) =>
+          text.toLowerCase().includes('water') && index === 0 ? 1 : index === 1 ? 0.5 : 0
+        ),
+      }),
+    };
+  },
 }));
 
 type Params = unknown[] | readonly unknown[] | undefined;
@@ -263,6 +267,8 @@ let ContentRepository: typeof import('@/services/db/repositories/content.repo').
 let SettingsRepository: typeof import('@/services/db/repositories/settings.repo').SettingsRepository;
 let NotesRepository: typeof import('@/services/db/repositories/notes.repo').NotesRepository;
 let DownloadsRepository: typeof import('@/services/db/repositories/downloads.repo').DownloadsRepository;
+let RssRepository: typeof import('@/services/db/repositories/rss.repo').RssRepository;
+let WeatherRepository: typeof import('@/services/db/repositories/weather.repo').WeatherRepository;
 
 let testDb: TestSQLiteDatabase;
 
@@ -289,6 +295,8 @@ beforeAll(async () => {
   ({ SettingsRepository } = await import('@/services/db/repositories/settings.repo'));
   ({ NotesRepository } = await import('@/services/db/repositories/notes.repo'));
   ({ DownloadsRepository } = await import('@/services/db/repositories/downloads.repo'));
+  ({ RssRepository } = await import('@/services/db/repositories/rss.repo'));
+  ({ WeatherRepository } = await import('@/services/db/repositories/weather.repo'));
 });
 
 beforeEach(async () => {
@@ -296,6 +304,7 @@ beforeEach(async () => {
   llamaStopCalls = 0;
   llamaCompletionGate = null;
   llamaCompletionStarted = null;
+  lastLlamaInitModel = null;
   freeDiskStorageBytes = 10 * 1024 * 1024 * 1024;
   mockFiles.clear();
   mockDownloadStatus = 200;
@@ -446,6 +455,57 @@ describe('service integration', () => {
     expect(embeddedChunk?.embedding_blob?.byteLength).toBe(RAG_HASH_EMBEDDING_DIMENSIONS * 4);
   });
 
+  test('installed HTML snapshot packs are indexed from their downloaded body text', async () => {
+    mockFetchText = `<html><body><main><h1>Power outage field notes</h1><p>Store a battery-powered weather radio and backup phone chargers in the same grab bin.</p><p>Test lantern batteries every month.</p></main></body></html>`;
+
+    await ContentPackService.installPack('disaster-power-outage');
+    await waitFor(async () => {
+      const pack = await ContentPackService.getPack('disaster-power-outage');
+      return pack?.installed === true;
+    });
+
+    const citations = await RagService.search(
+      'battery-powered weather radio backup phone chargers',
+      {
+        limit: 3,
+      }
+    );
+    expect(citations.some((citation) => citation.sourceRef === 'disaster-power-outage')).toBe(true);
+  });
+
+  test('installed PDF guide packs are indexed from extracted page text when available', async () => {
+    OcrService.setNativeModuleForTests({
+      recognizeText: async () => ({ text: '', blocks: [] }),
+      extractPdfText: async () => ({
+        pageCount: 2,
+        pages: [
+          {
+            pageNumber: 1,
+            text: 'Use triangular bandages to improvise an arm sling and secure it across the chest.',
+            extractionMethod: 'text_layer',
+          },
+          {
+            pageNumber: 2,
+            text: 'Immobilize the elbow before transport and recheck circulation in the fingers.',
+            extractionMethod: 'text_layer',
+          },
+        ],
+      }),
+      recognizePdf: async () => ({ pageCount: 0, pages: [] }),
+    });
+
+    await ContentPackService.installPack('hesperian-first-aid');
+    await waitFor(async () => {
+      const pack = await ContentPackService.getPack('hesperian-first-aid');
+      return pack?.installed === true;
+    });
+
+    const citations = await RagService.search('triangular bandages improvise an arm sling', {
+      limit: 3,
+    });
+    expect(citations.some((citation) => citation.sourceRef === 'hesperian-first-aid')).toBe(true);
+  });
+
   test('RAG adds installed ZIM article search results when the native reader is available', async () => {
     await ContentRepository.createPack({
       id: 'custom-zim-rag-test',
@@ -492,7 +552,7 @@ describe('service integration', () => {
     expect(zimCitation?.targetHref).toBe('/content/custom-zim-rag-test?article=A%2FWater_storage');
     expect(
       await testDb.getFirstAsync<{ id: string }>('SELECT id FROM rag_sources WHERE id = ?', [
-        'zim-article:custom-zim-rag-test:A/Water_storage',
+        'zim:custom-zim-rag-test:A/Water_storage',
       ])
     ).not.toBeNull();
   });
@@ -568,9 +628,9 @@ describe('service integration', () => {
     const pack = await ContentPackService.getPack('disaster-power-outage');
     expect(pack?.localUri).toBe('file:///ark-test/ark/content/ready-power-outage/index.html');
     expect(mockFiles.has('file:///ark-test/ark/content/ready-power-outage/index.html')).toBe(true);
-    expect(
-      mockFiles.has('file:///ark-test/ark/content/ready-power-outage/assets/01-kit.jpg')
-    ).toBe(true);
+    expect(mockFiles.has('file:///ark-test/ark/content/ready-power-outage/assets/01-kit.jpg')).toBe(
+      true
+    );
     expect(
       mockFiles
         .get('file:///ark-test/ark/content/ready-power-outage/index.html')
@@ -670,7 +730,7 @@ describe('service integration', () => {
     expect(results[2]?.subtitle).toContain('1 points');
   });
 
-  test('AI chat persists user and assistant messages with RAG citations', async () => {
+  test('AI chat persists tool use and assistant messages with RAG citations', async () => {
     const note = await NotesRepository.create({
       title: 'Water note',
       body: 'Boil water before storing it in a clean container.',
@@ -682,12 +742,14 @@ describe('service integration', () => {
       content: 'How should I store water?',
       useRag: true,
     });
-    expect(result.messages).toHaveLength(2);
-    expect(result.messages[1].citations.length).toBeGreaterThan(0);
+    expect(result.messages).toHaveLength(3);
+    expect(result.messages[1].role).toBe('tool');
+    expect(result.messages[1].content).toContain('Found');
+    expect(result.messages[2].citations.length).toBeGreaterThan(0);
 
     const stored = await AIService.listMessages(result.threadId);
-    expect(stored.map((message) => message.role)).toEqual(['user', 'assistant']);
-    expect(stored[1].citations[0]?.sourceRef).toBe(note.id);
+    expect(stored.map((message) => message.role)).toEqual(['user', 'tool', 'assistant']);
+    expect(stored[2].citations[0]?.sourceRef).toBe(note.id);
   });
 
   test('imported text documents are indexed for RAG', async () => {
@@ -772,6 +834,70 @@ describe('service integration', () => {
     expect(citations.some((citation) => citation.sourceRef === document?.id)).toBe(true);
   });
 
+  test('cached RSS items become Ask Arky sources', async () => {
+    await RssRepository.seedFeeds([
+      { title: 'Emergency Feed', url: 'https://example.test/rss.xml' },
+    ]);
+    const feed = (await RssRepository.listFeeds()).find((item) => item.title === 'Emergency Feed');
+    expect(feed).toBeTruthy();
+    await RssRepository.upsertItems([
+      {
+        id: 'rss-alert-water',
+        feedId: feed!.id,
+        title: 'Water advisory',
+        summary: 'Boil tap water before drinking until crews clear the line.',
+        content: 'Residents near the north bridge should boil water for one minute.',
+        publishedAt: Date.now(),
+      },
+    ]);
+
+    const citations = await RagService.search('north bridge water advisory', { limit: 2 });
+
+    expect(citations.some((citation) => citation.sourceId === 'rss:rss-alert-water')).toBe(true);
+  });
+
+  test('saved maps and cached weather become Ask Arky sources', async () => {
+    await OfflineMapService.createMarker({
+      title: 'North bridge water cache',
+      description: 'Spare filter and sealed canteen stored under the east stair.',
+      latitude: 38.711,
+      longitude: -9.139,
+    });
+    const markers = await OfflineMapService.listMarkers();
+    await OfflineMapService.createRouteFromMarkers('Bridge supply route', markers);
+    await OfflineMapService.createRegionFromBounds({
+      name: 'North bridge offline map',
+      north: 39,
+      south: 38,
+      east: -8,
+      west: -10,
+    });
+    await WeatherRepository.saveForecast({
+      latitude: 38.711,
+      longitude: -9.139,
+      locationLabel: 'North bridge',
+      provider: 'open-meteo',
+      forecast: {
+        summary: 'High wind after sunset with rain near the bridge.',
+        pressureTrend: 'falling',
+      },
+    });
+
+    const mapCitations = await RagService.search('where is the spare filter cache', { limit: 4 });
+    const weatherCitations = await RagService.search('north bridge high wind rain pressure', {
+      limit: 4,
+    });
+
+    expect(mapCitations.some((citation) => citation.sourceId.startsWith('map-marker:'))).toBe(
+      true
+    );
+    expect(mapCitations.some((citation) => citation.targetHref === '/(tabs)/map')).toBe(true);
+    expect(weatherCitations.some((citation) => citation.sourceId === 'weather:latest')).toBe(true);
+    expect(weatherCitations.some((citation) => citation.targetHref === '/tools/weather')).toBe(
+      true
+    );
+  });
+
   test('image imports do not fake OCR when the native module is missing', async () => {
     OcrService.setNativeModuleForTests(null);
     mockPickedDocument = {
@@ -853,6 +979,101 @@ describe('service integration', () => {
     expect(status.contextTokens).toBe(2048);
   });
 
+  test('model manager only selects chat models and llama loads the selected one', async () => {
+    await ContentRepository.createPack({
+      id: 'embedding-nomic-v15-q4-k-m',
+      title: 'Nomic Embed Text v1.5 Q4_K_M',
+      description: 'Installed embedding model for retrieval.',
+      category: 'AI Models',
+      format: 'gguf',
+      localUri: 'file:///ark/models/nomic.gguf',
+      installed: true,
+      installStatus: 'installed',
+      progress: 1,
+    });
+    await ContentRepository.createPack({
+      id: 'custom-model-alpha-test',
+      title: 'Alpha chat model',
+      description: 'First chat model.',
+      category: 'AI Models',
+      format: 'gguf',
+      localUri: 'file:///ark/models/alpha.gguf',
+      installed: true,
+      installStatus: 'installed',
+      progress: 1,
+      sizeBytes: 900 * 1024 * 1024,
+    });
+    await ContentRepository.createPack({
+      id: 'custom-model-bravo-test',
+      title: 'Bravo chat model',
+      description: 'Second chat model.',
+      category: 'AI Models',
+      format: 'gguf',
+      localUri: 'file:///ark/models/bravo.gguf',
+      installed: true,
+      installStatus: 'installed',
+      progress: 1,
+      sizeBytes: 900 * 1024 * 1024,
+    });
+
+    await expect(
+      ModelManagerService.setSelectedModel('embedding-nomic-v15-q4-k-m')
+    ).rejects.toThrow('Choose a chat model');
+    await ModelManagerService.setSelectedModel('custom-model-bravo-test');
+    resetLlamaAdapterForTests();
+
+    await AIService.sendMessage({ content: 'hello', useRag: false });
+
+    expect(lastLlamaInitModel).toBe('file:///ark/models/bravo.gguf');
+  });
+
+  test('custom model URLs can be registered as search models without entering chat selection', async () => {
+    const customSearchModel = await ContentPackService.addModelUrl({
+      title: 'Custom Nomic Search',
+      sourceUrl: 'https://example.test/custom-nomic.gguf',
+      modelRole: 'embedding',
+      checksum: '1111111111111111111111111111111111111111111111111111111111111111',
+    });
+    const customChatModel = await ContentPackService.addModelUrl({
+      title: 'Custom Field Chat',
+      sourceUrl: 'https://example.test/custom-chat.gguf',
+      modelRole: 'chat',
+    });
+
+    expect(customSearchModel?.modelRole).toBe('embedding');
+    expect(customChatModel?.modelRole).toBe('chat');
+    expect(
+      (await ModelManagerService.listAvailableEmbeddingModels()).map((model) => model.id)
+    ).toContain(customSearchModel?.id);
+    expect(
+      (await ModelManagerService.listAvailableChatModels()).map((model) => model.id)
+    ).toContain(customChatModel?.id);
+    expect(
+      (await ModelManagerService.listAvailableChatModels()).map((model) => model.id)
+    ).not.toContain(customSearchModel?.id);
+    await expect(ModelManagerService.setSelectedModel(customSearchModel!.id)).rejects.toThrow(
+      'Choose a chat model'
+    );
+  });
+
+  test('imported local search models stay out of chat selection', async () => {
+    mockPickedDocument = {
+      name: 'local-nomic.gguf',
+      uri: 'file:///picker/local-nomic.gguf',
+      size: 1024,
+    };
+
+    const imported = await ContentPackService.importLocalModel('embedding');
+
+    expect(imported?.modelRole).toBe('embedding');
+    expect(
+      (await ModelManagerService.listAvailableEmbeddingModels()).map((model) => model.id)
+    ).toContain(imported?.id);
+    expect(
+      (await ModelManagerService.listAvailableChatModels()).map((model) => model.id)
+    ).not.toContain(imported?.id);
+  });
+
   test('RAG uses installed embedding packs without selecting them for chat', async () => {
     await ContentRepository.createPack({
       id: 'embedding-nomic-v15-q4-k-m',
@@ -895,7 +1116,7 @@ describe('service integration', () => {
   test('diagnostics reports the actual AI runtime status', async () => {
     let report = await DiagnosticsService.getReport();
     expect(report.aiAdapter).toBe('mock');
-    expect(report.aiStatusMessage).toContain('No local model');
+    expect(report.aiStatusMessage).toContain('No chat model');
 
     await ContentRepository.createPack({
       id: 'custom-model-diagnostics-test',

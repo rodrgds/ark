@@ -5,24 +5,13 @@ import { NAV_THEME } from '@/lib/theme';
 import { DownloadManagerService } from '@/services/files/download-manager.service';
 import { OfflineMapService } from '@/services/maps/offline-map.service';
 import { RssService } from '@/services/rss/rss.service';
-import { useAuthStore } from '@/stores/auth-store';
 import { useThemeStore } from '@/stores/theme-store';
 import { Tabs } from 'expo-router';
-import {
-  Bot,
-  BookOpen,
-  Compass,
-  Home,
-  Lock,
-  Map,
-  NotebookPen,
-  Settings,
-} from 'lucide-react-native';
+import { Bot, BookOpen, Compass, Map, NotebookPen, Settings } from 'lucide-react-native';
 import * as React from 'react';
 import { View } from 'react-native';
 
 const icons = {
-  index: Home,
   chat: Bot,
   map: Map,
   library: BookOpen,
@@ -33,7 +22,6 @@ const icons = {
 
 export default function TabsLayout() {
   const theme = useThemeStore((state) => state.effectiveTheme);
-  const unlocked = useAuthStore((state) => state.unlocked);
   const colors = NAV_THEME[theme].colors;
   const [pendingDownloads, setPendingDownloads] = React.useState(0);
   const [rssItems, setRssItems] = React.useState(0);
@@ -53,7 +41,7 @@ export default function TabsLayout() {
           download.status === 'verifying'
       ).length
     );
-    setRssItems(rss.recentItems.length);
+    setRssItems(rss.unreadCount);
     setPlannedRegions(regions.length);
   }
 
@@ -83,11 +71,11 @@ export default function TabsLayout() {
               return <Icon as={NotebookPen} color={color} size={size} />;
             }
 
-            const Component = icons[route.name as keyof typeof icons] ?? Home;
+            const Component = icons[route.name as keyof typeof icons] ?? Bot;
             return <Icon as={Component} color={color} size={size} />;
           },
         })}>
-        <Tabs.Screen name="index" options={{ title: 'Home' }} />
+        <Tabs.Screen name="index" options={{ href: null }} />
         <Tabs.Screen name="chat" options={{ title: 'Ask Arky' }} />
         <Tabs.Screen
           name="map"
@@ -97,11 +85,14 @@ export default function TabsLayout() {
           name="library"
           options={{
             title: 'Library',
-            tabBarBadge: pendingDownloads || rssItems || undefined,
+            tabBarBadge: pendingDownloads || undefined,
           }}
         />
         <Tabs.Screen name="notes" options={{ title: 'Notes' }} />
-        <Tabs.Screen name="tools" options={{ title: 'Tools' }} />
+        <Tabs.Screen
+          name="tools"
+          options={{ title: 'Tools', tabBarBadge: rssItems || undefined }}
+        />
         <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
       </Tabs>
     </View>

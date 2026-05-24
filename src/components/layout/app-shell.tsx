@@ -70,11 +70,22 @@ export function LockStateBar() {
       <View className="flex-row items-center justify-between gap-3 px-4 py-2">
         <View className="flex-row items-center gap-2">
           <ArkMark size={28} className="rounded-md" />
-          <Icon
-            as={unlocked ? Unlock : Lock}
-            className={unlocked ? 'text-primary size-4' : 'text-muted-foreground size-4'}
-          />
-          <Text variant="small">{unlocked ? 'Vault unlocked' : 'Vault locked'}</Text>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-9 w-9 rounded-full"
+            onPress={() => {
+              if (unlocked) {
+                setConfirmLockOpen(true);
+                return;
+              }
+              void VaultService.unlockWithBiometrics();
+            }}>
+            <Icon
+              as={unlocked ? Unlock : Lock}
+              className={unlocked ? 'text-primary size-4' : 'text-muted-foreground size-4'}
+            />
+          </Button>
         </View>
 
         <View className="flex-row items-center gap-2">
@@ -85,12 +96,6 @@ export function LockStateBar() {
               {isOnline ? 'Online' : 'Offline'}
             </Text>
           </View>
-
-          {unlocked ? (
-            <Button size="sm" variant="ghost" onPress={() => setConfirmLockOpen(true)}>
-              <Text>Lock</Text>
-            </Button>
-          ) : null}
         </View>
       </View>
 

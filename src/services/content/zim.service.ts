@@ -47,6 +47,9 @@ export type ZimReaderPlan = {
 export class ZimService {
   private static nativeModuleOverride: ArkZimNativeModule | null | undefined;
   private static headerCache = new Map<string, ZimHeaderInfo>();
+  private static activeArchivePath: string | null = null;
+  private static activeArchiveMetadata: ZimMetadata | null = null;
+  private static activeArchivePromise: Promise<ZimMetadata> | null = null;
 
   /**
    * Builds a comprehensive reader plan for a ZIM pack,
@@ -58,17 +61,6 @@ export class ZimService {
     let nativeReaderAvailable = !!nativeModule;
     let nativeReaderError: string | null = null;
 
-    // The module may exist (e.g. iOS stubs) but not actually work.
-    // Verify by opening the archive when one is available.
-    if (nativeReaderAvailable && installed && pack) {
-      try {
-        await this.openArchive(pack);
-      } catch (e) {
-        nativeReaderAvailable = false;
-        nativeReaderError = e instanceof Error ? e.message : 'Native ZIM reader failed to initialize.';
-      }
-    }
-
     let headerInfo: ZimHeaderInfo | null = null;
     if (installed && pack?.localUri) {
       headerInfo = await this.parseHeader(pack.localUri);
@@ -77,13 +69,13 @@ export class ZimService {
     const capabilities: string[] = [];
     if (installed) {
       capabilities.push('Stored offline for reading');
-      capabilities.push('Open in Kiwix or another ZIM reader');
+      capabilities.push('Open in another reader');
       if (headerInfo?.valid) {
-        capabilities.push('Archive metadata available');
+        capabilities.push('Article list detected');
       }
     }
     if (nativeReaderAvailable) {
-      capabilities.push('Full in-app reading with search');
+      capabilities.push('Search inside Ark');
     }
 
     return {
@@ -106,11 +98,11 @@ export class ZimService {
   ): string {
     if (!pack) return 'Select a ZIM archive to inspect it.';
     if (!pack.installed) return 'Download this archive to read it offline.';
-    if (nativeAvailable) return 'Ready for in-app reading.';
+    if (nativeAvailable) return 'Ready for search and reading in Ark.';
     if (headerInfo?.valid) {
-      return `${headerInfo.articleCount.toLocaleString()} entries stored locally. Open in Kiwix to browse.`;
+      return `${headerInfo.articleCount.toLocaleString()} entries stored locally. Open in another reader to browse.`;
     }
-    return 'Archive stored locally. Open in Kiwix to browse articles.';
+    return 'Archive stored locally. Open in another reader to browse articles.';
   }
 
   static getKiwixJsUrl() {
@@ -143,19 +135,21 @@ export class ZimService {
   static async openArchive(pack: ContentPack) {
     const module = await this.requireNativeReader();
     if (!module) {
-      throw new Error('In-app ZIM reader is not available in this build.');
+      throw new Error('Archive search is not available in this build.');
     }
     if (!pack.installed || !pack.localUri) {
       throw new Error('Download this archive before opening it offline.');
     }
-    return module.openArchive(pack.localUri);
+    return this.ensureArchiveOpened(module, pack.localUri);
   }
 
   static async search(pack: ContentPack, query: string, limit = 8) {
     const module = await this.openForQuery(pack);
     const normalized = query.trim();
     if (normalized.length < 1) return [];
-    return module.search(normalized, limit);
+    return withTimeout(module.search(normalized, limit), 4500, async () =>
+      module.suggest(normalized, limit)
+    );
   }
 
   static async suggest(pack: ContentPack, prefix: string, limit = 8) {
@@ -197,18 +191,46 @@ export class ZimService {
 
   static setNativeModuleForTests(module: ArkZimNativeModule | null | undefined) {
     this.nativeModuleOverride = module;
+    this.activeArchivePath = null;
+    this.activeArchiveMetadata = null;
+    this.activeArchivePromise = null;
   }
 
   private static async openForQuery(pack: ContentPack) {
     const module = await this.requireNativeReader();
     if (!module) {
-      throw new Error('In-app ZIM reader is not available in this build.');
+      throw new Error('Archive search is not available in this build.');
     }
     if (!pack.installed || !pack.localUri) {
       throw new Error('Download this archive before opening it offline.');
     }
-    await module.openArchive(pack.localUri);
+    await this.ensureArchiveOpened(module, pack.localUri);
     return module;
+  }
+
+  private static async ensureArchiveOpened(module: ArkZimNativeModule, localUri: string) {
+    if (this.activeArchivePath === localUri && this.activeArchiveMetadata) {
+      return this.activeArchiveMetadata;
+    }
+    if (this.activeArchivePath === localUri && this.activeArchivePromise) {
+      return this.activeArchivePromise;
+    }
+    this.activeArchivePath = localUri;
+    this.activeArchivePromise = module
+      .openArchive(localUri)
+      .then((metadata) => {
+        this.activeArchiveMetadata = metadata;
+        return metadata;
+      })
+      .catch((error) => {
+        this.activeArchivePath = null;
+        this.activeArchiveMetadata = null;
+        throw error;
+      })
+      .finally(() => {
+        this.activeArchivePromise = null;
+      });
+    return this.activeArchivePromise;
   }
 
   private static async requireNativeReader() {
@@ -219,5 +241,23 @@ export class ZimService {
     } catch {
       return null;
     }
+  }
+}
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  onTimeout: () => Promise<T>
+): Promise<T> {
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+  const timeoutPromise = new Promise<T>((resolve) => {
+    timeoutHandle = setTimeout(() => {
+      void onTimeout().then(resolve);
+    }, timeoutMs);
+  });
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
   }
 }

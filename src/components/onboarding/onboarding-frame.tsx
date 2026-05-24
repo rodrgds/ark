@@ -70,7 +70,7 @@ export function OnboardingFrame({
     <ArkKeyboardAwareScrollView
       className="bg-background flex-1"
       automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
-      bottomOffset={Platform.OS === 'ios' ? 90 : 0}
+      bottomOffset={Platform.OS === 'ios' ? 120 : 0}
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={{
         paddingTop: Math.max(40, insets.top),
@@ -80,8 +80,8 @@ export function OnboardingFrame({
         gap: 20,
         flexGrow: 1,
       }}
-      extraKeyboardSpace={Platform.OS === 'android' ? 12 : 0}
-      keyboardDismissMode="interactive"
+      extraKeyboardSpace={Platform.OS === 'android' ? 32 : 0}
+      keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
       keyboardShouldPersistTaps="handled">
       {/* Progress bar */}
       {progress > 0 && (
@@ -123,13 +123,14 @@ export function OnboardingFrame({
 
       <Animated.View
         className="flex-1 gap-3"
+        style={{ minHeight: 0 }}
         entering={
           motionEnabled ? FadeInUp.duration(400).easing(Easing.out(Easing.quad)) : undefined
         }>
         {children}
       </Animated.View>
 
-      <View className="gap-3 pt-2">
+      <View className="gap-3 pt-2" style={{ paddingBottom: Math.max(8, insets.bottom) }}>
         <Button
           size="lg"
           onPress={handleNext}

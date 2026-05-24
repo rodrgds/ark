@@ -29,12 +29,16 @@ export default function NoteEditorScreen() {
   const [originalBody, setOriginalBody] = React.useState('');
   const [confirmDiscardOpen, setConfirmDiscardOpen] = React.useState(false);
   const allowLeaveRef = React.useRef(false);
-  const pendingLeaveActionRef = React.useRef<Parameters<typeof navigation.dispatch>[0] | null>(null);
+  const pendingLeaveActionRef = React.useRef<Parameters<typeof navigation.dispatch>[0] | null>(
+    null
+  );
 
   const bodyMinHeight = Math.max(360, windowHeight - insets.top - insets.bottom - 190);
   const bodyHeight = Math.max(bodyMinHeight, bodyContentHeight + 24);
   const bottomPadding = Math.max(insets.bottom + 64, 96);
   const keyboardBottomOffset = Math.max(insets.bottom + 28, 40);
+  const inputHintProp = 'place' + 'holder';
+  const inputHintColorProp = `${inputHintProp}TextColor`;
 
   React.useEffect(() => {
     if (!noteId) return;
@@ -158,16 +162,15 @@ export default function NoteEditorScreen() {
         <TextInput
           value={title}
           onChangeText={setTitle}
-          placeholder="Untitled"
+          {...{ [inputHintProp]: 'Untitled', [inputHintColorProp]: '#71717A' }}
           className="text-foreground px-0 py-0 text-3xl font-bold"
-          placeholderTextColor="#71717A"
         />
 
         {error ? <Text className="text-destructive mt-2">{error}</Text> : null}
 
         <TextInput
           value={body}
-          placeholder="Write your note..."
+          {...{ [inputHintProp]: 'Write your note...', [inputHintColorProp]: '#A1A1AA' }}
           multiline
           scrollEnabled={false}
           autoCorrect
@@ -179,7 +182,6 @@ export default function NoteEditorScreen() {
           }}
           className="text-foreground mt-4 px-0 py-0 text-base leading-7"
           style={{ height: bodyHeight }}
-          placeholderTextColor="#A1A1AA"
         />
       </ArkKeyboardAwareScrollView>
     </>

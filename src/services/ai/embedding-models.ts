@@ -32,10 +32,21 @@ export const EMBEDDING_MODEL_CONFIGS: Record<string, EmbeddingModelConfig> = {
   },
 };
 
-export function isEmbeddingModelPack(pack: Pick<ContentPack, 'id' | 'title'>) {
+export function isEmbeddingModelPack(pack: Pick<ContentPack, 'id' | 'title' | 'modelRole'>) {
+  if (pack.modelRole) return pack.modelRole === 'embedding';
   return pack.id.startsWith('embedding-') || /embedding/i.test(pack.title);
 }
 
-export function getEmbeddingModelConfig(pack?: Pick<ContentPack, 'id'> | null) {
-  return pack ? (EMBEDDING_MODEL_CONFIGS[pack.id] ?? null) : null;
+export function getEmbeddingModelConfig(pack?: Pick<ContentPack, 'id' | 'title'> | null) {
+  if (!pack) return null;
+  const known = EMBEDDING_MODEL_CONFIGS[pack.id];
+  if (known) return known;
+  const title = pack.title.toLowerCase();
+  if (title.includes('qwen')) {
+    return { ...EMBEDDING_MODEL_CONFIGS['embedding-qwen3-06b-q8'], id: pack.id };
+  }
+  if (title.includes('nomic')) {
+    return { ...EMBEDDING_MODEL_CONFIGS['embedding-nomic-v15-q4-k-m'], id: pack.id };
+  }
+  return null;
 }

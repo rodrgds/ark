@@ -11,7 +11,15 @@ import { ModelManagerService } from '@/services/ai/model-manager.service';
 import type { AiCitation, AiMessage } from '@/types/ai';
 import type { ContentPack } from '@/types/content';
 import { router } from 'expo-router';
-import { Bot, ChevronDown, ExternalLink, Send, StopCircle, Trash2 } from 'lucide-react-native';
+import {
+  Bot,
+  ChevronDown,
+  ExternalLink,
+  Search,
+  Send,
+  StopCircle,
+  Trash2,
+} from 'lucide-react-native';
 import * as React from 'react';
 import {
   ActivityIndicator,
@@ -109,6 +117,29 @@ function ModelPill({
 }
 
 function MessageBubble({ message }: { message: AiMessage }) {
+  if (message.role === 'tool') {
+    return (
+      <View className="items-start">
+        <Card className="border-primary/30 bg-muted/20 max-w-[92%] gap-2 rounded-lg">
+          <View className="flex-row items-center gap-2">
+            <Icon as={Search} className="text-primary size-4" />
+            <Text variant="small" className="text-primary uppercase">
+              Local tools
+            </Text>
+          </View>
+          <Text variant="muted" selectable>
+            {message.content}
+          </Text>
+          {message.citations.length ? (
+            <Text variant="small" className="text-muted-foreground">
+              {message.citations.length} local matches prepared for Arky.
+            </Text>
+          ) : null}
+        </Card>
+      </View>
+    );
+  }
+
   const assistant = message.role === 'assistant';
   return (
     <View className={assistant ? 'items-start' : 'items-end'}>
@@ -181,7 +212,7 @@ export default function ChatScreen() {
       setMessages(await AIService.listMessages(id));
     }
     const [models, model, preferences] = await Promise.all([
-      ModelManagerService.listInstalledModels(),
+      ModelManagerService.listInstalledChatModels(),
       ModelManagerService.getActiveModel(),
       ModelManagerService.getPreferences(),
     ]);

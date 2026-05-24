@@ -27,20 +27,38 @@ export class RssService {
     await RssRepository.seedFeeds(DEFAULT_FEEDS);
   }
 
-  static async getOverview() {
+  static async addFeed(title: string, url: string) {
+    const trimmedTitle = title.trim();
+    const trimmedUrl = url.trim();
+    if (!trimmedTitle) throw new Error('Feed name is required.');
+    if (!/^https?:\/\//i.test(trimmedUrl)) throw new Error('Use a full http or https URL.');
+    await RssRepository.addFeed(trimmedTitle, trimmedUrl);
+  }
+
+  static async getOverview(limit = 25) {
     await this.seedDefaultFeeds();
     const [feeds, items] = await Promise.all([
       RssRepository.listFeeds(),
-      RssRepository.listRecentItems(5),
+      RssRepository.listRecentItems(limit),
     ]);
     const lastFetchedAt = feeds
       .map((feed) => feed.last_fetched_at ?? 0)
       .reduce((latest, value) => Math.max(latest, value), 0);
+    const unreadCount = items.filter((item) => !item.read_at).length;
     return {
       feeds,
       recentItems: items,
       lastFetchedAt: lastFetchedAt || null,
+      unreadCount,
     };
+  }
+
+  static async refreshIfStale(maxAgeMs = 30 * 60 * 1000) {
+    const overview = await this.getOverview();
+    if (overview.lastFetchedAt && Date.now() - overview.lastFetchedAt < maxAgeMs) {
+      return { imported: 0, errors: [], overview, skipped: true };
+    }
+    return { ...(await this.refreshAll()), skipped: false };
   }
 
   static async refreshAll() {
@@ -72,7 +90,23 @@ export class RssService {
   }
 
   static getStatus() {
-    return 'RSS feeds are cached into SQLite for offline reading after refresh.';
+    return 'News feeds are saved for offline reading after each refresh.';
+  }
+
+  static async setFeedEnabled(id: string, enabled: boolean) {
+    await RssRepository.setFeedEnabled(id, enabled);
+  }
+
+  static async removeFeed(id: string) {
+    await RssRepository.removeFeed(id);
+  }
+
+  static async markItemRead(id: string, read: boolean) {
+    await RssRepository.markItemRead(id, read);
+  }
+
+  static async markAllRead() {
+    await RssRepository.markAllRead();
   }
 }
 

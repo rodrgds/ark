@@ -147,7 +147,7 @@ export const STARTER_PACKS: ContentPackManifest[] = [
     id: 'embedding-nomic-v15-q4-k-m',
     title: 'Nomic Embed Text v1.5 Q4_K_M',
     description:
-      'Compact embedding model for semantic offline search. Used for RAG retrieval, not chat.',
+      'Compact search model for finding relevant offline notes, documents, guides, and wiki articles.',
     category: 'AI Models',
     format: 'gguf',
     modelRole: 'embedding',
@@ -180,8 +180,7 @@ export const STARTER_PACKS: ContentPackManifest[] = [
   {
     id: 'model-qwen25-15b-q4-0',
     title: 'Qwen2.5 1.5B Instruct Q4_0',
-    description:
-      'Small Apache-2.0 GGUF model for local chat once llama.rn is available in a dev build.',
+    description: 'Small Apache-2.0 GGUF model for local chat in builds with on-device AI enabled.',
     category: 'AI Models',
     format: 'gguf',
     modelRole: 'chat',
@@ -210,6 +209,42 @@ export const STARTER_PACKS: ContentPackManifest[] = [
     sourceLabel: 'Hugging Face: QuantFactory',
     fileName: 'SmolLM2-1.7B-Instruct.Q4_0.gguf',
     checksumSha256: '0b1491225b73a81885bfc190d1416e366d6698195285fbd4458caffaac99820e',
+    installed: false,
+    disclaimer: SAFETY_COPY.ai,
+  },
+  {
+    id: 'model-gemma3-1b-it-q4-0',
+    title: 'Gemma 3 1B IT Q4_0',
+    description:
+      'Official Google Gemma 3 1B instruction model in GGUF format. Good low-memory fallback for local chat.',
+    category: 'AI Models',
+    format: 'gguf',
+    modelRole: 'chat',
+    estimatedSize: '638 MB',
+    sizeBytes: 638 * 1024 * 1024,
+    sourceUrl:
+      'https://huggingface.co/google/gemma-3-1b-it-qat-q4_0-gguf/resolve/main/gemma-3-1b-it-q4_0.gguf',
+    sourceLabel: 'Google on Hugging Face',
+    fileName: 'gemma-3-1b-it-q4_0.gguf',
+    checksumSha256: 'cd2a46a3581fd385ee72688490370ef3e025b7e2daf016615593241b18bd6166',
+    installed: false,
+    disclaimer: SAFETY_COPY.ai,
+  },
+  {
+    id: 'model-gemma4-e2b-it-q4-k-m',
+    title: 'Gemma 4 E2B IT Q4_K_M',
+    description:
+      'Gemma 4 E2B instruction model converted to GGUF. Stronger local chat option for high-memory phones.',
+    category: 'AI Models',
+    format: 'gguf',
+    modelRole: 'chat',
+    estimatedSize: '3.11 GB',
+    sizeBytes: Math.round(3.11 * 1024 * 1024 * 1024),
+    sourceUrl:
+      'https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_K_M.gguf',
+    sourceLabel: 'Unsloth GGUF of Google Gemma 4',
+    fileName: 'gemma-4-E2B-it-Q4_K_M.gguf',
+    checksumSha256: 'ac0069ebccd39925d836f24a88c0f0c858d20578c29b21ab7cedce66ee576845',
     installed: false,
     disclaimer: SAFETY_COPY.ai,
   },

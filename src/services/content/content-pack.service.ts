@@ -8,6 +8,7 @@ import { DownloadManagerService } from '@/services/files/download-manager.servic
 import { FileSystemService } from '@/services/files/filesystem.service';
 import { contentPackIdSchema, parseOrThrow } from '@/lib/validation';
 import { Linking } from 'react-native';
+import type { ContentModelRole } from '@/types/content';
 
 export class ContentPackService {
   static listPacks() {
@@ -95,7 +96,7 @@ export class ContentPackService {
     if (!pack?.localUri) throw new Error('Pack is not installed.');
     if (await Sharing.isAvailableAsync()) {
       await Sharing.shareAsync(pack.localUri, {
-        dialogTitle: pack.format === 'zim' ? 'Open ZIM in Kiwix' : `Open ${pack.title}`,
+        dialogTitle: pack.format === 'zim' ? 'Open in...' : `Open ${pack.title}`,
         mimeType: pack.format === 'zim' ? 'application/zim' : undefined,
       });
       return;
@@ -115,7 +116,11 @@ export class ContentPackService {
           : pack.localUri;
       await FileSystemService.deleteByUri(deleteTarget);
     }
-    if (packId.startsWith('custom-model-')) {
+    if (
+      packId.startsWith('custom-model-') ||
+      packId.startsWith('custom-chat-model-') ||
+      packId.startsWith('custom-embedding-model-')
+    ) {
       await ContentRepository.delete(packId);
     } else {
       await ContentRepository.uninstall(packId);
@@ -123,7 +128,7 @@ export class ContentPackService {
     await RagService.removeSource(`content:${packId}`);
   }
 
-  static async importLocalModel() {
+  static async importLocalModel(modelRole: ContentModelRole = 'chat') {
     const result = await DocumentPicker.getDocumentAsync({
       copyToCacheDirectory: true,
       multiple: false,
@@ -137,7 +142,10 @@ export class ContentPackService {
     }
 
     await FileSystemService.ensureAppDirectories();
-    const id = `custom-model-${randomUUID()}`;
+    const normalizedRole = modelRole === 'embedding' ? 'embedding' : 'chat';
+    const id = `custom-${
+      normalizedRole === 'embedding' ? 'embedding' : 'chat'
+    }-model-${randomUUID()}`;
     const localUri = `${FileSystemService.dir('models')}${id}-${FileSystemService.safeFileName(asset.name)}`;
     await FileSystem.copyAsync({ from: asset.uri, to: localUri });
     const info = await FileSystem.getInfoAsync(localUri);
@@ -146,7 +154,10 @@ export class ContentPackService {
     await ContentRepository.createPack({
       id,
       title: asset.name.replace(/\.gguf$/i, ''),
-      description: 'User-imported GGUF model for llama.rn development builds.',
+      description:
+        normalizedRole === 'embedding'
+          ? 'User-imported GGUF search model for local source matching.'
+          : 'User-imported GGUF chat model for on-device AI.',
       category: 'AI Models',
       format: 'gguf',
       localUri,
@@ -161,6 +172,7 @@ export class ContentPackService {
   static async addModelUrl(input: {
     title: string;
     sourceUrl: string;
+    modelRole?: ContentModelRole;
     checksum?: string;
     checksumMd5?: string;
     checksumSha256?: string;
@@ -184,12 +196,16 @@ export class ContentPackService {
     if (checksumSha256 && !/^[a-f0-9]{64}$/.test(checksumSha256)) {
       throw new Error('SHA-256 checksum must be 64 hexadecimal characters.');
     }
-    const id = `custom-model-${randomUUID()}`;
+    const modelRole = input.modelRole ?? 'chat';
+    const id = `custom-${modelRole === 'embedding' ? 'embedding' : 'chat'}-model-${randomUUID()}`;
     const fileName = sourceUrl.split('/').pop()?.split('?')[0] ?? `${id}.gguf`;
     await ContentRepository.createPack({
       id,
       title: input.title.trim() || fileName.replace(/\.gguf$/i, ''),
-      description: 'Custom GGUF model URL. Download before using local AI.',
+      description:
+        modelRole === 'embedding'
+          ? 'Custom GGUF search model URL. Download before using it for local source matching.'
+          : 'Custom GGUF chat model URL. Download before using local AI.',
       category: 'AI Models',
       format: 'gguf',
       sourceUrl,

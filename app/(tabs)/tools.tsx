@@ -13,6 +13,7 @@ import {
   Crosshair,
   Gauge,
   Lightbulb,
+  Newspaper,
   Ruler,
   Settings2,
   SunMedium,
@@ -119,6 +120,13 @@ export default function ToolsScreen() {
           icon={SunMedium}
           title="Meteorology"
           description="Cached local forecast, confidence, and trend charts."
+        />
+      </Link>
+      <Link href={'/tools/news' as Href} asChild>
+        <ActionCard
+          icon={Newspaper}
+          title="News"
+          description="Refresh and cache emergency feeds for offline review."
         />
       </Link>
       <Link href={TOOL_ROUTES.checklist} asChild>

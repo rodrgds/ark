@@ -36,7 +36,11 @@ function rowToPack(row: {
   updated_at: number;
 }): ContentPack {
   const manifest = STARTER_PACKS.find((pack) => pack.id === row.id);
-  const customModel = row.id.startsWith('custom-model-');
+  const customModel =
+    row.id.startsWith('custom-model-') ||
+    row.id.startsWith('custom-chat-model-') ||
+    row.id.startsWith('custom-embedding-model-');
+  const customEmbeddingModel = row.id.startsWith('custom-embedding-model-');
   return {
     id: row.id,
     title: row.title,
@@ -52,7 +56,9 @@ function rowToPack(row: {
     checksumMd5: row.checksum_md5 ?? manifest?.checksumMd5 ?? null,
     checksumSha256: row.checksum_sha256 ?? manifest?.checksumSha256 ?? null,
     checksumSha256Url: row.checksum_sha256_url ?? manifest?.checksumSha256Url ?? null,
-    modelRole: manifest?.modelRole,
+    modelRole:
+      manifest?.modelRole ??
+      (customEmbeddingModel ? 'embedding' : customModel ? 'chat' : undefined),
     downloadStrategy: manifest?.downloadStrategy,
     localUri: row.local_uri,
     sizeBytes: row.size_bytes,

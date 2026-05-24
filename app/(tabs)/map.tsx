@@ -68,6 +68,9 @@ type Panel = 'offline' | 'saved' | null;
 type ManagerTab = 'downloaded' | 'browse';
 type TopMode = 'compact' | 'search' | 'map';
 type LngLat = [number, number];
+type CameraAction =
+  | { type: 'center'; center: LngLat; zoom: number; duration: number }
+  | { type: 'bounds'; bounds: [number, number, number, number]; padding: number; duration: number };
 
 const DEFAULT_CENTER: LngLat = [0, 20];
 const WORLD_OVERVIEW_ZOOM = 1.1;
@@ -142,6 +145,8 @@ export default function MapScreen() {
   const insets = useSafeAreaInsets();
   const theme = useThemeStore((state) => state.effectiveTheme);
   const cameraRef = React.useRef<any>(null);
+  const pendingCameraActionRef = React.useRef<CameraAction | null>(null);
+  const autoFocusedRegionIdRef = React.useRef<string | null>(null);
   const [regions, setRegions] = React.useState<MapRegion[]>([]);
   const [markers, setMarkers] = React.useState<MapMarker[]>([]);
   const [routes, setRoutes] = React.useState<SavedRoute[]>([]);
@@ -190,6 +195,18 @@ export default function MapScreen() {
 
   const downloadedRegions = React.useMemo(
     () => regions.filter((region) => region.status === 'downloaded'),
+    [regions]
+  );
+  const primaryDownloadedRegion = downloadedRegions[0] ?? null;
+  const mapInitialCenter = React.useMemo(() => {
+    const downloadedCenter = regionCenter(primaryDownloadedRegion);
+    return downloadedCenter && isDefaultCenter(center) ? downloadedCenter : center;
+  }, [center, primaryDownloadedRegion]);
+  const mapInitialZoom = primaryDownloadedRegion
+    ? regionInitialZoom(primaryDownloadedRegion)
+    : WORLD_OVERVIEW_ZOOM;
+  const hasActiveMapDownloads = React.useMemo(
+    () => regions.some((region) => region.status === 'downloading' || region.status === 'queued'),
     [regions]
   );
   const mapStyle = React.useMemo(() => {
@@ -261,19 +278,35 @@ export default function MapScreen() {
     activeMapKeyRef.current = mapInstanceKey;
     setMapReady(false);
     cameraRef.current = null;
+    autoFocusedRegionIdRef.current = null;
   }, [canMountMap, mapInstanceKey]);
 
   React.useEffect(() => {
     if (!maplibre || !nativeMapAvailable) return;
-    MapService.setNetworkConnected(maplibre, false);
+    MapService.setNetworkConnected(maplibre, hasActiveMapDownloads);
     return () => MapService.setNetworkConnected(maplibre, true);
-  }, [maplibre, nativeMapAvailable]);
+  }, [maplibre, nativeMapAvailable, hasActiveMapDownloads]);
+
+  React.useEffect(() => {
+    const action = pendingCameraActionRef.current;
+    if (!action || !mapReady || !canMountMap) return;
+    if (runCameraAction(cameraRef.current, action)) pendingCameraActionRef.current = null;
+  }, [mapReady, canMountMap]);
 
   React.useEffect(() => {
     if (selectedMarkerId && !markers.some((marker) => marker.id === selectedMarkerId)) {
       setSelectedMarkerId(null);
     }
   }, [markers, selectedMarkerId]);
+
+  React.useEffect(() => {
+    if (!primaryDownloadedRegion || autoFocusedRegionIdRef.current === primaryDownloadedRegion.id) {
+      return;
+    }
+    if (!regionBounds(primaryDownloadedRegion)) return;
+    autoFocusedRegionIdRef.current = primaryDownloadedRegion.id;
+    fitRegion(primaryDownloadedRegion);
+  }, [primaryDownloadedRegion?.id, mapReady, canMountMap]);
 
   React.useEffect(() => {
     const targetMarkerId = Array.isArray(markerId) ? markerId[0] : markerId;
@@ -519,7 +552,12 @@ export default function MapScreen() {
       const current = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
-      centerOn([current.coords.longitude, current.coords.latitude], 13);
+      const nextLocation = {
+        latitude: current.coords.latitude,
+        longitude: current.coords.longitude,
+      };
+      setUserLocation(nextLocation);
+      centerOn([nextLocation.longitude, nextLocation.latitude], 15);
     } catch {
       setError('Unable to get your current location.');
     } finally {
@@ -551,7 +589,6 @@ export default function MapScreen() {
       if (!result.ok) setError(result.reason ?? 'Unable to download this map region.');
     } finally {
       await load({ syncNative: true });
-      MapService.setNetworkConnected(maplibre, false);
       setBusy(null);
     }
   }
@@ -607,8 +644,8 @@ export default function MapScreen() {
 
   function centerOn(nextCenter: LngLat, zoom = 13) {
     setCenter(nextCenter);
-    if (!mapReady || !canMountMap) return;
-    cameraRef.current?.flyTo({
+    queueCameraAction({
+      type: 'center',
       center: nextCenter,
       zoom,
       duration: 650,
@@ -630,9 +667,10 @@ export default function MapScreen() {
     if (!bounds) return;
     const [west, south, east, north] = bounds;
     setCenter([(west + east) / 2, (south + north) / 2]);
-    if (!mapReady || !canMountMap) return;
-    cameraRef.current?.fitBounds?.([west, south, east, north], {
-      padding: mapPadding(42),
+    queueCameraAction({
+      type: 'bounds',
+      bounds: [west, south, east, north],
+      padding: 42,
       duration: 650,
     });
   }
@@ -642,11 +680,24 @@ export default function MapScreen() {
     if (!bounds) return;
     const [west, south, east, north] = bounds;
     setCenter([(west + east) / 2, (south + north) / 2]);
-    if (!mapReady || !canMountMap) return;
-    cameraRef.current?.fitBounds?.([west, south, east, north], {
-      padding: mapPadding(64),
+    queueCameraAction({
+      type: 'bounds',
+      bounds: [west, south, east, north],
+      padding: 64,
       duration: 650,
     });
+  }
+
+  function queueCameraAction(action: CameraAction) {
+    pendingCameraActionRef.current = action;
+    if (!mapReady || !canMountMap) return;
+    if (runCameraAction(cameraRef.current, action)) pendingCameraActionRef.current = null;
+    else {
+      requestAnimationFrame(() => {
+        if (pendingCameraActionRef.current !== action) return;
+        if (runCameraAction(cameraRef.current, action)) pendingCameraActionRef.current = null;
+      });
+    }
   }
 
   function openSearchResult(result: OfflineMapSearchResult) {
@@ -682,9 +733,10 @@ export default function MapScreen() {
       <MapCanvas
         cameraRef={cameraRef}
         canMount={canMountMap}
-        center={center}
+        center={mapInitialCenter}
         fullscreen={fullscreen}
         hasDownloadedRegion={hasDownloadedRegion}
+        initialZoom={mapInitialZoom}
         isSearchActive={searchFocused || topMode === 'search'}
         mapKey={mapInstanceKey}
         mapStyle={mapStyle}
@@ -899,6 +951,7 @@ function MapCanvas({
   center,
   fullscreen,
   hasDownloadedRegion,
+  initialZoom,
   isSearchActive,
   mapKey,
   mapStyle,
@@ -923,6 +976,7 @@ function MapCanvas({
   center: LngLat;
   fullscreen: boolean;
   hasDownloadedRegion: boolean;
+  initialZoom: number;
   isSearchActive: boolean;
   mapKey: string;
   mapStyle: unknown;
@@ -991,7 +1045,7 @@ function MapCanvas({
         ref={cameraRef}
         initialViewState={{
           center,
-          zoom: hasDownloadedRegion ? OFFLINE_REGION_ZOOM : WORLD_OVERVIEW_ZOOM,
+          zoom: hasDownloadedRegion ? initialZoom : WORLD_OVERVIEW_ZOOM,
         }}
       />
       {UserLocation ? <UserLocation animated /> : null}
@@ -2139,10 +2193,52 @@ function mapPadding(value: number) {
   return { top: value, right: value, bottom: value, left: value };
 }
 
+function runCameraAction(camera: any, action: CameraAction) {
+  if (!camera) return false;
+  if (action.type === 'center') {
+    if (typeof camera.flyTo === 'function') {
+      camera.flyTo({
+        center: action.center,
+        zoom: action.zoom,
+        duration: action.duration,
+      });
+      return true;
+    }
+    if (typeof camera.easeTo === 'function') {
+      camera.easeTo({
+        center: action.center,
+        zoom: action.zoom,
+        duration: action.duration,
+      });
+      return true;
+    }
+    return false;
+  }
+
+  if (typeof camera.fitBounds === 'function') {
+    camera.fitBounds(action.bounds, {
+      padding: mapPadding(action.padding),
+      duration: action.duration,
+    });
+    return true;
+  }
+  return false;
+}
+
 function regionCenter(region: MapRegion | null): LngLat | null {
   const bounds = region ? regionBounds(region) : null;
   if (!bounds) return null;
   return [(bounds[0] + bounds[2]) / 2, (bounds[1] + bounds[3]) / 2];
+}
+
+function regionInitialZoom(region: MapRegion) {
+  const minZoom = region.minZoom ?? OFFLINE_REGION_ZOOM;
+  const maxZoom = region.maxZoom ?? Math.max(minZoom, OFFLINE_REGION_ZOOM);
+  return Math.max(minZoom, Math.min(maxZoom, OFFLINE_REGION_ZOOM));
+}
+
+function isDefaultCenter(center: LngLat) {
+  return center[0] === DEFAULT_CENTER[0] && center[1] === DEFAULT_CENTER[1];
 }
 
 function routeBounds(route: SavedRoute): [number, number, number, number] | null {

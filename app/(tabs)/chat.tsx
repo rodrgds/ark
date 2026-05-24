@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
 import { Arky } from '@/components/brand/ark-logo';
-import { ArkKeyboardAvoidingView } from '@/components/layout/keyboard-controller';
 import { AIService, isAiRequestCancelledError } from '@/services/ai/ai.service';
 import { ModelManagerService } from '@/services/ai/model-manager.service';
 import type { AiCitation, AiMessage } from '@/types/ai';
@@ -26,9 +25,10 @@ import {
   Alert,
   FlatList,
   Keyboard,
+  type KeyboardEvent,
   Modal,
-  Platform,
   Pressable,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -201,6 +201,7 @@ function StreamingBubble({ content, onStop }: { content: string; onStop: () => v
 
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const [threadId, setThreadId] = React.useState<string | undefined>();
   const [messages, setMessages] = React.useState<AiMessage[]>([]);
   const [content, setContent] = React.useState('');
@@ -214,6 +215,7 @@ export default function ChatScreen() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [keyboardVisible, setKeyboardVisible] = React.useState(false);
+  const [keyboardInset, setKeyboardInset] = React.useState(0);
   const sendRunIdRef = React.useRef(0);
 
   const refreshModels = React.useCallback(async () => {
@@ -252,13 +254,27 @@ export default function ChatScreen() {
   );
 
   React.useEffect(() => {
-    const show = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
-    const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
+    function updateKeyboardInset(event: KeyboardEvent) {
+      const keyboardTop = event.endCoordinates.screenY;
+      const overlap = Math.max(0, windowHeight - keyboardTop);
+      setKeyboardInset(overlap);
+      setKeyboardVisible(overlap > 0);
+    }
+
+    function clearKeyboardInset() {
+      setKeyboardInset(0);
+      setKeyboardVisible(false);
+    }
+
+    const willChange = Keyboard.addListener('keyboardWillChangeFrame', updateKeyboardInset);
+    const didShow = Keyboard.addListener('keyboardDidShow', updateKeyboardInset);
+    const didHide = Keyboard.addListener('keyboardDidHide', clearKeyboardInset);
     return () => {
-      show.remove();
-      hide.remove();
+      willChange.remove();
+      didShow.remove();
+      didHide.remove();
     };
-  }, []);
+  }, [windowHeight]);
 
   async function send() {
     const trimmed = content.trim();
@@ -340,10 +356,7 @@ export default function ChatScreen() {
   const data = React.useMemo(() => [...messages].reverse(), [messages]);
 
   return (
-    <ArkKeyboardAvoidingView
-      className="bg-background flex-1"
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={0}>
+    <View className="bg-background flex-1">
       <View className="border-border bg-background flex-row items-center gap-2 border-b px-4 py-3">
         <ModelPill
           installedModels={installedModels}
@@ -408,7 +421,9 @@ export default function ChatScreen() {
 
       <View
         className="border-border bg-card border-t px-3 py-2"
-        style={{ paddingBottom: keyboardVisible ? 8 : Math.max(10, insets.bottom) }}>
+        style={{
+          paddingBottom: keyboardInset > 0 ? keyboardInset + 8 : Math.max(10, insets.bottom),
+        }}>
         <View className="flex-row items-end gap-2">
           <Input
             className="max-h-28 min-h-11 flex-1 py-2"
@@ -476,6 +491,6 @@ export default function ChatScreen() {
           </Pressable>
         </Pressable>
       </Modal>
-    </ArkKeyboardAvoidingView>
+    </View>
   );
 }

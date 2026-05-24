@@ -41,11 +41,31 @@ describe('map and chat UI contracts', () => {
   test('chat resizes its scroll area with the keyboard instead of floating the composer', () => {
     const source = readFileSync(join(appDir, '(tabs)/chat.tsx'), 'utf8');
 
-    expect(source).toContain('<KeyboardAvoidingView');
-    expect(source).toContain('ref={listRef}');
-    expect(source).toContain('ListFooterComponent={sending ? <StreamingBubble');
-    expect(source).toContain('onContentSizeChange={() => listRef.current?.scrollToEnd');
+    expect(source).toContain('useWindowDimensions');
+    expect(source).toContain('keyboardWillChangeFrame');
+    expect(source).toContain('const overlap = Math.max(0, windowHeight - keyboardTop)');
+    expect(source).toContain('paddingBottom: keyboardInset > 0 ? keyboardInset + 8');
     expect(source).not.toContain('useAnimatedKeyboard');
     expect(source).not.toContain('translateY');
+  });
+
+  test('map keeps network enabled while native offline packs are active', () => {
+    const source = readFileSync(join(appDir, '(tabs)/map.tsx'), 'utf8');
+
+    expect(source).toContain('hasActiveMapDownloads');
+    expect(source).toContain("region.status === 'downloading' || region.status === 'queued'");
+    expect(source).toContain('MapService.setNetworkConnected(maplibre, hasActiveMapDownloads)');
+    expect(source).not.toContain('MapService.setNetworkConnected(maplibre, false);\n      setBusy(null);');
+  });
+
+  test('downloaded maps open centered on the downloaded region', () => {
+    const source = readFileSync(join(appDir, '(tabs)/map.tsx'), 'utf8');
+
+    expect(source).toContain('primaryDownloadedRegion');
+    expect(source).toContain('mapInitialCenter');
+    expect(source).toContain('regionInitialZoom(primaryDownloadedRegion)');
+    expect(source).toContain('autoFocusedRegionIdRef');
+    expect(source).toContain('fitRegion(primaryDownloadedRegion)');
+    expect(source).toContain('pendingCameraActionRef');
   });
 });

@@ -115,7 +115,7 @@ export class ContentRepository {
              checksum_sha256 = COALESCE(?, checksum_sha256),
              checksum_sha256_url = COALESCE(?, checksum_sha256_url),
              size_bytes = COALESCE(size_bytes, ?),
-             updated_at = ?
+             updated_at = COALESCE(updated_at, created_at, ?)
          WHERE id = ?`,
         [
           pack.title,

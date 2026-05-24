@@ -1,7 +1,17 @@
 import { MapsRepository } from '@/services/db/repositories/maps.repo';
 import { FileSystemService } from '@/services/files/filesystem.service';
-import { MapService } from '@/services/maps/map.service';
+import { MapService, type MapLibreModule } from '@/services/maps/map.service';
 import type { MapMarker, MapRegion, OfflineMapSearchResult, SavedRoutePoint } from '@/types/maps';
+
+type OfflinePackStatusLike = {
+  state: string;
+  percentage: number;
+  completedResourceCount: number;
+  completedResourceSize?: number;
+  completedTileCount?: number;
+  completedTileSize?: number;
+  requiredResourceCount: number;
+};
 
 export class OfflineMapService {
   private static activeRegionId: string | null = null;
@@ -39,73 +49,74 @@ export class OfflineMapService {
       maplibre.OfflineManager.getPacks(),
     ]);
 
-    await Promise.all(
-      regions.map(async (region) => {
-        const pack = packs.find((candidate) => isPackForRegion(candidate, region));
-        if (!pack) {
-          if (region.status === 'downloaded' || region.status === 'downloading') {
-            await MapsRepository.updateRegionStatus(region.id, {
-              status: 'failed',
-              progress: 0,
-              sizeBytes: null,
-              offlinePackId: null,
-            });
-          }
-          return;
-        }
-        const status = await pack.status().catch(() => null);
-        if (!status) {
+    for (const region of regions) {
+      const pack = packs.find((candidate) => isPackForRegion(candidate, region));
+      if (!pack) {
+        if (region.status === 'downloaded' || region.status === 'downloading') {
           await MapsRepository.updateRegionStatus(region.id, {
             status: 'failed',
             progress: 0,
             sizeBytes: null,
+            offlinePackId: null,
           });
-          return;
         }
-
-        const isComplete = isOfflinePackComplete(status);
-
-        // If the region was paused by the user, keep it paused and don't auto-resume.
-        const isPaused = region.status === 'paused';
-        const isQueuedBehindAnotherDownload =
-          !isComplete &&
-          !isPaused &&
-          this.activeRegionId !== null &&
-          this.activeRegionId !== region.id;
-        const nextStatus = isComplete
-          ? 'downloaded'
-          : isPaused
-            ? 'paused'
-            : isQueuedBehindAnotherDownload
-              ? 'queued'
-              : 'downloading';
-
+        continue;
+      }
+      const status = await pack.status().catch(() => null);
+      if (!status) {
         await MapsRepository.updateRegionStatus(region.id, {
-          status: nextStatus,
-          progress: progressFromPackStatus(status),
-          sizeBytes: status.completedResourceSize || status.completedTileSize || null,
-          offlinePackId: pack.id,
+          status: 'failed',
+          progress: 0,
+          sizeBytes: null,
         });
+        continue;
+      }
 
-        if (isComplete) {
-          this.completeRegionDownload(region.id);
-          return;
-        }
+      const isComplete = isOfflinePackComplete(status);
 
-        // Resume any pack that isn't complete so downloads continue after an app restart.
-        // MapLibre pauses packs when the app is killed; .resume() restarts them.
-        if (!isPaused && !isQueuedBehindAnotherDownload && this.activeRegionId == null) {
-          this.activeRegionId = region.id;
-        }
-        if (isQueuedBehindAnotherDownload) {
-          await pack.pause().catch(() => undefined);
-          return;
-        }
-        if (!isComplete && status.state === 'inactive' && !isPaused) {
-          await pack.resume().catch(() => undefined);
-        }
-      })
-    );
+      // If the region was paused by the user, keep it paused and don't auto-resume.
+      const isPaused = region.status === 'paused';
+      const isQueuedBehindAnotherDownload =
+        !isComplete &&
+        !isPaused &&
+        this.activeRegionId !== null &&
+        this.activeRegionId !== region.id;
+      const nextStatus = isComplete
+        ? 'downloaded'
+        : isPaused
+          ? 'paused'
+          : isQueuedBehindAnotherDownload
+            ? 'queued'
+            : 'downloading';
+
+      await MapsRepository.updateRegionStatus(region.id, {
+        status: nextStatus,
+        progress: progressFromPackStatus(status),
+        sizeBytes: status.completedResourceSize || status.completedTileSize || null,
+        offlinePackId: pack.id,
+      });
+
+      if (isComplete) {
+        this.completeRegionDownload(region.id);
+        continue;
+      }
+
+      // Resume any pack that isn't complete so downloads continue after an app restart.
+      // MapLibre pauses packs when the app is killed; .resume() restarts them.
+      if (!isPaused && !isQueuedBehindAnotherDownload && this.activeRegionId == null) {
+        this.activeRegionId = region.id;
+      }
+      if (isQueuedBehindAnotherDownload) {
+        await pack.pause().catch(() => undefined);
+        continue;
+      }
+      if (!isComplete && !isPaused) {
+        await this.attachPackListeners(maplibre, region.id, pack.id);
+      }
+      if (!isComplete && status.state === 'inactive' && !isPaused) {
+        await pack.resume().catch(() => undefined);
+      }
+    }
     this.startNextQueuedRegion();
   }
 
@@ -204,6 +215,7 @@ export class OfflineMapService {
           this.completeRegionDownload(id);
           return { ok: true };
         }
+        await this.attachPackListeners(maplibre, id, existingPack.id);
         await existingPack.resume().catch(() => undefined);
         if (existingStatus) {
           await MapsRepository.updateRegionStatus(id, {
@@ -225,21 +237,8 @@ export class OfflineMapService {
           maxZoom: region.maxZoom ?? undefined,
           metadata: { regionId: id, name: region.name },
         },
-        (_offlinePack, status) => {
-          const completed = isOfflinePackComplete(status);
-          void MapsRepository.updateRegionStatus(id, {
-            status: completed ? 'downloaded' : 'downloading',
-            progress: progressFromPackStatus(status),
-            sizeBytes: status.completedResourceSize || status.completedTileSize || null,
-            offlinePackId: _offlinePack.id,
-          });
-          if (completed) this.completeRegionDownload(id);
-        },
-        (_offlinePack, error) => {
-          void MapsRepository.updateRegionStatus(id, { status: 'failed', progress: 0 });
-          this.completeRegionDownload(id);
-          console.warn(error.message);
-        }
+        (offlinePack, status) => this.handlePackProgress(id, offlinePack.id, status),
+        (_offlinePack, error) => this.handlePackError(id, error.message)
       );
       await pack.resume().catch(() => undefined);
       const status = await pack.status().catch(() => null);
@@ -450,6 +449,39 @@ export class OfflineMapService {
     }
   }
 
+  private static async attachPackListeners(
+    maplibre: MapLibreModule,
+    regionId: string,
+    packId: string
+  ) {
+    await maplibre.OfflineManager.addListener(
+      packId,
+      (offlinePack, status) => this.handlePackProgress(regionId, offlinePack.id, status),
+      (_offlinePack, error) => this.handlePackError(regionId, error.message)
+    ).catch(() => undefined);
+  }
+
+  private static handlePackProgress(
+    regionId: string,
+    packId: string,
+    status: OfflinePackStatusLike
+  ) {
+    const completed = isOfflinePackComplete(status);
+    void MapsRepository.updateRegionStatus(regionId, {
+      status: completed ? 'downloaded' : 'downloading',
+      progress: progressFromPackStatus(status),
+      sizeBytes: status.completedResourceSize || status.completedTileSize || null,
+      offlinePackId: packId,
+    });
+    if (completed) this.completeRegionDownload(regionId);
+  }
+
+  private static handlePackError(regionId: string, message?: string) {
+    void MapsRepository.updateRegionStatus(regionId, { status: 'failed', progress: 0 });
+    this.completeRegionDownload(regionId);
+    if (message) console.warn(message);
+  }
+
   private static startNextQueuedRegion() {
     if (this.startingQueuedRegion || this.activeRegionId) return;
     this.startingQueuedRegion = true;
@@ -551,14 +583,9 @@ function isPackForRegion(
   );
 }
 
-function isOfflinePackComplete(status: {
-  state: string;
-  percentage: number;
-  completedResourceCount: number;
-  requiredResourceCount: number;
-}) {
+function isOfflinePackComplete(status: OfflinePackStatusLike) {
   if (status.state === 'complete') return true;
-  if (status.percentage >= 100) return true;
+  if (progressFromPackStatus(status) >= 1) return true;
   if (
     status.requiredResourceCount > 0 &&
     status.completedResourceCount >= status.requiredResourceCount
@@ -568,8 +595,17 @@ function isOfflinePackComplete(status: {
   return false;
 }
 
-function progressFromPackStatus(status: { percentage: number }) {
-  return Math.max(0, Math.min(1, status.percentage / 100));
+function progressFromPackStatus(
+  status: Pick<
+    OfflinePackStatusLike,
+    'percentage' | 'completedResourceCount' | 'requiredResourceCount'
+  >
+) {
+  if (status.requiredResourceCount > 0) {
+    return Math.max(0, Math.min(1, status.completedResourceCount / status.requiredResourceCount));
+  }
+  const normalized = status.percentage > 1 ? status.percentage / 100 : status.percentage;
+  return Math.max(0, Math.min(1, normalized));
 }
 
 function distance(a: SavedRoutePoint, b: SavedRoutePoint) {

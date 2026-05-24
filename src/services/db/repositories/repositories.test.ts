@@ -218,6 +218,21 @@ describe('repositories', () => {
     const pack = packs.find((item) => item.id === 'wikipedia-en-top100-nopic');
     expect(pack?.sourceUrl).toMatch(/^https:\/\//);
 
+    await testDb.runAsync(
+      `UPDATE content_packs
+       SET installed = 1,
+           install_status = 'installed',
+           progress = 1,
+           local_uri = 'file:///ark/content/top100.zim',
+           updated_at = 12345
+       WHERE id = ?`,
+      ['wikipedia-en-top100-nopic']
+    );
+    const seededAgain = (await ContentRepository.list()).find(
+      (item) => item.id === 'wikipedia-en-top100-nopic'
+    );
+    expect(seededAgain?.updatedAt).toBe(12345);
+
     await ContentRepository.updateInstallStatus({
       id: 'wikipedia-en-top100-nopic',
       status: 'paused',

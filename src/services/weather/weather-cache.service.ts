@@ -91,6 +91,18 @@ export class WeatherCacheService {
     return row ? this.mapRow(row) : null;
   }
 
+  static async refreshIfStale(maxAgeMs = 6 * 60 * 60 * 1000) {
+    const row = await WeatherRepository.getLatest();
+    if (row && Date.now() - row.fetched_at < maxAgeMs) {
+      return { forecast: this.mapRow(row), refreshed: false };
+    }
+    try {
+      return { forecast: await this.refresh(), refreshed: true };
+    } catch {
+      return { forecast: row ? this.mapRow(row) : null, refreshed: false };
+    }
+  }
+
   static async getLatest() {
     const row = await WeatherRepository.getLatest();
     return row ? this.mapRow(row) : null;

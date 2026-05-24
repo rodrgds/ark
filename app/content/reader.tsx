@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
+import { getNativePdf } from '@/components/readers/native-pdf';
 import { Text } from '@/components/ui/text';
 import { Arky } from '@/components/brand/ark-logo';
 import { ContentPackService } from '@/services/content/content-pack.service';
@@ -22,19 +23,6 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import * as Sharing from 'expo-sharing';
-
-let NativePdf: React.ComponentType<any> | null | undefined;
-
-function getNativePdf() {
-  if (NativePdf !== undefined) return NativePdf;
-  try {
-    const module = require('react-native-pdf') as { default?: React.ComponentType<any> };
-    NativePdf = module.default ?? (module as unknown as React.ComponentType<any>);
-  } catch {
-    NativePdf = null;
-  }
-  return NativePdf;
-}
 
 const HTML_READER_SCRIPT = `
 (function() {
@@ -108,7 +96,11 @@ function sectionScrollScript(sectionTitle: string) {
 }
 
 export default function GuideReaderScreen() {
-  const { packId, section } = useLocalSearchParams<{ packId: string; section?: string }>();
+  const { packId, section, page } = useLocalSearchParams<{
+    packId: string;
+    section?: string;
+    page?: string;
+  }>();
   const insets = useSafeAreaInsets();
   const [pack, setPack] = React.useState<ContentPack | null>(null);
   const [sections, setSections] = React.useState<GuideSection[]>([]);
@@ -148,9 +140,12 @@ export default function GuideReaderScreen() {
 
       const readerContent = await GuideReaderService.prepareContent(currentPack, initialSection);
       setContent(readerContent);
-      if (readerContent.page) {
-        setCurrentPage(readerContent.page);
-        setInitialPage(readerContent.page);
+      const requestedPage = page ? Number(page) : null;
+      const nextPage =
+        Number.isFinite(requestedPage) && requestedPage ? requestedPage : readerContent.page;
+      if (nextPage) {
+        setCurrentPage(nextPage);
+        setInitialPage(nextPage);
       } else {
         setCurrentPage(1);
         setInitialPage(1);
@@ -164,7 +159,7 @@ export default function GuideReaderScreen() {
 
   React.useEffect(() => {
     void loadPackAndContent();
-  }, [packId, section]);
+  }, [packId, section, page]);
 
   React.useEffect(() => {
     const onBackPress = () => {
@@ -217,7 +212,9 @@ export default function GuideReaderScreen() {
     if (isPdf && targetSection.page) {
       setCurrentPage(targetSection.page);
       setInitialPage(targetSection.page);
-      setContent((prev) => prev ? { ...prev, sectionTitle: targetSection.title, page: targetSection.page } : null);
+      setContent((prev) =>
+        prev ? { ...prev, sectionTitle: targetSection.title, page: targetSection.page } : null
+      );
       pdfRef.current?.setPage(targetSection.page);
       return;
     }
@@ -249,17 +246,21 @@ export default function GuideReaderScreen() {
   if (loading && !content) {
     return (
       <View className="bg-background flex-1 items-center justify-center p-6">
-          <ActivityIndicator size="large" />
-        <Text variant="muted" className="mt-4">Loading guide...</Text>
+        <ActivityIndicator size="large" />
+        <Text variant="muted" className="mt-4">
+          Loading guide...
+        </Text>
       </View>
     );
   }
 
   if (error) {
     return (
-      <View className="bg-background flex-1 items-center justify-center p-6 gap-4">
+      <View className="bg-background flex-1 items-center justify-center gap-4 p-6">
         <Arky pose="thinking" size={120} />
-        <Text variant="large" className="text-destructive text-center">{error}</Text>
+        <Text variant="large" className="text-destructive text-center">
+          {error}
+        </Text>
         <Button variant="outline" onPress={loadPackAndContent}>
           <Text>Retry</Text>
         </Button>
@@ -278,14 +279,16 @@ export default function GuideReaderScreen() {
       {!webViewLoadError && (
         <View
           style={{ paddingTop: Math.max(8, insets.top), zIndex: 100 }}
-          className="bg-background border-b border-border"
-        >
-          <View className="flex-row items-center justify-between px-3 h-12">
+          className="bg-background border-border border-b">
+          <View className="h-12 flex-row items-center justify-between px-3">
             <Button variant="ghost" size="icon" onPress={() => router.back()}>
               <Icon as={ChevronLeft} className="text-foreground" />
             </Button>
-            <View className="flex-1 mx-2">
-              <Text variant="small" className="text-foreground font-bold text-center" numberOfLines={1}>
+            <View className="mx-2 flex-1">
+              <Text
+                variant="small"
+                className="text-foreground text-center font-bold"
+                numberOfLines={1}>
                 {pack?.title}
               </Text>
             </View>
@@ -296,7 +299,11 @@ export default function GuideReaderScreen() {
                 </Button>
               )}
               {canOpenForPrint ? (
-                <Button variant="ghost" size="icon" disabled={exportingPdf} onPress={handleExportPdf}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  disabled={exportingPdf}
+                  onPress={handleExportPdf}>
                   {exportingPdf ? (
                     <ActivityIndicator size="small" />
                   ) : (
@@ -314,8 +321,8 @@ export default function GuideReaderScreen() {
 
       {/* Main Content Area */}
       <View className="flex-1">
-        {content && (
-          isPdf && Pdf ? (
+        {content &&
+          (isPdf && Pdf ? (
             <Pdf
               ref={pdfRef}
               source={pdfSource}
@@ -324,11 +331,15 @@ export default function GuideReaderScreen() {
                 setCurrentPage(page);
                 const currentSec = sections.find((s) => s.page === page);
                 if (currentSec && content.sectionTitle !== currentSec.title) {
-                  setContent((prev) => prev ? { ...prev, sectionTitle: currentSec.title } : null);
+                  setContent((prev) => (prev ? { ...prev, sectionTitle: currentSec.title } : null));
                 }
               }}
               onError={(err: unknown) => {
-                setWebViewLoadError(err && typeof err === 'object' && 'message' in err ? String((err as any).message) : String(err));
+                setWebViewLoadError(
+                  err && typeof err === 'object' && 'message' in err
+                    ? String((err as any).message)
+                    : String(err)
+                );
               }}
               style={{ flex: 1, backgroundColor: '#000000' }}
             />
@@ -365,19 +376,23 @@ export default function GuideReaderScreen() {
                 setWebViewLoading(false);
               }}
             />
-          )
-        )}
+          ))}
       </View>
 
       {/* WebView Error / Fallback Overlay */}
       {webViewLoadError && (
         <View
-          style={{ paddingTop: Math.max(20, insets.top), paddingBottom: Math.max(12, insets.bottom), zIndex: 200 }}
-          className="absolute inset-0 bg-background flex-col items-center justify-center p-8 gap-6"
-        >
+          style={{
+            paddingTop: Math.max(20, insets.top),
+            paddingBottom: Math.max(12, insets.bottom),
+            zIndex: 200,
+          }}
+          className="bg-background absolute inset-0 flex-col items-center justify-center gap-6 p-8">
           <Arky pose="thinking" size={160} />
-          <View className="gap-2 items-center">
-            <Text variant="h2" className="text-center">Unable to Display</Text>
+          <View className="items-center gap-2">
+            <Text variant="h2" className="text-center">
+              Unable to Display
+            </Text>
             <Text variant="muted" className="text-center leading-6">
               {webViewLoadError}
             </Text>
@@ -385,19 +400,23 @@ export default function GuideReaderScreen() {
               This format may not be supported by the built-in viewer.
             </Text>
           </View>
-          <View className="gap-3 w-full">
+          <View className="w-full gap-3">
             <Button
-              className="h-14 w-full bg-primary"
+              className="bg-primary h-14 w-full"
               onPress={() => {
                 if (pack?.localUri) {
                   ContentPackService.openPack(pack.id).catch((err) => {
-                    Alert.alert('Error', err instanceof Error ? err.message : 'Could not open file.');
+                    Alert.alert(
+                      'Error',
+                      err instanceof Error ? err.message : 'Could not open file.'
+                    );
                   });
                 }
-              }}
-            >
+              }}>
               <Icon as={ExternalLink} className="text-primary-foreground" />
-              <Text className="text-primary-foreground text-lg font-bold">Open in System Viewer</Text>
+              <Text className="text-primary-foreground text-lg font-bold">
+                Open in System Viewer
+              </Text>
             </Button>
             <Button variant="ghost" onPress={() => router.back()}>
               <Text>Go Back</Text>
@@ -409,20 +428,31 @@ export default function GuideReaderScreen() {
       {/* Loading Overlay */}
       {(loading || webViewLoading) && content && (
         <View
-          style={{ paddingTop: Math.max(20, insets.top), paddingBottom: Math.max(12, insets.bottom), zIndex: 150 }}
-          className="absolute inset-0 bg-background/60 items-center justify-center"
-        >
-        <ActivityIndicator size="large" />
+          style={{
+            paddingTop: Math.max(20, insets.top),
+            paddingBottom: Math.max(12, insets.bottom),
+            zIndex: 150,
+          }}
+          className="bg-background/60 absolute inset-0 items-center justify-center">
+          <ActivityIndicator size="large" />
         </View>
       )}
 
       {/* TOC Drawer */}
-      <Modal visible={showToc} animationType="slide" transparent={true} onRequestClose={() => setShowToc(false)}>
-        <View className="flex-1 bg-background/60 justify-end">
+      <Modal
+        visible={showToc}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowToc(false)}>
+        <View className="bg-background/60 flex-1 justify-end">
           <Pressable className="flex-1" onPress={() => setShowToc(false)} />
-          <View style={{ paddingBottom: insets.bottom + 20 }} className="bg-card border-t border-border rounded-t-3xl max-h-[80%]">
-            <View className="flex-row items-center justify-between px-6 py-5 border-b border-border">
-              <Text variant="h3" className="text-foreground">Table of Contents</Text>
+          <View
+            style={{ paddingBottom: insets.bottom + 20 }}
+            className="bg-card border-border max-h-[80%] rounded-t-3xl border-t">
+            <View className="border-border flex-row items-center justify-between border-b px-6 py-5">
+              <Text variant="h3" className="text-foreground">
+                Table of Contents
+              </Text>
               <Button variant="ghost" size="icon" onPress={() => setShowToc(false)}>
                 <Icon as={X} className="text-muted-foreground" />
               </Button>
@@ -432,13 +462,20 @@ export default function GuideReaderScreen() {
                 <Pressable
                   key={sec.title}
                   onPress={() => handleSectionSelect(sec)}
-                  className="flex-row items-center justify-between p-4 my-1 rounded-xl bg-muted/40 active:bg-muted/60"
-                >
+                  className="bg-muted/40 active:bg-muted/60 my-1 flex-row items-center justify-between rounded-xl p-4">
                   <View className="flex-1 pr-4">
-                    <Text className="font-bold text-foreground">{sec.title}</Text>
-                    {sec.detail && <Text variant="small" className="text-muted-foreground mt-1">{sec.detail}</Text>}
+                    <Text className="text-foreground font-bold">{sec.title}</Text>
+                    {sec.detail && (
+                      <Text variant="small" className="text-muted-foreground mt-1">
+                        {sec.detail}
+                      </Text>
+                    )}
                   </View>
-                  {sec.page && <Text variant="small" className="text-primary/70">p.{sec.page}</Text>}
+                  {sec.page && (
+                    <Text variant="small" className="text-primary/70">
+                      p.{sec.page}
+                    </Text>
+                  )}
                 </Pressable>
               ))}
             </ScrollView>

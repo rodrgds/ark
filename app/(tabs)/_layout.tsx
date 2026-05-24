@@ -5,6 +5,7 @@ import { NAV_THEME } from '@/lib/theme';
 import { DownloadManagerService } from '@/services/files/download-manager.service';
 import { OfflineMapService } from '@/services/maps/offline-map.service';
 import { RssService } from '@/services/rss/rss.service';
+import { WeatherCacheService } from '@/services/weather/weather-cache.service';
 import { useThemeStore } from '@/stores/theme-store';
 import { Tabs } from 'expo-router';
 import { Bot, BookOpen, Compass, Map, NotebookPen, Settings } from 'lucide-react-native';
@@ -47,10 +48,22 @@ export default function TabsLayout() {
 
   React.useEffect(() => {
     void loadBadges();
+    void RssService.refreshIfStale().catch(() => undefined);
+    void WeatherCacheService.refreshIfStale().catch(() => undefined);
     const interval = setInterval(() => {
       void loadBadges();
     }, 5000);
-    return () => clearInterval(interval);
+    const refreshInterval = setInterval(
+      () => {
+        void RssService.refreshIfStale().catch(() => undefined);
+        void WeatherCacheService.refreshIfStale().catch(() => undefined);
+      },
+      30 * 60 * 1000
+    );
+    return () => {
+      clearInterval(interval);
+      clearInterval(refreshInterval);
+    };
   }, []);
 
   return (

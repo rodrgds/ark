@@ -53,6 +53,10 @@ export class RssService {
     };
   }
 
+  static async getItem(id: string) {
+    return RssRepository.getItem(id);
+  }
+
   static async refreshIfStale(maxAgeMs = 30 * 60 * 1000) {
     const overview = await this.getOverview();
     if (overview.lastFetchedAt && Date.now() - overview.lastFetchedAt < maxAgeMs) {

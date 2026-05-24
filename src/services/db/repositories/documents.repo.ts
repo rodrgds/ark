@@ -131,6 +131,18 @@ export class DocumentsRepository {
     return this.get(id);
   }
 
+  static async updateTitle(id: string, title: string) {
+    const normalized = title.trim();
+    if (!normalized) throw new Error('Document name is required.');
+    const db = await DatabaseClient.getDb();
+    await db.runAsync('UPDATE documents SET title = ?, updated_at = ? WHERE id = ?', [
+      normalized,
+      now(),
+      id,
+    ]);
+    return this.get(id);
+  }
+
   static async markIndexed(id: string, indexedAt = now()) {
     const db = await DatabaseClient.getDb();
     await db.runAsync('UPDATE documents SET indexed_at = ? WHERE id = ?', [indexedAt, id]);

@@ -46,7 +46,9 @@ export default function LevelTool() {
   const bubbleX = clamp(roll / 18, -1, 1) * travel;
   const bubbleY = clamp(-pitch / 18, -1, 1) * travel;
   const error = Math.hypot(pitch, roll);
-  const tubeTravel = Math.min(width - 96, 320) / 2 - bubbleRadius - 16;
+  const tubeWidth = Math.min(width - 48, 360);
+  const tubeBubbleSize = bubbleRadius * 1.8;
+  const tubeTravel = tubeWidth / 2 - tubeBubbleSize / 2 - 26;
   const tubeOffset = clamp(tubeAngle / 12, -1, 1) * tubeTravel;
   const centered = error <= 1.5;
   const near = error <= 4;
@@ -70,9 +72,7 @@ export default function LevelTool() {
         : 'off level';
 
   return (
-    <Screen
-      className="bg-background"
-      contentContainerStyle={styles.content}>
+    <Screen className="bg-background" contentContainerStyle={styles.content}>
       <View style={styles.readout}>
         <Text variant="h1" className="font-mono">
           {centerText}
@@ -145,12 +145,16 @@ export default function LevelTool() {
           style={[
             styles.tube,
             {
-              width: Math.min(width - 48, 360),
+              width: tubeWidth,
               backgroundColor: palette.card,
               borderColor: palette.border,
             },
           ]}>
-          <Svg width="100%" height={120} viewBox="0 0 360 120" style={StyleSheet.absoluteFillObject}>
+          <Svg
+            width="100%"
+            height={120}
+            viewBox="0 0 360 120"
+            style={StyleSheet.absoluteFillObject}>
             <Rect
               x={14}
               y={34}
@@ -189,11 +193,13 @@ export default function LevelTool() {
             style={[
               styles.tubeBubble,
               {
-                width: bubbleRadius * 1.8,
-                height: bubbleRadius * 1.8,
+                width: tubeBubbleSize,
+                height: tubeBubbleSize,
                 borderRadius: bubbleRadius,
                 borderColor: tubeSignal,
                 backgroundColor: hexToRgba(tubeSignal, theme === 'light' ? 0.16 : 0.22),
+                left: tubeWidth / 2 - tubeBubbleSize / 2,
+                top: 60 - tubeBubbleSize / 2,
                 transform: [{ translateX: tubeOffset }],
               },
             ]}>
@@ -228,11 +234,7 @@ function Metric({
   palette: (typeof NAV_COLORS)[keyof typeof NAV_COLORS];
 }) {
   return (
-    <View
-      style={[
-        styles.metric,
-        { backgroundColor: palette.card, borderColor: palette.border },
-      ]}>
+    <View style={[styles.metric, { backgroundColor: palette.card, borderColor: palette.border }]}>
       <Text variant="muted">{label}</Text>
       <Text className="font-mono text-xl font-semibold">{value.toFixed(1)}°</Text>
     </View>
@@ -277,6 +279,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 2,
     justifyContent: 'center',
+    position: 'absolute',
   },
   bubbleCore: {
     borderRadius: 5,

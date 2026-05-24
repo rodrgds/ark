@@ -152,10 +152,10 @@ const FUNCTION_ENTRIES: SearchEntry[] = [
   },
   {
     title: 'Diagnostics',
-    subtitle: 'Native capabilities and storage report',
-    keywords: 'diagnostics native status storage sensors',
+    subtitle: 'Native capabilities and offline storage',
+    keywords: 'diagnostics native status storage sensors internals',
     icon: Smartphone,
-    href: '/tools/diagnostics',
+    href: { pathname: '/(tabs)/settings', params: { tab: 'internals' } },
   },
   {
     title: 'Appearance Settings',
@@ -179,11 +179,11 @@ const FUNCTION_ENTRIES: SearchEntry[] = [
     href: { pathname: '/(tabs)/settings', params: { tab: 'ai' } },
   },
   {
-    title: 'Storage Settings',
-    subtitle: 'Offline storage and directories',
-    keywords: 'settings storage disk files directories',
+    title: 'Internals',
+    subtitle: 'Downloads, storage, and diagnostics',
+    keywords: 'settings storage disk files directories downloads diagnostics internals',
     icon: Settings,
-    href: { pathname: '/(tabs)/settings', params: { tab: 'storage' } },
+    href: { pathname: '/(tabs)/settings', params: { tab: 'internals' } },
   },
 ];
 
@@ -225,7 +225,12 @@ export function FunctionSearchButton() {
         <Icon as={Search} className="size-4" />
       </Button>
 
-      <Modal transparent visible={open} animationType="fade" onRequestClose={() => setOpen(false)}>
+      <Modal
+        transparent
+        visible={open}
+        animationType="fade"
+        onShow={() => requestAnimationFrame(() => inputRef.current?.focus())}
+        onRequestClose={() => setOpen(false)}>
         <ModalFrame
           onDismiss={() => setOpen(false)}
           position="top"
@@ -240,6 +245,7 @@ export function FunctionSearchButton() {
               onChangeText={setQuery}
               placeholder="Search Ark"
               autoFocus
+              showSoftInputOnFocus
               returnKeyType="search"
               accessibilityLabel="Search Ark functions"
             />

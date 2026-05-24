@@ -6,17 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
 import { RssService } from '@/services/rss/rss.service';
 import { formatDistanceToNow } from 'date-fns';
-import {
-  CheckCheck,
-  ExternalLink,
-  Newspaper,
-  Plus,
-  Radio,
-  RefreshCw,
-  Trash2,
-} from 'lucide-react-native';
+import { router } from 'expo-router';
+import { CheckCheck, Newspaper, Plus, Radio, RefreshCw, Trash2 } from 'lucide-react-native';
 import * as React from 'react';
-import { ActivityIndicator, Alert, Linking, RefreshControl, View } from 'react-native';
+import { ActivityIndicator, Alert, RefreshControl, View } from 'react-native';
 
 type NewsFilter = 'unread' | 'all';
 
@@ -40,15 +33,32 @@ export default function NewsScreen() {
   }
 
   React.useEffect(() => {
+    let active = true;
     void (async () => {
       const initial = await RssService.getOverview();
+      if (!active) return;
       setOverview(initial);
       if (!initial.lastFetchedAt || Date.now() - initial.lastFetchedAt > 30 * 60 * 1000) {
         const result = await RssService.refreshIfStale();
+        if (!active) return;
         setOverview(result.overview);
         if (result.errors.length) setError(result.errors.join('\n'));
       }
     })();
+    const interval = setInterval(
+      () => {
+        void RssService.refreshIfStale().then((result) => {
+          if (!active) return;
+          setOverview(result.overview);
+          if (result.errors.length) setError(result.errors.join('\n'));
+        });
+      },
+      30 * 60 * 1000
+    );
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
   }, []);
 
   async function refreshFeeds() {
@@ -258,15 +268,13 @@ export default function NewsScreen() {
                   <Icon as={CheckCheck} className="size-4" />
                   <Text>{item.read_at ? 'Mark unread' : 'Mark read'}</Text>
                 </Button>
-                {item.url ? (
-                  <Button
-                    className="flex-1"
-                    variant="outline"
-                    onPress={() => void Linking.openURL(item.url!)}>
-                    <Icon as={ExternalLink} className="size-4" />
-                    <Text>Open source</Text>
-                  </Button>
-                ) : null}
+                <Button
+                  className="flex-1"
+                  variant="outline"
+                  onPress={() => router.push(`/tools/news/${item.id}` as never)}>
+                  <Icon as={Newspaper} className="size-4" />
+                  <Text>Read offline</Text>
+                </Button>
               </View>
             </Card>
           ))

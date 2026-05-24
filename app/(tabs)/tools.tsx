@@ -1,6 +1,6 @@
-import { ActionCard } from '@/components/cards/action-card';
 import { Arky } from '@/components/brand/ark-logo';
 import { Screen } from '@/components/layout/screen';
+import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { NAV_COLORS } from '@/constants/theme';
@@ -18,12 +18,12 @@ import {
   Lightbulb,
   Newspaper,
   Ruler,
-  Settings2,
   SunMedium,
   Timer,
+  type LucideIcon,
 } from 'lucide-react-native';
 import * as React from 'react';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 type Drain = 'low' | 'medium' | 'high';
 
@@ -45,8 +45,7 @@ function DrainBadge({ level }: { level: Drain }) {
         borderRadius: 6,
         borderWidth: 1,
         borderColor: hexToRgba(c.text, 0.36),
-      }}
-    >
+      }}>
       <Text style={{ fontSize: 10, fontWeight: '700', color: c.text, letterSpacing: 0.5 }}>
         {c.label} drain
       </Text>
@@ -170,10 +169,85 @@ function useBatterySnapshot() {
 export default function ToolsScreen() {
   const { heading, pressure, pitch, roll, steps, lux } = useSensorStore();
   const battery = useBatterySnapshot();
+  const tools = [
+    {
+      href: '/tools/compass' as Href,
+      icon: Compass,
+      title: 'Compass',
+      description: 'Heading and cardinal direction.',
+      drain: 'medium' as Drain,
+      reading: heading == null ? 'No fix' : `${Math.round(heading)} deg`,
+    },
+    {
+      href: '/tools/barometer' as Href,
+      icon: Gauge,
+      title: 'Barometer',
+      description: 'Pressure and trend snapshots.',
+      drain: 'low' as Drain,
+      reading: pressure == null ? 'No reading' : `${Math.round(pressure)} hPa`,
+    },
+    {
+      href: '/tools/level' as Href,
+      icon: Ruler,
+      title: 'Level',
+      description: 'Pitch and roll bubble level.',
+      drain: 'low' as Drain,
+      reading:
+        pitch == null || roll == null ? 'No reading' : `${pitch.toFixed(1)} / ${roll.toFixed(1)}`,
+    },
+    {
+      href: '/tools/chronometer' as Href,
+      icon: Timer,
+      title: 'Chronometer',
+      description: 'Stopwatch with lap times.',
+      drain: 'low' as Drain,
+      reading: 'Offline',
+    },
+    {
+      href: '/tools/light' as Href,
+      icon: Lightbulb,
+      title: 'Light meter',
+      description: 'Ambient lux on supported devices.',
+      drain: 'low' as Drain,
+      reading: lux == null ? 'No reading' : `${Math.round(lux)} lux`,
+    },
+    {
+      href: TOOL_ROUTES.coordinates,
+      icon: Crosshair,
+      title: 'Coordinates',
+      description: 'GPS fix and saved map spots.',
+      drain: 'medium' as Drain,
+      reading: 'Location',
+    },
+    {
+      href: TOOL_ROUTES.weather,
+      icon: SunMedium,
+      title: 'Meteorology',
+      description: 'Cached forecast and confidence.',
+      drain: 'low' as Drain,
+      reading: 'Cached',
+    },
+    {
+      href: '/tools/news' as Href,
+      icon: Newspaper,
+      title: 'News',
+      description: 'Emergency feeds for offline reading.',
+      drain: 'low' as Drain,
+      reading: 'Feeds',
+    },
+    {
+      href: TOOL_ROUTES.checklist,
+      icon: CheckSquare,
+      title: 'Checklist',
+      description: 'Readiness tasks before leaving service.',
+      drain: 'low' as Drain,
+      reading: 'Local',
+    },
+  ];
 
   return (
     <Screen>
-      <View className="flex-row items-center justify-between">
+      <View className="flex-row items-center justify-between gap-3">
         <View className="flex-1 gap-2">
           <Text variant="h1">Tools</Text>
           <View className="flex-row items-center gap-2">
@@ -186,81 +260,56 @@ export default function ToolsScreen() {
         </View>
         <Arky pose="resourceful" size={80} />
       </View>
-      <Link href="/tools/compass" asChild>
-        <ActionCard
-          icon={Compass}
-          title="Compass"
-          description="Magnetometer heading and cardinal direction."
-          right={<DrainBadge level="medium" />}
-        />
-      </Link>
-      <Link href="/tools/barometer" asChild>
-        <ActionCard
-          icon={Gauge}
-          title="Barometer"
-          description="hPa readings and pressure trend snapshots."
-          right={<DrainBadge level="low" />}
-        />
-      </Link>
-      <Link href="/tools/level" asChild>
-        <ActionCard
-          icon={Ruler}
-          title="Level"
-          description="Pitch and roll from accelerometer."
-          right={<DrainBadge level="low" />}
-        />
-      </Link>
-      <Link href={'/tools/chronometer' as Href} asChild>
-        <ActionCard
-          icon={Timer}
-          title="Chronometer"
-          description="Stopwatch with lap times, works fully offline."
-          right={<DrainBadge level="low" />}
-        />
-      </Link>
-      <Link href="/tools/light" asChild>
-        <ActionCard
-          icon={Lightbulb}
-          title="Light meter"
-          description="Lux readings on supported devices."
-          right={<DrainBadge level="low" />}
-        />
-      </Link>
-      <Link href={TOOL_ROUTES.coordinates} asChild>
-        <ActionCard
-          icon={Crosshair}
-          title="Coordinates"
-          description="Capture a GPS fix and save it to Map spots."
-        />
-      </Link>
-      <Link href={TOOL_ROUTES.weather} asChild>
-        <ActionCard
-          icon={SunMedium}
-          title="Meteorology"
-          description="Cached local forecast, confidence, and trend charts."
-        />
-      </Link>
-      <Link href={'/tools/news' as Href} asChild>
-        <ActionCard
-          icon={Newspaper}
-          title="News"
-          description="Refresh and cache emergency feeds for offline review."
-        />
-      </Link>
-      <Link href={TOOL_ROUTES.checklist} asChild>
-        <ActionCard
-          icon={CheckSquare}
-          title="Readiness checklist"
-          description="A compact local checklist before leaving service."
-        />
-      </Link>
-      <Link href="/tools/diagnostics" asChild>
-        <ActionCard
-          icon={Settings2}
-          title="Diagnostics"
-          description="Native capability and storage report."
-        />
-      </Link>
+
+      <View className="flex-row flex-wrap gap-3">
+        {tools.map((tool) => (
+          <ToolTile key={tool.title} {...tool} />
+        ))}
+      </View>
     </Screen>
+  );
+}
+
+function ToolTile({
+  href,
+  icon,
+  title,
+  description,
+  drain,
+  reading,
+}: {
+  href: Href;
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  drain: Drain;
+  reading: string;
+}) {
+  return (
+    <Link href={href} asChild>
+      <Pressable className="w-[48%] min-w-[156px] flex-1">
+        <Card className="min-h-[154px] justify-between gap-3 p-3">
+          <View className="gap-3">
+            <View className="flex-row items-start justify-between gap-2">
+              <View className="bg-primary/12 size-10 items-center justify-center rounded-lg">
+                <Icon as={icon} className="text-primary size-5" />
+              </View>
+              <DrainBadge level={drain} />
+            </View>
+            <View className="gap-1">
+              <Text className="font-semibold" numberOfLines={1}>
+                {title}
+              </Text>
+              <Text variant="muted" className="text-xs leading-4" numberOfLines={2}>
+                {description}
+              </Text>
+            </View>
+          </View>
+          <Text variant="small" className="text-muted-foreground font-mono">
+            {reading}
+          </Text>
+        </Card>
+      </Pressable>
+    </Link>
   );
 }

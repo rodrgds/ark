@@ -1,8 +1,10 @@
 import { randomUUID } from 'expo-crypto';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import { Linking } from 'react-native';
 import { DocumentsRepository } from '@/services/db/repositories/documents.repo';
+import { DocumentPagesRepository } from '@/services/db/repositories/document-pages.repo';
 import { RagService } from '@/services/ai/rag.service';
 import {
   DocumentTextService,
@@ -22,6 +24,14 @@ export class ImportService {
 
   static getDocument(id: string) {
     return DocumentsRepository.get(id);
+  }
+
+  static async renameDocument(id: string, title: string) {
+    const document = await DocumentsRepository.updateTitle(id, title);
+    if (!document) return null;
+    await DocumentPagesRepository.updateDocumentTitle(id, document.title);
+    await RagService.indexDocument(id);
+    return document;
   }
 
   static async importDocument() {
@@ -75,6 +85,13 @@ export class ImportService {
   static async openDocument(id: string) {
     const document = await DocumentsRepository.get(id);
     if (!document?.localUri) throw new Error('Document file is not available.');
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(document.localUri, {
+        dialogTitle: `Open ${document.title}`,
+        mimeType: document.mimeType ?? undefined,
+      });
+      return;
+    }
     const canOpen = await Linking.canOpenURL(document.localUri);
     if (!canOpen) throw new Error('No app is available to open this file.');
     await Linking.openURL(document.localUri);

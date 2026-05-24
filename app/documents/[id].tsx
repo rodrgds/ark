@@ -1,6 +1,9 @@
+import { ArkKeyboardAwareScrollView } from '@/components/layout/keyboard-controller';
+import { getNativePdf } from '@/components/readers/native-pdf';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
+import { Input } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
 import { ImportService } from '@/services/files/import.service';
 import {
@@ -15,7 +18,8 @@ import { Stack, router, useLocalSearchParams } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
 import { ExternalLink, FileText, RefreshCcw, Trash2 } from 'lucide-react-native';
 import * as React from 'react';
-import { ActivityIndicator, Alert, Platform, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 
 function canPreviewAsText(document: ArkDocument) {
@@ -25,7 +29,6 @@ function canPreviewAsText(document: ArkDocument) {
 function canPreviewInWebView(document: ArkDocument) {
   return (
     canPreviewAsText(document) ||
-    document.mimeType === 'application/pdf' ||
     document.mimeType?.startsWith('image/') ||
     document.mimeType?.includes('html')
   );
@@ -59,9 +62,11 @@ function escapeHtml(value: string) {
 }
 
 export default function DocumentReaderScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, page } = useLocalSearchParams<{ id: string; page?: string }>();
+  const insets = useSafeAreaInsets();
   const [document, setDocument] = React.useState<ArkDocument | null>(null);
   const [textPreview, setTextPreview] = React.useState<string | null>(null);
+  const [titleDraft, setTitleDraft] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -85,6 +90,10 @@ export default function DocumentReaderScreen() {
     });
   }, [id]);
 
+  React.useEffect(() => {
+    if (document?.title) setTitleDraft(document.title);
+  }, [document?.title]);
+
   async function run(action: () => Promise<void>) {
     setBusy(true);
     setError(null);
@@ -96,6 +105,15 @@ export default function DocumentReaderScreen() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function saveTitle() {
+    const nextTitle = titleDraft.trim();
+    if (!document || !nextTitle || nextTitle === document.title) return;
+    await run(async () => {
+      const renamed = await ImportService.renameDocument(document.id, nextTitle);
+      if (renamed) setDocument(renamed);
+    });
   }
 
   if (!document) {
@@ -111,14 +129,25 @@ export default function DocumentReaderScreen() {
     : document.localUri
       ? { uri: document.localUri }
       : null;
+  const Pdf = isPdfDocument(document) ? getNativePdf() : null;
+  const initialPage = page && Number.isFinite(Number(page)) ? Math.max(1, Number(page)) : 1;
 
   return (
     <View className="bg-background flex-1">
       <Stack.Screen options={{ title: document.title }} />
-      <ScrollView
+      <ArkKeyboardAwareScrollView
         className="flex-1"
+        automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+        bottomOffset={Platform.OS === 'ios' ? 100 : 0}
         contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 32 }}>
+        contentContainerStyle={{
+          padding: 16,
+          gap: 16,
+          paddingBottom: Math.max(32, insets.bottom + 24),
+        }}
+        extraKeyboardSpace={Platform.OS === 'android' ? 32 : 0}
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+        keyboardShouldPersistTaps="handled">
         <View className="gap-2">
           <Text variant="h1" className="text-3xl">
             {document.title}
@@ -133,6 +162,26 @@ export default function DocumentReaderScreen() {
         </View>
 
         <Card className="gap-3">
+          <View className="gap-2">
+            <Text variant="large">Document name</Text>
+            <View className="flex-row gap-2">
+              <Input
+                className="flex-1"
+                value={titleDraft}
+                onChangeText={setTitleDraft}
+                onSubmitEditing={() => void saveTitle()}
+                returnKeyType="done"
+              />
+              <Button
+                variant="outline"
+                disabled={busy || !titleDraft.trim() || titleDraft.trim() === document.title}
+                onPress={() => void saveTitle()}>
+                {busy ? <ActivityIndicator /> : null}
+                <Text>Rename</Text>
+              </Button>
+            </View>
+          </View>
+
           <View className="flex-row flex-wrap gap-2">
             <Button
               className="flex-1"
@@ -204,7 +253,28 @@ export default function DocumentReaderScreen() {
           ) : null}
         </Card>
 
-        {webSource && canPreviewInWebView(document) ? (
+        {document.localUri && isPdfDocument(document) && Pdf ? (
+          <Card className="overflow-hidden p-0">
+            <View className="border-border flex-row items-center gap-2 border-b p-3">
+              <Icon as={FileText} className="text-primary size-5" />
+              <Text variant="large">PDF reader</Text>
+            </View>
+            <View className="bg-background h-[620px]">
+              <Pdf
+                source={{ uri: document.localUri }}
+                page={initialPage}
+                style={{ flex: 1, backgroundColor: '#000000' }}
+                onError={(pdfError: unknown) => {
+                  setError(
+                    pdfError && typeof pdfError === 'object' && 'message' in pdfError
+                      ? String((pdfError as { message?: unknown }).message)
+                      : 'Unable to render this PDF.'
+                  );
+                }}
+              />
+            </View>
+          </Card>
+        ) : webSource && canPreviewInWebView(document) ? (
           <Card className="overflow-hidden p-0">
             <View className="border-border flex-row items-center gap-2 border-b p-3">
               <Icon as={FileText} className="text-primary size-5" />
@@ -229,12 +299,11 @@ export default function DocumentReaderScreen() {
           <Card className="gap-2">
             <Text variant="large">No inline preview</Text>
             <Text variant="muted">
-              This file type is stored offline and can be opened with a compatible app on the
-              device.
+              This file is stored offline and can be opened with a compatible app on the device.
             </Text>
           </Card>
         )}
-      </ScrollView>
+      </ArkKeyboardAwareScrollView>
     </View>
   );
 }

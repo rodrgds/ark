@@ -14,9 +14,7 @@ export class MockAIAdapter {
       ]
         .filter(Boolean)
         .join(', ');
-      return `${index + 1}. ${citation.title}${location ? ` (${location})` : ''}: ${
-        citation.snippet
-      }`;
+      return `${index + 1}. ${citation.title}${location ? ` (${location})` : ''}`;
     });
 
     return {
@@ -24,11 +22,7 @@ export class MockAIAdapter {
         ? [
             'Based on the local sources Ark found:',
             toolTrace ? `Tools used:\n${toolTrace}` : null,
-            input.sourceContext?.length
-              ? input.sourceContext
-                  .map((source, index) => `${index + 1}. ${source.title}\n${source.content}`)
-                  .join('\n\n')
-              : sourceLines.join('\n'),
+            sourceLines.join('\n'),
             'Treat this as a source-grounded offline summary. Open the cited items for full context before acting on critical details.',
             `Safety: ${SAFETY_COPY.ai}`,
           ]

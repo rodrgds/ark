@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { ArkKeyboardAwareScrollView } from '@/components/layout/keyboard-controller';
 import { Icon } from '@/components/ui/icon';
 import { Progress } from '@/components/ui/progress';
 import { Text } from '@/components/ui/text';
@@ -24,15 +25,7 @@ import {
   TriangleAlert,
 } from 'lucide-react-native';
 import * as React from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Linking,
-  Modal,
-  ScrollView,
-  View,
-  Pressable,
-} from 'react-native';
+import { ActivityIndicator, Alert, Linking, Modal, View, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { Input } from '@/components/ui/input';
@@ -213,15 +206,26 @@ export default function ContentDetailScreen() {
   return (
     <View className="bg-background flex-1">
       <Stack.Screen options={{ title: pack.title }} />
-      <ScrollView
+      <ArkKeyboardAwareScrollView
         className="flex-1"
+        automaticallyAdjustKeyboardInsets
+        bottomOffset={90}
         contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 48 }}>
+        contentContainerStyle={{
+          padding: 16,
+          gap: 16,
+          paddingBottom: Math.max(48, insets.bottom + 28),
+        }}
+        extraKeyboardSpace={32}
+        keyboardDismissMode="on-drag"
+        keyboardShouldPersistTaps="handled">
         {/* Pack Info */}
         <View className="gap-2">
-          <Text variant="h1" className="text-3xl font-extrabold tracking-tight">
-            {pack.title}
-          </Text>
+          {!isZim ? (
+            <Text variant="h1" className="text-3xl font-extrabold tracking-tight">
+              {pack.title}
+            </Text>
+          ) : null}
           <Text variant="muted" className="text-base leading-relaxed">
             {pack.description}
           </Text>
@@ -628,6 +632,18 @@ export default function ContentDetailScreen() {
               <WebView
                 originWhitelist={['*']}
                 source={{ html: ZimService.articleHtml(zimArticle) }}
+                injectedJavaScript={ZIM_LINK_SCRIPT}
+                onMessage={(event) => {
+                  const path = resolveZimHref(zimArticle.finalPath, event.nativeEvent.data);
+                  if (path) void openZimArticle(path);
+                }}
+                onShouldStartLoadWithRequest={(request) => {
+                  if (!request.url || request.url === 'about:blank') return true;
+                  const path = resolveZimHref(zimArticle.finalPath, request.url);
+                  if (!path) return true;
+                  void openZimArticle(path);
+                  return false;
+                }}
                 style={{ flex: 1 }}
               />
             )}
@@ -635,7 +651,67 @@ export default function ContentDetailScreen() {
             <View style={{ height: Math.max(8, insets.bottom) }} />
           </View>
         </Modal>
-      </ScrollView>
+      </ArkKeyboardAwareScrollView>
     </View>
   );
+}
+
+const ZIM_LINK_SCRIPT = `
+(function() {
+  if (window.__arkZimLinksInstalled) return true;
+  window.__arkZimLinksInstalled = true;
+  document.addEventListener('click', function(event) {
+    var target = event.target;
+    var link = target && target.closest ? target.closest('a[href]') : null;
+    if (!link) return;
+    var href = link.getAttribute('href') || '';
+    if (!href || href.charAt(0) === '#') return;
+    event.preventDefault();
+    window.ReactNativeWebView && window.ReactNativeWebView.postMessage(href);
+  }, true);
+  true;
+})();
+true;
+`;
+
+function resolveZimHref(currentPath: string, rawHref: string) {
+  const href = rawHref.trim();
+  if (!href || href.startsWith('#')) return null;
+  if (/^(mailto|tel|sms|data|javascript):/i.test(href)) return null;
+
+  let path = href;
+  try {
+    if (/^https?:\/\//i.test(href)) {
+      const parsed = new URL(href);
+      path = parsed.pathname;
+    }
+  } catch {
+    path = href;
+  }
+
+  path = path.split('#')[0]?.split('?')[0] ?? '';
+  try {
+    path = decodeURIComponent(path);
+  } catch {
+    // Keep the original path when a link contains partial escaping.
+  }
+  path = path.replace(/^\/+/, '');
+  if (!path) return null;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(path)) return null;
+
+  const baseParts = currentPath.split('/');
+  baseParts.pop();
+  const rawParts =
+    path.startsWith('./') || path.startsWith('../')
+      ? [...baseParts, ...path.split('/')]
+      : path.includes('/')
+        ? path.split('/')
+        : [...baseParts, path];
+  const resolved: string[] = [];
+  for (const part of rawParts) {
+    if (!part || part === '.') continue;
+    if (part === '..') resolved.pop();
+    else resolved.push(part);
+  }
+  return resolved.join('/');
 }

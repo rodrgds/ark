@@ -25,11 +25,12 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   View,
 } from 'react-native';
-import Animated, { useAnimatedKeyboard, useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function CitationItem({ citation }: { citation: AiCitation }) {
@@ -48,9 +49,9 @@ function CitationItem({ citation }: { citation: AiCitation }) {
 
   return (
     <View className="gap-1">
-      <Text variant="muted">
+      <Text variant="muted" numberOfLines={2}>
         {citation.title}
-        {location ? `, ${location}` : ''}: {citation.snippet}
+        {location ? `, ${location}` : ''}
       </Text>
       {citation.targetHref ? (
         <Button
@@ -81,16 +82,22 @@ function ModelPill({
 }) {
   const canSelect = pickerEnabled && installedModels.length > 1;
   const label = activeModel?.title ?? 'No AI model downloaded';
+  const description =
+    activeModel?.description ??
+    'Source search still works; install a chat model for offline replies.';
 
   if (!canSelect) {
     return (
-      <View className="border-border bg-card min-h-12 flex-1 flex-row items-center gap-2 rounded-md border px-3">
+      <View className="border-border bg-card min-h-16 flex-1 flex-row items-center gap-2 rounded-md border px-3 py-2">
         <Icon as={Bot} className="text-primary size-4" />
         <View className="min-w-0 flex-1">
           <Text variant="small" className="text-muted-foreground uppercase">
             AI model
           </Text>
           <Text numberOfLines={1}>{label}</Text>
+          <Text variant="small" className="text-muted-foreground" numberOfLines={1}>
+            {description}
+          </Text>
         </View>
       </View>
     );
@@ -98,17 +105,20 @@ function ModelPill({
 
   return (
     <Button
-      className="min-h-12 flex-1 justify-between px-3"
+      className="min-h-16 flex-1 justify-between px-3 py-2"
       variant="outline"
       disabled={disabled}
       onPress={onOpen}>
-      <View className="min-w-0 flex-1 flex-row items-center gap-2">
+      <View className="min-w-0 flex-1 flex-row items-center gap-2 py-1">
         <Icon as={Bot} className="text-primary size-4" />
         <View className="min-w-0 flex-1 items-start">
           <Text variant="small" className="text-muted-foreground uppercase">
             AI model
           </Text>
           <Text numberOfLines={1}>{label}</Text>
+          <Text variant="small" className="text-muted-foreground" numberOfLines={1}>
+            {description}
+          </Text>
         </View>
       </View>
       <Icon as={ChevronDown} className="size-4" />
@@ -199,10 +209,6 @@ export default function ChatScreen() {
   const [streamingText, setStreamingText] = React.useState('');
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
-  const keyboard = useAnimatedKeyboard();
-  const composerStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: -Math.max(0, keyboard.height.value - insets.bottom + 14) }],
-  }));
 
   async function load() {
     setLoading(true);
@@ -277,7 +283,10 @@ export default function ChatScreen() {
   const data = React.useMemo(() => [...messages].reverse(), [messages]);
 
   return (
-    <View className="bg-background flex-1">
+    <KeyboardAvoidingView
+      className="bg-background flex-1"
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={0}>
       <View className="border-border bg-background flex-row items-center gap-2 border-b px-4 py-3">
         <ModelPill
           installedModels={installedModels}
@@ -312,7 +321,7 @@ export default function ChatScreen() {
           data={data}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => <MessageBubble message={item} />}
-          contentContainerStyle={{ gap: 12, padding: 16 }}
+          contentContainerStyle={{ gap: 12, padding: 16, paddingBottom: 24 }}
           keyboardShouldPersistTaps="handled"
         />
       )}
@@ -338,9 +347,9 @@ export default function ChatScreen() {
         </View>
       ) : null}
 
-      <Animated.View
+      <View
         className="border-border bg-card gap-2 border-t p-3"
-        style={composerStyle}>
+        style={{ paddingBottom: Math.max(12, insets.bottom) }}>
         <Text className="text-destructive text-xs">{SAFETY_COPY.ai}</Text>
         <View className="flex-row items-end gap-2">
           <Input
@@ -354,7 +363,7 @@ export default function ChatScreen() {
             {sending ? <ActivityIndicator /> : <Icon as={Send} className="size-5" />}
           </Button>
         </View>
-      </Animated.View>
+      </View>
 
       <Modal
         visible={modelMenuOpen}
@@ -369,15 +378,27 @@ export default function ChatScreen() {
             {installedModels.map((model) => (
               <Button
                 key={model.id}
-                className="justify-start"
+                className="h-auto min-h-14 justify-start py-3"
                 variant={activeModel?.id === model.id ? 'default' : 'outline'}
                 onPress={() => void selectModel(model)}>
-                <Text numberOfLines={1}>{model.title}</Text>
+                <View className="min-w-0 flex-1 items-start gap-1">
+                  <Text numberOfLines={1}>{model.title}</Text>
+                  <Text
+                    variant="small"
+                    className={
+                      activeModel?.id === model.id
+                        ? 'text-primary-foreground/80'
+                        : 'text-muted-foreground'
+                    }
+                    numberOfLines={2}>
+                    {model.description}
+                  </Text>
+                </View>
               </Button>
             ))}
           </Pressable>
         </Pressable>
       </Modal>
-    </View>
+    </KeyboardAvoidingView>
   );
 }

@@ -821,7 +821,8 @@ function weatherForecastText(rawJson: string) {
     if (forecast && typeof forecast === 'object') {
       const parts = Object.entries(forecast as Record<string, unknown>).map(([key, value]) => {
         if (Array.isArray(value)) return `${key}: ${JSON.stringify(value.slice(0, 8))}.`;
-        if (value && typeof value === 'object') return `${key}: ${JSON.stringify(value).slice(0, 600)}.`;
+        if (value && typeof value === 'object')
+          return `${key}: ${JSON.stringify(value).slice(0, 600)}.`;
         return `${key}: ${String(value)}.`;
       });
       return parts.join('\n').slice(0, 4000);
@@ -875,20 +876,27 @@ function citationForRow(row: {
   source_ref: string;
   kind: string;
   chunk_index: number;
+  text: string;
 }) {
   const section =
     row.kind === 'guide' || row.kind === 'zim'
       ? GuideService.getSections(row.source_ref)[row.chunk_index]
       : null;
+  const page = parsePageNumber(row.text) ?? section?.page;
   const contentTarget =
-    row.source_id.startsWith('content:') && row.source_ref
-      ? `/content/${encodeURIComponent(row.source_ref)}${
-          section?.title ? `?section=${encodeURIComponent(section.title)}` : ''
-        }`
-      : undefined;
+    row.source_id.startsWith('content:') && row.source_ref && row.kind === 'guide'
+      ? `/content/reader?packId=${encodeURIComponent(row.source_ref)}${
+          section?.title ? `&section=${encodeURIComponent(section.title)}` : ''
+        }${page ? `&page=${page}` : ''}`
+      : row.source_id.startsWith('content:') && row.source_ref
+        ? `/content/${encodeURIComponent(row.source_ref)}`
+        : undefined;
+  const documentPage = row.source_id.startsWith('document:') ? page : null;
   const documentTarget =
     row.source_id.startsWith('document:') && row.source_ref
-      ? `/documents/${encodeURIComponent(row.source_ref)}`
+      ? `/documents/${encodeURIComponent(row.source_ref)}${
+          documentPage ? `?page=${documentPage}` : ''
+        }`
       : undefined;
   const zimArticlePath = row.source_id.startsWith('zim:')
     ? row.source_id.split(':').slice(2).join(':')
@@ -897,7 +905,9 @@ function citationForRow(row: {
     zimArticlePath && row.source_ref
       ? `/content/${encodeURIComponent(row.source_ref)}?article=${encodeURIComponent(zimArticlePath)}`
       : undefined;
-  const rssTarget = row.source_id.startsWith('rss:') ? '/tools/news' : undefined;
+  const rssTarget = row.source_id.startsWith('rss:')
+    ? `/tools/news/${encodeURIComponent(row.source_ref)}`
+    : undefined;
   const mapTarget =
     row.source_id.startsWith('map-marker:') ||
     row.source_id.startsWith('map-route:') ||
@@ -911,9 +921,22 @@ function citationForRow(row: {
     title: row.source_title,
     sourceRef: row.source_ref,
     sectionTitle: section?.title,
-    page: section?.page,
-    targetHref: contentTarget ?? documentTarget ?? zimArticleTarget ?? rssTarget ?? mapTarget ?? weatherTarget,
+    page,
+    targetHref:
+      contentTarget ??
+      documentTarget ??
+      zimArticleTarget ??
+      rssTarget ??
+      mapTarget ??
+      weatherTarget,
   };
+}
+
+function parsePageNumber(text: string) {
+  const match = text.match(/\b(?:Page|Reader page target):\s*(\d{1,5})\b/i);
+  if (!match) return null;
+  const page = Number(match[1]);
+  return Number.isFinite(page) && page > 0 ? page : null;
 }
 
 function snippetForRow(row: {

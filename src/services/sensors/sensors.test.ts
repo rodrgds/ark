@@ -14,13 +14,13 @@ mock.module('expo-sensors', () => ({
 }));
 
 describe('sensor calculations', () => {
-  test('compass heading has no fixed 90 degree offset', async () => {
+  test('compass heading keeps west/east oriented to the device top edge', async () => {
     const { calculateCompassReading } = await import('@/services/sensors/compass.service');
 
     expect(Math.round(calculateCompassReading({ x: 0, y: 1, z: 0 }).heading)).toBe(0);
-    expect(Math.round(calculateCompassReading({ x: 1, y: 0, z: 0 }).heading)).toBe(90);
+    expect(Math.round(calculateCompassReading({ x: -1, y: 0, z: 0 }).heading)).toBe(90);
     expect(Math.round(calculateCompassReading({ x: 0, y: -1, z: 0 }).heading)).toBe(180);
-    expect(Math.round(calculateCompassReading({ x: -1, y: 0, z: 0 }).heading)).toBe(270);
+    expect(Math.round(calculateCompassReading({ x: 1, y: 0, z: 0 }).heading)).toBe(270);
     expect(calculateCompassReading({ x: 3, y: 4, z: 12 }).fieldStrength).toBe(13);
   });
 

@@ -61,7 +61,22 @@ export default function WeatherTool() {
   const palette = NAV_COLORS[theme];
 
   React.useEffect(() => {
-    WeatherCacheService.getLatest().then(setWeather);
+    let active = true;
+    void WeatherCacheService.getLatestOrRefresh().then((next) => {
+      if (active) setWeather(next);
+    });
+    const interval = setInterval(
+      () => {
+        void WeatherCacheService.refreshIfStale().then((result) => {
+          if (active && result.forecast) setWeather(result.forecast);
+        });
+      },
+      30 * 60 * 1000
+    );
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
   }, []);
 
   async function refresh() {

@@ -437,7 +437,8 @@ describe('service integration', () => {
           citation.sectionTitle === 'Bleeding and shock' &&
           citation.page === 9 &&
           citation.snippet === 'Direct pressure, danger signs, and shock response.' &&
-          citation.targetHref === '/content/hesperian-first-aid?section=Bleeding%20and%20shock'
+          citation.targetHref ===
+            '/content/reader?packId=hesperian-first-aid&section=Bleeding%20and%20shock&page=9'
       )
     ).toBe(true);
 
@@ -767,7 +768,7 @@ describe('service integration', () => {
     const citations = await RagService.search('rotate water supply', { limit: 3 });
     expect(citations.some((citation) => citation.sourceRef === document?.id)).toBe(true);
     expect(citations.find((citation) => citation.sourceRef === document?.id)?.targetHref).toBe(
-      `/documents/${document?.id}`
+      `/documents/${document?.id}?page=1`
     );
   });
 
@@ -854,6 +855,9 @@ describe('service integration', () => {
     const citations = await RagService.search('north bridge water advisory', { limit: 2 });
 
     expect(citations.some((citation) => citation.sourceId === 'rss:rss-alert-water')).toBe(true);
+    expect(
+      citations.some((citation) => citation.targetHref === '/tools/news/rss-alert-water')
+    ).toBe(true);
   });
 
   test('saved maps and cached weather become Ask Arky sources', async () => {
@@ -888,9 +892,7 @@ describe('service integration', () => {
       limit: 4,
     });
 
-    expect(mapCitations.some((citation) => citation.sourceId.startsWith('map-marker:'))).toBe(
-      true
-    );
+    expect(mapCitations.some((citation) => citation.sourceId.startsWith('map-marker:'))).toBe(true);
     expect(mapCitations.some((citation) => citation.targetHref === '/(tabs)/map')).toBe(true);
     expect(weatherCitations.some((citation) => citation.sourceId === 'weather:latest')).toBe(true);
     expect(weatherCitations.some((citation) => citation.targetHref === '/tools/weather')).toBe(

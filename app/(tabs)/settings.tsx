@@ -1,39 +1,43 @@
-import { ArkBrandLockup, Arky } from '@/components/brand/ark-logo';
+import { Arky } from '@/components/brand/ark-logo';
 import { Screen } from '@/components/layout/screen';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
+import { Progress } from '@/components/ui/progress';
 import { Text } from '@/components/ui/text';
 import { getPackIcon, getPackModelRoleLabel } from '@/constants/pack-presentation';
 import { THEME_OPTIONS } from '@/constants/theme';
 import { ContentPackService } from '@/services/content/content-pack.service';
 import { ModelManagerService } from '@/services/ai/model-manager.service';
 import { SettingsRepository } from '@/services/db/repositories/settings.repo';
+import { DownloadManagerService } from '@/services/files/download-manager.service';
 import { FileSystemService } from '@/services/files/filesystem.service';
+import { OfflineMapService } from '@/services/maps/offline-map.service';
 import { PreferencesService } from '@/services/preferences/preferences.service';
+import { DiagnosticsService } from '@/services/sensors/diagnostics.service';
 import { VaultService } from '@/services/security/vault.service';
 import { useThemeStore } from '@/stores/theme-store';
 import type { ContentModelRole, ContentPack } from '@/types/content';
-import { useLocalSearchParams } from 'expo-router';
-import { Bot, Download, ExternalLink, Trash2, Upload } from 'lucide-react-native';
+import type { DownloadRow } from '@/types/downloads';
+import type { MapRegion } from '@/types/maps';
+import type { DiagnosticReport } from '@/types/sensors';
+import { router, useLocalSearchParams } from 'expo-router';
+import { Bot, Download, HardDrive, Map, Smartphone, Trash2, Upload } from 'lucide-react-native';
 import * as React from 'react';
-import { ActivityIndicator, Alert, Linking, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, View } from 'react-native';
 
-type SettingsTab = 'appearance' | 'security' | 'ai' | 'storage';
-
-const GEMMA_DOCS_URL = 'https://deepmind.google/models/gemma/gemma-4/';
-const GEMMA_GGUF_URL = 'https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF';
+type SettingsTab = 'appearance' | 'security' | 'ai' | 'internals';
 
 const SETTINGS_TABS: Array<{ value: SettingsTab; label: string }> = [
   { value: 'appearance', label: 'Appearance' },
   { value: 'security', label: 'Security' },
   { value: 'ai', label: 'AI' },
-  { value: 'storage', label: 'Storage' },
+  { value: 'internals', label: 'Internals' },
 ];
 
 export default function SettingsScreen() {
-  const { tab } = useLocalSearchParams<{ tab?: SettingsTab }>();
+  const { tab } = useLocalSearchParams<{ tab?: SettingsTab | 'storage' }>();
   const preference = useThemeStore((state) => state.preference);
   const setPreference = useThemeStore((state) => state.setPreference);
   const [activeTab, setActiveTab] = React.useState<SettingsTab>('appearance');
@@ -50,6 +54,9 @@ export default function SettingsScreen() {
   const [storage, setStorage] = React.useState<Awaited<
     ReturnType<typeof FileSystemService.getStorageSummary>
   > | null>(null);
+  const [downloads, setDownloads] = React.useState<DownloadRow[]>([]);
+  const [mapRegions, setMapRegions] = React.useState<MapRegion[]>([]);
+  const [diagnostics, setDiagnostics] = React.useState<DiagnosticReport | null>(null);
   const [modelStatus, setModelStatus] = React.useState<Awaited<
     ReturnType<typeof ModelManagerService.getStatus>
   > | null>(null);
@@ -60,6 +67,7 @@ export default function SettingsScreen() {
   const [modelUrl, setModelUrl] = React.useState('');
   const [modelChecksum, setModelChecksum] = React.useState('');
   const [customModelRole, setCustomModelRole] = React.useState<ContentModelRole>('chat');
+  const buildTapTimesRef = React.useRef<number[]>([]);
 
   const chatModels = React.useMemo(
     () => availableModels.filter((model) => model.modelRole === 'chat'),
@@ -76,6 +84,9 @@ export default function SettingsScreen() {
       biometricState,
       motionState,
       storageState,
+      downloadRows,
+      regions,
+      diagnosticReport,
       nextModelStatus,
       nextAvailableModels,
       nextInstalledModels,
@@ -86,6 +97,9 @@ export default function SettingsScreen() {
       VaultService.getBiometricsEnabled(),
       PreferencesService.getMotionEnabled(),
       FileSystemService.getStorageSummary(),
+      DownloadManagerService.listDownloads(),
+      OfflineMapService.listRegions(),
+      DiagnosticsService.getReport(),
       ModelManagerService.getStatus(),
       ModelManagerService.listAvailableModels(),
       ModelManagerService.listInstalledChatModels(),
@@ -97,6 +111,9 @@ export default function SettingsScreen() {
     setBiometricsEnabled(biometricState);
     setMotionEnabled(motionState);
     setStorage(storageState);
+    setDownloads(downloadRows);
+    setMapRegions(regions);
+    setDiagnostics(diagnosticReport);
     setModelStatus(nextModelStatus);
     setAvailableModels(nextAvailableModels);
     setInstalledModels(nextInstalledModels);
@@ -109,10 +126,22 @@ export default function SettingsScreen() {
   }, []);
 
   React.useEffect(() => {
-    if (tab && SETTINGS_TABS.some((item) => item.value === tab)) {
-      setActiveTab(tab);
+    const requestedTab = tab === 'storage' ? 'internals' : tab;
+    if (requestedTab && SETTINGS_TABS.some((item) => item.value === requestedTab)) {
+      setActiveTab(requestedTab);
     }
   }, [tab]);
+
+  React.useEffect(() => {
+    const hasActiveModelDownload = availableModels.some((model) =>
+      ['queued', 'downloading', 'verifying'].includes(model.installStatus)
+    );
+    if (!hasActiveModelDownload && activeTab !== 'internals') return;
+    const interval = setInterval(() => {
+      void load();
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [activeTab, availableModels]);
 
   async function setLockMinutes(minutes: number) {
     await SettingsRepository.updateVaultState({ autoLockMinutes: minutes });
@@ -252,6 +281,17 @@ export default function SettingsScreen() {
       );
     } finally {
       setBusy(null);
+    }
+  }
+
+  function handleBuildTap() {
+    const now = Date.now();
+    const recent = buildTapTimesRef.current.filter((time) => now - time < 1800);
+    recent.push(now);
+    buildTapTimesRef.current = recent;
+    if (recent.length >= 5) {
+      buildTapTimesRef.current = [];
+      router.push('/easter-egg' as never);
     }
   }
 
@@ -423,33 +463,6 @@ export default function SettingsScreen() {
                 <Text variant="muted">Current chat model: {activeModel.title}</Text>
               ) : null}
             </View>
-            <View className="border-border bg-muted/30 gap-3 rounded-md border px-3 py-3">
-              <View className="gap-1">
-                <Text variant="large">Gemma recommendations</Text>
-                <Text variant="muted">
-                  Use Gemma 4 E2B Q4_K_M on newer devices with several GB free. Keep Gemma 3 1B for
-                  lower-memory phones or quick fallback testing.
-                </Text>
-              </View>
-              <View className="flex-row flex-wrap gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="flex-1"
-                  onPress={() => void Linking.openURL(GEMMA_DOCS_URL)}>
-                  <Icon as={ExternalLink} className="size-4" />
-                  <Text>Gemma 4 guide</Text>
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="flex-1"
-                  onPress={() => void Linking.openURL(GEMMA_GGUF_URL)}>
-                  <Icon as={ExternalLink} className="size-4" />
-                  <Text>GGUF variants</Text>
-                </Button>
-              </View>
-            </View>
           </Card>
 
           <Card className="gap-3">
@@ -557,17 +570,22 @@ export default function SettingsScreen() {
         </>
       ) : null}
 
-      {activeTab === 'storage' ? (
+      {activeTab === 'internals' ? (
         <>
           <Card className="gap-3">
-            <View className="gap-1">
-              <Text variant="muted">Offline storage</Text>
-              <Text variant="h3">{storage?.label ?? 'Calculating...'}</Text>
-              {storage?.freeBytes != null ? (
-                <Text variant="muted">
-                  {FileSystemService.formatBytes(storage.freeBytes)} free on this device
-                </Text>
-              ) : null}
+            <View className="flex-row items-center gap-3">
+              <View className="bg-primary/12 size-11 items-center justify-center rounded-xl">
+                <Icon as={HardDrive} className="text-primary size-5" />
+              </View>
+              <View className="min-w-0 flex-1 gap-1">
+                <Text variant="muted">Offline storage</Text>
+                <Text variant="h3">{storage?.label ?? 'Calculating...'}</Text>
+                {storage?.freeBytes != null ? (
+                  <Text variant="muted">
+                    {FileSystemService.formatBytes(storage.freeBytes)} free on this device
+                  </Text>
+                ) : null}
+              </View>
             </View>
             {storage ? (
               <View className="border-border overflow-hidden rounded-md border">
@@ -583,13 +601,139 @@ export default function SettingsScreen() {
             ) : null}
           </Card>
 
-          <Card className="gap-2">
-            <ArkBrandLockup compact />
-            <Text variant="muted">Version 1.0.0 MVP</Text>
-          </Card>
+          <DownloadsCard downloads={downloads} mapRegions={mapRegions} />
+
+          <DiagnosticsCard report={diagnostics} />
+
+          <Pressable onPress={handleBuildTap}>
+            <Card className="gap-2">
+              <Text variant="large">Build</Text>
+              <Text variant="muted">Version 1.0.0 MVP</Text>
+              <Text variant="small" className="text-muted-foreground">
+                Tap build number five times for test utilities.
+              </Text>
+            </Card>
+          </Pressable>
         </>
       ) : null}
     </Screen>
+  );
+}
+
+function DownloadsCard({
+  downloads,
+  mapRegions,
+}: {
+  downloads: DownloadRow[];
+  mapRegions: MapRegion[];
+}) {
+  const activeRows = downloads.filter((download) => download.status !== 'canceled');
+  return (
+    <Card className="gap-3">
+      <View className="flex-row items-center gap-2">
+        <Icon as={Download} className="text-primary size-5" />
+        <Text variant="large">Downloads</Text>
+      </View>
+      {activeRows.length || mapRegions.length ? (
+        <View className="gap-3">
+          {activeRows.map((download) => (
+            <DownloadRowView key={download.id} download={download} />
+          ))}
+          {mapRegions.map((region) => (
+            <MapRegionRow key={region.id} region={region} />
+          ))}
+        </View>
+      ) : (
+        <Text variant="muted">No downloads have been queued yet.</Text>
+      )}
+    </Card>
+  );
+}
+
+function DownloadRowView({ download }: { download: DownloadRow }) {
+  return (
+    <View className="bg-muted/30 gap-2 rounded-lg px-3 py-3">
+      <View className="flex-row items-start justify-between gap-3">
+        <View className="min-w-0 flex-1">
+          <Text numberOfLines={1}>{download.title}</Text>
+          <Text variant="small" className="text-muted-foreground capitalize">
+            {download.kind} · {download.status.replace('_', ' ')}
+          </Text>
+        </View>
+        <Text variant="small" className="text-muted-foreground">
+          {Math.round((download.progress ?? 0) * 100)}%
+        </Text>
+      </View>
+      <Progress value={download.progress ?? 0} />
+      {download.totalBytes || download.downloadedBytes ? (
+        <Text variant="small" className="text-muted-foreground">
+          {download.downloadedBytes
+            ? FileSystemService.formatBytes(download.downloadedBytes)
+            : '0 B'}
+          {download.totalBytes ? ` of ${FileSystemService.formatBytes(download.totalBytes)}` : ''}
+        </Text>
+      ) : null}
+      {download.error ? <Text className="text-destructive text-sm">{download.error}</Text> : null}
+    </View>
+  );
+}
+
+function MapRegionRow({ region }: { region: MapRegion }) {
+  return (
+    <View className="bg-muted/30 gap-2 rounded-lg px-3 py-3">
+      <View className="flex-row items-start justify-between gap-3">
+        <View className="min-w-0 flex-1">
+          <Text numberOfLines={1}>{region.name}</Text>
+          <Text variant="small" className="text-muted-foreground">
+            Map · {region.status.replace('_', ' ')}
+          </Text>
+        </View>
+        <Icon as={Map} className="text-muted-foreground size-4" />
+      </View>
+      <Progress value={region.progress ?? 0} />
+      {region.sizeBytes ? (
+        <Text variant="small" className="text-muted-foreground">
+          {FileSystemService.formatBytes(region.sizeBytes)}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+function DiagnosticsCard({ report }: { report: DiagnosticReport | null }) {
+  if (!report) {
+    return (
+      <Card>
+        <Text variant="muted">Loading diagnostics...</Text>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="gap-3">
+      <View className="flex-row items-center gap-2">
+        <Icon as={Smartphone} className="text-primary size-5" />
+        <Text variant="large">Diagnostics</Text>
+      </View>
+      <View className="gap-1">
+        <Text>Network: {report.network}</Text>
+        <Text>Search index: {report.ftsAvailable ? 'available' : 'not available'}</Text>
+        <Text>Vault protection: {report.sqlCipherActive ? 'active' : 'limited'}</Text>
+        <Text>AI engine: {report.aiAdapter}</Text>
+        <Text variant="muted">{report.aiStatusMessage}</Text>
+        <Text variant="muted">{report.databaseEncryption.migrationStatus}</Text>
+      </View>
+      <View className="border-border overflow-hidden rounded-md border">
+        {Object.entries(report.sensors).map(([name, available]) => (
+          <View
+            key={name}
+            className="border-border flex-row justify-between border-b px-3 py-2 last:border-b-0">
+            <Text className="capitalize">{name}</Text>
+            <Text variant="muted">{available ? 'available' : 'not available'}</Text>
+          </View>
+        ))}
+      </View>
+    </Card>
   );
 }
 
@@ -648,6 +792,16 @@ function ModelSection({
                       {model.sourceLabel}
                     </Text>
                   ) : null}
+                  {isModelDownloadVisible(model) ? (
+                    <View className="gap-1 pt-1">
+                      <Progress value={model.progress ?? 0} />
+                      <Text variant="small" className="text-muted-foreground">
+                        {model.installStatus === 'verifying'
+                          ? 'Verifying download'
+                          : `${Math.round((model.progress ?? 0) * 100)}% downloaded`}
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
               </View>
               <View className="flex-row gap-2">
@@ -682,11 +836,16 @@ function ModelSection({
 }
 
 function primaryLabel(model: ContentPack, isActive: boolean) {
-  if (model.installStatus === 'downloading' || model.installStatus === 'queued')
-    return 'Cancel download';
+  if (model.installStatus === 'downloading' || model.installStatus === 'queued') {
+    return `Cancel ${Math.round((model.progress ?? 0) * 100)}%`;
+  }
   if (model.installStatus === 'verifying') return 'Verifying';
   if (model.installStatus === 'paused') return 'Resume';
   if (model.installed && model.modelRole === 'chat') return isActive ? 'In use' : 'Use for chat';
   if (model.installed) return 'Installed';
   return 'Download';
+}
+
+function isModelDownloadVisible(model: ContentPack) {
+  return ['queued', 'downloading', 'verifying', 'paused'].includes(model.installStatus);
 }

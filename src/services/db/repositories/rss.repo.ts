@@ -125,9 +125,23 @@ export class RssRepository {
     );
   }
 
+  static async getItem(id: string) {
+    const db = await DatabaseClient.getDb();
+    return db.getFirstAsync<RssItemRow>(
+      `SELECT rss_items.*, rss_feeds.title AS feed_title
+       FROM rss_items
+       JOIN rss_feeds ON rss_feeds.id = rss_items.feed_id
+       WHERE rss_items.id = ?`,
+      [id]
+    );
+  }
+
   static async markItemRead(id: string, read: boolean) {
     const db = await DatabaseClient.getDb();
-    await db.runAsync('UPDATE rss_items SET read_at = ? WHERE id = ?', [read ? Date.now() : null, id]);
+    await db.runAsync('UPDATE rss_items SET read_at = ? WHERE id = ?', [
+      read ? Date.now() : null,
+      id,
+    ]);
   }
 
   static async markAllRead() {

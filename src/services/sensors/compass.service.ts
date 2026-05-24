@@ -8,8 +8,12 @@ export type CompassReading = {
   fieldStrength: number;
 };
 
-export function calculateCompassReading(input: { x: number; y: number; z: number }): CompassReading {
-  const heading = Math.atan2(input.x, input.y) * (180 / Math.PI);
+export function calculateCompassReading(input: {
+  x: number;
+  y: number;
+  z: number;
+}): CompassReading {
+  const heading = Math.atan2(-input.x, input.y) * (180 / Math.PI);
   return {
     heading: (heading + 360) % 360,
     x: input.x,
@@ -30,7 +34,9 @@ export class CompassService {
 
   static startReading(listener: (reading: CompassReading) => void) {
     Magnetometer.setUpdateInterval(100);
-    const subscription = Magnetometer.addListener((reading) => listener(calculateCompassReading(reading)));
+    const subscription = Magnetometer.addListener((reading) =>
+      listener(calculateCompassReading(reading))
+    );
     return () => subscription.remove();
   }
 

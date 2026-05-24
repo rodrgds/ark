@@ -81,6 +81,14 @@ export class DocumentPagesRepository {
     return this.listForDocument(documentId);
   }
 
+  static async updateDocumentTitle(documentId: string, title: string) {
+    const db = await DatabaseClient.getDb();
+    await db.runAsync('UPDATE document_pages_fts SET title = ? WHERE document_id = ?', [
+      title,
+      documentId,
+    ]);
+  }
+
   static async deleteForDocument(documentId: string) {
     const db = await DatabaseClient.getDb();
     await db.withTransactionAsync(async () => {

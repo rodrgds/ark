@@ -25,9 +25,11 @@ export default function PacksScreen() {
   const [selected, setSelected] = React.useState(() => new Set(RECOMMENDED_PACK_IDS));
 
   async function saveSelection() {
-    for (const pack of STARTER_PACKS.filter((item) => selected.has(item.id))) {
-      await ContentPackService.installPack(pack.id);
-    }
+    await Promise.allSettled(
+      STARTER_PACKS.filter((item) => selected.has(item.id)).map((pack) =>
+        ContentPackService.installPack(pack.id)
+      )
+    );
     await SettingsRepository.updateOnboardingState({ hasSelectedPacks: true });
   }
 
@@ -112,7 +114,7 @@ function PackCard({
   const modelRoleLabel = getPackModelRoleLabel(pack);
 
   return (
-    <Pressable onPress={onToggle}>
+    <Pressable onPress={onToggle} hitSlop={8}>
       <Card
         className={`flex-row items-center gap-3 p-3 ${isSelected ? 'border-primary/50 bg-primary/5' : 'border-border'}`}>
         <View

@@ -12,6 +12,7 @@ const titles: Record<string, string> = {
   coordinates: 'Coordinates',
   weather: 'Meteorology',
   news: 'News',
+  'news/[id]': 'News',
   checklist: 'Checklist',
   diagnostics: 'Diagnostics',
 };

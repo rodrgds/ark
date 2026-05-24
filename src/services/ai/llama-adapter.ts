@@ -130,6 +130,7 @@ async function getInstalledModelUri() {
 }
 
 async function getInstalledModel() {
+  if (await PreferencesService.getAiChatModelDisabled()) return null;
   const models = (await ContentPackService.listPacks()).filter(
     (pack) =>
       pack.category === 'AI Models' &&

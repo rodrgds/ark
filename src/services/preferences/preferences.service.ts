@@ -4,6 +4,7 @@ const MOTION_ENABLED_KEY = 'motion.enabled';
 const CHECKLIST_STATE_KEY = 'tools.readiness-checklist';
 const AI_MODEL_PICKER_ENABLED_KEY = 'ai.modelPickerEnabled';
 const AI_SELECTED_MODEL_ID_KEY = 'ai.selectedModelId';
+const AI_CHAT_MODEL_DISABLED_KEY = 'ai.chatModelDisabled';
 
 export type ReadinessChecklistState = Record<string, boolean>;
 
@@ -33,6 +34,15 @@ export class PreferencesService {
 
   static async setSelectedAiModelId(modelId: string | null) {
     await SettingsRepository.set(AI_SELECTED_MODEL_ID_KEY, modelId ?? '');
+  }
+
+  static async getAiChatModelDisabled() {
+    const value = await SettingsRepository.get(AI_CHAT_MODEL_DISABLED_KEY);
+    return value === 'true';
+  }
+
+  static async setAiChatModelDisabled(disabled: boolean) {
+    await SettingsRepository.set(AI_CHAT_MODEL_DISABLED_KEY, disabled ? 'true' : 'false');
   }
 
   static async getReadinessChecklist(): Promise<ReadinessChecklistState> {

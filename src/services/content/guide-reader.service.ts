@@ -9,6 +9,7 @@ export type ReaderContent = {
   format: 'pdf' | 'html' | 'text';
   title: string;
   sectionTitle?: string;
+  sectionTargets?: string[];
   page?: number;
   allowReadAccessToURL?: string;
 };
@@ -132,6 +133,7 @@ export class GuideReaderService {
         format: 'pdf',
         title: pack.title,
         sectionTitle: section?.title,
+        sectionTargets: sectionTargets(section),
         page: section?.page,
       };
     }
@@ -144,6 +146,7 @@ export class GuideReaderService {
           format: 'html',
           title: pack.title,
           sectionTitle: section?.title,
+          sectionTargets: sectionTargets(section),
         };
       }
 
@@ -169,6 +172,7 @@ export class GuideReaderService {
         format: 'html',
         title: pack.title,
         sectionTitle: section?.title,
+        sectionTargets: sectionTargets(section),
       };
     }
 
@@ -203,4 +207,8 @@ export class GuideReaderService {
 function parentDirectory(uri: string) {
   const separatorIndex = uri.lastIndexOf('/');
   return separatorIndex === -1 ? uri : uri.slice(0, separatorIndex + 1);
+}
+
+function sectionTargets(section?: GuideSection | null) {
+  return section?.htmlTargets ?? [];
 }

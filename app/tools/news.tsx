@@ -13,6 +13,15 @@ import { ActivityIndicator, Alert, RefreshControl, View } from 'react-native';
 
 type NewsFilter = 'unread' | 'all';
 
+function UnreadBadge({ count }: { count: number }) {
+  if (!count) return null;
+  return (
+    <View className="bg-destructive min-w-6 items-center rounded-full px-2 py-0.5">
+      <Text className="text-xs font-bold text-white">{count > 99 ? '99+' : count}</Text>
+    </View>
+  );
+}
+
 export default function NewsScreen() {
   const [overview, setOverview] = React.useState<Awaited<
     ReturnType<typeof RssService.getOverview>
@@ -106,8 +115,13 @@ export default function NewsScreen() {
 
       <Card className="gap-3">
         <View className="flex-row items-center gap-3">
-          <View className="bg-primary/15 size-11 items-center justify-center rounded-md">
+          <View className="bg-primary/15 relative size-11 items-center justify-center rounded-md">
             <Icon as={Newspaper} className="text-primary size-6" />
+            {overview?.unreadCount ? (
+              <View className="absolute -top-2 -right-2">
+                <UnreadBadge count={overview.unreadCount} />
+              </View>
+            ) : null}
           </View>
           <View className="min-w-0 flex-1">
             <Text variant="large">{overview?.unreadCount ?? 0} unread</Text>
@@ -175,46 +189,54 @@ export default function NewsScreen() {
           </Button>
         </View>
         <View className="gap-2">
-          {overview?.feeds.map((feed) => (
-            <View
-              key={feed.id}
-              className="border-border flex-row items-center gap-3 border-t pt-3 first:border-t-0 first:pt-0">
-              <View className="min-w-0 flex-1 gap-1">
-                <Text>{feed.title}</Text>
-                <Text variant="small" className="text-muted-foreground" numberOfLines={1}>
-                  {feed.url}
-                </Text>
+          {overview?.feeds.map((feed) => {
+            const unreadCount = overview.unreadByFeed[feed.id] ?? 0;
+            return (
+              <View
+                key={feed.id}
+                className="border-border flex-row items-center gap-3 border-t pt-3 first:border-t-0 first:pt-0">
+                <View className="min-w-0 flex-1 gap-1">
+                  <View className="flex-row items-center gap-2">
+                    <Text className="min-w-0 flex-1" numberOfLines={1}>
+                      {feed.title}
+                    </Text>
+                    <UnreadBadge count={unreadCount} />
+                  </View>
+                  <Text variant="small" className="text-muted-foreground" numberOfLines={1}>
+                    {feed.url}
+                  </Text>
+                </View>
+                <Button
+                  size="sm"
+                  variant={feed.enabled ? 'default' : 'outline'}
+                  onPress={async () => {
+                    await RssService.setFeedEnabled(feed.id, !Boolean(feed.enabled));
+                    await load();
+                  }}>
+                  <Text>{feed.enabled ? 'On' : 'Off'}</Text>
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onPress={() => {
+                    Alert.alert('Remove feed?', feed.title, [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Remove',
+                        style: 'destructive',
+                        onPress: () =>
+                          void (async () => {
+                            await RssService.removeFeed(feed.id);
+                            await load();
+                          })(),
+                      },
+                    ]);
+                  }}>
+                  <Icon as={Trash2} className="size-4" />
+                </Button>
               </View>
-              <Button
-                size="sm"
-                variant={feed.enabled ? 'default' : 'outline'}
-                onPress={async () => {
-                  await RssService.setFeedEnabled(feed.id, !Boolean(feed.enabled));
-                  await load();
-                }}>
-                <Text>{feed.enabled ? 'On' : 'Off'}</Text>
-              </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                onPress={() => {
-                  Alert.alert('Remove feed?', feed.title, [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Remove',
-                      style: 'destructive',
-                      onPress: () =>
-                        void (async () => {
-                          await RssService.removeFeed(feed.id);
-                          await load();
-                        })(),
-                    },
-                  ]);
-                }}>
-                <Icon as={Trash2} className="size-4" />
-              </Button>
-            </View>
-          ))}
+            );
+          })}
         </View>
       </Card>
 

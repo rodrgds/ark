@@ -35,17 +35,19 @@ export class ModelManagerService {
   }
 
   static async getActiveModel() {
+    if (await PreferencesService.getAiChatModelDisabled()) return null;
     const installed = await this.listInstalledChatModels();
     const selectedId = await PreferencesService.getSelectedAiModelId();
     return installed.find((model) => model.id === selectedId) ?? installed[0] ?? null;
   }
 
   static async getPreferences() {
-    const [modelPickerEnabled, selectedModelId] = await Promise.all([
+    const [modelPickerEnabled, selectedModelId, chatModelDisabled] = await Promise.all([
       PreferencesService.getAiModelPickerEnabled(),
       PreferencesService.getSelectedAiModelId(),
+      PreferencesService.getAiChatModelDisabled(),
     ]);
-    return { modelPickerEnabled, selectedModelId };
+    return { modelPickerEnabled, selectedModelId, chatModelDisabled };
   }
 
   static async setModelPickerEnabled(enabled: boolean) {
@@ -57,7 +59,16 @@ export class ModelManagerService {
       const model = (await this.listAvailableChatModels()).find((item) => item.id === modelId);
       if (!model) throw new Error('Choose a chat model. Search models cannot be used for chat.');
     }
+    await PreferencesService.setAiChatModelDisabled(!modelId);
     await PreferencesService.setSelectedAiModelId(modelId);
+    resetLlamaRuntimeContext();
+  }
+
+  static async setChatModelDisabled(disabled: boolean) {
+    await PreferencesService.setAiChatModelDisabled(disabled);
+    if (disabled) {
+      await PreferencesService.setSelectedAiModelId(null);
+    }
     resetLlamaRuntimeContext();
   }
 
@@ -83,11 +94,13 @@ export class ModelManagerService {
       availableEmbeddingModels: embeddingModels.length,
       selectedModelId: preferences.selectedModelId,
       modelPickerEnabled: preferences.modelPickerEnabled,
+      chatModelDisabled: preferences.chatModelDisabled,
       activeModelTitle: runtime.modelTitle,
       contextTokens: runtime.contextTokens,
       maxResponseTokens: runtime.maxResponseTokens,
-      message:
-        adapter === 'llama'
+      message: preferences.chatModelDisabled
+        ? 'Chat model is disabled. Ask Arky will use local source search only.'
+        : adapter === 'llama'
           ? `${runtime.modelTitle ?? 'Local model'} is ready for offline chat. Ark limits each answer to ${runtime.maxResponseTokens} tokens to protect phone memory.`
           : installedChatModels.length
             ? 'A chat model file is downloaded. Use a build with local AI enabled to run it fully offline.'

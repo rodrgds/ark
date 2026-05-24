@@ -5,9 +5,10 @@ import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { NAV_COLORS } from '@/constants/theme';
 import { hexToRgba } from '@/lib/colors';
+import { RssService } from '@/services/rss/rss.service';
 import { useSensorStore } from '@/stores/sensor-store';
 import { useThemeStore } from '@/stores/theme-store';
-import { Link, type Href } from 'expo-router';
+import { Link, type Href, useFocusEffect } from 'expo-router';
 import {
   Battery,
   BatteryCharging,
@@ -87,16 +88,11 @@ function getBatteryModule(): BatteryModule | null {
   }
 }
 
-function estimateBatteryHours(level: number, lowPower: boolean) {
-  const fullBatteryHours = lowPower ? 24 : 16;
-  return Math.max(1, Math.round(level * fullBatteryHours));
-}
-
 function batteryLabel(snapshot: BatterySnapshot) {
-  if (!snapshot.available || snapshot.level == null) return 'Battery estimate unavailable';
+  if (!snapshot.available || snapshot.level == null) return null;
   const percent = Math.round(snapshot.level * 100);
   if (snapshot.charging) return `Charging - ${percent}%`;
-  return `About ${estimateBatteryHours(snapshot.level, snapshot.lowPower)}h battery left - ${percent}%`;
+  return snapshot.lowPower ? `${percent}% battery - Low Power Mode` : `${percent}% battery`;
 }
 
 function useBatterySnapshot() {
@@ -169,6 +165,25 @@ function useBatterySnapshot() {
 export default function ToolsScreen() {
   const { heading, pressure, pitch, roll, steps, lux } = useSensorStore();
   const battery = useBatterySnapshot();
+  const batteryStatus = batteryLabel(battery);
+  const [rssUnreadCount, setRssUnreadCount] = React.useState(0);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      let active = true;
+      const load = async () => {
+        const overview = await RssService.getOverview();
+        if (active) setRssUnreadCount(overview.unreadCount);
+      };
+      void load();
+      const interval = setInterval(() => void load(), 10_000);
+      return () => {
+        active = false;
+        clearInterval(interval);
+      };
+    }, [])
+  );
+
   const tools = [
     {
       href: '/tools/compass' as Href,
@@ -234,6 +249,7 @@ export default function ToolsScreen() {
       description: 'Emergency feeds for offline reading.',
       drain: 'low' as Drain,
       reading: 'Feeds',
+      badge: rssUnreadCount,
     },
     {
       href: TOOL_ROUTES.checklist,
@@ -250,13 +266,15 @@ export default function ToolsScreen() {
       <View className="flex-row items-center justify-between gap-3">
         <View className="flex-1 gap-2">
           <Text variant="h1">Tools</Text>
-          <View className="flex-row items-center gap-2">
-            <Icon
-              as={battery.charging ? BatteryCharging : Battery}
-              className={battery.available ? 'text-primary size-4' : 'text-muted-foreground size-4'}
-            />
-            <Text variant="muted">{batteryLabel(battery)}</Text>
-          </View>
+          {batteryStatus ? (
+            <View className="flex-row items-center gap-2">
+              <Icon
+                as={battery.charging ? BatteryCharging : Battery}
+                className="text-primary size-4"
+              />
+              <Text variant="muted">{batteryStatus}</Text>
+            </View>
+          ) : null}
         </View>
         <Arky pose="resourceful" size={80} />
       </View>
@@ -277,6 +295,7 @@ function ToolTile({
   description,
   drain,
   reading,
+  badge,
 }: {
   href: Href;
   icon: LucideIcon;
@@ -284,6 +303,7 @@ function ToolTile({
   description: string;
   drain: Drain;
   reading: string;
+  badge?: number;
 }) {
   return (
     <Link href={href} asChild>
@@ -294,7 +314,16 @@ function ToolTile({
               <View className="bg-primary/12 size-10 items-center justify-center rounded-lg">
                 <Icon as={icon} className="text-primary size-5" />
               </View>
-              <DrainBadge level={drain} />
+              <View className="items-end gap-1">
+                {badge ? (
+                  <View className="bg-destructive min-w-5 items-center rounded-full px-1.5 py-0.5">
+                    <Text className="text-[10px] font-bold text-white" numberOfLines={1}>
+                      {badge > 99 ? '99+' : badge}
+                    </Text>
+                  </View>
+                ) : null}
+                <DrainBadge level={drain} />
+              </View>
             </View>
             <View className="gap-1">
               <Text className="font-semibold" numberOfLines={1}>

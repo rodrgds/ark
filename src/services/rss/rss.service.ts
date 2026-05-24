@@ -37,19 +37,23 @@ export class RssService {
 
   static async getOverview(limit = 25) {
     await this.seedDefaultFeeds();
-    const [feeds, items] = await Promise.all([
+    const [feeds, items, unreadCount, unreadCountsByFeed] = await Promise.all([
       RssRepository.listFeeds(),
       RssRepository.listRecentItems(limit),
+      RssRepository.countUnreadItems(),
+      RssRepository.listUnreadCountsByFeed(),
     ]);
     const lastFetchedAt = feeds
       .map((feed) => feed.last_fetched_at ?? 0)
       .reduce((latest, value) => Math.max(latest, value), 0);
-    const unreadCount = items.filter((item) => !item.read_at).length;
     return {
       feeds,
       recentItems: items,
       lastFetchedAt: lastFetchedAt || null,
       unreadCount,
+      unreadByFeed: Object.fromEntries(
+        unreadCountsByFeed.map((row) => [row.feed_id, row.count])
+      ) as Record<string, number>,
     };
   }
 

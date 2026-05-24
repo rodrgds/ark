@@ -75,20 +75,87 @@ const HTML_READER_SCRIPT = `
 true;
 `;
 
-function sectionScrollScript(sectionTitle: string) {
+function sectionScrollScript(sectionTitle: string, sectionTargets: string[] = []) {
+  const targets = [sectionTitle, ...sectionTargets].filter((target) => target.trim().length > 0);
+
   return `
     (function() {
-      var targetTitle = ${JSON.stringify(sectionTitle)};
+      var rawTargets = ${JSON.stringify(targets)};
       var normalize = function(value) {
-        return String(value || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+        return String(value || '')
+          .replace(/\\u00a0/g, ' ')
+          .replace(/[\\u2018\\u2019]/g, "'")
+          .replace(/[\\u201c\\u201d]/g, '"')
+          .replace(/&/g, ' and ')
+          .replace(/\\s+/g, ' ')
+          .trim()
+          .toLowerCase();
       };
-      var wanted = normalize(targetTitle);
-      var headings = Array.prototype.slice.call(document.querySelectorAll('h1,h2,h3,h4,h5,h6,[role="heading"]'));
-      var target = headings.find(function(node) { return normalize(node.textContent).indexOf(wanted) !== -1; });
-      if (!target) {
-        var id = wanted.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-        target = document.getElementById(id) || document.getElementsByName(id)[0] || null;
+
+      var slug = function(value) {
+        return normalize(value).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+      };
+
+      var isVisible = function(node) {
+        if (!node || !node.getBoundingClientRect) return false;
+        var style = window.getComputedStyle ? window.getComputedStyle(node) : null;
+        if (style && (style.display === 'none' || style.visibility === 'hidden')) return false;
+        var rect = node.getBoundingClientRect();
+        return rect.width > 0 || rect.height > 0 || node.offsetParent !== null;
+      };
+
+      var directTarget = function(raw) {
+        var value = String(raw || '').trim().replace(/^#/, '');
+        if (!value) return null;
+        var ids = [value, slug(value)].filter(Boolean);
+        for (var i = 0; i < ids.length; i += 1) {
+          var id = ids[i];
+          var target = null;
+          if (window.CSS && CSS.escape) {
+            target = document.querySelector('#' + CSS.escape(id));
+          }
+          target = target || document.getElementById(id) || document.getElementsByName(id)[0] || null;
+          if (target) return target;
+        }
+        return null;
+      };
+
+      var textMatches = function(node, wanted) {
+        if (!isVisible(node)) return false;
+        var text = normalize(node.textContent);
+        if (!text) return false;
+        return text === wanted || text.indexOf(wanted) !== -1 || wanted.indexOf(text) !== -1;
+      };
+
+      var headingTarget = function(raw) {
+        var wanted = normalize(raw);
+        if (!wanted) return null;
+        var headings = Array.prototype.slice.call(document.querySelectorAll('h1,h2,h3,h4,h5,h6,[role="heading"]'));
+        return headings.find(function(node) { return textMatches(node, wanted); }) || null;
+      };
+
+      var bodyTarget = function(raw) {
+        var wanted = normalize(raw);
+        if (!wanted) return null;
+        var candidates = Array.prototype.slice.call(
+          document.querySelectorAll('li,p,strong,summary,figcaption,.feature_mini,.wp-block-fema-feature-mini,.checklist_fema_blocks')
+        );
+        return candidates.find(function(node) { return textMatches(node, wanted); }) || null;
+      };
+
+      var findTarget = function(raw) {
+        var value = String(raw || '').trim();
+        if (!value) return null;
+        if (value.charAt(0) === '#') return directTarget(value);
+        return directTarget(value) || headingTarget(value) || bodyTarget(value);
+      };
+
+      var target = null;
+      for (var i = 0; i < rawTargets.length; i += 1) {
+        target = findTarget(rawTargets[i]);
+        if (target) break;
       }
+
       if (target) target.scrollIntoView({ block: 'start', behavior: 'smooth' });
     })();
     true;
@@ -229,7 +296,9 @@ export default function GuideReaderScreen() {
         }
         if (newContent.format === 'html') {
           requestAnimationFrame(() => {
-            webViewRef.current?.injectJavaScript(sectionScrollScript(targetSection.title));
+            webViewRef.current?.injectJavaScript(
+              sectionScrollScript(targetSection.title, newContent.sectionTargets)
+            );
           });
         }
       })
@@ -362,7 +431,9 @@ export default function GuideReaderScreen() {
               onLoadEnd={() => {
                 setWebViewLoading(false);
                 if (content.sectionTitle) {
-                  webViewRef.current?.injectJavaScript(sectionScrollScript(content.sectionTitle));
+                  webViewRef.current?.injectJavaScript(
+                    sectionScrollScript(content.sectionTitle, content.sectionTargets)
+                  );
                 }
               }}
               onError={(syntheticEvent) => {

@@ -461,6 +461,8 @@ export default function SettingsScreen() {
               </Text>
               {activeModel ? (
                 <Text variant="muted">Current chat model: {activeModel.title}</Text>
+              ) : modelStatus?.chatModelDisabled ? (
+                <Text variant="muted">Current chat mode: source search only</Text>
               ) : null}
             </View>
           </Card>
@@ -470,7 +472,7 @@ export default function SettingsScreen() {
               <View className="min-w-0 flex-1 gap-1">
                 <Text variant="large">Chat model selector</Text>
                 <Text variant="muted">
-                  Allow Ask Arky to switch between downloaded GGUF models.
+                  Allow Ask Arky to choose a downloaded GGUF model or use source search only.
                 </Text>
               </View>
               <Button

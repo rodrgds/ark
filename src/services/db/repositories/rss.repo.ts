@@ -125,6 +125,24 @@ export class RssRepository {
     );
   }
 
+  static async countUnreadItems() {
+    const db = await DatabaseClient.getDb();
+    const row = await db.getFirstAsync<{ count: number }>(
+      'SELECT COUNT(*) AS count FROM rss_items WHERE read_at IS NULL'
+    );
+    return row?.count ?? 0;
+  }
+
+  static async listUnreadCountsByFeed() {
+    const db = await DatabaseClient.getDb();
+    return db.getAllAsync<{ feed_id: string; count: number }>(
+      `SELECT feed_id, COUNT(*) AS count
+       FROM rss_items
+       WHERE read_at IS NULL
+       GROUP BY feed_id`
+    );
+  }
+
   static async getItem(id: string) {
     const db = await DatabaseClient.getDb();
     return db.getFirstAsync<RssItemRow>(

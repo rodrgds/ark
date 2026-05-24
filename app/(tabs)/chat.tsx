@@ -5,12 +5,12 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
 import { Arky } from '@/components/brand/ark-logo';
-import { SAFETY_COPY } from '@/constants/app';
+import { ArkKeyboardAvoidingView } from '@/components/layout/keyboard-controller';
 import { AIService } from '@/services/ai/ai.service';
 import { ModelManagerService } from '@/services/ai/model-manager.service';
 import type { AiCitation, AiMessage } from '@/types/ai';
 import type { ContentPack } from '@/types/content';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import {
   Bot,
   ChevronDown,
@@ -21,16 +21,7 @@ import {
   Trash2,
 } from 'lucide-react-native';
 import * as React from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Keyboard, Modal, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function CitationItem({ citation }: { citation: AiCitation }) {
@@ -70,34 +61,32 @@ function CitationItem({ citation }: { citation: AiCitation }) {
 function ModelPill({
   installedModels,
   activeModel,
+  modelDisabled,
   pickerEnabled,
   disabled,
   onOpen,
 }: {
   installedModels: ContentPack[];
   activeModel: ContentPack | null;
+  modelDisabled: boolean;
   pickerEnabled: boolean;
   disabled: boolean;
   onOpen: () => void;
 }) {
-  const canSelect = pickerEnabled && installedModels.length > 1;
-  const label = activeModel?.title ?? 'No AI model downloaded';
-  const description =
-    activeModel?.description ??
-    'Source search still works; install a chat model for offline replies.';
+  const canSelect = pickerEnabled;
+  const label =
+    activeModel?.title ??
+    (modelDisabled || installedModels.length ? 'Source search only' : 'No model installed');
 
   if (!canSelect) {
     return (
-      <View className="border-border bg-card min-h-16 flex-1 flex-row items-center gap-2 rounded-md border px-3 py-2">
+      <View className="border-border bg-card min-h-12 flex-1 flex-row items-center gap-2 rounded-md border px-3 py-2">
         <Icon as={Bot} className="text-primary size-4" />
         <View className="min-w-0 flex-1">
           <Text variant="small" className="text-muted-foreground uppercase">
             AI model
           </Text>
           <Text numberOfLines={1}>{label}</Text>
-          <Text variant="small" className="text-muted-foreground" numberOfLines={1}>
-            {description}
-          </Text>
         </View>
       </View>
     );
@@ -105,7 +94,7 @@ function ModelPill({
 
   return (
     <Button
-      className="min-h-16 flex-1 justify-between px-3 py-2"
+      className="min-h-12 flex-1 justify-between px-3 py-2"
       variant="outline"
       disabled={disabled}
       onPress={onOpen}>
@@ -116,9 +105,6 @@ function ModelPill({
             AI model
           </Text>
           <Text numberOfLines={1}>{label}</Text>
-          <Text variant="small" className="text-muted-foreground" numberOfLines={1}>
-            {description}
-          </Text>
         </View>
       </View>
       <Icon as={ChevronDown} className="size-4" />
@@ -180,18 +166,26 @@ function MessageBubble({ message }: { message: AiMessage }) {
   );
 }
 
-function StreamingBubble({ content }: { content: string }) {
+function StreamingBubble({ content, onStop }: { content: string; onStop: () => void }) {
   return (
-    <View className="items-start px-4 pb-2">
-      <View className="flex-row items-end gap-2">
-        <Arky pose="thinking" size={44} className="mb-1" />
-        <Card className="max-w-[85%] gap-2 rounded-lg">
-          <Text variant="small" className="text-primary uppercase">
-            Arky
-          </Text>
-          <Text selectable>{content || 'Thinking through local sources...'}</Text>
-        </Card>
-      </View>
+    <View className="px-3 pb-2">
+      <Card className="gap-2 rounded-lg px-3 py-2">
+        <View className="flex-row items-center justify-between gap-3">
+          <View className="flex-row items-center gap-2">
+            <ActivityIndicator size="small" />
+            <Text variant="small" className="text-primary uppercase">
+              Arky
+            </Text>
+          </View>
+          <Button size="sm" variant="outline" onPress={onStop}>
+            <Icon as={StopCircle} className="size-4" />
+            <Text>Stop</Text>
+          </Button>
+        </View>
+        <Text selectable numberOfLines={4}>
+          {content || 'Checking local sources...'}
+        </Text>
+      </Card>
     </View>
   );
 }
@@ -204,19 +198,15 @@ export default function ChatScreen() {
   const [installedModels, setInstalledModels] = React.useState<ContentPack[]>([]);
   const [activeModel, setActiveModel] = React.useState<ContentPack | null>(null);
   const [modelPickerEnabled, setModelPickerEnabled] = React.useState(true);
+  const [modelDisabled, setModelDisabled] = React.useState(false);
   const [modelMenuOpen, setModelMenuOpen] = React.useState(false);
   const [sending, setSending] = React.useState(false);
   const [streamingText, setStreamingText] = React.useState('');
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [keyboardVisible, setKeyboardVisible] = React.useState(false);
 
-  async function load() {
-    setLoading(true);
-    const id = await AIService.getLatestThread();
-    if (id) {
-      setThreadId(id);
-      setMessages(await AIService.listMessages(id));
-    }
+  const refreshModels = React.useCallback(async () => {
     const [models, model, preferences] = await Promise.all([
       ModelManagerService.listInstalledChatModels(),
       ModelManagerService.getActiveModel(),
@@ -225,11 +215,39 @@ export default function ChatScreen() {
     setInstalledModels(models);
     setActiveModel(model);
     setModelPickerEnabled(preferences.modelPickerEnabled);
+    setModelDisabled(preferences.chatModelDisabled);
+  }, []);
+
+  async function load() {
+    setLoading(true);
+    const id = await AIService.getLatestThread();
+    if (id) {
+      setThreadId(id);
+      setMessages(await AIService.listMessages(id));
+    }
+    await refreshModels();
     setLoading(false);
   }
 
   React.useEffect(() => {
     void load();
+  }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      void refreshModels();
+      const interval = setInterval(() => void refreshModels(), 2000);
+      return () => clearInterval(interval);
+    }, [refreshModels])
+  );
+
+  React.useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
+    const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
   }, []);
 
   async function send() {
@@ -269,7 +287,23 @@ export default function ChatScreen() {
   async function selectModel(model: ContentPack) {
     await ModelManagerService.setSelectedModel(model.id);
     setActiveModel(model);
+    setModelDisabled(false);
+    await refreshModels();
     setModelMenuOpen(false);
+  }
+
+  async function disableModel() {
+    await ModelManagerService.setChatModelDisabled(true);
+    setActiveModel(null);
+    setModelDisabled(true);
+    await refreshModels();
+    setModelMenuOpen(false);
+  }
+
+  function openModelMenu() {
+    Keyboard.dismiss();
+    setKeyboardVisible(false);
+    setModelMenuOpen(true);
   }
 
   function confirmClear() {
@@ -283,17 +317,18 @@ export default function ChatScreen() {
   const data = React.useMemo(() => [...messages].reverse(), [messages]);
 
   return (
-    <KeyboardAvoidingView
+    <ArkKeyboardAvoidingView
       className="bg-background flex-1"
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior="translate-with-padding"
       keyboardVerticalOffset={0}>
       <View className="border-border bg-background flex-row items-center gap-2 border-b px-4 py-3">
         <ModelPill
           installedModels={installedModels}
           activeModel={activeModel}
+          modelDisabled={modelDisabled}
           pickerEnabled={modelPickerEnabled}
           disabled={sending}
-          onOpen={() => setModelMenuOpen(true)}
+          onOpen={openModelMenu}
         />
         <Button size="icon" variant="ghost" disabled={!threadId || sending} onPress={confirmClear}>
           <Icon as={Trash2} className="size-5" />
@@ -308,12 +343,19 @@ export default function ChatScreen() {
           <Text variant="muted">Loading local thread...</Text>
         </View>
       ) : messages.length === 0 ? (
-        <View className="flex-1 items-center justify-center gap-4 p-6">
-          <Arky pose="scholar" size={160} />
-          <Text variant="h3">Ask Arky</Text>
-          <Text variant="muted" className="text-center">
-            Ask about downloaded guides, notes, saved maps, cached alerts, or weather.
-          </Text>
+        <View
+          className={
+            keyboardVisible
+              ? 'flex-1 justify-start gap-2 p-4'
+              : 'flex-1 items-center justify-center gap-4 p-6'
+          }>
+          {keyboardVisible ? null : <Arky pose="scholar" size={132} />}
+          <Text variant={keyboardVisible ? 'large' : 'h3'}>Ask Arky</Text>
+          {!keyboardVisible ? (
+            <Text variant="muted" className="text-center">
+              Ask about downloaded guides, notes, saved maps, cached alerts, or weather.
+            </Text>
+          ) : null}
         </View>
       ) : (
         <FlatList
@@ -321,24 +363,17 @@ export default function ChatScreen() {
           data={data}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => <MessageBubble message={item} />}
-          contentContainerStyle={{ gap: 12, padding: 16, paddingBottom: 24 }}
+          contentContainerStyle={{
+            gap: 12,
+            padding: 16,
+            paddingBottom: keyboardVisible ? 8 : 24,
+          }}
           keyboardShouldPersistTaps="handled"
         />
       )}
 
-      {sending ? <StreamingBubble content={streamingText} /> : null}
-
       {sending ? (
-        <View className="border-border flex-row items-center gap-3 border-t px-4 py-2">
-          <ActivityIndicator />
-          <Text variant="muted" className="min-w-0 flex-1">
-            Arky is checking local sources...
-          </Text>
-          <Button size="sm" variant="outline" onPress={() => void stopResponse()}>
-            <Icon as={StopCircle} className="size-4" />
-            <Text>Stop</Text>
-          </Button>
-        </View>
+        <StreamingBubble content={streamingText} onStop={() => void stopResponse()} />
       ) : null}
 
       {error ? (
@@ -348,12 +383,11 @@ export default function ChatScreen() {
       ) : null}
 
       <View
-        className="border-border bg-card gap-2 border-t p-3"
-        style={{ paddingBottom: Math.max(12, insets.bottom) }}>
-        <Text className="text-destructive text-xs">{SAFETY_COPY.ai}</Text>
+        className="border-border bg-card border-t px-3 py-2"
+        style={{ paddingBottom: keyboardVisible ? 8 : Math.max(10, insets.bottom) }}>
         <View className="flex-row items-end gap-2">
           <Input
-            className="max-h-32 min-h-12 flex-1"
+            className="max-h-28 min-h-11 flex-1 py-2"
             value={content}
             onChangeText={setContent}
             placeholder="Ask Arky a question"
@@ -375,6 +409,20 @@ export default function ChatScreen() {
           onPress={() => setModelMenuOpen(false)}>
           <Pressable className="bg-card border-border gap-2 rounded-lg border p-3">
             <Text variant="large">Choose AI model</Text>
+            <Button
+              className="h-auto min-h-14 justify-start py-3"
+              variant={!activeModel ? 'default' : 'outline'}
+              onPress={() => void disableModel()}>
+              <View className="min-w-0 flex-1 items-start gap-1">
+                <Text numberOfLines={1}>Source search only</Text>
+                <Text
+                  variant="small"
+                  className={!activeModel ? 'text-primary-foreground/80' : 'text-muted-foreground'}
+                  numberOfLines={2}>
+                  Retrieve local RAG sources without loading a chat model.
+                </Text>
+              </View>
+            </Button>
             {installedModels.map((model) => (
               <Button
                 key={model.id}
@@ -396,9 +444,14 @@ export default function ChatScreen() {
                 </View>
               </Button>
             ))}
+            {!installedModels.length ? (
+              <Text variant="muted" className="px-1 py-2">
+                Download a chat model in Settings to enable offline model replies.
+              </Text>
+            ) : null}
           </Pressable>
         </Pressable>
       </Modal>
-    </KeyboardAvoidingView>
+    </ArkKeyboardAvoidingView>
   );
 }

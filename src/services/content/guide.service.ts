@@ -2,6 +2,7 @@ export type GuideSection = {
   title: string;
   detail: string;
   page?: number;
+  htmlTargets?: string[];
 };
 
 const GUIDE_SECTIONS: Record<string, GuideSection[]> = {
@@ -171,7 +172,8 @@ const GUIDE_SECTIONS: Record<string, GuideSection[]> = {
     },
     {
       title: 'Preparing for a Power Outage',
-      detail: 'Inventory electric-dependent items and prepare batteries, chargers, and flashlights.',
+      detail:
+        'Inventory electric-dependent items and prepare batteries, chargers, and flashlights.',
     },
     {
       title: 'Generator Safety',
@@ -224,19 +226,36 @@ const GUIDE_SECTIONS: Record<string, GuideSection[]> = {
   'disaster-wildfires': [
     {
       title: 'Evacuation Timing',
-      detail: 'Leave early when advised. Delaying puts you and responders at risk.',
+      detail: 'Know your routes early and evacuate immediately when authorities tell you to.',
+      htmlTargets: [
+        'You may have to evacuate quickly due to a wildfire',
+        'Evacuate immediately if authorities tell you to do so',
+        '#during',
+      ],
     },
     {
       title: 'Air Quality',
-      detail: 'Stay indoors with windows closed. Use N95 masks and avoid strenuous activity.',
+      detail: 'Close off smoky air, use filtration when possible, and use an N95 if available.',
+      htmlTargets: [
+        'Designate a room that can be closed off from outside air',
+        'Use an N95 mask to protect yourself from smoke inhalation',
+        '#during',
+      ],
     },
     {
       title: 'Protecting Your Home',
-      detail: 'Clear defensible space, close vents, and move flammable items away from walls.',
+      detail: 'Use fire-resistant materials and clear leaves, debris, and flammable materials.',
+      htmlTargets: [
+        'Strengthen your Home',
+        'Use fire-resistant materials to build, renovate or make repairs',
+        'Create a fire-resistant zone',
+        '#prepare',
+      ],
     },
     {
       title: 'If Trapped',
-      detail: 'Call emergency services, stay inside, and fill sinks/tubs with water.',
+      detail: 'Call 9-1-1, give your location, and turn on lights to help rescuers find you.',
+      htmlTargets: ['If trapped, call 9-1-1 and give your location', '#during'],
     },
   ],
 
@@ -262,7 +281,8 @@ const GUIDE_SECTIONS: Record<string, GuideSection[]> = {
   'food-preservation-usda': [
     {
       title: 'Principles of Home Canning',
-      detail: 'Understand acidity, heat penetration, and the role of pressure canners vs water baths.',
+      detail:
+        'Understand acidity, heat penetration, and the role of pressure canners vs water baths.',
     },
     {
       title: 'Selecting and Preparing Food',
@@ -281,7 +301,8 @@ const GUIDE_SECTIONS: Record<string, GuideSection[]> = {
   'sanitation-hygiene': [
     {
       title: 'Clean Water Priorities',
-      detail: 'Drinking, cooking, handwashing, wound cleaning, and dishwashing in order of importance.',
+      detail:
+        'Drinking, cooking, handwashing, wound cleaning, and dishwashing in order of importance.',
     },
     {
       title: 'Toilet and Waste Setup',

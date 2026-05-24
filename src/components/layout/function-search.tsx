@@ -191,6 +191,7 @@ export function FunctionSearchButton() {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState('');
   const inputRef = React.useRef<TextInput>(null);
+  const focusTimersRef = React.useRef<Array<ReturnType<typeof setTimeout>>>([]);
 
   const results = React.useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -206,13 +207,30 @@ export function FunctionSearchButton() {
     router.push(entry.href);
   }
 
+  const focusInput = React.useCallback(() => {
+    inputRef.current?.focus();
+    requestAnimationFrame(() => inputRef.current?.focus());
+    focusTimersRef.current.forEach(clearTimeout);
+    focusTimersRef.current = [80, 180, 320].map((delay) =>
+      setTimeout(() => inputRef.current?.focus(), delay)
+    );
+  }, []);
+
   React.useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      focusTimersRef.current.forEach(clearTimeout);
+      focusTimersRef.current = [];
+      return;
+    }
     const task = InteractionManager.runAfterInteractions(() => {
-      inputRef.current?.focus();
+      focusInput();
     });
-    return () => task.cancel();
-  }, [open]);
+    return () => {
+      task.cancel();
+      focusTimersRef.current.forEach(clearTimeout);
+      focusTimersRef.current = [];
+    };
+  }, [focusInput, open]);
 
   return (
     <>
@@ -229,7 +247,7 @@ export function FunctionSearchButton() {
         transparent
         visible={open}
         animationType="fade"
-        onShow={() => requestAnimationFrame(() => inputRef.current?.focus())}
+        onShow={focusInput}
         onRequestClose={() => setOpen(false)}>
         <ModalFrame
           onDismiss={() => setOpen(false)}

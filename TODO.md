@@ -144,7 +144,6 @@ These are the actual URLs used by the current download system:
 - Wikipedia Simple English mini: `https://download.kiwix.org/zim/wikipedia/wikipedia_en_simple_all_mini_2026-05.zim`
 - Wikipedia Medical nopic: `https://download.kiwix.org/zim/wikipedia/wikipedia_en_medicine_nopic_2026-04.zim`
 - Wikivoyage English nopic: `https://download.kiwix.org/zim/wikivoyage/wikivoyage_en_all_nopic_2026-03.zim`
-- Wikipedia Top 100 nopic smoke-test archive: `https://download.kiwix.org/zim/wikipedia/wikipedia_en_100_nopic_2026-04.zim`
 
 ### Survival/Medical (public domain texts)
 

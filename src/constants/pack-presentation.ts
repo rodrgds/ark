@@ -43,7 +43,6 @@ const PACK_ICONS: Record<string, LucideIcon> = {
   'wikipedia-simple-en-mini': BookMarked,
   'medical-wikipedia-en-nopic': PillBottle,
   'wikivoyage-en-nopic': Plane,
-  'wikipedia-en-top100-nopic': Globe,
   'embedding-nomic-v15-q4-k-m': ScanSearch,
   'embedding-qwen3-06b-q8': Languages,
   'model-qwen25-15b-q4-0': MessageSquareText,

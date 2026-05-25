@@ -18,7 +18,6 @@ import { Pressable, View } from 'react-native';
 const RECOMMENDED_PACK_IDS = [
   'hesperian-first-aid',
   'us-army-survival-fm-21-76',
-  'wikipedia-en-top100-nopic',
 ];
 
 export default function PacksScreen() {

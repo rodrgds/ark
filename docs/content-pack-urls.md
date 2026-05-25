@@ -6,10 +6,8 @@
 - Simple English Wikipedia mini: `https://download.kiwix.org/zim/wikipedia/wikipedia_en_simple_all_mini_2026-05.zim`
 - Medical Wikipedia nopic: `https://download.kiwix.org/zim/wikipedia/wikipedia_en_medicine_nopic_2026-04.zim`
 - Wikivoyage English nopic: `https://download.kiwix.org/zim/wikivoyage/wikivoyage_en_all_nopic_2026-03.zim`
-- Wikipedia Top 100 smoke test: `https://download.kiwix.org/zim/wikipedia/wikipedia_en_100_nopic_2026-04.zim`
 
-Kiwix publishes SHA-256 sidecars by appending `.sha256` to the ZIM URL, for example
-`https://download.kiwix.org/zim/wikipedia/wikipedia_en_100_nopic_2026-04.zim.sha256`.
+Kiwix publishes SHA-256 sidecars by appending `.sha256` to the ZIM URL.
 Ark stores those official checksum links in pack metadata, resolves the published hash before
 downloads when network is available, and verifies SHA-256 after download. Small files use Expo
 Crypto directly; large ZIM archives use Ark's chunked SHA-256 path so the archive is not loaded into

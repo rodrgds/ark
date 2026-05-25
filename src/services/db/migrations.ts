@@ -144,7 +144,16 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
           id TEXT PRIMARY KEY,
           name TEXT NOT NULL,
           provider TEXT NOT NULL,
+          manifest_region_id TEXT,
+          manifest_version INTEGER,
           style_url TEXT,
+          tile_url_template TEXT,
+          pack_format TEXT,
+          pack_url TEXT,
+          data_version TEXT,
+          checksum_sha256 TEXT,
+          checksum_sha256_url TEXT,
+          region_updated_at TEXT,
           north REAL,
           south REAL,
           east REAL,
@@ -154,6 +163,7 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
           offline_pack_id TEXT,
           status TEXT DEFAULT 'not_downloaded',
           progress REAL DEFAULT 0,
+          estimated_size_mb REAL,
           size_bytes INTEGER,
           created_at INTEGER,
           updated_at INTEGER
@@ -163,6 +173,8 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
           id TEXT PRIMARY KEY,
           title TEXT NOT NULL,
           description TEXT,
+          pin_type TEXT NOT NULL DEFAULT 'custom',
+          is_emergency INTEGER NOT NULL DEFAULT 0,
           latitude REAL NOT NULL,
           longitude REAL NOT NULL,
           photo_uri TEXT,
@@ -533,6 +545,71 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
         CREATE INDEX IF NOT EXISTS idx_zim_paragraphs_article ON zim_paragraph_chunks(article_cache_id, paragraph_index);
       `);
       await db.runAsync('PRAGMA user_version = 9');
+    });
+  }
+
+  if (currentVersion < 10) {
+    await db.withTransactionAsync(async () => {
+      const markerColumns = await db.getAllAsync<{ name: string }>(
+        'PRAGMA table_info(map_markers)'
+      );
+      if (!markerColumns.some((column) => column.name === 'pin_type')) {
+        await db.execAsync("ALTER TABLE map_markers ADD COLUMN pin_type TEXT NOT NULL DEFAULT 'custom'");
+      }
+      if (!markerColumns.some((column) => column.name === 'is_emergency')) {
+        await db.execAsync('ALTER TABLE map_markers ADD COLUMN is_emergency INTEGER NOT NULL DEFAULT 0');
+      }
+      await db.runAsync('PRAGMA user_version = 10');
+    });
+  }
+
+  if (currentVersion < 11) {
+    await db.withTransactionAsync(async () => {
+      const regionColumns = await db.getAllAsync<{ name: string }>(
+        'PRAGMA table_info(map_regions)'
+      );
+      if (!regionColumns.some((column) => column.name === 'estimated_size_mb')) {
+        await db.execAsync('ALTER TABLE map_regions ADD COLUMN estimated_size_mb REAL');
+      }
+      await db.runAsync('PRAGMA user_version = 11');
+    });
+  }
+
+  if (currentVersion < 12) {
+    await db.withTransactionAsync(async () => {
+      const regionColumns = await db.getAllAsync<{ name: string }>(
+        'PRAGMA table_info(map_regions)'
+      );
+      const hasRegionColumn = (name: string) =>
+        regionColumns.some((column) => column.name === name);
+      if (!hasRegionColumn('manifest_region_id')) {
+        await db.execAsync('ALTER TABLE map_regions ADD COLUMN manifest_region_id TEXT');
+      }
+      if (!hasRegionColumn('manifest_version')) {
+        await db.execAsync('ALTER TABLE map_regions ADD COLUMN manifest_version INTEGER');
+      }
+      if (!hasRegionColumn('tile_url_template')) {
+        await db.execAsync('ALTER TABLE map_regions ADD COLUMN tile_url_template TEXT');
+      }
+      if (!hasRegionColumn('pack_format')) {
+        await db.execAsync('ALTER TABLE map_regions ADD COLUMN pack_format TEXT');
+      }
+      if (!hasRegionColumn('pack_url')) {
+        await db.execAsync('ALTER TABLE map_regions ADD COLUMN pack_url TEXT');
+      }
+      if (!hasRegionColumn('data_version')) {
+        await db.execAsync('ALTER TABLE map_regions ADD COLUMN data_version TEXT');
+      }
+      if (!hasRegionColumn('checksum_sha256')) {
+        await db.execAsync('ALTER TABLE map_regions ADD COLUMN checksum_sha256 TEXT');
+      }
+      if (!hasRegionColumn('checksum_sha256_url')) {
+        await db.execAsync('ALTER TABLE map_regions ADD COLUMN checksum_sha256_url TEXT');
+      }
+      if (!hasRegionColumn('region_updated_at')) {
+        await db.execAsync('ALTER TABLE map_regions ADD COLUMN region_updated_at TEXT');
+      }
+      await db.runAsync('PRAGMA user_version = 12');
     });
   }
 }

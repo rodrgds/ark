@@ -2,6 +2,13 @@ import { MapsRepository } from '@/services/db/repositories/maps.repo';
 import { RagCleanupService } from '@/services/ai/rag-cleanup.service';
 import { FileSystemService } from '@/services/files/filesystem.service';
 import { MapService, type MapLibreModule } from '@/services/maps/map.service';
+import { sizeFromPackStatus } from '@/services/maps/map-pack-status';
+import { getUnsupportedMapPackReason } from '@/services/maps/map-pack-format';
+import { MapPresetsService } from '@/services/maps/map-presets.service';
+import { GeocodingService } from '@/services/maps/geocoding.service';
+import { getDownloadedRegionForCoordinate } from '@/services/maps/map-region-utils';
+import { estimatedMapRegionBytes } from '@/services/maps/map-storage';
+import type { MapPinType } from '@/constants/map-pins';
 import type { MapMarker, MapRegion, OfflineMapSearchResult, SavedRoutePoint } from '@/types/maps';
 
 type OfflinePackStatusLike = {
@@ -23,22 +30,47 @@ export class OfflineMapService {
     bounds?: { north: number; south: number; east: number; west: number };
     minZoom?: number;
     maxZoom?: number;
+    estimatedSizeMb?: number | null;
+    manifestRegionId?: string | null;
+    manifestVersion?: number | null;
     styleUrl?: string;
+    tileUrlTemplate?: string | null;
+    packFormat?: MapRegion['packFormat'];
+    packUrl?: string | null;
+    dataVersion?: string | null;
+    checksumSha256?: string | null;
+    checksumSha256Url?: string | null;
+    regionUpdatedAt?: string | null;
   }) {
     return MapsRepository.createRegion({
       name: input.name,
+      manifestRegionId: input.manifestRegionId,
+      manifestVersion: input.manifestVersion,
       north: input.bounds?.north,
       south: input.bounds?.south,
       east: input.bounds?.east,
       west: input.bounds?.west,
       minZoom: input.minZoom,
       maxZoom: input.maxZoom,
+      estimatedSizeMb: input.estimatedSizeMb,
       styleUrl: input.styleUrl,
+      tileUrlTemplate: input.tileUrlTemplate,
+      packFormat: input.packFormat,
+      packUrl: input.packUrl,
+      dataVersion: input.dataVersion,
+      checksumSha256: input.checksumSha256,
+      checksumSha256Url: input.checksumSha256Url,
+      regionUpdatedAt: input.regionUpdatedAt,
     });
   }
 
   static listRegions() {
     return MapsRepository.listRegions();
+  }
+
+  static async getDownloadedRegionForCoordinate(latitude: number, longitude: number) {
+    const regions = await MapsRepository.listRegions();
+    return getDownloadedRegionForCoordinate(latitude, longitude, regions) ?? null;
   }
 
   static async syncNativePacks() {
@@ -166,7 +198,7 @@ export class OfflineMapService {
   }
 
   static async refreshRegion(id: string) {
-    const region = await MapsRepository.getRegion(id);
+    let region = await MapsRepository.getRegion(id);
     if (!region) return { ok: false, reason: 'Map region not found.' };
     if (
       region.north == null ||
@@ -176,6 +208,69 @@ export class OfflineMapService {
     ) {
       return { ok: false, reason: 'Region bounds are incomplete.' };
     }
+
+    const catalogRegion = MapPresetsService.findPresetForRegion(region);
+    const updateState = MapPresetsService.getRegionUpdateState(region);
+    if (catalogRegion && updateState.available) {
+      await MapsRepository.updateRegionManifest(id, {
+        name: catalogRegion.name,
+        manifestRegionId: catalogRegion.id,
+        manifestVersion: MapPresetsService.getCatalogMeta().version,
+        north: catalogRegion.bounds.north,
+        south: catalogRegion.bounds.south,
+        east: catalogRegion.bounds.east,
+        west: catalogRegion.bounds.west,
+        minZoom: catalogRegion.minZoom,
+        maxZoom: catalogRegion.maxZoom,
+        estimatedSizeMb: catalogRegion.estimatedSizeMb,
+        styleUrl: catalogRegion.styleUrl ?? region.styleUrl ?? MapService.getDefaultStyleUrl(),
+        tileUrlTemplate: catalogRegion.tileUrlTemplate,
+        packFormat: catalogRegion.packFormat,
+        packUrl: catalogRegion.packUrl,
+        dataVersion: catalogRegion.dataVersion,
+        checksumSha256: catalogRegion.checksumSha256,
+        checksumSha256Url: catalogRegion.checksumSha256Url,
+        regionUpdatedAt: catalogRegion.updatedAt,
+      });
+      region = (await MapsRepository.getRegion(id)) ?? region;
+    }
+    const unsupportedPackReason = getUnsupportedMapPackReason(region);
+    if (unsupportedPackReason) {
+      await MapsRepository.updateRegionStatus(id, {
+        status: 'failed',
+        progress: 0,
+        offlinePackId: null,
+      });
+      return { ok: false, reason: unsupportedPackReason };
+    }
+    try {
+      await FileSystemService.ensureSpaceForDownload(
+        estimatedMapRegionBytes({
+          estimatedSizeMb: region.estimatedSizeMb ?? catalogRegion?.estimatedSizeMb,
+        })
+      );
+    } catch (error) {
+      await MapsRepository.updateRegionStatus(id, { status: 'failed', progress: 0 });
+      return {
+        ok: false,
+        reason: error instanceof Error ? error.message : 'Not enough free storage for this map.',
+      };
+    }
+    if (
+      region.north == null ||
+      region.south == null ||
+      region.east == null ||
+      region.west == null
+    ) {
+      return { ok: false, reason: 'Region bounds are incomplete.' };
+    }
+    const offlineBounds = [region.west, region.south, region.east, region.north] satisfies [
+      number,
+      number,
+      number,
+      number,
+    ];
+
     const maplibre = await MapService.loadMapLibre();
     if (!maplibre) {
       await MapsRepository.updateRegionStatus(id, { status: 'failed', progress: 0 });
@@ -204,7 +299,9 @@ export class OfflineMapService {
       maplibre.OfflineManager.setTileCountLimit?.(250000);
       const existingPacks = await maplibre.OfflineManager.getPacks();
       const existingPack = existingPacks.find((candidate) => isPackForRegion(candidate, region));
-      if (existingPack) {
+      if (existingPack && updateState.available) {
+        await maplibre.OfflineManager.deletePack(existingPack.id).catch(() => undefined);
+      } else if (existingPack) {
         const existingStatus = await existingPack.status().catch(() => null);
         if (existingStatus && isOfflinePackComplete(existingStatus)) {
           await MapsRepository.updateRegionStatus(id, {
@@ -232,10 +329,17 @@ export class OfflineMapService {
       const pack = await maplibre.OfflineManager.createPack(
         {
           mapStyle: styleUrl,
-          bounds: [region.west, region.south, region.east, region.north],
+          bounds: offlineBounds,
           minZoom: region.minZoom ?? undefined,
           maxZoom: region.maxZoom ?? undefined,
-          metadata: { regionId: id, name: region.name },
+          metadata: {
+            regionId: id,
+            manifestRegionId: region.manifestRegionId,
+            manifestVersion: region.manifestVersion,
+            dataVersion: region.dataVersion,
+            checksumSha256: region.checksumSha256,
+            name: region.name,
+          },
         },
         (offlinePack, status) => this.handlePackProgress(id, offlinePack.id, status),
         (_offlinePack, error) => this.handlePackError(id, error.message)
@@ -267,6 +371,8 @@ export class OfflineMapService {
   static createMarker(input: {
     title: string;
     description?: string | null;
+    pinType?: MapPinType;
+    isEmergencyPin?: boolean;
     latitude: number;
     longitude: number;
     photoUri?: string | null;
@@ -279,6 +385,8 @@ export class OfflineMapService {
     input: {
       title: string;
       description?: string | null;
+      pinType?: MapPinType;
+      isEmergencyPin?: boolean;
       photoUri?: string | null;
     }
   ) {
@@ -287,6 +395,8 @@ export class OfflineMapService {
     await MapsRepository.updateMarker(id, {
       title: input.title,
       description: input.description,
+      pinType: input.pinType,
+      isEmergencyPin: input.isEmergencyPin,
       photoUri: input.photoUri,
     });
     if (marker.photoUri && marker.photoUri !== (input.photoUri ?? null)) {
@@ -300,6 +410,7 @@ export class OfflineMapService {
     paddingKm?: number;
     minZoom?: number;
     maxZoom?: number;
+    estimatedSizeMb?: number | null;
     styleUrl?: string;
   }) {
     if (input.markers.length < 2) {
@@ -310,6 +421,7 @@ export class OfflineMapService {
       bounds: boundsForMarkers(input.markers, input.paddingKm ?? 5),
       minZoom: input.minZoom ?? 8,
       maxZoom: input.maxZoom ?? 15,
+      estimatedSizeMb: input.estimatedSizeMb,
       styleUrl: input.styleUrl,
     });
   }
@@ -322,6 +434,7 @@ export class OfflineMapService {
     west: number;
     minZoom?: number;
     maxZoom?: number;
+    estimatedSizeMb?: number | null;
     styleUrl?: string;
   }) {
     const bounds = validateBounds(input);
@@ -331,6 +444,7 @@ export class OfflineMapService {
       bounds,
       minZoom: zoom.minZoom,
       maxZoom: zoom.maxZoom,
+      estimatedSizeMb: input.estimatedSizeMb,
       styleUrl: input.styleUrl,
     });
   }
@@ -357,7 +471,15 @@ export class OfflineMapService {
     ]);
 
     const markerResults = markers
-      .filter((marker) => matches(normalized, marker.title, marker.description))
+      .filter((marker) =>
+        matches(
+          normalized,
+          marker.title,
+          marker.description,
+          marker.pinType.replace('_', ' '),
+          marker.isEmergencyPin ? 'emergency' : null
+        )
+      )
       .map<OfflineMapSearchResult>((marker) => ({
         id: marker.id,
         kind: 'spot',
@@ -402,28 +524,21 @@ export class OfflineMapService {
         longitude: route.points[0]?.longitude ?? null,
       }));
 
-    let poiResults: OfflineMapSearchResult[] = [];
-    try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5`,
-        { headers: { 'User-Agent': 'ArkApp/1.0' } }
-      );
-      if (response.ok) {
-        const data = await response.json();
-        poiResults = data.map((item: any) => ({
-          id: `poi-${item.place_id}`,
-          kind: 'poi',
-          title: item.name || item.display_name.split(',')[0],
-          subtitle: 'Online Result: ' + item.display_name,
-          latitude: parseFloat(item.lat),
-          longitude: parseFloat(item.lon),
-        }));
-      }
-    } catch {
-      // Ignore network errors for POI search in offline mode
-    }
+    const plannedRegionNames = new Set(regions.map((region) => region.name.toLowerCase()));
+    const catalogResults = MapPresetsService.search(normalized, 6)
+      .filter((preset) => !plannedRegionNames.has(preset.name.toLowerCase()))
+      .map<OfflineMapSearchResult>((preset) => ({
+        id: `catalog:${preset.id}`,
+        kind: 'region',
+        title: preset.name,
+        subtitle: `Offline catalog · ${preset.description}`,
+        latitude: (preset.bounds.north + preset.bounds.south) / 2,
+        longitude: (preset.bounds.east + preset.bounds.west) / 2,
+      }));
 
-    return [...markerResults, ...regionResults, ...routeResults, ...poiResults].slice(0, limit);
+    const geocodingResults = await GeocodingService.search(normalized, 5);
+
+    return [...markerResults, ...regionResults, ...routeResults, ...catalogResults, ...geocodingResults].slice(0, limit);
   }
 
   static async createRouteFromMarkers(title: string, markers: MapMarker[]) {
@@ -581,6 +696,7 @@ function isPackForRegion(
   return (
     candidate.id === region.offlinePackId ||
     metadata.regionId === region.id ||
+    (region.manifestRegionId != null && metadata.manifestRegionId === region.manifestRegionId) ||
     metadata.name === region.name
   );
 }
@@ -608,15 +724,6 @@ function progressFromPackStatus(
   }
   const normalized = status.percentage > 1 ? status.percentage / 100 : status.percentage;
   return Math.max(0, Math.min(1, normalized));
-}
-
-export function sizeFromPackStatus(
-  status: Pick<OfflinePackStatusLike, 'completedResourceSize' | 'completedTileSize'>
-) {
-  const resourceBytes = Math.max(0, status.completedResourceSize ?? 0);
-  const tileBytes = Math.max(0, status.completedTileSize ?? 0);
-  const total = resourceBytes + tileBytes;
-  return total > 0 ? total : null;
 }
 
 function distance(a: SavedRoutePoint, b: SavedRoutePoint) {

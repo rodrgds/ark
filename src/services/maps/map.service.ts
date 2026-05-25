@@ -1,6 +1,64 @@
-import type { StyleSpecification } from '@maplibre/maplibre-react-native';
+type MapLibreLogEvent = {
+  level?: string;
+  tag?: string;
+  message?: string;
+};
 
-export type MapLibreModule = typeof import('@maplibre/maplibre-react-native');
+type StyleSpecification = {
+  version: 8;
+  glyphs?: string;
+  sprite?: string;
+  sources: Record<string, unknown>;
+  layers: Array<Record<string, unknown>>;
+};
+
+type OfflinePackStatusLike = {
+  state: string;
+  percentage: number;
+  completedResourceCount: number;
+  completedResourceSize?: number;
+  completedTileCount?: number;
+  completedTileSize?: number;
+  requiredResourceCount: number;
+};
+
+type OfflinePackLike = {
+  id: string;
+  metadata?: Record<string, unknown>;
+  status: () => Promise<OfflinePackStatusLike>;
+  pause: () => Promise<void>;
+  resume: () => Promise<void>;
+};
+
+export type MapLibreModule = Record<string, unknown> & {
+  LogManager?: {
+    onLog: (handler: (event: MapLibreLogEvent) => boolean) => void;
+  };
+  NetworkManager?: {
+    setConnected: (connected: boolean) => void;
+  };
+  OfflineManager: {
+    getPacks: () => Promise<OfflinePackLike[]>;
+    deletePack: (packId: string) => Promise<void>;
+    setTileCountLimit?: (limit: number) => void;
+    addListener: (
+      packId: string,
+      progress: (pack: OfflinePackLike, status: OfflinePackStatusLike) => void,
+      error: (pack: OfflinePackLike, error: { message?: string }) => void
+    ) => Promise<void>;
+    createPack: (
+      options: {
+        mapStyle: string;
+        bounds: [number, number, number, number];
+        minZoom?: number;
+        maxZoom?: number;
+        metadata?: Record<string, unknown>;
+      },
+      progress: (pack: OfflinePackLike, status: OfflinePackStatusLike) => void,
+      error: (pack: OfflinePackLike, error: { message: string }) => void
+    ) => Promise<OfflinePackLike>;
+  };
+};
 export type MapTheme = 'oled' | 'dark' | 'light';
 
 export const LEGACY_DEMO_MAP_STYLE_URL = 'https://demotiles.maplibre.org/style.json';
@@ -96,8 +154,9 @@ export class MapService {
     if (!modulePromise) {
       modulePromise = import('@maplibre/maplibre-react-native')
         .then((maplibre) => {
-          this.configureLogging(maplibre);
-          return maplibre;
+          const module = maplibre as unknown as MapLibreModule;
+          this.configureLogging(module);
+          return module;
         })
         .catch(() => null);
     }
@@ -113,7 +172,7 @@ export class MapService {
       if (
         event.level === 'warn' &&
         event.tag === 'Mbgl-HttpRequest' &&
-        isCanceledHttpRequest(event.message)
+        isCanceledHttpRequest(event.message ?? '')
       ) {
         return true;
       }
@@ -196,6 +255,7 @@ export function createTacticalStyle(theme: MapTheme): StyleSpecification {
   return {
     version: 8,
     glyphs: OPENMAPTILES_GLYPHS_URL,
+    sprite: 'https://tiles.openfreemap.org/sprites/ofm_f384/ofm',
     sources: {
       openmaptiles: {
         type: 'vector',
@@ -218,6 +278,38 @@ export function createTacticalStyle(theme: MapTheme): StyleSpecification {
         paint: {
           'fill-color': colors.landuse,
           'fill-opacity': theme === 'light' ? 0.55 : 0.42,
+        },
+      },
+      {
+        id: 'landcover_wood',
+        type: 'fill',
+        source: 'openmaptiles',
+        'source-layer': 'landcover',
+        filter: ['==', ['get', 'class'], 'wood'],
+        paint: {
+          'fill-color': theme === 'light' ? 'hsla(98,61%,72%,0.7)' : 'hsla(98,61%,32%,0.7)',
+          'fill-opacity': 0.4,
+        },
+      },
+      {
+        id: 'landcover_grass',
+        type: 'fill',
+        source: 'openmaptiles',
+        'source-layer': 'landcover',
+        filter: ['==', ['get', 'class'], 'grass'],
+        paint: {
+          'fill-color': theme === 'light' ? '#b0d59a' : '#2b3f20',
+          'fill-opacity': 0.3,
+        },
+      },
+      {
+        id: 'park',
+        type: 'fill',
+        source: 'openmaptiles',
+        'source-layer': 'park',
+        paint: {
+          'fill-color': theme === 'light' ? '#d8e8c8' : '#2d4221',
+          'fill-opacity': 0.7,
         },
       },
       {
@@ -256,7 +348,7 @@ export function createTacticalStyle(theme: MapTheme): StyleSpecification {
         type: 'line',
         source: 'openmaptiles',
         'source-layer': 'transportation',
-        filter: ['in', ['get', 'class'], ['literal', ['minor', 'service', 'track']]],
+        filter: ['in', ['get', 'class'], ['literal', ['minor', 'service', 'track', 'path', 'pedestrian']]],
         paint: {
           'line-color': colors.road,
           'line-width': ['interpolate', ['linear'], ['zoom'], 9, 0.3, 14, 1.6, 18, 5],
@@ -268,11 +360,37 @@ export function createTacticalStyle(theme: MapTheme): StyleSpecification {
         type: 'line',
         source: 'openmaptiles',
         'source-layer': 'transportation',
-        filter: ['in', ['get', 'class'], ['literal', ['primary', 'secondary', 'tertiary']]],
+        filter: ['in', ['get', 'class'], ['literal', ['primary', 'secondary', 'tertiary', 'motorway', 'trunk']]],
         paint: {
           'line-color': colors.primary,
           'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.55, 10, 1.4, 15, 4.8],
           'line-opacity': 0.88,
+        },
+      },
+      {
+        id: 'building',
+        type: 'fill',
+        source: 'openmaptiles',
+        'source-layer': 'building',
+        minzoom: 13,
+        maxzoom: 14,
+        paint: {
+          'fill-color': colors.landuse,
+          'fill-opacity': 0.5,
+          'fill-outline-color': colors.border,
+        },
+      },
+      {
+        id: 'building-3d',
+        type: 'fill-extrusion',
+        source: 'openmaptiles',
+        'source-layer': 'building',
+        minzoom: 14,
+        paint: {
+          'fill-extrusion-color': colors.landuse,
+          'fill-extrusion-height': ['get', 'render_height'],
+          'fill-extrusion-base': ['get', 'render_min_height'],
+          'fill-extrusion-opacity': 0.8,
         },
       },
       {
@@ -302,6 +420,27 @@ export function createTacticalStyle(theme: MapTheme): StyleSpecification {
           'text-field': ['coalesce', ['get', 'name:latin'], ['get', 'name']],
           'text-font': ['Noto Sans Regular'],
           'text-size': ['interpolate', ['linear'], ['zoom'], 3, 10, 9, 14],
+        },
+        paint: {
+          'text-color': colors.text,
+          'text-halo-color': colors.background,
+          'text-halo-width': 1.5,
+        },
+      },
+      {
+        id: 'poi',
+        type: 'symbol',
+        source: 'openmaptiles',
+        'source-layer': 'poi',
+        minzoom: 14,
+        filter: ['any', ['in', ['get', 'class'], ['literal', ['grocery', 'pharmacy', 'shop', 'hospital', 'market', 'mall', 'commercial']]], ['in', ['get', 'subclass'], ['literal', ['grocery', 'pharmacy', 'shop', 'hospital', 'market', 'mall', 'commercial']]]],
+        layout: {
+          'icon-image': ['concat', ['get', 'class'], '_11'],
+          'text-field': ['get', 'name'],
+          'text-font': ['Noto Sans Regular'],
+          'text-size': 11,
+          'text-anchor': 'top',
+          'text-offset': [0, 0.6],
         },
         paint: {
           'text-color': colors.text,

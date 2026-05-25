@@ -118,7 +118,7 @@ beforeEach(async () => {
 describe('database migrations', () => {
   test('creates the current schema with FTS and resumable download columns', async () => {
     const version = await testDb.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
-    expect(version?.user_version).toBe(9);
+    expect(version?.user_version).toBe(12);
 
     const downloadColumns = await testDb.getAllAsync<{ name: string }>(
       'PRAGMA table_info(downloads)'
@@ -138,6 +138,16 @@ describe('database migrations', () => {
       'PRAGMA table_info(map_markers)'
     );
     expect(markerColumns.map((column) => column.name)).toContain('photo_uri');
+    expect(markerColumns.map((column) => column.name)).toContain('pin_type');
+    expect(markerColumns.map((column) => column.name)).toContain('is_emergency');
+    const regionColumns = await testDb.getAllAsync<{ name: string }>(
+      'PRAGMA table_info(map_regions)'
+    );
+    expect(regionColumns.map((column) => column.name)).toContain('estimated_size_mb');
+    expect(regionColumns.map((column) => column.name)).toContain('manifest_region_id');
+    expect(regionColumns.map((column) => column.name)).toContain('manifest_version');
+    expect(regionColumns.map((column) => column.name)).toContain('data_version');
+    expect(regionColumns.map((column) => column.name)).toContain('checksum_sha256');
     const documentColumns = await testDb.getAllAsync<{ name: string }>(
       'PRAGMA table_info(documents)'
     );
@@ -325,12 +335,21 @@ describe('repositories', () => {
   test('maps repository manages regions, markers, and routes', async () => {
     const regionId = await MapsRepository.createRegion({
       name: 'Field area',
+      manifestRegionId: 'pt-field-area',
+      manifestVersion: 7,
       north: 39,
       south: 38,
       east: -8,
       west: -9,
       minZoom: 8,
       maxZoom: 14,
+      estimatedSizeMb: 64,
+      packFormat: 'pmtiles',
+      packUrl: 'https://maps.example.test/pt-field-area.pmtiles',
+      dataVersion: '2026-05',
+      checksumSha256: 'a'.repeat(64),
+      checksumSha256Url: 'https://maps.example.test/pt-field-area.pmtiles.sha256',
+      regionUpdatedAt: '2026-05-25',
     });
     await MapsRepository.updateRegionStatus(regionId, {
       status: 'downloaded',
@@ -338,26 +357,66 @@ describe('repositories', () => {
       offlinePackId: 'native-pack',
       sizeBytes: 2048,
     });
-    expect((await MapsRepository.getRegion(regionId))?.offlinePackId).toBe('native-pack');
+    const storedRegion = await MapsRepository.getRegion(regionId);
+    expect(storedRegion?.offlinePackId).toBe('native-pack');
+    expect(storedRegion?.estimatedSizeMb).toBe(64);
+    expect(storedRegion?.manifestRegionId).toBe('pt-field-area');
+    expect(storedRegion?.manifestVersion).toBe(7);
+    expect(storedRegion?.packFormat).toBe('pmtiles');
+    expect(storedRegion?.dataVersion).toBe('2026-05');
+    expect(storedRegion?.checksumSha256).toBe('a'.repeat(64));
+
+    await MapsRepository.updateRegionManifest(regionId, {
+      name: 'Field area refreshed',
+      manifestRegionId: 'pt-field-area',
+      manifestVersion: 8,
+      north: 39.1,
+      south: 38.1,
+      east: -7.9,
+      west: -9.1,
+      minZoom: 7,
+      maxZoom: 15,
+      estimatedSizeMb: 72,
+      packFormat: 'pmtiles',
+      packUrl: 'https://maps.example.test/pt-field-area-v2.pmtiles',
+      dataVersion: '2026-06',
+      checksumSha256: 'c'.repeat(64),
+      checksumSha256Url: 'https://maps.example.test/pt-field-area-v2.pmtiles.sha256',
+      regionUpdatedAt: '2026-06-01',
+    });
+    const refreshedRegion = await MapsRepository.getRegion(regionId);
+    expect(refreshedRegion?.name).toBe('Field area refreshed');
+    expect(refreshedRegion?.manifestVersion).toBe(8);
+    expect(refreshedRegion?.dataVersion).toBe('2026-06');
+    expect(refreshedRegion?.checksumSha256).toBe('c'.repeat(64));
+    expect(refreshedRegion?.estimatedSizeMb).toBe(72);
 
     const markerId = await MapsRepository.createMarker({
       title: 'Water source',
+      pinType: 'water',
+      isEmergencyPin: true,
       latitude: 38.7,
       longitude: -9.1,
       photoUri: 'file:///ark/maps/water.jpg',
     });
     const marker = (await MapsRepository.listMarkers())[0];
     expect(marker?.id).toBe(markerId);
+    expect(marker?.pinType).toBe('water');
+    expect(marker?.isEmergencyPin).toBe(true);
     expect(marker?.photoUri).toBe('file:///ark/maps/water.jpg');
 
     await MapsRepository.updateMarker(markerId, {
       title: 'Filtered water',
       description: 'Spring near the north track',
+      pinType: 'meeting_point',
+      isEmergencyPin: false,
       photoUri: 'file:///ark/maps/spring.jpg',
     });
     const updatedMarker = await MapsRepository.getMarker(markerId);
     expect(updatedMarker?.title).toBe('Filtered water');
     expect(updatedMarker?.description).toBe('Spring near the north track');
+    expect(updatedMarker?.pinType).toBe('meeting_point');
+    expect(updatedMarker?.isEmergencyPin).toBe(false);
     expect(updatedMarker?.photoUri).toBe('file:///ark/maps/spring.jpg');
 
     const routeId = await MapsRepository.createRoute({

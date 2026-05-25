@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { MapService } from '@/services/maps/map.service';
-import { sizeFromPackStatus } from '@/services/maps/offline-map.service';
+import { sizeFromPackStatus } from '@/services/maps/map-pack-status';
 
 describe('MapService runtime status', () => {
   test('does not report MapLibre available before the dynamic native check completes', () => {

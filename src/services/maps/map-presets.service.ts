@@ -1,5 +1,15 @@
 import type { MapCatalog, MapPreset } from '@/constants/map-presets';
 import { MapCatalogRepository } from '@/services/maps/map-catalog.repository';
+import {
+  findChildRegions,
+  findParentRegion,
+  getRegionForCoordinate,
+  getRegionsForBoundingBox,
+  isCoordinateInsideRegion,
+  sortRegionsByDistanceFromCoordinate,
+} from '@/services/maps/map-region-utils';
+import { getMapRegionUpdateState } from '@/services/maps/map-region-updates';
+import type { MapRegion } from '@/types/maps';
 
 let activeCatalog = MapCatalogRepository.getBundledCatalog();
 
@@ -41,6 +51,44 @@ export class MapPresetsService {
       .slice(0, limit);
   }
 
+  static getRegionForCoordinate(latitude: number, longitude: number) {
+    return getRegionForCoordinate(latitude, longitude, activeCatalog.regions);
+  }
+
+  static getRegionsForBoundingBox(bbox: [number, number, number, number]) {
+    return getRegionsForBoundingBox(bbox, activeCatalog.regions);
+  }
+
+  static isCoordinateInsideRegion(latitude: number, longitude: number, region: MapPreset) {
+    return isCoordinateInsideRegion(latitude, longitude, region);
+  }
+
+  static sortRegionsByDistanceFromCoordinate(latitude: number, longitude: number) {
+    return sortRegionsByDistanceFromCoordinate(activeCatalog.regions, latitude, longitude);
+  }
+
+  static findChildRegions(parentId: string) {
+    return findChildRegions(parentId, activeCatalog.regions);
+  }
+
+  static findParentRegion(regionId: string) {
+    return findParentRegion(regionId, activeCatalog.regions);
+  }
+
+  static findPresetForRegion(region: Pick<MapRegion, 'manifestRegionId' | 'name'>) {
+    return activeCatalog.regions.find(
+      (preset) => preset.id === region.manifestRegionId || preset.name === region.name
+    );
+  }
+
+  static getRegionUpdateState(region: MapRegion) {
+    return getMapRegionUpdateState(
+      region,
+      this.findPresetForRegion(region),
+      activeCatalog.version
+    );
+  }
+
   static recommendedForLocation(location?: { latitude: number; longitude: number } | null) {
     const regions = activeCatalog.regions;
     if (!location) {
@@ -51,17 +99,16 @@ export class MapPresetsService {
         .filter((preset) => uniquePreset(preset, seen))
         .slice(0, 6);
     }
-    const containing = regions.filter((preset) => contains(preset, location));
+    const containing = regions.filter((preset) =>
+      isCoordinateInsideRegion(location.latitude, location.longitude, preset)
+    );
     if (containing.length) {
       return containing
         .sort((a, b) => area(a) - area(b))
         .concat(regions.filter((preset) => !containing.includes(preset)))
         .slice(0, 6);
     }
-    return regions
-      .slice()
-      .sort((a, b) => distanceToCenter(a, location) - distanceToCenter(b, location))
-      .slice(0, 6);
+    return sortRegionsByDistanceFromCoordinate(regions, location.latitude, location.longitude).slice(0, 6);
   }
 }
 
@@ -84,21 +131,6 @@ function scorePreset(preset: MapPreset, query: string) {
   return score;
 }
 
-function contains(preset: MapPreset, location: { latitude: number; longitude: number }) {
-  return (
-    location.latitude <= preset.bounds.north &&
-    location.latitude >= preset.bounds.south &&
-    location.longitude <= preset.bounds.east &&
-    location.longitude >= preset.bounds.west
-  );
-}
-
 function area(preset: MapPreset) {
   return (preset.bounds.north - preset.bounds.south) * (preset.bounds.east - preset.bounds.west);
-}
-
-function distanceToCenter(preset: MapPreset, location: { latitude: number; longitude: number }) {
-  const latitude = (preset.bounds.north + preset.bounds.south) / 2;
-  const longitude = (preset.bounds.east + preset.bounds.west) / 2;
-  return Math.hypot(latitude - location.latitude, longitude - location.longitude);
 }

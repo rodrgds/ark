@@ -33,6 +33,19 @@ let mockPickedDocument: {
 let mockFetchText =
   '<html><body><main><h1>Guide</h1><p>Offline snapshot page.</p></main></body></html>';
 let mockFetchStatus = 200;
+let mockLocationPermission = { granted: true, status: 'granted', canAskAgain: true };
+let mockLastKnownLocation: MockLocationObject | null = null;
+let mockCurrentLocation: MockLocationObject | null = null;
+let mockCurrentLocationError: Error | null = null;
+
+type MockLocationObject = {
+  coords: {
+    latitude: number;
+    longitude: number;
+    accuracy?: number;
+  };
+  timestamp: number;
+};
 
 mock.module('expo-sqlite', () => ({
   openDatabaseAsync: async () => {
@@ -75,7 +88,15 @@ mock.module('expo-local-authentication', () => ({
 }));
 
 mock.module('expo-location', () => ({
-  getForegroundPermissionsAsync: async () => ({ granted: true, status: 'granted' }),
+  Accuracy: { Balanced: 'balanced' },
+  getForegroundPermissionsAsync: async () => mockLocationPermission,
+  requestForegroundPermissionsAsync: async () => mockLocationPermission,
+  getLastKnownPositionAsync: async () => mockLastKnownLocation,
+  getCurrentPositionAsync: async () => {
+    if (mockCurrentLocationError) throw mockCurrentLocationError;
+    if (mockCurrentLocation) return mockCurrentLocation;
+    throw new Error('No mock location available.');
+  },
 }));
 
 mock.module('expo-sensors', () => ({
@@ -275,6 +296,8 @@ let VaultService: typeof import('@/services/security/vault.service').VaultServic
 let ContentPackService: typeof import('@/services/content/content-pack.service').ContentPackService;
 let ZimService: typeof import('@/services/content/zim.service').ZimService;
 let OfflineMapService: typeof import('@/services/maps/offline-map.service').OfflineMapService;
+let MapLocationService: typeof import('@/services/maps/map-location.service').MapLocationService;
+let MapCatalogRepository: typeof import('@/services/maps/map-catalog.repository').MapCatalogRepository;
 let DiagnosticsService: typeof import('@/services/sensors/diagnostics.service').DiagnosticsService;
 let RagService: typeof import('@/services/ai/rag.service').RagService;
 let AIService: typeof import('@/services/ai/ai.service').AIService;
@@ -303,6 +326,8 @@ beforeAll(async () => {
   ({ ContentPackService } = await import('@/services/content/content-pack.service'));
   ({ ZimService } = await import('@/services/content/zim.service'));
   ({ OfflineMapService } = await import('@/services/maps/offline-map.service'));
+  ({ MapLocationService } = await import('@/services/maps/map-location.service'));
+  ({ MapCatalogRepository } = await import('@/services/maps/map-catalog.repository'));
   ({ DiagnosticsService } = await import('@/services/sensors/diagnostics.service'));
   ({ RagService } = await import('@/services/ai/rag.service'));
   ({ AIService } = await import('@/services/ai/ai.service'));
@@ -339,6 +364,11 @@ beforeEach(async () => {
   mockFetchText =
     '<html><body><main><h1>Guide</h1><p>Offline snapshot page.</p></main></body></html>';
   mockFetchStatus = 200;
+  mockLocationPermission = { granted: true, status: 'granted', canAskAgain: true };
+  mockLastKnownLocation = null;
+  mockCurrentLocation = null;
+  mockCurrentLocationError = null;
+  delete process.env.EXPO_PUBLIC_ARK_MAP_CATALOG_URL;
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = typeof input === 'string' ? input : input.toString();
     if (url.includes('.sha256')) {
@@ -346,6 +376,7 @@ beforeEach(async () => {
         ok: true,
         status: 200,
         text: async () => '',
+        json: async () => ({}),
         headers: { get: () => 'text/plain' },
       } as Response;
     }
@@ -353,6 +384,7 @@ beforeEach(async () => {
       ok: mockFetchStatus >= 200 && mockFetchStatus < 300,
       status: mockFetchStatus,
       text: async () => mockFetchText,
+      json: async () => JSON.parse(mockFetchText),
       headers: {
         get: (name: string) => (name.toLowerCase() === 'content-type' ? 'text/html' : null),
       },
@@ -708,6 +740,7 @@ describe('service integration', () => {
       west: -10,
       minZoom: 6.2,
       maxZoom: 12.8,
+      estimatedSizeMb: 275,
     });
     const region = (await OfflineMapService.listRegions()).find((item) => item.id === regionId);
 
@@ -718,6 +751,7 @@ describe('service integration', () => {
     expect(region?.west).toBe(-10);
     expect(region?.minZoom).toBe(6);
     expect(region?.maxZoom).toBe(13);
+    expect(region?.estimatedSizeMb).toBe(275);
 
     await expect(
       OfflineMapService.createRegionFromBounds({
@@ -728,6 +762,130 @@ describe('service integration', () => {
         west: -10,
       })
     ).rejects.toThrow('North must be greater than south.');
+  });
+
+  test('offline map downloads check estimated storage before native startup', async () => {
+    freeDiskStorageBytes = 120 * 1024 * 1024;
+
+    const regionId = await OfflineMapService.createRegionFromBounds({
+      name: 'Large field map',
+      north: 39,
+      south: 38,
+      east: -8,
+      west: -10,
+      estimatedSizeMb: 500,
+    });
+    const result = await OfflineMapService.refreshRegion(regionId);
+    const region = (await OfflineMapService.listRegions()).find((item) => item.id === regionId);
+
+    expect(result.ok).toBe(false);
+    expect(result.reason).toContain('Not enough free storage');
+    expect(region?.status).toBe('failed');
+  });
+
+  test('offline map downloads do not treat PMTiles packs as MapLibre native packs', async () => {
+    const regionId = await OfflineMapService.createRegionDownload({
+      name: 'PMTiles Lisbon test',
+      bounds: { north: 39, south: 38.4, east: -8.7, west: -9.6 },
+      minZoom: 8,
+      maxZoom: 14,
+      estimatedSizeMb: 120,
+      packFormat: 'pmtiles',
+      packUrl: 'https://maps.example.test/pt-lisbon.pmtiles',
+    });
+
+    const result = await OfflineMapService.refreshRegion(regionId);
+    const region = (await OfflineMapService.listRegions()).find((item) => item.id === regionId);
+
+    expect(result.ok).toBe(false);
+    expect(result.reason).toContain('PMTiles region packs are cataloged');
+    expect(region?.status).toBe('failed');
+    expect(region?.offlinePackId).toBeNull();
+  });
+
+  test('map catalog caches remote manifests for offline fallback', async () => {
+    process.env.EXPO_PUBLIC_ARK_MAP_CATALOG_URL = 'https://maps.example.test/catalog.json';
+    mockFetchText = JSON.stringify({
+      version: 42,
+      updatedAt: '2026-05-25',
+      source: 'ark-remote-test',
+      regions: [
+        {
+          id: 'pt-test-remote',
+          name: 'Remote Lisbon test',
+          description: 'Remote cached region',
+          bounds: { north: 39, south: 38.4, east: -8.7, west: -9.6 },
+          minZoom: 8,
+          maxZoom: 14,
+          estimatedSize: '120 MB',
+          dataVersion: '2026-05',
+          checksumSha256: 'b'.repeat(64),
+          tags: ['Portugal', 'Lisbon'],
+        },
+      ],
+    });
+
+    const remoteCatalog = await MapCatalogRepository.fetchCatalog();
+    const cachedValue = await SettingsRepository.get('maps.catalog.cached');
+    mockFetchStatus = 503;
+
+    const fallbackCatalog = await MapCatalogRepository.fetchCatalog();
+
+    expect(remoteCatalog.version).toBe(42);
+    expect(remoteCatalog.regions[0]?.id).toBe('pt-test-remote');
+    expect(remoteCatalog.regions[0]?.packFormat).toBe('maplibre_offline_pack');
+    expect(cachedValue).toContain('pt-test-remote');
+    expect(fallbackCatalog.source).toBe('ark-remote-test');
+    expect(fallbackCatalog.regions[0]?.checksumSha256).toBe('b'.repeat(64));
+  });
+
+  test('map catalog accepts compact manifest regions without UI-only fields', async () => {
+    process.env.EXPO_PUBLIC_ARK_MAP_CATALOG_URL = 'https://maps.example.test/catalog.json';
+    mockFetchText = JSON.stringify({
+      version: 43,
+      updatedAt: '2026-05-26',
+      source: 'ark-compact-manifest-test',
+      regions: [
+        {
+          id: 'pt-compact-lisbon',
+          name: 'Compact Lisbon manifest',
+          countryCode: 'PT',
+          level: 'city',
+          bbox: [-9.55, 38.42, -8.72, 39.05],
+          center: [-9.14, 38.72],
+          minZoom: 8,
+          maxZoom: 15,
+          estimatedSizeMb: 420,
+          packUrl: 'https://maps.example.test/pt-compact-lisbon.pmtiles',
+          dataVersion: '2026-05',
+          checksumSha256: 'c'.repeat(64),
+        },
+      ],
+    });
+
+    const catalog = await MapCatalogRepository.fetchCatalog();
+    const region = catalog.regions[0];
+
+    expect(catalog.source).toBe('ark-compact-manifest-test');
+    expect(region?.id).toBe('pt-compact-lisbon');
+    expect(region?.bounds).toEqual({ north: 39.05, south: 38.42, east: -8.72, west: -9.55 });
+    expect(region?.center).toEqual([-9.14, 38.72]);
+    expect(region?.description).toContain('Compact Lisbon manifest');
+    expect(region?.estimatedSize).toBe('420 MB');
+    expect(region?.tags).toContain('Portugal');
+    expect(region?.packFormat).toBe('pmtiles');
+    expect(region?.packUrl).toBe('https://maps.example.test/pt-compact-lisbon.pmtiles');
+    expect(region?.checksumSha256).toBe('c'.repeat(64));
+  });
+
+  test('map catalog falls back to bundled regions when remote manifest is corrupt', async () => {
+    process.env.EXPO_PUBLIC_ARK_MAP_CATALOG_URL = 'https://maps.example.test/catalog.json';
+    mockFetchText = 'not json';
+
+    const catalog = await MapCatalogRepository.fetchCatalog();
+
+    expect(catalog.source).toBe('ark-bundled-openfreemap-bounds');
+    expect(catalog.regions.length).toBeGreaterThan(0);
   });
 
   test('offline map search covers saved spots, regions, and routes', async () => {
@@ -753,6 +911,66 @@ describe('service integration', () => {
     expect(results[0]?.title).toBe('Ridge water cache');
     expect(results[1]?.subtitle).toContain('queued');
     expect(results[2]?.subtitle).toContain('1 points');
+  });
+
+  test('offline map search does not call online POI search', async () => {
+    const originalFetch = globalThis.fetch;
+    let fetchCalls = 0;
+    globalThis.fetch = (async () => {
+      fetchCalls += 1;
+      throw new Error('offline map search must not fetch');
+    }) as typeof fetch;
+
+    try {
+      const results = await OfflineMapService.searchOffline('lisbon');
+
+      expect(fetchCalls).toBe(0);
+      expect(results.length).toBeGreaterThan(0);
+      expect(results.every((result) => !result.subtitle.includes('Online Result'))).toBe(true);
+      expect(results.some((result) => result.kind === 'region')).toBe(true);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test('map location service reports denied permission without reading GPS', async () => {
+    mockLocationPermission = { granted: false, status: 'denied', canAskAgain: false };
+
+    const result = await MapLocationService.resolveUserLocation({
+      requestPermission: true,
+      showUserSettingsDialog: true,
+    });
+
+    expect(result.current).toBeNull();
+    expect(result.lastKnown).toBeNull();
+    expect(result.issue).toEqual({ kind: 'permission_denied', canOpenSettings: true });
+  });
+
+  test('map location service uses cached fixes when fresh GPS is unavailable', async () => {
+    mockLastKnownLocation = mockLocation(38.72, -9.14);
+    mockCurrentLocationError = new Error('GPS unavailable');
+
+    const result = await MapLocationService.resolveUserLocation({
+      requestPermission: false,
+      showUserSettingsDialog: false,
+    });
+
+    expect(result.lastKnown?.coords.latitude).toBe(38.72);
+    expect(result.current).toBeNull();
+    expect(result.issue).toBeNull();
+  });
+
+  test('map location service reports timeout when no GPS fix is available', async () => {
+    mockCurrentLocationError = new Error('GPS unavailable');
+
+    const result = await MapLocationService.resolveUserLocation({
+      requestPermission: false,
+      showUserSettingsDialog: false,
+    });
+
+    expect(result.lastKnown).toBeNull();
+    expect(result.current).toBeNull();
+    expect(result.issue).toEqual({ kind: 'timeout' });
   });
 
   test('AI chat persists tool use and assistant messages with RAG citations', async () => {
@@ -824,9 +1042,7 @@ describe('service integration', () => {
       "what's on the trailhead-sign OR north spring?",
       { limit: 3 }
     );
-    expect(punctuationCitations.some((citation) => citation.sourceRef === document?.id)).toBe(
-      true
-    );
+    expect(punctuationCitations.some((citation) => citation.sourceRef === document?.id)).toBe(true);
   });
 
   test('imported PDFs use text-layer extraction before OCR', async () => {
@@ -933,9 +1149,7 @@ describe('service integration', () => {
 
     expect(mapCitations.some((citation) => citation.sourceId.startsWith('map-marker:'))).toBe(true);
     expect(mapCitations.some((citation) => citation.targetHref === '/(tabs)/map')).toBe(true);
-    expect(weatherCitations.some((citation) => citation.sourceId === 'weather:latest')).toBe(
-      false
-    );
+    expect(weatherCitations.some((citation) => citation.sourceId === 'weather:latest')).toBe(false);
     expect(staleWeatherSource).toBeNull();
   });
 
@@ -1125,9 +1339,7 @@ describe('service integration', () => {
     });
 
     expect(result.messages).toHaveLength(2);
-    expect(result.messages[1].content).toBe(
-      'Filter the north spring water and store it sealed.'
-    );
+    expect(result.messages[1].content).toBe('Filter the north spring water and store it sealed.');
     expect(result.messages[1].content).not.toContain('scratchpad');
     expect(result.messages[1].citations.some((citation) => citation.sourceRef === note.id)).toBe(
       true
@@ -1340,6 +1552,13 @@ async function waitFor(predicate: () => Promise<boolean>) {
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
   throw new Error('Timed out waiting for service state.');
+}
+
+function mockLocation(latitude: number, longitude: number): MockLocationObject {
+  return {
+    coords: { latitude, longitude, accuracy: 25 },
+    timestamp: Date.now(),
+  };
 }
 
 async function deriveV2VerifierForTest(password: string, salt: string) {

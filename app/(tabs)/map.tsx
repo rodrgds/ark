@@ -5,14 +5,26 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Text } from '@/components/ui/text';
 import type { MapPreset } from '@/constants/map-presets';
+import { getMapPinMeta, MAP_PIN_TYPES, type MapPinType } from '@/constants/map-pins';
 import { NAV_COLORS } from '@/constants/theme';
 import { FileSystemService } from '@/services/files/filesystem.service';
 import { MapService, type MapLibreModule } from '@/services/maps/map.service';
+import { MapLocationService, type MapLocationIssue } from '@/services/maps/map-location.service';
+import { getMapPackFormatLabel, getUnsupportedMapPackReason } from '@/services/maps/map-pack-format';
+import { ensurePresetRegionDownload } from '@/services/maps/map-region-downloads';
 import { MapPresetsService } from '@/services/maps/map-presets.service';
+import { formatMapRegionStorage } from '@/services/maps/map-storage';
+import {
+  createMissingRegionPromptState,
+  dismissMissingRegionPrompt,
+  getMissingRegionPrompt,
+  markMissingRegionPromptShown,
+} from '@/services/maps/missing-region-prompt';
 import { OfflineMapService } from '@/services/maps/offline-map.service';
+import { isPresetDownloaded } from '@/services/maps/map-region-utils';
 import { useThemeStore } from '@/stores/theme-store';
 import type { MapMarker, MapRegion, OfflineMapSearchResult, SavedRoute } from '@/types/maps';
-import * as Location from 'expo-location';
+import type { LocationObject } from 'expo-location';
 import { useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
 import {
   AlertTriangle,
@@ -21,6 +33,10 @@ import {
   CheckCircle2,
   Clock3,
   Download,
+  Droplets,
+  Flame,
+  Home,
+  Hospital,
   ImageIcon,
   Layers,
   List,
@@ -30,10 +46,16 @@ import {
   Minimize2,
   Pause,
   Pencil,
+  Pill,
   Play,
+  RefreshCw,
   Route,
   Search,
+  Shield,
+  Star,
+  Tent,
   Trash2,
+  Users,
   X,
 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
@@ -45,6 +67,7 @@ import {
   Image,
   Keyboard,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -71,9 +94,10 @@ type Panel = 'offline' | 'saved' | null;
 type ManagerTab = 'downloaded' | 'browse';
 type TopMode = 'compact' | 'search' | 'map';
 type LngLat = [number, number];
+type MapViewBounds = [number, number, number, number];
 type CameraAction =
   | { type: 'center'; center: LngLat; zoom: number; duration: number }
-  | { type: 'bounds'; bounds: [number, number, number, number]; padding: number; duration: number };
+  | { type: 'bounds'; bounds: MapViewBounds; padding: number; duration: number };
 
 const DEFAULT_CENTER: LngLat = [0, 20];
 const WORLD_OVERVIEW_ZOOM = 1.1;
@@ -86,10 +110,6 @@ const BEARING_UPDATE_EPSILON_DEGREES = 0.35;
 const CENTER_UPDATE_EPSILON_DEGREES = 0.00001;
 const COMPASS_RESET_SUPPRESS_MS = 500;
 const SEARCH_GESTURE_SUPPRESS_MS = 450;
-const LAST_KNOWN_LOCATION_MAX_AGE_MS = 10 * 60 * 1000;
-const LAST_KNOWN_LOCATION_REQUIRED_ACCURACY_M = 1500;
-const FRESH_LOCATION_TIMEOUT_MS = 7000;
-const FRESH_LOCATION_TIMEOUT_WITH_CACHE_MS = 3500;
 const WORLD_OVERVIEW_PATHS = [
   'M42 58L72 45L101 53L116 72L107 94L80 100L58 88Z',
   'M118 95L135 105L128 134L113 154L98 132L103 110Z',
@@ -157,6 +177,7 @@ export default function MapScreen() {
   const cameraRef = React.useRef<any>(null);
   const pendingCameraActionRef = React.useRef<CameraAction | null>(null);
   const autoFocusedRegionIdRef = React.useRef<string | null>(null);
+  const missingPromptStateRef = React.useRef(createMissingRegionPromptState());
   const [regions, setRegions] = React.useState<MapRegion[]>([]);
   const [markers, setMarkers] = React.useState<MapMarker[]>([]);
   const [routes, setRoutes] = React.useState<SavedRoute[]>([]);
@@ -173,14 +194,20 @@ export default function MapScreen() {
   const [spotTitle, setSpotTitle] = React.useState('');
   const [spotDescription, setSpotDescription] = React.useState('');
   const [spotPhotoUri, setSpotPhotoUri] = React.useState<string | null>(null);
+  const [spotPinType, setSpotPinType] = React.useState<MapPinType>('custom');
+  const [spotEmergency, setSpotEmergency] = React.useState(false);
   const [selectedMarkerId, setSelectedMarkerId] = React.useState<string | null>(null);
   const [editingMarker, setEditingMarker] = React.useState<MapMarker | null>(null);
   const [editTitle, setEditTitle] = React.useState('');
   const [editDescription, setEditDescription] = React.useState('');
   const [editPhotoUri, setEditPhotoUri] = React.useState<string | null>(null);
+  const [editPinType, setEditPinType] = React.useState<MapPinType>('custom');
+  const [editEmergency, setEditEmergency] = React.useState(false);
   const [center, setCenter] = React.useState<LngLat>(DEFAULT_CENTER);
+  const [viewedBounds, setViewedBounds] = React.useState<MapViewBounds | null>(null);
   const [fullscreen, setFullscreen] = React.useState(false);
   const [mapReady, setMapReady] = React.useState(false);
+  const [showEmergencyPinsOnly, setShowEmergencyPinsOnly] = React.useState(false);
   const [busy, setBusy] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [catalogMeta, setCatalogMeta] = React.useState(() => MapPresetsService.getCatalogMeta());
@@ -189,9 +216,11 @@ export default function MapScreen() {
     latitude: number;
     longitude: number;
   } | null>(null);
+  const [locationIssue, setLocationIssue] = React.useState<MapLocationIssue | null>(null);
   const [recommendedPresets, setRecommendedPresets] = React.useState<MapPreset[]>(() =>
     MapPresetsService.recommendedForLocation(null)
   );
+  const [missingRegionPrompt, setMissingRegionPrompt] = React.useState<MapPreset | null>(null);
   const [isPlacing, setIsPlacing] = React.useState(false);
   const [searchFocused, setSearchFocused] = React.useState(false);
   const [mapBearing, setMapBearing] = React.useState(0);
@@ -244,12 +273,23 @@ export default function MapScreen() {
   const canMountMap = nativeMapAvailable;
 
   const filteredMarkers = React.useMemo(() => {
+    const source = showEmergencyPinsOnly
+      ? markers.filter((marker) => marker.isEmergencyPin)
+      : markers;
     const query = savedSearch.trim().toLowerCase();
-    if (!query) return markers;
-    return markers.filter((marker) =>
-      `${marker.title} ${marker.description ?? ''}`.toLowerCase().includes(query)
+    if (!query) return source;
+    return source.filter((marker) =>
+      `${marker.title} ${marker.description ?? ''} ${marker.pinType} ${
+        marker.isEmergencyPin ? 'emergency' : ''
+      }`
+        .toLowerCase()
+        .includes(query)
     );
-  }, [markers, savedSearch]);
+  }, [markers, savedSearch, showEmergencyPinsOnly]);
+  const visibleMarkers = React.useMemo(
+    () => (showEmergencyPinsOnly ? markers.filter((marker) => marker.isEmergencyPin) : markers),
+    [markers, showEmergencyPinsOnly]
+  );
   const selectedMarker = React.useMemo(
     () => markers.find((marker) => marker.id === selectedMarkerId) ?? null,
     [markers, selectedMarkerId]
@@ -258,6 +298,21 @@ export default function MapScreen() {
     () => MapPresetsService.search(presetSearch),
     [presetSearch, catalogVersion]
   );
+  const visibleMissingRegionPrompt = React.useMemo(() => {
+    if (!missingRegionPrompt) return null;
+    const stillViewingRegion =
+      MapPresetsService.isCoordinateInsideRegion(center[1], center[0], missingRegionPrompt) ||
+      (viewedBounds
+        ? MapPresetsService.getRegionsForBoundingBox(viewedBounds).some(
+            (region) => region.id === missingRegionPrompt.id
+          )
+        : false);
+    if (!stillViewingRegion) {
+      return null;
+    }
+    if (isPresetDownloaded(missingRegionPrompt, regions)) return null;
+    return missingRegionPrompt;
+  }, [center, missingRegionPrompt, regions, viewedBounds]);
 
   async function load(options: { syncNative?: boolean } = {}) {
     if (options.syncNative) await OfflineMapService.syncNativePacks();
@@ -371,6 +426,24 @@ export default function MapScreen() {
     setRecommendedPresets(MapPresetsService.recommendedForLocation(userLocation));
   }, [catalogVersion, userLocation]);
 
+  React.useEffect(() => {
+    if (activePanel || isPlacing) return;
+    const prompt = getMissingRegionPrompt({
+      latitude: center[1],
+      longitude: center[0],
+      viewedBounds,
+      regions: MapPresetsService.listPresets(),
+      downloadedRegions: regions,
+      state: missingPromptStateRef.current,
+    });
+    if (!prompt) return;
+    missingPromptStateRef.current = markMissingRegionPromptShown(
+      missingPromptStateRef.current,
+      prompt.id
+    );
+    setMissingRegionPrompt((current) => (current?.id === prompt.id ? current : prompt));
+  }, [activePanel, center, catalogVersion, isPlacing, regions, viewedBounds]);
+
   const closeSearchKeyboard = React.useCallback(() => {
     searchGestureSuppressUntilRef.current = Date.now() + SEARCH_GESTURE_SUPPRESS_MS;
     searchInputRef.current?.blur();
@@ -409,12 +482,16 @@ export default function MapScreen() {
     setSpotTitle('');
     setSpotDescription('');
     setSpotPhotoUri(null);
+    setSpotPinType('custom');
+    setSpotEmergency(false);
   }
 
   async function cancelSpotDialog() {
     if (spotPhotoUri) await FileSystemService.deleteByUri(spotPhotoUri).catch(() => undefined);
     setPendingSpot(null);
     setSpotPhotoUri(null);
+    setSpotPinType('custom');
+    setSpotEmergency(false);
   }
 
   async function pickSpotPhoto(source: 'camera' | 'library') {
@@ -464,6 +541,8 @@ export default function MapScreen() {
     setEditTitle(marker.title);
     setEditDescription(marker.description ?? '');
     setEditPhotoUri(marker.photoUri);
+    setEditPinType(marker.pinType);
+    setEditEmergency(marker.isEmergencyPin);
   }
 
   async function cancelEditMarker() {
@@ -474,6 +553,8 @@ export default function MapScreen() {
     setEditTitle('');
     setEditDescription('');
     setEditPhotoUri(null);
+    setEditPinType('custom');
+    setEditEmergency(false);
   }
 
   async function attachEditPhoto(source: 'camera' | 'library') {
@@ -503,6 +584,8 @@ export default function MapScreen() {
       await OfflineMapService.updateMarker(editingMarker.id, {
         title: editTitle.trim(),
         description: editDescription.trim() || null,
+        pinType: editPinType,
+        isEmergencyPin: editEmergency,
         photoUri: editPhotoUri,
       });
       setSelectedMarkerId(editingMarker.id);
@@ -510,6 +593,8 @@ export default function MapScreen() {
       setEditTitle('');
       setEditDescription('');
       setEditPhotoUri(null);
+      setEditPinType('custom');
+      setEditEmergency(false);
       await load();
     } catch {
       setError('Unable to update this spot.');
@@ -529,12 +614,16 @@ export default function MapScreen() {
       await OfflineMapService.createMarker({
         title: spotTitle.trim(),
         description: spotDescription.trim() || null,
+        pinType: spotPinType,
+        isEmergencyPin: spotEmergency,
         longitude: pendingSpot[0],
         latitude: pendingSpot[1],
         photoUri: spotPhotoUri,
       });
       setPendingSpot(null);
       setSpotPhotoUri(null);
+      setSpotPinType('custom');
+      setSpotEmergency(false);
       await load();
     } catch {
       setError('Unable to save this spot.');
@@ -545,6 +634,10 @@ export default function MapScreen() {
 
   async function locateMe() {
     await focusUserLocation({ requestPermission: true, centerMap: true, showBusy: true });
+  }
+
+  async function openLocationSettings() {
+    await Linking.openSettings().catch(() => undefined);
   }
 
   async function focusUserLocation({
@@ -558,53 +651,43 @@ export default function MapScreen() {
   }) {
     if (showBusy) setBusy('locate');
     setError(null);
-    let hadUsableLocation = false;
     try {
-      const permission = requestPermission
-        ? await Location.requestForegroundPermissionsAsync()
-        : await Location.getForegroundPermissionsAsync();
-      if (!permission.granted) {
-        if (showBusy) setError('Location permission is required to center the map.');
+      const resolution = await MapLocationService.resolveUserLocation(
+        {
+          requestPermission,
+          showUserSettingsDialog: showBusy,
+        },
+        (lastKnown) => {
+          applyUserPosition(lastKnown, shouldCenterMap, 15, showBusy ? 180 : 0);
+          if (showBusy) setBusy(null);
+        }
+      );
+      if (resolution.issue?.kind === 'permission_denied') {
+        setLocationIssue(resolution.issue);
         return;
       }
+      setLocationIssue(null);
 
-      const lastKnown = await Location.getLastKnownPositionAsync({
-        maxAge: LAST_KNOWN_LOCATION_MAX_AGE_MS,
-        requiredAccuracy: LAST_KNOWN_LOCATION_REQUIRED_ACCURACY_M,
-      }).catch(() => null);
-      if (lastKnown) {
-        hadUsableLocation = true;
-        applyUserPosition(lastKnown, shouldCenterMap, 15, showBusy ? 180 : 0);
-        if (showBusy) setBusy(null);
-      }
-
-      const current = await withTimeout(
-        Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-          mayShowUserSettingsDialog: showBusy,
-        }),
-        lastKnown ? FRESH_LOCATION_TIMEOUT_WITH_CACHE_MS : FRESH_LOCATION_TIMEOUT_MS
-      );
-      if (current) {
-        hadUsableLocation = true;
+      if (resolution.current) {
+        setLocationIssue(null);
         const shouldMoveToFreshPosition =
           shouldCenterMap ||
-          !lastKnown ||
-          centerDistance(locationToCenter(lastKnown), locationToCenter(current)) >
+          !resolution.lastKnown ||
+          centerDistance(locationToCenter(resolution.lastKnown), locationToCenter(resolution.current)) >
             CENTER_UPDATE_EPSILON_DEGREES;
-        applyUserPosition(current, shouldMoveToFreshPosition, 15, showBusy ? 260 : 420);
-      } else if (!hadUsableLocation && showBusy) {
-        setError('Location is taking too long. Try again with a clearer sky view.');
+        applyUserPosition(resolution.current, shouldMoveToFreshPosition, 15, showBusy ? 260 : 420);
+      } else if (resolution.issue) {
+        setLocationIssue(resolution.issue);
       }
     } catch {
-      if (!hadUsableLocation && showBusy) setError('Unable to get your current location.');
+      setLocationIssue({ kind: 'unavailable' });
     } finally {
       if (showBusy) setBusy(null);
     }
   }
 
   function applyUserPosition(
-    position: Location.LocationObject,
+    position: LocationObject,
     shouldCenterMap: boolean,
     zoom: number,
     duration: number
@@ -616,20 +699,16 @@ export default function MapScreen() {
     setUserLocation((current) =>
       current && sameLocation(current, nextLocation) ? current : nextLocation
     );
+    setLocationIssue(null);
     if (shouldCenterMap) centerOn([nextLocation.longitude, nextLocation.latitude], zoom, duration);
   }
 
   async function downloadPreset(preset: MapPreset) {
-    const existing = regions.find((region) => region.name === preset.name);
-    const regionId =
-      existing?.id ??
-      (await OfflineMapService.createRegionDownload({
-        name: preset.name,
-        bounds: preset.bounds,
-        minZoom: preset.minZoom,
-        maxZoom: preset.maxZoom,
-        styleUrl: MapService.getDefaultStyleUrl(theme),
-      }));
+    const regionId = await ensurePresetRegionDownload(preset, {
+      catalogVersion: catalogMeta.version,
+      regions,
+      theme,
+    });
     await load();
     await startDownload(regionId);
   }
@@ -694,6 +773,19 @@ export default function MapScreen() {
         },
       },
     ]);
+  }
+
+  function dismissMissingPrompt(regionId: string) {
+    missingPromptStateRef.current = dismissMissingRegionPrompt(
+      missingPromptStateRef.current,
+      regionId
+    );
+    setMissingRegionPrompt(null);
+  }
+
+  async function downloadMissingRegion(preset: MapPreset) {
+    setMissingRegionPrompt(null);
+    await downloadPreset(preset);
   }
 
   function centerOn(nextCenter: LngLat, zoom = 13, duration = 420) {
@@ -767,18 +859,17 @@ export default function MapScreen() {
     setSearchFocused(false);
     searchInputRef.current?.blur();
     Keyboard.dismiss();
-    if (
-      (result.kind === 'spot' || result.kind === 'poi') &&
-      result.longitude != null &&
-      result.latitude != null
-    ) {
+    if (result.kind === 'spot' && result.longitude != null && result.latitude != null) {
       centerOn([result.longitude, result.latitude], 14);
-      if (result.kind === 'spot') setSelectedMarkerId(result.id);
+      setSelectedMarkerId(result.id);
       return;
     }
     if (result.kind === 'region') {
       const region = regions.find((item) => item.id === result.id);
       if (region) fitRegion(region);
+      else if (result.longitude != null && result.latitude != null) {
+        centerOn([result.longitude, result.latitude], 10);
+      }
       return;
     }
     const route = routes.find((item) => item.id === result.id);
@@ -817,13 +908,14 @@ export default function MapScreen() {
         mapKey={mapInstanceKey}
         mapStyle={mapStyle}
         maplibre={maplibre}
-        markers={markers}
+        markers={visibleMarkers}
         routes={routes}
         selectedMarker={selectedMarker}
         status={mapStatus}
         suppressLongPressUntilRef={searchGestureSuppressUntilRef}
         userLocation={userLocation}
         onBearingChange={handleBearingChange}
+        onBoundsChange={setViewedBounds}
         onCenterChange={handleCenterChange}
         onCloseMarkerPopup={() => setSelectedMarkerId(null)}
         onDismissSearch={closeSearchKeyboard}
@@ -841,6 +933,7 @@ export default function MapScreen() {
         onMapUnmount={(deadKey) => {
           if (deadKey === activeMapKeyRef.current) {
             setMapReady(false);
+            setViewedBounds(null);
             cameraRef.current = null;
           }
         }}
@@ -905,13 +998,29 @@ export default function MapScreen() {
       ) : null}
 
       <View
-        className="absolute left-3 max-w-[75%] gap-2"
+        className="absolute left-3 w-72 gap-2"
         style={{ bottom: Math.max(insets.bottom + 12, 20) }}>
+        {locationIssue && !userLocation ? (
+          <LocationNoticeCard
+            issue={locationIssue}
+            loading={busy === 'locate'}
+            onOpenSettings={openLocationSettings}
+            onRetry={locateMe}
+          />
+        ) : null}
         {error ? (
           <Card className="border-destructive bg-background/95 flex-row items-start gap-2 p-3">
             <Icon as={AlertTriangle} className="text-destructive mt-0.5 size-4" />
             <Text className="text-destructive flex-1 text-sm">{error}</Text>
           </Card>
+        ) : null}
+        {visibleMissingRegionPrompt ? (
+          <MissingRegionPromptCard
+            busy={busy === `download:${visibleMissingRegionPrompt.id}`}
+            region={visibleMissingRegionPrompt}
+            onDismiss={() => dismissMissingPrompt(visibleMissingRegionPrompt.id)}
+            onDownload={() => downloadMissingRegion(visibleMissingRegionPrompt)}
+          />
         ) : null}
       </View>
 
@@ -987,12 +1096,16 @@ export default function MapScreen() {
       <SpotDialog
         busy={busy === 'spot'}
         description={spotDescription}
+        isEmergency={spotEmergency}
         lngLat={pendingSpot}
         photoUri={spotPhotoUri}
+        pinType={spotPinType}
         title={spotTitle}
         onAttachPhoto={attachSpotPhoto}
         onCancel={cancelSpotDialog}
         onChangeDescription={setSpotDescription}
+        onChangeEmergency={setSpotEmergency}
+        onChangePinType={setSpotPinType}
         onChangeTitle={setSpotTitle}
         onRemovePhoto={async () => {
           if (spotPhotoUri)
@@ -1005,12 +1118,16 @@ export default function MapScreen() {
       <EditSpotDialog
         busy={Boolean(editingMarker && busy === `marker:${editingMarker.id}`)}
         description={editDescription}
+        isEmergency={editEmergency}
         marker={editingMarker}
         photoUri={editPhotoUri}
+        pinType={editPinType}
         title={editTitle}
         onAttachPhoto={attachEditPhoto}
         onCancel={cancelEditMarker}
         onChangeDescription={setEditDescription}
+        onChangeEmergency={setEditEmergency}
+        onChangePinType={setEditPinType}
         onChangeTitle={setEditTitle}
         onRemovePhoto={removeEditPhoto}
         onSave={saveMarkerEdit}
@@ -1037,6 +1154,7 @@ function MapCanvas({
   suppressLongPressUntilRef,
   userLocation,
   onBearingChange,
+  onBoundsChange,
   onCenterChange,
   onCloseMarkerPopup,
   onDismissSearch,
@@ -1063,6 +1181,7 @@ function MapCanvas({
   suppressLongPressUntilRef: React.MutableRefObject<number>;
   userLocation: { latitude: number; longitude: number } | null;
   onBearingChange: (bearing: number) => void;
+  onBoundsChange: (bounds: MapViewBounds | null) => void;
   onCenterChange: (center: LngLat) => void;
   onCloseMarkerPopup: () => void;
   onDismissSearch: () => void;
@@ -1114,6 +1233,7 @@ function MapCanvas({
       }}
       onRegionDidChange={(event: any) => {
         onCenterChange(event.nativeEvent.center);
+        onBoundsChange(normalizeMapEventBounds(event.nativeEvent.bounds));
         onBearingChange(event.nativeEvent.bearing ?? 0);
       }}>
       <Camera
@@ -1226,6 +1346,83 @@ function MapCanvas({
         </Marker>
       ) : null}
     </Map>
+  );
+}
+
+function LocationNoticeCard({
+  issue,
+  loading,
+  onOpenSettings,
+  onRetry,
+}: {
+  issue: MapLocationIssue;
+  loading: boolean;
+  onOpenSettings: () => void;
+  onRetry: () => void;
+}) {
+  const copy = locationIssueCopy(issue);
+
+  return (
+    <Card className="border-primary/35 bg-background/95 gap-3 p-3">
+      <View className="flex-row items-start gap-2">
+        <Icon as={MapPin} className="text-primary mt-0.5 size-4" />
+        <View className="min-w-0 flex-1 gap-1">
+          <Text className="text-sm font-semibold">{copy.title}</Text>
+          <Text className="text-muted-foreground text-xs">{copy.body}</Text>
+        </View>
+      </View>
+      <View className="flex-row flex-wrap gap-2">
+        <Button className="h-9 flex-1" disabled={loading} size="sm" onPress={onRetry}>
+          {loading ? <ActivityIndicator size="small" /> : <Icon as={MapPin} className="size-4" />}
+          <Text>{copy.retryLabel}</Text>
+        </Button>
+        {issue.canOpenSettings ? (
+          <Button className="h-9 flex-1" size="sm" variant="outline" onPress={onOpenSettings}>
+            <Text>Settings</Text>
+          </Button>
+        ) : null}
+      </View>
+    </Card>
+  );
+}
+
+function MissingRegionPromptCard({
+  busy,
+  region,
+  onDismiss,
+  onDownload,
+}: {
+  busy: boolean;
+  region: MapPreset;
+  onDismiss: () => void;
+  onDownload: () => void;
+}) {
+  const size = region.estimatedSizeMb
+    ? `About ${Math.round(region.estimatedSizeMb)} MB`
+    : region.estimatedSize;
+
+  return (
+    <Card className="border-primary/35 bg-background/95 gap-3 p-3">
+      <View className="flex-row items-start gap-2">
+        <Icon as={Download} className="text-primary mt-0.5 size-4" />
+        <View className="min-w-0 flex-1 gap-1">
+          <Text className="text-sm font-semibold">Offline map missing</Text>
+          <Text className="text-muted-foreground text-xs">
+            You are viewing {region.name}. Download this region for offline use?
+          </Text>
+          <Text className="text-muted-foreground text-xs">{size}</Text>
+        </View>
+      </View>
+      <View className="flex-row gap-2">
+        <Button className="h-9 flex-1" size="sm" variant="outline" onPress={onDismiss}>
+          <Text>Later</Text>
+        </Button>
+        <Button className="h-9 flex-1" disabled={busy} size="sm" onPress={onDownload}>
+          {busy ? <ActivityIndicator size="small" /> : <Icon as={Download} className="size-4" />}
+          <Text>Download</Text>
+        </Button>
+      </View>
+    </Card>
   );
 }
 
@@ -1342,27 +1539,29 @@ function WorldOverviewFallback({ status }: { status: string }) {
 }
 
 function MarkerDot({ marker, selected }: { marker: MapMarker; selected: boolean }) {
-  const color = marker.color || '#F2B84B';
+  const color = marker.color || getMapPinMeta(marker.pinType).color;
+  const PinIcon = iconForPinType(marker.pinType);
   return (
     <View
       style={{
-        width: selected ? 24 : 20,
-        height: selected ? 24 : 20,
+        width: selected || marker.isEmergencyPin ? 26 : 20,
+        height: selected || marker.isEmergencyPin ? 26 : 20,
         borderRadius: 999,
         backgroundColor: '#050316',
-        borderColor: color,
-        borderWidth: selected ? 3 : 2,
+        borderColor: marker.isEmergencyPin ? '#FFFFFF' : color,
+        borderWidth: marker.isEmergencyPin ? 3 : selected ? 3 : 2,
         alignItems: 'center',
         justifyContent: 'center',
       }}>
       <View
+        className="items-center justify-center rounded-full"
         style={{
-          width: selected ? 9 : 7,
-          height: selected ? 9 : 7,
-          borderRadius: 999,
+          width: selected || marker.isEmergencyPin ? 15 : 12,
+          height: selected || marker.isEmergencyPin ? 15 : 12,
           backgroundColor: color,
-        }}
-      />
+        }}>
+        <Icon as={PinIcon} className="text-background size-3.5" />
+      </View>
     </View>
   );
 }
@@ -1373,6 +1572,12 @@ function UserLocationDot() {
       <View className="border-background bg-primary size-5 rounded-full border-4" />
     </View>
   );
+}
+
+function iconForPinType(type: MapPinType) {
+  if (type === 'home') return Home;
+  if (type === 'meeting_point') return Users;
+  return MapPin;
 }
 
 function TopMapControls({
@@ -1538,17 +1743,21 @@ function OfflineManagerPanel({
                 </Text>
               </View>
               {downloadedRegions.length ? (
-                downloadedRegions.map((region) => (
-                  <RegionCard
-                    key={region.id}
-                    busy={busy === `download:${region.id}`}
-                    region={region}
-                    onDelete={() => onDeleteRegion(region)}
-                    onDownload={() => undefined}
-                    onPause={() => onPauseRegion(region)}
-                    onResume={() => onResumeRegion(region)}
-                  />
-                ))
+                downloadedRegions.map((region) => {
+                  const updateState = MapPresetsService.getRegionUpdateState(region);
+                  return (
+                    <RegionCard
+                      key={region.id}
+                      busy={busy === `download:${region.id}`}
+                      region={region}
+                      updateAvailable={updateState.available}
+                      onDelete={() => onDeleteRegion(region)}
+                      onDownload={() => undefined}
+                      onPause={() => onPauseRegion(region)}
+                      onResume={() => onResumeRegion(region)}
+                    />
+                  );
+                })
               ) : (
                 <Card className="gap-1">
                   <Text>No downloaded maps yet.</Text>
@@ -1635,10 +1844,16 @@ function PresetList({
       <Text variant="large">{title}</Text>
       {presets.length ? (
         presets.map((preset) => {
-          const matchingRegion = regions.find((region) => region.name === preset.name);
+          const matchingRegion = regions.find(
+            (region) => region.manifestRegionId === preset.id || region.name === preset.name
+          );
+          const unsupportedReason = getUnsupportedMapPackReason(preset);
           const downloaded = matchingRegion?.status === 'downloaded';
           const downloading = matchingRegion?.status === 'downloading';
           const paused = matchingRegion?.status === 'paused';
+          const updateAvailable = matchingRegion
+            ? MapPresetsService.getRegionUpdateState(matchingRegion).available
+            : false;
           return (
             <PresetCard
               key={preset.id}
@@ -1648,6 +1863,8 @@ function PresetList({
               paused={paused ?? false}
               preset={preset}
               progress={matchingRegion?.progress ?? 0}
+              unsupportedReason={unsupportedReason}
+              updateAvailable={updateAvailable}
               onDownload={() => onDownloadPreset(preset)}
               onPause={() => matchingRegion && onPauseRegion(matchingRegion)}
             />
@@ -1766,6 +1983,7 @@ function MapManagerTabSwitcher({
 function RegionCard({
   busy,
   region,
+  updateAvailable,
   onDelete,
   onDownload,
   onPause,
@@ -1773,6 +1991,7 @@ function RegionCard({
 }: {
   busy: boolean;
   region: MapRegion;
+  updateAvailable: boolean;
   onDelete: () => void;
   onDownload: () => void;
   onPause: () => void;
@@ -1781,6 +2000,7 @@ function RegionCard({
   const downloaded = region.status === 'downloaded';
   const downloading = region.status === 'downloading';
   const paused = region.status === 'paused';
+  const unsupportedReason = getUnsupportedMapPackReason(region);
   return (
     <Card className="gap-3">
       <View className="flex-row items-start justify-between gap-3">
@@ -1793,6 +2013,14 @@ function RegionCard({
           <Text variant="muted">
             Zoom {region.minZoom ?? '-'} - {region.maxZoom ?? '-'}
           </Text>
+          {updateAvailable ? (
+            <Text className="text-primary text-xs font-medium">Update available</Text>
+          ) : null}
+          {unsupportedReason ? (
+            <Text variant="small" className="text-muted-foreground">
+              {unsupportedReason}
+            </Text>
+          ) : null}
         </View>
         <StatusBadge region={region} />
       </View>
@@ -1805,18 +2033,21 @@ function RegionCard({
       ) : null}
 
       <View className="flex-row items-center justify-between gap-3">
-        <Text variant="muted">
-          {region.sizeBytes ? FileSystemService.formatBytes(region.sizeBytes) : 'Size pending'}
-        </Text>
+        <Text variant="muted">{formatMapRegionStorage(region)}</Text>
         <View className="flex-row gap-2">
-          {!downloaded ? (
+          {downloaded && updateAvailable ? (
+            <Button size="sm" disabled={busy} onPress={onResume}>
+              {busy ? <ActivityIndicator /> : <Icon as={RefreshCw} className="size-4" />}
+              <Text>Update</Text>
+            </Button>
+          ) : !downloaded ? (
             downloading ? (
               <Button size="sm" variant="secondary" disabled={busy} onPress={onPause}>
                 {busy ? <ActivityIndicator /> : <Icon as={Pause} className="size-4" />}
                 <Text>Pause</Text>
               </Button>
             ) : (
-              <Button size="sm" disabled={busy} onPress={onResume}>
+              <Button size="sm" disabled={busy || !!unsupportedReason} onPress={onResume}>
                 {busy ? (
                   <ActivityIndicator />
                 ) : (
@@ -1848,6 +2079,8 @@ function PresetCard({
   paused,
   preset,
   progress,
+  unsupportedReason,
+  updateAvailable,
   onDownload,
   onPause,
 }: {
@@ -1857,9 +2090,12 @@ function PresetCard({
   paused: boolean;
   preset: MapPreset;
   progress: number;
+  unsupportedReason: string | null;
+  updateAvailable: boolean;
   onDownload: () => void;
   onPause: () => void;
 }) {
+  const unsupported = !!unsupportedReason;
   return (
     <Card className="gap-3">
       <View className="flex-row items-start justify-between gap-3">
@@ -1871,11 +2107,24 @@ function PresetCard({
         </View>
         {downloaded ? (
           <View className="bg-primary/15 flex-row items-center gap-1 rounded-full px-2 py-1">
-            <Icon as={CheckCircle2} className="text-primary size-3.5" />
-            <Text variant="small">Downloaded</Text>
+            <Icon
+              as={updateAvailable ? RefreshCw : CheckCircle2}
+              className="text-primary size-3.5"
+            />
+            <Text variant="small">{updateAvailable ? 'Update' : 'Downloaded'}</Text>
+          </View>
+        ) : unsupported ? (
+          <View className="border-border bg-muted/40 flex-row items-center gap-1 rounded-full border px-2 py-1">
+            <Icon as={Clock3} className="text-muted-foreground size-3.5" />
+            <Text variant="small">{getMapPackFormatLabel(preset.packFormat)}</Text>
           </View>
         ) : null}
       </View>
+      {unsupportedReason ? (
+        <Text variant="small" className="text-muted-foreground">
+          {unsupportedReason}
+        </Text>
+      ) : null}
       {downloading || paused || progress > 0 ? (
         <View className="gap-2">
           <Progress value={progress} />
@@ -1892,13 +2141,37 @@ function PresetCard({
             <Text>Pause</Text>
           </Button>
         ) : (
-          <Button size="sm" disabled={downloaded || busy} onPress={onDownload}>
+          <Button
+            size="sm"
+            disabled={(downloaded && !updateAvailable) || busy || unsupported}
+            onPress={onDownload}>
             {busy ? (
               <ActivityIndicator />
             ) : (
-              <Icon as={progress > 0 ? Play : Download} className="size-4" />
+              <Icon
+                as={
+                  unsupported
+                    ? Clock3
+                    : updateAvailable
+                      ? RefreshCw
+                      : progress > 0
+                        ? Play
+                        : Download
+                }
+                className="size-4"
+              />
             )}
-            <Text>{downloaded ? 'Ready' : progress > 0 ? 'Resume' : 'Download'}</Text>
+            <Text>
+              {unsupported
+                ? 'Planned'
+                : downloaded && updateAvailable
+                  ? 'Update'
+                  : downloaded
+                    ? 'Ready'
+                  : progress > 0
+                    ? 'Resume'
+                    : 'Download'}
+            </Text>
           </Button>
         )}
       </View>
@@ -1946,10 +2219,14 @@ function SavedDataPanel({
           markers.map((marker) => (
             <SavedRow
               key={marker.id}
-              icon={MapPin}
+              color={marker.color || getMapPinMeta(marker.pinType).color}
+              emergency={marker.isEmergencyPin}
+              icon={iconForPinType(marker.pinType)}
               photoUri={marker.photoUri}
               title={marker.title}
-              subtitle={marker.description ?? formatPoint(marker.latitude, marker.longitude)}
+              subtitle={`${getMapPinMeta(marker.pinType).label}${
+                marker.isEmergencyPin ? ' · Emergency' : ''
+              } · ${marker.description ?? formatPoint(marker.latitude, marker.longitude)}`}
               onPress={() => onFocusMarker(marker)}
               onEdit={() => onEditMarker(marker)}
               onDelete={() => onDeleteMarker(marker)}
@@ -1964,6 +2241,8 @@ function SavedDataPanel({
 }
 
 function SavedRow({
+  color,
+  emergency,
   icon,
   photoUri,
   title,
@@ -1972,6 +2251,8 @@ function SavedRow({
   onEdit,
   onPress,
 }: {
+  color?: string;
+  emergency?: boolean;
   icon: React.ComponentProps<typeof Icon>['as'];
   photoUri?: string | null;
   title: string;
@@ -1986,12 +2267,19 @@ function SavedRow({
         {photoUri ? (
           <Image source={{ uri: photoUri }} className="bg-muted size-10 rounded-md" />
         ) : (
-          <View className="bg-primary/15 size-10 items-center justify-center rounded-md">
+          <View
+            className="size-10 items-center justify-center rounded-md"
+            style={{ backgroundColor: `${color ?? '#F2B84B'}26` }}>
             <Icon as={icon} className="text-primary size-5" />
           </View>
         )}
         <View className="min-w-0 flex-1">
-          <Text numberOfLines={1}>{title}</Text>
+          <View className="flex-row items-center gap-1">
+            <Text className="min-w-0 flex-1" numberOfLines={1}>
+              {title}
+            </Text>
+            {emergency ? <Icon as={Star} className="text-primary size-3.5" /> : null}
+          </View>
           <Text variant="muted" numberOfLines={1}>
             {subtitle}
           </Text>
@@ -2011,7 +2299,53 @@ function SavedRow({
   );
 }
 
+function PinTypeSelector({
+  emergency,
+  value,
+  onChangeEmergency,
+  onChangeValue,
+}: {
+  emergency: boolean;
+  value: MapPinType;
+  onChangeEmergency: (value: boolean) => void;
+  onChangeValue: (value: MapPinType) => void;
+}) {
+  return (
+    <View className="gap-3">
+      <View className="flex-row flex-wrap gap-2">
+        {MAP_PIN_TYPES.map((pin) => {
+          const selected = pin.type === value;
+          const PinIcon = iconForPinType(pin.type);
+          return (
+            <Button
+              key={pin.type}
+              className="h-10 px-3"
+              size="sm"
+              variant={selected ? 'default' : 'outline'}
+              onPress={() => onChangeValue(pin.type)}>
+              <Icon
+                as={PinIcon}
+                className={selected ? 'text-primary-foreground size-4' : 'text-primary size-4'}
+              />
+              <Text>{pin.label}</Text>
+            </Button>
+          );
+        })}
+      </View>
+      <Button
+        className="h-11 justify-start"
+        variant={emergency ? 'default' : 'outline'}
+        onPress={() => onChangeEmergency(!emergency)}>
+        <Icon as={Star} className="size-4" />
+        <Text>Emergency-important</Text>
+      </Button>
+    </View>
+  );
+}
+
 function MarkerPopup({ marker, onClose }: { marker: MapMarker; onClose: () => void }) {
+  const pinMeta = getMapPinMeta(marker.pinType);
+  const PinIcon = iconForPinType(marker.pinType);
   return (
     <View className="w-72 items-center">
       <Card className="border-primary/40 bg-background/95 w-72 gap-3 overflow-hidden p-3">
@@ -2021,7 +2355,7 @@ function MarkerPopup({ marker, onClose }: { marker: MapMarker; onClose: () => vo
               <Image source={{ uri: marker.photoUri }} className="bg-muted h-full w-full" />
             ) : (
               <View className="bg-primary/15 h-full w-full items-center justify-center">
-                <Icon as={MapPin} className="text-primary size-7" />
+                <Icon as={PinIcon} className="text-primary size-7" />
               </View>
             )}
           </View>
@@ -2041,6 +2375,18 @@ function MarkerPopup({ marker, onClose }: { marker: MapMarker; onClose: () => vo
             <Text variant="muted" className="text-sm leading-5" numberOfLines={2}>
               {marker.description || 'No description saved.'}
             </Text>
+            <View className="flex-row flex-wrap gap-1">
+              <View className="bg-muted/70 flex-row items-center gap-1 rounded-full px-2 py-1">
+                <Icon as={PinIcon} className="text-primary size-3" />
+                <Text variant="small">{pinMeta.label}</Text>
+              </View>
+              {marker.isEmergencyPin ? (
+                <View className="bg-primary/15 flex-row items-center gap-1 rounded-full px-2 py-1">
+                  <Icon as={Star} className="text-primary size-3" />
+                  <Text variant="small">Emergency</Text>
+                </View>
+              ) : null}
+            </View>
             <Text variant="small" className="text-muted-foreground" numberOfLines={1}>
               {formatPoint(marker.latitude, marker.longitude)}
             </Text>
@@ -2207,92 +2553,119 @@ function Panel({
 function SpotDialog({
   busy,
   description,
+  isEmergency,
   lngLat,
   photoUri,
+  pinType,
   title,
   onAttachPhoto,
   onCancel,
   onChangeDescription,
+  onChangeEmergency,
+  onChangePinType,
   onChangeTitle,
   onRemovePhoto,
   onSave,
 }: {
   busy: boolean;
   description: string;
+  isEmergency: boolean;
   lngLat: LngLat | null;
   photoUri: string | null;
+  pinType: MapPinType;
   title: string;
   onAttachPhoto: (source: 'camera' | 'library') => void;
   onCancel: () => void;
   onChangeDescription: (value: string) => void;
+  onChangeEmergency: (value: boolean) => void;
+  onChangePinType: (value: MapPinType) => void;
   onChangeTitle: (value: string) => void;
   onRemovePhoto: () => void;
   onSave: () => void;
 }) {
   return (
     <Modal visible={Boolean(lngLat)} animationType="fade" transparent onRequestClose={onCancel}>
-      <View className="flex-1 justify-center bg-black/60 p-4">
-        <Card className="gap-3">
-          <View className="gap-1">
-            <Text variant="h3">Save spot</Text>
-            <Text variant="muted">{lngLat ? formatPoint(lngLat[1], lngLat[0]) : ''}</Text>
-          </View>
-          <Input value={title} onChangeText={onChangeTitle} placeholder="Spot title" />
-          <Input
-            className="min-h-24"
-            multiline
-            textAlignVertical="top"
-            value={description}
-            onChangeText={onChangeDescription}
-            placeholder="Description"
-          />
-          {photoUri ? (
-            <View className="gap-2">
-              <Image source={{ uri: photoUri }} className="bg-muted h-36 w-full rounded-lg" />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        className="flex-1 justify-center bg-black/60 p-4">
+        <Card className="max-h-[88%] gap-3">
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ gap: 12 }}
+            keyboardShouldPersistTaps="handled">
+            <View className="gap-1">
+              <Text variant="h3">Save spot</Text>
+              <Text variant="muted">{lngLat ? formatPoint(lngLat[1], lngLat[0]) : ''}</Text>
+            </View>
+            <Input value={title} onChangeText={onChangeTitle} placeholder="Spot title" />
+            <PinTypeSelector
+              emergency={isEmergency}
+              value={pinType}
+              onChangeEmergency={onChangeEmergency}
+              onChangeValue={onChangePinType}
+            />
+            <Input
+              className="min-h-24"
+              multiline
+              textAlignVertical="top"
+              value={description}
+              onChangeText={onChangeDescription}
+              placeholder="Description"
+            />
+            {photoUri ? (
+              <View className="gap-2">
+                <Image source={{ uri: photoUri }} className="bg-muted h-36 w-full rounded-lg" />
+                <View className="flex-row gap-2">
+                  <Button
+                    className="flex-1"
+                    variant="outline"
+                    onPress={() => onAttachPhoto('camera')}>
+                    <Icon as={Camera} className="size-4" />
+                    <Text>Camera</Text>
+                  </Button>
+                  <Button
+                    className="flex-1"
+                    variant="outline"
+                    onPress={() => onAttachPhoto('library')}>
+                    <Icon as={ImageIcon} className="size-4" />
+                    <Text>Library</Text>
+                  </Button>
+                  <Button className="flex-1" variant="outline" onPress={onRemovePhoto}>
+                    <Icon as={Trash2} className="size-4" />
+                    <Text>Remove</Text>
+                  </Button>
+                </View>
+              </View>
+            ) : (
               <View className="flex-row gap-2">
                 <Button
                   className="flex-1"
                   variant="outline"
                   onPress={() => onAttachPhoto('camera')}>
                   <Icon as={Camera} className="size-4" />
-                  <Text>Camera</Text>
+                  <Text>Take</Text>
                 </Button>
                 <Button
                   className="flex-1"
                   variant="outline"
                   onPress={() => onAttachPhoto('library')}>
                   <Icon as={ImageIcon} className="size-4" />
-                  <Text>Library</Text>
-                </Button>
-                <Button className="flex-1" variant="outline" onPress={onRemovePhoto}>
-                  <Icon as={Trash2} className="size-4" />
-                  <Text>Remove</Text>
+                  <Text>Choose</Text>
                 </Button>
               </View>
-            </View>
-          ) : (
+            )}
             <View className="flex-row gap-2">
-              <Button className="flex-1" variant="outline" onPress={() => onAttachPhoto('camera')}>
-                <Icon as={Camera} className="size-4" />
-                <Text>Take</Text>
+              <Button className="flex-1" variant="outline" onPress={onCancel}>
+                <Text>Cancel</Text>
               </Button>
-              <Button className="flex-1" variant="outline" onPress={() => onAttachPhoto('library')}>
-                <Icon as={ImageIcon} className="size-4" />
-                <Text>Choose</Text>
+              <Button className="flex-1" disabled={busy} onPress={onSave}>
+                {busy ? <ActivityIndicator /> : <Icon as={MapPin} className="size-4" />}
+                <Text>Save</Text>
               </Button>
             </View>
-          )}
-          <View className="flex-row gap-2">
-            <Button className="flex-1" variant="outline" onPress={onCancel}>
-              <Text>Cancel</Text>
-            </Button>
-            <Button className="flex-1" disabled={busy} onPress={onSave}>
-              {busy ? <ActivityIndicator /> : <Icon as={MapPin} className="size-4" />}
-              <Text>Save</Text>
-            </Button>
-          </View>
+          </ScrollView>
         </Card>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -2300,24 +2673,32 @@ function SpotDialog({
 function EditSpotDialog({
   busy,
   description,
+  isEmergency,
   marker,
   photoUri,
+  pinType,
   title,
   onAttachPhoto,
   onCancel,
   onChangeDescription,
+  onChangeEmergency,
+  onChangePinType,
   onChangeTitle,
   onRemovePhoto,
   onSave,
 }: {
   busy: boolean;
   description: string;
+  isEmergency: boolean;
   marker: MapMarker | null;
   photoUri: string | null;
+  pinType: MapPinType;
   title: string;
   onAttachPhoto: (source: 'camera' | 'library') => void;
   onCancel: () => void;
   onChangeDescription: (value: string) => void;
+  onChangeEmergency: (value: boolean) => void;
+  onChangePinType: (value: MapPinType) => void;
   onChangeTitle: (value: string) => void;
   onRemovePhoto: () => void;
   onSave: () => void;
@@ -2339,6 +2720,12 @@ function EditSpotDialog({
               </Text>
             </View>
             <Input value={title} onChangeText={onChangeTitle} placeholder="Name" />
+            <PinTypeSelector
+              emergency={isEmergency}
+              value={pinType}
+              onChangeEmergency={onChangeEmergency}
+              onChangeValue={onChangePinType}
+            />
             <Input
               className="min-h-24"
               multiline
@@ -2406,12 +2793,14 @@ function EditSpotDialog({
 }
 
 function MapFab({
+  active,
   icon,
   label,
   loading,
   onPress,
   text,
 }: {
+  active?: boolean;
   icon?: React.ComponentProps<typeof Icon>['as'];
   label: string;
   loading?: boolean;
@@ -2422,17 +2811,28 @@ function MapFab({
     <Button
       accessibilityLabel={label}
       size={text ? 'default' : 'icon'}
-      variant="outline"
+      variant={active ? 'default' : 'outline'}
       className={
-        text ? 'border-primary/40 bg-card/95 h-12 min-w-12 px-3' : 'border-primary/40 bg-card/95'
+        active
+          ? text
+            ? 'h-12 min-w-12 px-3'
+            : ''
+          : text
+            ? 'border-primary/40 bg-card/95 h-12 min-w-12 px-3'
+            : 'border-primary/40 bg-card/95'
       }
       onPress={onPress}>
       {loading ? (
         <ActivityIndicator />
       ) : text ? (
-        <Text className="text-primary font-bold">{text}</Text>
+        <Text className={active ? 'text-primary-foreground font-bold' : 'text-primary font-bold'}>
+          {text}
+        </Text>
       ) : icon ? (
-        <Icon as={icon} className="text-primary size-5" />
+        <Icon
+          as={icon}
+          className={active ? 'text-primary-foreground size-5' : 'text-primary size-5'}
+        />
       ) : null}
     </Button>
   );
@@ -2609,14 +3009,12 @@ function routeBounds(route: SavedRoute): [number, number, number, number] | null
 function iconForSearchResult(kind: OfflineMapSearchResult['kind']) {
   if (kind === 'route') return Route;
   if (kind === 'region') return Layers;
-  if (kind === 'poi') return Search;
   return MapPin;
 }
 
 function labelForSearchResult(kind: OfflineMapSearchResult['kind']) {
   if (kind === 'route') return 'Route';
   if (kind === 'region') return 'Region';
-  if (kind === 'poi') return 'Place';
   return 'Spot';
 }
 
@@ -2628,22 +3026,32 @@ function statusLabel(status: MapRegion['status']) {
   return 'Not downloaded';
 }
 
-function formatPoint(latitude: number, longitude: number) {
-  return `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+function locationIssueCopy(issue: MapLocationIssue) {
+  if (issue.kind === 'permission_denied') {
+    return {
+      title: 'Location is off',
+      body: issue.canOpenSettings
+        ? 'Enable location in system settings to center the map and show GPS coordinates.'
+        : 'Allow location access to center the map and show GPS coordinates.',
+      retryLabel: 'Retry',
+    };
+  }
+  if (issue.kind === 'timeout') {
+    return {
+      title: 'Location not fixed',
+      body: 'Move near open sky or use saved pins and downloaded regions until GPS locks.',
+      retryLabel: 'Try again',
+    };
+  }
+  return {
+    title: 'Location unavailable',
+    body: 'GPS is not returning a position right now. Saved pins and offline regions still work.',
+    retryLabel: 'Try again',
+  };
 }
 
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | null> {
-  let timeout: ReturnType<typeof setTimeout> | null = null;
-  try {
-    return await Promise.race([
-      promise,
-      new Promise<null>((resolve) => {
-        timeout = setTimeout(() => resolve(null), timeoutMs);
-      }),
-    ]);
-  } finally {
-    if (timeout) clearTimeout(timeout);
-  }
+function formatPoint(latitude: number, longitude: number) {
+  return `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
 }
 
 function sameLocation(
@@ -2660,11 +3068,27 @@ function isFiniteLngLat(center: LngLat) {
   return Number.isFinite(center[0]) && Number.isFinite(center[1]);
 }
 
+function normalizeMapEventBounds(bounds: unknown): MapViewBounds | null {
+  if (!Array.isArray(bounds) || bounds.length !== 4) return null;
+  const [west, south, east, north] = bounds;
+  if (
+    !Number.isFinite(west) ||
+    !Number.isFinite(south) ||
+    !Number.isFinite(east) ||
+    !Number.isFinite(north) ||
+    east <= west ||
+    north <= south
+  ) {
+    return null;
+  }
+  return [west, south, east, north];
+}
+
 function centerDistance(left: LngLat, right: LngLat) {
   return Math.max(Math.abs(left[0] - right[0]), Math.abs(left[1] - right[1]));
 }
 
-function locationToCenter(position: Location.LocationObject): LngLat {
+function locationToCenter(position: LocationObject): LngLat {
   return [position.coords.longitude, position.coords.latitude];
 }
 

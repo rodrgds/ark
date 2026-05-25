@@ -14,6 +14,8 @@ import { SettingsRepository } from '@/services/db/repositories/settings.repo';
 import { DownloadManagerService } from '@/services/files/download-manager.service';
 import { FileSystemService } from '@/services/files/filesystem.service';
 import { OfflineMapService } from '@/services/maps/offline-map.service';
+import { getUnsupportedMapPackReason } from '@/services/maps/map-pack-format';
+import { formatMapRegionStorage, summarizeMapRegionStorage } from '@/services/maps/map-storage';
 import { PreferencesService } from '@/services/preferences/preferences.service';
 import { DiagnosticsService } from '@/services/sensors/diagnostics.service';
 import { VaultService } from '@/services/security/vault.service';
@@ -28,7 +30,9 @@ import {
   Download,
   HardDrive,
   Map,
+  Pause,
   RefreshCw,
+  RotateCcw,
   Smartphone,
   Trash2,
   Upload,
@@ -320,20 +324,42 @@ export default function SettingsScreen() {
     }
   }
 
-  async function retryMapRegion(region: MapRegion) {
-    setBusy(`map-${region.id}`);
+  async function runMapRegionAction(region: MapRegion, action: 'delete' | 'pause' | 'retry') {
+    setBusy(`map-${action}-${region.id}`);
     try {
-      const result = await OfflineMapService.refreshRegion(region.id);
-      if (!result.ok) throw new Error(result.reason ?? 'Unable to retry this map download.');
+      if (action === 'delete') {
+        await OfflineMapService.deleteRegion(region.id);
+      } else if (action === 'pause') {
+        const result = await OfflineMapService.pauseRegion(region.id);
+        if (!result.ok) {
+          Alert.alert('Unable to pause map', result.reason ?? 'Try again from the map screen.');
+        }
+      } else {
+        const result = await OfflineMapService.refreshRegion(region.id);
+        if (!result.ok) {
+          Alert.alert('Unable to download map', result.reason ?? 'Check connection and storage.');
+        }
+      }
       await load();
-    } catch (error) {
+    } catch (mapError) {
       Alert.alert(
-        'Retry failed',
-        error instanceof Error ? error.message : 'Unable to retry this map download.'
+        'Map storage unavailable',
+        mapError instanceof Error ? mapError.message : 'Unable to update this map region.'
       );
     } finally {
       setBusy(null);
     }
+  }
+
+  function confirmDeleteMapRegion(region: MapRegion) {
+    Alert.alert('Delete offline map?', `${region.name} will be removed from this device.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => void runMapRegionAction(region, 'delete'),
+      },
+    ]);
   }
 
   async function removeModel(model: ContentPack) {
@@ -704,6 +730,15 @@ export default function SettingsScreen() {
             ) : null}
           </Card>
 
+          <DownloadsCard
+            downloads={downloads}
+            mapRegions={mapRegions}
+            busy={busy}
+            onRetryDownload={retryDownload}
+            onDeleteMapRegion={confirmDeleteMapRegion}
+            onMapRegionAction={runMapRegionAction}
+          />
+
           <DiagnosticsCard report={diagnostics} />
 
           <Pressable onPress={handleBuildTap}>
@@ -724,7 +759,8 @@ export default function SettingsScreen() {
           mapRegions={mapRegions}
           busy={busy}
           onRetryDownload={retryDownload}
-          onRetryRegion={retryMapRegion}
+          onDeleteMapRegion={confirmDeleteMapRegion}
+          onMapRegionAction={runMapRegionAction}
         />
       ) : null}
     </Screen>
@@ -736,18 +772,24 @@ function DownloadsCard({
   mapRegions,
   busy,
   onRetryDownload,
-  onRetryRegion,
+  onDeleteMapRegion,
+  onMapRegionAction,
 }: {
   downloads: DownloadRow[];
   mapRegions: MapRegion[];
   busy: string | null;
   onRetryDownload: (download: DownloadRow) => Promise<void>;
-  onRetryRegion: (region: MapRegion) => Promise<void>;
+  onDeleteMapRegion: (region: MapRegion) => void;
+  onMapRegionAction: (region: MapRegion, action: 'pause' | 'retry') => Promise<void>;
 }) {
   const activeRows = downloads.filter((download) => download.status !== 'canceled');
+  const mapBytes = mapRegions.reduce((total, region) => total + (region.sizeBytes ?? 0), 0);
   const totalBytes =
-    activeRows.reduce((sum, download) => sum + Math.max(0, download.totalBytes ?? 0), 0) +
-    mapRegions.reduce((sum, region) => sum + Math.max(0, region.sizeBytes ?? 0), 0);
+    activeRows.reduce((sum, download) => sum + Math.max(0, download.totalBytes ?? 0), 0) + mapBytes;
+  const activeMapRegions = mapRegions.filter((region) =>
+    ['queued', 'downloading', 'paused', 'failed', 'downloaded'].includes(region.status)
+  );
+  const mapStorageLabel = summarizeMapRegionStorage(activeMapRegions);
   return (
     <Card className="gap-3">
       <View className="flex-row items-start justify-between gap-3">
@@ -757,8 +799,17 @@ function DownloadsCard({
             <Text variant="large">Downloads</Text>
           </View>
           <Text variant="muted">
-            Guides, models, archives, and map regions stored for offline use.
+            {activeMapRegions.length
+              ? `${activeMapRegions.length} map region${
+                  activeMapRegions.length === 1 ? '' : 's'
+                } tracked`
+              : 'Guides, models, archives, and map regions stored for offline use.'}
           </Text>
+          {mapStorageLabel ? (
+            <Text variant="small" className="text-muted-foreground">
+              Maps {mapStorageLabel}
+            </Text>
+          ) : null}
         </View>
         {totalBytes > 0 ? (
           <Text variant="small" className="text-muted-foreground">
@@ -780,8 +831,9 @@ function DownloadsCard({
             <MapRegionRow
               key={region.id}
               region={region}
-              busy={busy === `map-${region.id}`}
-              onRetry={() => onRetryRegion(region)}
+              busy={busy}
+              onDelete={onDeleteMapRegion}
+              onAction={onMapRegionAction}
             />
           ))}
         </View>
@@ -843,40 +895,91 @@ function DownloadRowView({
 function MapRegionRow({
   region,
   busy,
-  onRetry,
+  onDelete,
+  onAction,
 }: {
   region: MapRegion;
-  busy: boolean;
-  onRetry: () => Promise<void>;
+  busy: string | null;
+  onDelete: (region: MapRegion) => void;
+  onAction: (region: MapRegion, action: 'pause' | 'retry') => Promise<void>;
 }) {
+  const isBusy =
+    busy === `map-delete-${region.id}` ||
+    busy === `map-pause-${region.id}` ||
+    busy === `map-retry-${region.id}`;
+  const canPause = region.status === 'downloading' || region.status === 'queued';
+  const unsupportedReason = getUnsupportedMapPackReason(region);
+  const canRetry = !unsupportedReason && (region.status === 'failed' || region.status === 'paused');
+  const percent = Math.round((region.progress ?? 0) * 100);
+  const statusLabel = region.status.replace('_', ' ');
+  const sizeLabel = formatMapRegionStorage(region);
   return (
     <View className="bg-muted/30 gap-2 rounded-lg px-3 py-3">
       <View className="flex-row items-start justify-between gap-3">
         <View className="min-w-0 flex-1">
           <Text numberOfLines={1}>{region.name}</Text>
           <Text variant="small" className="text-muted-foreground">
-            Map · {region.status.replace('_', ' ')}
+            Map · {statusLabel}
           </Text>
         </View>
-        <Icon as={Map} className="text-muted-foreground size-4" />
+        <View className="items-end gap-1">
+          <Icon as={Map} className="text-muted-foreground size-4" />
+          <Text variant="small" className="text-muted-foreground">
+            {percent}%
+          </Text>
+        </View>
       </View>
       <Progress value={region.progress ?? 0} />
-      {region.sizeBytes ? (
+      <Text variant="small" className="text-muted-foreground">
+        {sizeLabel}
+      </Text>
+      {unsupportedReason ? (
         <Text variant="small" className="text-muted-foreground">
-          {FileSystemService.formatBytes(region.sizeBytes)}
+          {unsupportedReason}
+        </Text>
+      ) : region.status === 'failed' ? (
+        <Text variant="small" className="text-destructive">
+          Download failed. Retry when you have a connection and enough storage.
         </Text>
       ) : null}
-      {region.status === 'failed' ? (
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={busy}
-          onPress={() => void onRetry()}
-          className="self-start">
-          {busy ? <ActivityIndicator /> : <Icon as={RefreshCw} className="size-4" />}
-          <Text>Retry</Text>
+      <View className="flex-row flex-wrap gap-2">
+        {canRetry ? (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={isBusy}
+            onPress={() => void onAction(region, 'retry')}>
+            {busy === `map-retry-${region.id}` ? (
+              <ActivityIndicator />
+            ) : (
+              <Icon as={RotateCcw} className="size-4" />
+            )}
+            <Text>{region.status === 'paused' ? 'Resume' : 'Retry'}</Text>
+          </Button>
+        ) : null}
+        {canPause ? (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={isBusy}
+            onPress={() => void onAction(region, 'pause')}>
+            {busy === `map-pause-${region.id}` ? (
+              <ActivityIndicator />
+            ) : (
+              <Icon as={Pause} className="size-4" />
+            )}
+            <Text>Pause</Text>
+          </Button>
+        ) : null}
+        <Button size="sm" variant="ghost" disabled={isBusy} onPress={() => onDelete(region)}>
+          {busy === `map-delete-${region.id}` ? (
+            <ActivityIndicator />
+          ) : (
+            <Icon as={Trash2} className="text-destructive size-4" />
+          )}
+          <Text className="text-destructive">Delete</Text>
         </Button>
-      ) : null}
+      </View>
     </View>
   );
 }

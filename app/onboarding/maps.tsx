@@ -4,11 +4,12 @@ import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { OnboardingFrame } from '@/components/onboarding/onboarding-frame';
 import type { MapPreset } from '@/constants/map-presets';
-import { MapService } from '@/services/maps/map.service';
+import { getUnsupportedMapPackReason } from '@/services/maps/map-pack-format';
+import { ensurePresetRegionDownload } from '@/services/maps/map-region-downloads';
+import { MapLocationService } from '@/services/maps/map-location.service';
 import { MapPresetsService } from '@/services/maps/map-presets.service';
 import { OfflineMapService } from '@/services/maps/offline-map.service';
 import { useThemeStore } from '@/stores/theme-store';
-import * as Location from 'expo-location';
 import { Check, Map } from 'lucide-react-native';
 import * as React from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
@@ -18,31 +19,38 @@ export default function MapsOnboardingScreen() {
   const [presets, setPresets] = React.useState<MapPreset[]>(() =>
     MapPresetsService.recommendedForLocation(null)
   );
-  const [selected, setSelected] = React.useState(() => new Set(['portugal-overview']));
+  const [selected, setSelected] = React.useState(
+    () => defaultSelectedPresetIds(MapPresetsService.recommendedForLocation(null))
+  );
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     let canceled = false;
-    Location.getForegroundPermissionsAsync()
-      .then((permission) => {
-        if (!permission.granted) return null;
-        return Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      })
-      .then((position) => {
-        if (canceled) return;
-        const nextPresets = MapPresetsService.recommendedForLocation(
-          position
-            ? {
-                latitude: position.coords.latitude,
-                longitude: position.coords.longitude,
-              }
-            : null
-        );
+    async function loadRecommendations() {
+      const [, position] = await Promise.all([
+        MapPresetsService.refreshCatalog().catch(() => undefined),
+        MapLocationService.getGrantedLocation().catch(() => null),
+      ]);
+      if (canceled) return;
+      const nextPresets = MapPresetsService.recommendedForLocation(
+        position
+          ? {
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+            }
+          : null
+      );
+      setPresets(nextPresets);
+      setSelected(defaultSelectedPresetIds(nextPresets));
+    }
+    loadRecommendations().catch(() => {
+      if (!canceled) {
+        const nextPresets = MapPresetsService.recommendedForLocation(null);
         setPresets(nextPresets);
-        setSelected(new Set(nextPresets.slice(0, 1).map((preset) => preset.id)));
-      })
-      .catch(() => undefined);
+        setSelected(defaultSelectedPresetIds(nextPresets));
+      }
+    });
     return () => {
       canceled = true;
     };
@@ -54,14 +62,13 @@ export default function MapsOnboardingScreen() {
     setError(null);
     try {
       for (const preset of presets.filter((item) => selected.has(item.id))) {
-        const id = await OfflineMapService.createRegionDownload({
-          name: preset.name,
-          bounds: preset.bounds,
-          minZoom: preset.minZoom,
-          maxZoom: preset.maxZoom,
-          styleUrl: MapService.getDefaultStyleUrl(theme),
-        });
-        await OfflineMapService.refreshRegion(id);
+        const unsupportedReason = getUnsupportedMapPackReason(preset);
+        if (unsupportedReason) throw new Error(unsupportedReason);
+        const id = await ensurePresetRegionDownload(preset, { theme });
+        const result = await OfflineMapService.refreshRegion(id);
+        if (!result.ok) {
+          throw new Error(result.reason ?? 'Unable to start this map download.');
+        }
       }
       return true;
     } catch (downloadError) {
@@ -99,6 +106,7 @@ export default function MapsOnboardingScreen() {
               selected={selected.has(preset.id)}
               onToggle={() =>
                 setSelected((current) => {
+                  if (getUnsupportedMapPackReason(preset)) return current;
                   const next = new Set(current);
                   if (next.has(preset.id)) next.delete(preset.id);
                   else next.add(preset.id);
@@ -122,6 +130,15 @@ export default function MapsOnboardingScreen() {
   );
 }
 
+function defaultSelectedPresetIds(presets: MapPreset[]) {
+  return new Set(
+    presets
+      .filter((preset) => !getUnsupportedMapPackReason(preset))
+      .slice(0, 1)
+      .map((preset) => preset.id)
+  );
+}
+
 function MapPresetCard({
   preset,
   selected,
@@ -131,10 +148,17 @@ function MapPresetCard({
   selected: boolean;
   onToggle: () => void;
 }) {
+  const unsupportedReason = getUnsupportedMapPackReason(preset);
   return (
-    <Pressable onPress={onToggle}>
+    <Pressable disabled={!!unsupportedReason} onPress={onToggle}>
       <Card
-        className={`flex-row items-center gap-3 p-4 ${selected ? 'border-primary/50 bg-primary/5' : ''}`}>
+        className={`flex-row items-center gap-3 p-4 ${
+          selected
+            ? 'border-primary/50 bg-primary/5'
+            : unsupportedReason
+              ? 'opacity-70'
+              : ''
+        }`}>
         <View
           className={`h-10 w-10 items-center justify-center rounded-xl ${
             selected ? 'bg-primary/20' : 'bg-muted'
@@ -147,7 +171,7 @@ function MapPresetCard({
             <Text className="text-muted-foreground text-xs">{preset.estimatedSize}</Text>
           </View>
           <Text variant="muted" className="text-sm" numberOfLines={1}>
-            {preset.description}
+            {unsupportedReason ?? preset.description}
           </Text>
         </View>
       </Card>

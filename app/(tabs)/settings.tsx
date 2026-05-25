@@ -15,7 +15,6 @@ import { DownloadManagerService } from '@/services/files/download-manager.servic
 import { FileSystemService } from '@/services/files/filesystem.service';
 import { OfflineMapService } from '@/services/maps/offline-map.service';
 import { PreferencesService } from '@/services/preferences/preferences.service';
-import type { InterfaceMode } from '@/services/preferences/preferences.service';
 import { DiagnosticsService } from '@/services/sensors/diagnostics.service';
 import { VaultService } from '@/services/security/vault.service';
 import { useThemeStore } from '@/stores/theme-store';
@@ -58,7 +57,6 @@ export default function SettingsScreen() {
   const [passwordHint, setPasswordHint] = React.useState('');
   const [biometricsEnabled, setBiometricsEnabled] = React.useState(false);
   const [motionEnabled, setMotionEnabled] = React.useState(true);
-  const [interfaceMode, setInterfaceMode] = React.useState<InterfaceMode>('simple');
   const [modelPickerEnabled, setModelPickerEnabled] = React.useState(true);
   const [availableModels, setAvailableModels] = React.useState<ContentPack[]>([]);
   const [installedModels, setInstalledModels] = React.useState<ContentPack[]>([]);
@@ -93,14 +91,6 @@ export default function SettingsScreen() {
     () => availableModels.filter((model) => model.modelRole === 'embedding'),
     [availableModels]
   );
-  const visibleTabs = React.useMemo(
-    () =>
-      interfaceMode === 'technical'
-        ? SETTINGS_TABS
-        : SETTINGS_TABS.filter((item) => item.value !== 'internals'),
-    [interfaceMode]
-  );
-
   async function load() {
     await OfflineMapService.syncNativePacks().catch(() => undefined);
     const [
@@ -149,7 +139,6 @@ export default function SettingsScreen() {
     setActiveEmbeddingModel(nextActiveEmbeddingModel);
     setEmbeddingIndexStatus(nextEmbeddingIndexStatus);
     setModelPickerEnabled(aiPreferences.modelPickerEnabled);
-    setInterfaceMode(aiPreferences.interfaceMode);
   }
 
   React.useEffect(() => {
@@ -162,12 +151,6 @@ export default function SettingsScreen() {
       setActiveTab(requestedTab);
     }
   }, [tab]);
-
-  React.useEffect(() => {
-    if (interfaceMode !== 'technical' && activeTab === 'internals') {
-      setActiveTab('appearance');
-    }
-  }, [activeTab, interfaceMode]);
 
   React.useEffect(() => {
     const hasActiveModelDownload = availableModels.some((model) =>
@@ -238,11 +221,6 @@ export default function SettingsScreen() {
     const next = !motionEnabled;
     setMotionEnabled(next);
     await PreferencesService.setMotionEnabled(next);
-  }
-
-  async function changeInterfaceMode(mode: InterfaceMode) {
-    setInterfaceMode(mode);
-    await PreferencesService.setInterfaceMode(mode);
   }
 
   async function toggleModelPicker() {
@@ -419,7 +397,7 @@ export default function SettingsScreen() {
         showsHorizontalScrollIndicator={false}
         className="border-border bg-card rounded-lg border"
         contentContainerStyle={{ gap: 4, padding: 4 }}>
-        {visibleTabs.map((tabItem) => (
+        {SETTINGS_TABS.map((tabItem) => (
           <Button
             key={tabItem.value}
             className="min-w-28 px-3"
@@ -464,27 +442,6 @@ export default function SettingsScreen() {
                 onPress={toggleMotion}>
                 <Text>{motionEnabled ? 'On' : 'Off'}</Text>
               </Button>
-            </View>
-          </Card>
-
-          <Card className="gap-3">
-            <View className="gap-1">
-              <Text variant="large">Mode</Text>
-              <Text variant="muted">
-                Simple keeps Ark quiet. Technical shows local AI and index details.
-              </Text>
-            </View>
-            <View className="border-border bg-muted/20 flex-row rounded-md border p-1">
-              {(['simple', 'technical'] as const).map((mode) => (
-                <Button
-                  key={mode}
-                  className="flex-1"
-                  size="sm"
-                  variant={interfaceMode === mode ? 'default' : 'ghost'}
-                  onPress={() => void changeInterfaceMode(mode)}>
-                  <Text>{mode === 'simple' ? 'Simple' : 'Technical'}</Text>
-                </Button>
-              ))}
             </View>
           </Card>
         </>
@@ -574,156 +531,139 @@ export default function SettingsScreen() {
             <View className="gap-1">
               <Text variant="large">Local AI</Text>
               <Text>
-                {interfaceMode === 'technical'
-                  ? modelStatus
-                    ? modelStatus.adapter === 'llama'
-                      ? 'Local runtime ready'
-                      : `${modelStatus.installedModels} model file(s) installed`
-                    : 'Checking model status...'
-                  : 'Offline source search ready'}
+                {modelStatus
+                  ? modelStatus.adapter === 'llama'
+                    ? 'Offline answers ready'
+                    : `${modelStatus.installedModels} answer model(s) installed`
+                  : 'Checking model status...'}
               </Text>
-              {modelStatus && interfaceMode === 'technical' ? (
-                <Text variant="muted">{modelStatus.message}</Text>
-              ) : null}
+              {modelStatus ? <Text variant="muted">{modelStatus.message}</Text> : null}
             </View>
-            {interfaceMode === 'technical' ? (
-              <View className="bg-muted/40 gap-1 rounded-md px-3 py-3">
-                <Text variant="small">Chat models installed: {installedModels.length}</Text>
-                <Text variant="small">
-                  Search models installed:{' '}
-                  {embeddingModels.filter((model) => model.installed).length}
-                </Text>
-                {activeModel ? (
-                  <Text variant="muted">Current chat model: {activeModel.title}</Text>
-                ) : modelStatus?.chatModelDisabled ? (
-                  <Text variant="muted">Current chat mode: source search only</Text>
-                ) : null}
-                <Text variant="muted">
-                  Current search model: {activeEmbeddingModel?.title ?? 'Ark hash fallback'}
-                </Text>
-              </View>
-            ) : (
-              <Text variant="muted">
-                Ask Arky will search downloaded guides, notes, documents, maps, and cached alerts.
+            <View className="bg-muted/40 gap-1 rounded-md px-3 py-3">
+              <Text variant="small">Answer models installed: {installedModels.length}</Text>
+              <Text variant="small">
+                Source search models installed:{' '}
+                {embeddingModels.filter((model) => model.installed).length}
               </Text>
-            )}
+              <Text variant="muted">
+                Current answer model:{' '}
+                {activeModel
+                  ? activeModel.title
+                  : modelStatus?.chatModelDisabled
+                    ? 'Source search only'
+                    : 'None installed'}
+              </Text>
+              <Text variant="muted">
+                Current source search model: {activeEmbeddingModel?.title ?? 'Ark hash fallback'}
+              </Text>
+            </View>
           </Card>
 
-          {interfaceMode === 'technical' ? (
-            <Card className="gap-3">
-              <View className="flex-row items-center justify-between gap-3">
-                <View className="min-w-0 flex-1 gap-1">
-                  <Text variant="large">Chat model selector</Text>
-                  <Text variant="muted">
-                    Allow Ask Arky to choose a downloaded GGUF model or use source search only.
-                  </Text>
-                </View>
-                <Button
-                  size="sm"
-                  variant={modelPickerEnabled ? 'default' : 'outline'}
-                  onPress={toggleModelPicker}>
-                  <Text>{modelPickerEnabled ? 'On' : 'Off'}</Text>
-                </Button>
-              </View>
-            </Card>
-          ) : null}
-
-          {interfaceMode === 'technical' ? (
-            <Card className="gap-3">
-              <View className="gap-1">
-                <Text variant="large">Add your own model</Text>
+          <Card className="gap-3">
+            <View className="flex-row items-center justify-between gap-3">
+              <View className="min-w-0 flex-1 gap-1">
+                <Text variant="large">Answer model selector</Text>
                 <Text variant="muted">
-                  Import a GGUF file you already have, or save a custom download URL for later.
+                  Show a model switcher in Ask Arky when more than one answer model is installed.
                 </Text>
               </View>
               <Button
+                size="sm"
+                variant={modelPickerEnabled ? 'default' : 'outline'}
+                onPress={toggleModelPicker}>
+                <Text>{modelPickerEnabled ? 'On' : 'Off'}</Text>
+              </Button>
+            </View>
+          </Card>
+
+          <Card className="gap-3">
+            <View className="gap-1">
+              <Text variant="large">Add your own model</Text>
+              <Text variant="muted">
+                Import a GGUF file you already have, or save a custom download URL for later.
+              </Text>
+            </View>
+            <Button
+              variant="outline"
+              disabled={busy === 'model-import'}
+              onPress={() => void importLocalModel()}>
+              {busy === 'model-import' ? (
+                <ActivityIndicator />
+              ) : (
+                <Icon as={Upload} className="size-4" />
+              )}
+              <Text>Import GGUF file</Text>
+            </Button>
+            <View className="gap-2">
+              <View className="border-border bg-muted/20 flex-row rounded-md border p-1">
+                {(['chat', 'embedding'] as const).map((role) => (
+                  <Button
+                    key={role}
+                    className="flex-1"
+                    size="sm"
+                    variant={customModelRole === role ? 'default' : 'ghost'}
+                    onPress={() => setCustomModelRole(role)}>
+                    <Text>{role === 'chat' ? 'Answer' : 'Search'}</Text>
+                  </Button>
+                ))}
+              </View>
+              <Input value={modelTitle} onChangeText={setModelTitle} placeholder="Model name" />
+              <Input
+                value={modelUrl}
+                onChangeText={setModelUrl}
+                placeholder="https://.../model.gguf"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <Input
+                value={modelChecksum}
+                onChangeText={setModelChecksum}
+                placeholder="Checksum (optional)"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <Button
                 variant="outline"
-                disabled={busy === 'model-import'}
-                onPress={() => void importLocalModel()}>
-                {busy === 'model-import' ? (
+                disabled={busy === 'model-url' || !modelUrl.trim()}
+                onPress={() => void addModelUrl()}>
+                {busy === 'model-url' ? (
                   <ActivityIndicator />
                 ) : (
-                  <Icon as={Upload} className="size-4" />
+                  <Icon as={Bot} className="size-4" />
                 )}
-                <Text>Import GGUF file</Text>
+                <Text>{customModelRole === 'chat' ? 'Add answer URL' : 'Add search URL'}</Text>
               </Button>
-              <View className="gap-2">
-                <View className="border-border bg-muted/20 flex-row rounded-md border p-1">
-                  {(['chat', 'embedding'] as const).map((role) => (
-                    <Button
-                      key={role}
-                      className="flex-1"
-                      size="sm"
-                      variant={customModelRole === role ? 'default' : 'ghost'}
-                      onPress={() => setCustomModelRole(role)}>
-                      <Text>{role === 'chat' ? 'Chat' : 'Search'}</Text>
-                    </Button>
-                  ))}
-                </View>
-                <Input value={modelTitle} onChangeText={setModelTitle} placeholder="Model name" />
-                <Input
-                  value={modelUrl}
-                  onChangeText={setModelUrl}
-                  placeholder="https://.../model.gguf"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                <Input
-                  value={modelChecksum}
-                  onChangeText={setModelChecksum}
-                  placeholder="Checksum (optional)"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                <Button
-                  variant="outline"
-                  disabled={busy === 'model-url' || !modelUrl.trim()}
-                  onPress={() => void addModelUrl()}>
-                  {busy === 'model-url' ? (
-                    <ActivityIndicator />
-                  ) : (
-                    <Icon as={Bot} className="size-4" />
-                  )}
-                  <Text>{customModelRole === 'chat' ? 'Add chat URL' : 'Add search URL'}</Text>
-                </Button>
-              </View>
-              <Text variant="small" className="text-muted-foreground">
-                Choose Chat for Ask Arky responses or Search for Nomic/Qwen embedding GGUFs before
-                importing a file or adding a URL.
-              </Text>
-            </Card>
-          ) : null}
+            </View>
+            <Text variant="small" className="text-muted-foreground">
+              Choose Answer for Ask Arky replies or Search for local source matching before
+              importing a file or adding a URL.
+            </Text>
+          </Card>
 
-          {interfaceMode === 'technical' ? (
-            <ModelSection
-              title="Chat models"
-              description="These are the only models Ask Arky can switch between."
-              models={chatModels}
-              activeModelId={activeModel?.id ?? null}
-              busy={busy}
-              onPrimaryAction={runModelAction}
-              onRemove={removeModel}
-            />
-          ) : null}
+          <ModelSection
+            title="Answer models"
+            description="These write Ask Arky responses after Ark searches local sources."
+            models={chatModels}
+            activeModelId={activeModel?.id ?? null}
+            busy={busy}
+            onPrimaryAction={runModelAction}
+            onRemove={removeModel}
+          />
 
-          {interfaceMode === 'technical' ? (
-            <ModelSection
-              title="Search models"
-              description="These help Ask Arky find relevant notes, documents, guides, and Wikipedia articles. They do not appear in chat model selection."
-              models={embeddingModels}
-              activeModelId={activeEmbeddingModel?.id ?? null}
-              busy={busy}
-              onPrimaryAction={async (model) => {
-                if (model.installed) await selectEmbeddingModel(model);
-                else await runModelAction(model);
-              }}
-              onRemove={removeModel}
-            />
-          ) : null}
+          <ModelSection
+            title="Source search models"
+            description="These help Ark find relevant notes, documents, guides, and Wikipedia articles."
+            models={embeddingModels}
+            activeModelId={activeEmbeddingModel?.id ?? null}
+            busy={busy}
+            onPrimaryAction={async (model) => {
+              if (model.installed) await selectEmbeddingModel(model);
+              else await runModelAction(model);
+            }}
+            onRemove={removeModel}
+          />
 
-          {interfaceMode === 'technical' ? (
-            <EmbeddingIndexCard status={embeddingIndexStatus} />
-          ) : null}
+          <EmbeddingIndexCard status={embeddingIndexStatus} />
 
           {aiMessage ? <Text className="text-destructive">{aiMessage}</Text> : null}
         </>

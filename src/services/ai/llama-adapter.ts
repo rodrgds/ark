@@ -1,12 +1,27 @@
 import { SAFETY_COPY } from '@/constants/app';
 import { ContentPackService } from '@/services/content/content-pack.service';
+import {
+  ARK_LLAMARN_TOOLS,
+  executeArkToolCall,
+} from '@/services/ai/ark-tool-executor';
 import { isEmbeddingModelPack } from '@/services/ai/embedding-models';
 import { PreferencesService } from '@/services/preferences/preferences.service';
+import { normalizeAssistantTurn, stripHiddenModelOutput } from '@/services/ai/response-normalizer';
 import type { AiAdapterResponse } from '@/types/ai';
 import type { AiAdapterSendInput } from '@/types/ai';
 
 type LlamaModule = typeof import('llama.rn');
 type LlamaContext = Awaited<ReturnType<LlamaModule['initLlama']>>;
+type LlamaMessage = {
+  role: string;
+  content?: string;
+  tool_calls?: Array<{
+    type: 'function';
+    id?: string;
+    function: { name: string; arguments: string };
+  }>;
+  tool_call_id?: string;
+};
 
 let llamaModulePromise: Promise<LlamaModule | null> | null = null;
 let contextPromise: Promise<LlamaContext | null> | null = null;
@@ -36,7 +51,7 @@ export class LlamaAdapter {
     if (!context) {
       return {
         content:
-          'No on-device AI runtime is available in this build. Download a chat model and use a build with local AI enabled.',
+          'No on-device AI runtime is available in this build. Download an answer model and use a build with local AI enabled.',
         citations: input.citations,
       };
     }
@@ -67,38 +82,86 @@ export class LlamaAdapter {
       input.toolTrace?.map((entry) => `- ${entry.summary}`).join('\n') ?? 'No tools used.';
     let streamedText = '';
     activeCompletionContext = context;
-    const result = (await context
-      .completion(
-        {
-          messages: [
-            {
-              role: 'system',
-              content: `You are Arky, an offline survival-grade assistant. Be concise, use the tool results and opened source context below as ground truth, cite retrieved local sources when relevant, and include this safety rule: ${SAFETY_COPY.ai}`,
+    const messages: LlamaMessage[] = [
+      {
+        role: 'system',
+        content: `You are Arky, an offline survival-grade assistant. Be concise, use local tool results and opened source context as ground truth, cite retrieved local sources when relevant, and include this safety rule: ${SAFETY_COPY.ai}`,
+      },
+      {
+        role: 'user',
+        content: `Tools already used:\n${toolTraceText}\n\nRetrieved local sources:\n${sourceText}\n\nOpened source context:\n${sourceContextText}\n\nUser question:\n${input.content}`,
+      },
+    ];
+    const combinedCitations = [...input.citations];
+    let turn;
+    try {
+      let result = await completeWithLlama(context, messages, (content) => {
+        streamedText = content;
+        if (streamedText) input.onToken?.(streamedText);
+      });
+
+      turn = normalizeAssistantTurn(result);
+      for (let iteration = 0; iteration < 2 && turn.toolCalls.length; iteration += 1) {
+        messages.push({
+          role: 'assistant',
+          content: turn.content || '',
+          tool_calls: turn.toolCalls.map((call) => ({
+            type: 'function',
+            id: call.id,
+            function: { name: call.name, arguments: JSON.stringify(call.arguments ?? {}) },
+          })),
+        });
+
+        for (const call of turn.toolCalls) {
+          const executed = await executeArkToolCall(call).catch((error) => ({
+            call,
+            output: {
+              citations: [],
+              sourceContext: [],
+              toolTrace: [
+                {
+                  tool: 'search_local_knowledge' as const,
+                  summary:
+                    error instanceof Error
+                      ? `Tool call rejected: ${error.message}`
+                      : 'Tool call rejected.',
+                },
+              ],
             },
-            {
-              role: 'user',
-              content: `Tools used:\n${toolTraceText}\n\nRetrieved local sources:\n${sourceText}\n\nOpened source context:\n${sourceContextText}\n\nUser question:\n${input.content}`,
-            },
-          ],
-          n_predict: 384,
-          temperature: 0.2,
-        },
-        (data) => {
-          streamedText = data.accumulated_text ?? `${streamedText}${data.token ?? ''}`;
-          if (streamedText) input.onToken?.(streamedText);
+          }));
+          for (const citation of executed.output.citations) {
+            if (!combinedCitations.some((item) => item.sourceId === citation.sourceId)) {
+              combinedCitations.push(citation);
+            }
+          }
+          messages.push({
+            role: 'tool',
+            tool_call_id: call.id,
+            content: JSON.stringify({
+              summary: executed.output.toolTrace.map((entry) => entry.summary),
+              sources: executed.output.sourceContext.map((source) => ({
+                title: source.title,
+                content: source.content.slice(0, 1800),
+              })),
+            }),
+          });
         }
-      )
-      .finally(() => {
-        if (activeCompletionContext === context) activeCompletionContext = null;
-      })) as { text?: string; content?: string };
+
+        streamedText = '';
+        result = await completeWithLlama(context, messages, (content) => {
+          streamedText = content;
+          if (streamedText) input.onToken?.(streamedText);
+        });
+        turn = normalizeAssistantTurn(result);
+      }
+    } finally {
+      if (activeCompletionContext === context) activeCompletionContext = null;
+    }
 
     return {
       content:
-        result.text ??
-        result.content ??
-        streamedText ??
-        'The local model returned an empty response.',
-      citations: input.citations,
+        turn.content || stripHiddenModelOutput(streamedText) || 'The local model returned an empty response.',
+      citations: combinedCitations,
     };
   }
 
@@ -157,6 +220,35 @@ async function getContext() {
     })().catch(() => null);
   }
   return contextPromise;
+}
+
+async function completeWithLlama(
+  context: LlamaContext,
+  messages: LlamaMessage[],
+  onContent: (content: string) => void
+) {
+  let streamedText = '';
+  return context.completion(
+    {
+      messages: messages as never,
+      tools: ARK_LLAMARN_TOOLS,
+      tool_choice: 'auto',
+      jinja: true,
+      enable_thinking: false,
+      reasoning_format: 'auto',
+      chat_template_kwargs: {
+        enable_thinking: false,
+        thinking: false,
+      },
+      n_predict: 384,
+      temperature: 0.2,
+    },
+    (data) => {
+      const next = data.content ?? data.accumulated_text ?? `${streamedText}${data.token ?? ''}`;
+      streamedText = stripHiddenModelOutput(next);
+      if (streamedText) onContent(streamedText);
+    }
+  );
 }
 
 function contextTokensForModel(sizeBytes: number | null) {

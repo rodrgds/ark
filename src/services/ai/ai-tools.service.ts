@@ -92,7 +92,7 @@ export class AiToolService {
     };
   }
 
-  private static async runCachedWeatherTool(query: string): Promise<AiToolRun | null> {
+  static async runCachedWeatherTool(query: string): Promise<AiToolRun | null> {
     const terms = tokenizeFtsInput(query);
     if (!isWeatherQuery(terms)) return null;
 

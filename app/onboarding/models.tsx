@@ -6,25 +6,19 @@ import { getPackIcon, getPackModelRoleLabel } from '@/constants/pack-presentatio
 import { STARTER_PACKS } from '@/constants/packs';
 import { ContentPackService } from '@/services/content/content-pack.service';
 import { SettingsRepository } from '@/services/db/repositories/settings.repo';
-import { PreferencesService, type InterfaceMode } from '@/services/preferences/preferences.service';
 import type { ContentPackManifest } from '@/types/content';
 import type { LucideIcon } from 'lucide-react-native';
 import { Check, MessageSquareText, ScanSearch } from 'lucide-react-native';
 import * as React from 'react';
 import { Pressable, View } from 'react-native';
 
-const RECOMMENDED_MODEL_IDS = ['embedding-nomic-v15-q4-k-m'];
+const RECOMMENDED_MODEL_IDS = ['embedding-nomic-v15-q4-k-m', 'model-qwen25-15b-q4-0'];
 const MODEL_PACKS = STARTER_PACKS.filter(
   (pack) => !pack.testOnly && pack.category === 'AI Models'
 );
 
 export default function ModelsScreen() {
   const [selected, setSelected] = React.useState(() => new Set(RECOMMENDED_MODEL_IDS));
-  const [interfaceMode, setInterfaceMode] = React.useState<InterfaceMode>('simple');
-
-  React.useEffect(() => {
-    PreferencesService.getInterfaceMode().then(setInterfaceMode).catch(() => undefined);
-  }, []);
 
   async function saveSelection() {
     await Promise.allSettled(
@@ -40,7 +34,7 @@ export default function ModelsScreen() {
 
   return (
     <OnboardingFrame
-      title={interfaceMode === 'technical' ? 'Local Models' : 'Offline Intelligence'}
+      title="Offline Intelligence"
       nextHref="/onboarding/finish"
       nextLabel="Finish Setup"
       onNext={saveSelection}
@@ -50,39 +44,36 @@ export default function ModelsScreen() {
       totalSteps={8}>
       <View className="gap-4">
         <Text className="text-foreground leading-6">
-          {interfaceMode === 'technical'
-            ? 'Models are optional downloads. Pick one search model now, add chat models later if your phone has enough storage and memory.'
-            : 'These optional downloads help Arky search your offline library and write answers without a signal. Start small; you can add more later.'}
+          Ark will start with one small source-search download and one compact answer model. You
+          can change or add models later in Settings.
         </Text>
 
         <View className="gap-4">
           <ModelCategory
             icon={ScanSearch}
-            title={interfaceMode === 'technical' ? 'Search models' : 'Source search'}
+            title="Source search"
             description="Help Ark find relevant passages in guides, notes, and documents."
             note="Recommended: one"
           />
           <ModelCategory
             icon={MessageSquareText}
-            title={interfaceMode === 'technical' ? 'Chat models' : 'Answer writing'}
+            title="Answer writing"
             description="Write full local replies. Larger, slower, and optional."
-            note="Optional"
+            note="Recommended: one"
           />
         </View>
 
         <ModelGroup
-          title={interfaceMode === 'technical' ? 'Search models' : 'Source search'}
+          title="Source search"
           packs={searchModels}
           selected={selected}
           setSelected={setSelected}
-          interfaceMode={interfaceMode}
         />
         <ModelGroup
-          title={interfaceMode === 'technical' ? 'Chat models' : 'Answer writing'}
+          title="Answer writing"
           packs={chatModels}
           selected={selected}
           setSelected={setSelected}
-          interfaceMode={interfaceMode}
         />
       </View>
     </OnboardingFrame>
@@ -123,13 +114,11 @@ function ModelGroup({
   packs,
   selected,
   setSelected,
-  interfaceMode,
 }: {
   title: string;
   packs: ContentPackManifest[];
   selected: Set<string>;
   setSelected: React.Dispatch<React.SetStateAction<Set<string>>>;
-  interfaceMode: InterfaceMode;
 }) {
   if (!packs.length) return null;
 
@@ -141,7 +130,6 @@ function ModelGroup({
           key={pack.id}
           pack={pack}
           isSelected={selected.has(pack.id)}
-          interfaceMode={interfaceMode}
           onToggle={() =>
             setSelected((current) => {
               const next = new Set(current);
@@ -170,18 +158,16 @@ function CategoryHeader({ title }: { title: string }) {
 function ModelPackCard({
   pack,
   isSelected,
-  interfaceMode,
   onToggle,
 }: {
   pack: ContentPackManifest;
   isSelected: boolean;
-  interfaceMode: InterfaceMode;
   onToggle: () => void;
 }) {
   const PackIcon = getPackIcon(pack);
   const modelRoleLabel = getPackModelRoleLabel(pack);
-  const simple = getSimpleModelPresentation(pack);
-  const showTechnical = interfaceMode === 'technical';
+  const presentation = getFriendlyModelPresentation(pack);
+  const recommended = RECOMMENDED_MODEL_IDS.includes(pack.id);
 
   return (
     <Pressable onPress={onToggle} hitSlop={8}>
@@ -197,16 +183,16 @@ function ModelPackCard({
 
         <View className="flex-1 gap-0.5">
           <View className="flex-row items-center justify-between gap-2">
-            <Text className="flex-1 text-sm font-semibold">
-              {showTechnical ? pack.title : simple.title}
-            </Text>
+            <Text className="flex-1 text-sm font-semibold">{pack.title}</Text>
             <Text className="text-muted-foreground text-xs">{pack.estimatedSize}</Text>
           </View>
-          {showTechnical && modelRoleLabel ? (
-            <Text className="text-primary text-[11px] font-medium">{modelRoleLabel}</Text>
+          {modelRoleLabel ? (
+            <Text className="text-primary text-[11px] font-medium">
+              {recommended ? `Recommended ${modelRoleLabel.toLowerCase()}` : modelRoleLabel}
+            </Text>
           ) : null}
           <Text variant="muted" className="text-xs leading-4" numberOfLines={2}>
-            {showTechnical ? pack.description : simple.description}
+            {presentation.description}
           </Text>
         </View>
 
@@ -219,7 +205,7 @@ function ModelPackCard({
   );
 }
 
-function getSimpleModelPresentation(pack: ContentPackManifest) {
+function getFriendlyModelPresentation(pack: ContentPackManifest) {
   switch (pack.id) {
     case 'embedding-nomic-v15-q4-k-m':
       return {

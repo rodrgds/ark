@@ -55,25 +55,18 @@ export class ModelManagerService {
   }
 
   static async getPreferences() {
-    const [
-      modelPickerEnabled,
-      selectedModelId,
-      selectedEmbeddingModelId,
-      chatModelDisabled,
-      interfaceMode,
-    ] = await Promise.all([
-      PreferencesService.getAiModelPickerEnabled(),
-      PreferencesService.getSelectedAiModelId(),
-      PreferencesService.getSelectedEmbeddingModelId(),
-      PreferencesService.getAiChatModelDisabled(),
-      PreferencesService.getInterfaceMode(),
-    ]);
+    const [modelPickerEnabled, selectedModelId, selectedEmbeddingModelId, chatModelDisabled] =
+      await Promise.all([
+        PreferencesService.getAiModelPickerEnabled(),
+        PreferencesService.getSelectedAiModelId(),
+        PreferencesService.getSelectedEmbeddingModelId(),
+        PreferencesService.getAiChatModelDisabled(),
+      ]);
     return {
       modelPickerEnabled,
       selectedModelId,
       selectedEmbeddingModelId,
       chatModelDisabled,
-      interfaceMode,
     };
   }
 
@@ -134,17 +127,16 @@ export class ModelManagerService {
       selectedEmbeddingModelId: preferences.selectedEmbeddingModelId,
       modelPickerEnabled: preferences.modelPickerEnabled,
       chatModelDisabled: preferences.chatModelDisabled,
-      interfaceMode: preferences.interfaceMode,
       activeModelTitle: runtime.modelTitle,
       contextTokens: runtime.contextTokens,
       maxResponseTokens: runtime.maxResponseTokens,
       message: preferences.chatModelDisabled
-        ? 'Chat model is disabled. Ask Arky will use local source search only.'
+        ? 'Answer model is disabled. Ask Arky will use local source search only.'
         : adapter === 'llama'
-          ? `${runtime.modelTitle ?? 'Local model'} is ready for offline chat. Ark limits each answer to ${runtime.maxResponseTokens} tokens to protect phone memory.`
+          ? `${runtime.modelTitle ?? 'Local model'} is ready for offline answers.`
           : installedChatModels.length
-            ? 'A chat model file is downloaded. Use a build with local AI enabled to run it fully offline.'
-            : 'No chat model is installed. Add a chat GGUF in Settings > AI before using offline AI.',
+            ? 'An answer model is downloaded. Use a build with local AI enabled to run it fully offline.'
+            : 'No answer model is installed. Add an answer GGUF in Settings > AI before using offline AI.',
     };
   }
 

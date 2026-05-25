@@ -7,7 +7,6 @@ import { Text } from '@/components/ui/text';
 import { Arky } from '@/components/brand/ark-logo';
 import { AIService, isAiRequestCancelledError } from '@/services/ai/ai.service';
 import { ModelManagerService } from '@/services/ai/model-manager.service';
-import type { InterfaceMode } from '@/services/preferences/preferences.service';
 import type { AiCitation, AiMessage, AiProgressEvent } from '@/types/ai';
 import type { ContentPack } from '@/types/content';
 import { router, useFocusEffect } from 'expo-router';
@@ -15,7 +14,7 @@ import {
   Bot,
   ChevronDown,
   ExternalLink,
-  Search,
+  Info,
   Send,
   StopCircle,
   Trash2,
@@ -122,29 +121,9 @@ function ModelPill({
   );
 }
 
-function MessageBubble({ message, technicalMode }: { message: AiMessage; technicalMode: boolean }) {
+function MessageBubble({ message }: { message: AiMessage }) {
   if (message.role === 'tool') {
-    if (!technicalMode) return null;
-    return (
-      <View className="items-start">
-        <Card className="border-primary/30 bg-muted/20 max-w-[92%] gap-2 rounded-lg">
-          <View className="flex-row items-center gap-2">
-            <Icon as={Search} className="text-primary size-4" />
-            <Text variant="small" className="text-primary uppercase">
-              Local tools
-            </Text>
-          </View>
-          <Text variant="muted" selectable>
-            {message.content}
-          </Text>
-          {message.citations.length ? (
-            <Text variant="small" className="text-muted-foreground">
-              {message.citations.length} local matches prepared for Arky.
-            </Text>
-          ) : null}
-        </Card>
-      </View>
-    );
+    return null;
   }
 
   const assistant = message.role === 'assistant';
@@ -180,14 +159,10 @@ function MessageBubble({ message, technicalMode }: { message: AiMessage; technic
 function StreamingBubble({
   content,
   progress,
-  technicalMode,
-  tps,
   onStop,
 }: {
   content: string;
   progress: AiProgressEvent | null;
-  technicalMode: boolean;
-  tps: number | null;
   onStop: () => void;
 }) {
   return (
@@ -206,14 +181,11 @@ function StreamingBubble({
           </Button>
         </View>
         <Text selectable numberOfLines={4}>
-          {content ||
-            (technicalMode
-              ? (progress?.label ?? 'Checking local sources...')
-              : 'Checking sources...')}
+          {content || progress?.label || 'Checking local sources...'}
         </Text>
-        {technicalMode ? (
+        {!content && progress?.label ? (
           <Text variant="small" className="text-muted-foreground">
-            {[progress?.label, tps ? `${tps.toFixed(1)} tok/s` : null].filter(Boolean).join(' · ')}
+            Preparing the safest source-grounded answer available offline.
           </Text>
         ) : null}
       </Card>
@@ -231,13 +203,12 @@ export default function ChatScreen() {
   const [activeModel, setActiveModel] = React.useState<ContentPack | null>(null);
   const [modelPickerEnabled, setModelPickerEnabled] = React.useState(true);
   const [modelDisabled, setModelDisabled] = React.useState(false);
-  const [interfaceMode, setInterfaceMode] = React.useState<InterfaceMode>('simple');
   const [activeEmbeddingModel, setActiveEmbeddingModel] = React.useState<ContentPack | null>(null);
   const [modelMenuOpen, setModelMenuOpen] = React.useState(false);
+  const [modelInfoOpen, setModelInfoOpen] = React.useState(false);
   const [sending, setSending] = React.useState(false);
   const [streamingText, setStreamingText] = React.useState('');
   const [progressEvent, setProgressEvent] = React.useState<AiProgressEvent | null>(null);
-  const [tokenSpeed, setTokenSpeed] = React.useState<number | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [keyboardVisible, setKeyboardVisible] = React.useState(false);
@@ -256,7 +227,6 @@ export default function ChatScreen() {
     setActiveEmbeddingModel(embeddingModel);
     setModelPickerEnabled(preferences.modelPickerEnabled);
     setModelDisabled(preferences.chatModelDisabled);
-    setInterfaceMode(preferences.interfaceMode);
   }, []);
 
   async function load() {
@@ -313,10 +283,8 @@ export default function ChatScreen() {
     setSending(true);
     setStreamingText('');
     setProgressEvent(null);
-    setTokenSpeed(null);
     setError(null);
     setContent('');
-    const startedAt = Date.now();
     try {
       const result = await AIService.sendMessage(
         { threadId, content: trimmed, useRag: true },
@@ -327,8 +295,6 @@ export default function ChatScreen() {
           onToken: (token) => {
             if (sendRunIdRef.current === runId) {
               setStreamingText(token);
-              const elapsedSeconds = Math.max((Date.now() - startedAt) / 1000, 0.5);
-              setTokenSpeed(Math.max(0, token.length / 4 / elapsedSeconds));
             }
           },
         }
@@ -344,7 +310,6 @@ export default function ChatScreen() {
       if (sendRunIdRef.current === runId) {
         setStreamingText('');
         setProgressEvent(null);
-        setTokenSpeed(null);
         setSending(false);
       }
     }
@@ -362,7 +327,6 @@ export default function ChatScreen() {
     setSending(false);
     setStreamingText('');
     setProgressEvent(null);
-    setTokenSpeed(null);
     await AIService.cancelActiveResponse();
   }
 
@@ -396,19 +360,16 @@ export default function ChatScreen() {
     ]);
   }
 
-  const technicalMode = interfaceMode === 'technical';
   const data = React.useMemo(
-    () =>
-      [
-        ...(technicalMode ? messages : messages.filter((message) => message.role !== 'tool')),
-      ].reverse(),
-    [messages, technicalMode]
+    () => messages.filter((message) => message.role !== 'tool').reverse(),
+    [messages]
   );
+  const canChooseModel = modelPickerEnabled && installedModels.length > 1;
 
   return (
     <View className="bg-background flex-1">
       <View className="border-border bg-background flex-row items-center gap-2 border-b px-4 py-3">
-        {technicalMode ? (
+        {canChooseModel ? (
           <View className="flex-1 gap-2">
             <ModelPill
               installedModels={installedModels}
@@ -418,18 +379,18 @@ export default function ChatScreen() {
               disabled={sending}
               onOpen={openModelMenu}
             />
-            <Text variant="small" className="text-muted-foreground" numberOfLines={1}>
-              Search model: {activeEmbeddingModel?.title ?? 'Ark hash fallback'}
-            </Text>
           </View>
         ) : (
           <View className="min-h-12 flex-1 justify-center">
             <Text variant="large">Ask Arky</Text>
             <Text variant="small" className="text-muted-foreground">
-              Offline source search
+              {activeModel ? 'Offline answers with local sources' : 'Offline source search'}
             </Text>
           </View>
         )}
+        <Button size="icon" variant="ghost" onPress={() => setModelInfoOpen(true)}>
+          <Icon as={Info} className="size-5" />
+        </Button>
         <Button size="icon" variant="ghost" disabled={!threadId || sending} onPress={confirmClear}>
           <Icon as={Trash2} className="size-5" />
         </Button>
@@ -463,7 +424,7 @@ export default function ChatScreen() {
           inverted
           data={data}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <MessageBubble message={item} technicalMode={technicalMode} />}
+          renderItem={({ item }) => <MessageBubble message={item} />}
           contentContainerStyle={{
             gap: 12,
             padding: 16,
@@ -477,8 +438,6 @@ export default function ChatScreen() {
         <StreamingBubble
           content={streamingText}
           progress={progressEvent}
-          technicalMode={technicalMode}
-          tps={tokenSpeed}
           onStop={() => void stopResponse()}
         />
       ) : null}
@@ -509,6 +468,53 @@ export default function ChatScreen() {
       </View>
 
       <Modal
+        visible={modelInfoOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setModelInfoOpen(false)}>
+        <Pressable
+          className="flex-1 justify-end bg-black/60 p-4"
+          onPress={() => setModelInfoOpen(false)}>
+          <Pressable className="bg-card border-border gap-3 rounded-lg border p-4">
+            <View className="flex-row items-center gap-2">
+              <Icon as={Bot} className="text-primary size-5" />
+              <Text variant="large">AI in use</Text>
+            </View>
+            <View className="bg-muted/30 gap-1 rounded-md px-3 py-3">
+              <Text variant="small" className="text-muted-foreground uppercase">
+                Answer model
+              </Text>
+              <Text>{activeModel?.title ?? 'Source search only'}</Text>
+              <Text variant="small" className="text-muted-foreground">
+                {activeModel
+                  ? activeModel.description
+                  : 'Ark will retrieve local sources without loading an answer model.'}
+              </Text>
+            </View>
+            <View className="bg-muted/30 gap-1 rounded-md px-3 py-3">
+              <Text variant="small" className="text-muted-foreground uppercase">
+                Source search
+              </Text>
+              <Text>{activeEmbeddingModel?.title ?? 'Ark hash fallback'}</Text>
+              <Text variant="small" className="text-muted-foreground">
+                Used to find relevant local notes, guides, documents, maps, and archives.
+              </Text>
+            </View>
+            {canChooseModel ? (
+              <Button
+                variant="outline"
+                onPress={() => {
+                  setModelInfoOpen(false);
+                  openModelMenu();
+                }}>
+                <Text>Choose answer model</Text>
+              </Button>
+            ) : null}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal
         visible={modelMenuOpen}
         transparent
         animationType="fade"
@@ -528,7 +534,7 @@ export default function ChatScreen() {
                   variant="small"
                   className={!activeModel ? 'text-primary-foreground/80' : 'text-muted-foreground'}
                   numberOfLines={2}>
-                  Retrieve local RAG sources without loading a chat model.
+                  Retrieve local sources without loading an answer model.
                 </Text>
               </View>
             </Button>
@@ -555,7 +561,7 @@ export default function ChatScreen() {
             ))}
             {!installedModels.length ? (
               <Text variant="muted" className="px-1 py-2">
-                Download a chat model in Settings to enable offline model replies.
+                Download an answer model in Settings to enable offline replies.
               </Text>
             ) : null}
           </Pressable>

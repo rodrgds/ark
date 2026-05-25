@@ -6,6 +6,17 @@ let llamaStopCalls = 0;
 let llamaCompletionGate: Promise<void> | null = null;
 let llamaCompletionStarted: (() => void) | null = null;
 let lastLlamaInitModel: string | null = null;
+let mockLlamaCompletionResults: Array<{
+  text?: string;
+  content?: string;
+  reasoning_content?: string;
+  tool_calls?: Array<{
+    type: 'function';
+    id?: string;
+    function: { name: string; arguments: string };
+  }>;
+  stream?: string;
+}> = [];
 let freeDiskStorageBytes = 10 * 1024 * 1024 * 1024;
 const mockFiles = new Map<string, { isDirectory: boolean; size?: number; text?: string }>();
 let mockDownloadStatus = 200;
@@ -185,12 +196,24 @@ mock.module('llama.rn', () => ({
     return {
       completion: async (
         _params: unknown,
-        callback?: (data: { token?: string; accumulated_text?: string }) => void
+        callback?: (data: {
+          token?: string;
+          accumulated_text?: string;
+          content?: string;
+          reasoning_content?: string;
+          tool_calls?: Array<{
+            type: 'function';
+            id?: string;
+            function: { name: string; arguments: string };
+          }>;
+        }) => void
       ) => {
-        callback?.({ token: 'Local ', accumulated_text: 'Local ' });
+        const scripted = mockLlamaCompletionResults.shift();
+        const stream = scripted?.stream ?? scripted?.content ?? 'Local ';
+        if (stream) callback?.({ token: stream, accumulated_text: stream, content: stream });
         llamaCompletionStarted?.();
         if (llamaCompletionGate) await llamaCompletionGate;
-        return { text: 'Local mocked llama response.' };
+        return scripted ?? { text: 'Local mocked llama response.', content: stream };
       },
       stopCompletion: async () => {
         llamaStopCalls += 1;
@@ -305,6 +328,7 @@ beforeEach(async () => {
   llamaCompletionGate = null;
   llamaCompletionStarted = null;
   lastLlamaInitModel = null;
+  mockLlamaCompletionResults = [];
   freeDiskStorageBytes = 10 * 1024 * 1024 * 1024;
   mockFiles.clear();
   mockDownloadStatus = 200;
@@ -1044,7 +1068,7 @@ describe('service integration', () => {
       { onToken: (content) => streamed.push(content) }
     );
     await completionStarted;
-    expect(streamed).toEqual(['Local ']);
+    expect(streamed).toEqual(['Local']);
     await AIService.cancelActiveResponse();
     expect(llamaStopCalls).toBe(1);
 
@@ -1052,6 +1076,62 @@ describe('service integration', () => {
     await expect(pending).rejects.toThrow('AI request cancelled.');
     const latestThread = await AIService.getLatestThread();
     expect(latestThread ? await AIService.listMessages(latestThread) : []).toHaveLength(0);
+  });
+
+  test('local llama tool calls are validated, executed, and hidden from the final chat text', async () => {
+    await ContentRepository.createPack({
+      id: 'custom-model-tool-call-test',
+      title: 'Tool call model',
+      description: 'Installed local model for tool-call coverage.',
+      category: 'AI Models',
+      format: 'gguf',
+      localUri: 'file:///ark/models/tool-call.gguf',
+      installed: true,
+      installStatus: 'installed',
+      progress: 1,
+    });
+    const note = await NotesRepository.create({
+      title: 'North spring',
+      body: 'North spring water should be filtered and stored in sealed containers.',
+      tags: ['water'],
+    });
+    await RagService.indexNote(note.id);
+    mockLlamaCompletionResults = [
+      {
+        text: '',
+        content: '',
+        tool_calls: [
+          {
+            type: 'function',
+            id: 'call-search',
+            function: {
+              name: 'search_local_knowledge',
+              arguments: '{"query":"north spring water","limit":3}',
+            },
+          },
+        ],
+      },
+      {
+        text: '<think>private scratchpad</think>Filter the north spring water and store it sealed.',
+        stream:
+          '<think>private scratchpad</think>Filter the north spring water and store it sealed.',
+      },
+    ];
+    resetLlamaAdapterForTests();
+
+    const result = await AIService.sendMessage({
+      content: 'What should I do with the north spring water?',
+      useRag: false,
+    });
+
+    expect(result.messages).toHaveLength(2);
+    expect(result.messages[1].content).toBe(
+      'Filter the north spring water and store it sealed.'
+    );
+    expect(result.messages[1].content).not.toContain('scratchpad');
+    expect(result.messages[1].citations.some((citation) => citation.sourceRef === note.id)).toBe(
+      true
+    );
   });
 
   test('model manager reports runtime readiness for installed local models', async () => {
@@ -1217,7 +1297,7 @@ describe('service integration', () => {
   test('diagnostics reports the actual AI runtime status', async () => {
     let report = await DiagnosticsService.getReport();
     expect(report.aiAdapter).toBe('mock');
-    expect(report.aiStatusMessage).toContain('No chat model');
+    expect(report.aiStatusMessage).toContain('No answer model');
 
     await ContentRepository.createPack({
       id: 'custom-model-diagnostics-test',

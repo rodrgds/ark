@@ -148,7 +148,7 @@ export const STARTER_PACKS: ContentPackManifest[] = [
     id: 'embedding-nomic-v15-q4-k-m',
     title: 'Nomic Embed Text v1.5 Q4_K_M',
     description:
-      'Compact search model for finding relevant offline notes, documents, guides, and wiki articles.',
+      'Small source-search download. Good default for finding relevant notes, guides, documents, and wiki articles.',
     category: 'AI Models',
     format: 'gguf',
     modelRole: 'embedding',
@@ -165,7 +165,7 @@ export const STARTER_PACKS: ContentPackManifest[] = [
     id: 'embedding-qwen3-06b-q8',
     title: 'Qwen3 Embedding 0.6B Q8_0',
     description:
-      'Optional multilingual embedding model for higher-quality retrieval across Portuguese and English.',
+      'Larger source-search download. Better when your offline library mixes English and Portuguese.',
     category: 'AI Models',
     format: 'gguf',
     modelRole: 'embedding',
@@ -181,7 +181,8 @@ export const STARTER_PACKS: ContentPackManifest[] = [
   {
     id: 'model-qwen25-15b-q4-0',
     title: 'Qwen2.5 1.5B Instruct Q4_0',
-    description: 'Small Apache-2.0 GGUF model for local chat in builds with on-device AI enabled.',
+    description:
+      'Balanced default for offline answers. Good at following instructions and using local sources.',
     category: 'AI Models',
     format: 'gguf',
     modelRole: 'chat',
@@ -199,7 +200,7 @@ export const STARTER_PACKS: ContentPackManifest[] = [
     id: 'model-gemma4-e2b-it-q4-k-m',
     title: 'Gemma 4 E2B Instruct Q4_K_M',
     description:
-      'Google Gemma 4 edge chat model, quantized for higher-end phones and tablets with local AI builds.',
+      'Stronger answer model for newer phones. Good for more careful replies, but larger to store and load.',
     category: 'AI Models',
     format: 'gguf',
     modelRole: 'chat',
@@ -217,7 +218,7 @@ export const STARTER_PACKS: ContentPackManifest[] = [
     id: 'model-gemma4-e4b-it-q4-k-m',
     title: 'Gemma 4 E4B Instruct Q4_K_M',
     description:
-      'Larger Gemma 4 edge chat model for newer devices with generous storage and memory.',
+      'Highest-capacity answer model for newer devices with generous storage and memory.',
     category: 'AI Models',
     format: 'gguf',
     modelRole: 'chat',
@@ -235,7 +236,7 @@ export const STARTER_PACKS: ContentPackManifest[] = [
     id: 'model-smollm2-17b-q4-0',
     title: 'SmolLM2 1.7B Instruct Q4_0',
     description:
-      'Compact Apache-2.0 GGUF instruction model for phones with enough storage and memory.',
+      'Light answer model for short offline replies on phones with limited space.',
     category: 'AI Models',
     format: 'gguf',
     modelRole: 'chat',

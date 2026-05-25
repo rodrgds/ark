@@ -1,7 +1,10 @@
+import { ArkBottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
+import { MarkdownText } from '@/components/ui/markdown-text';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
 import { Arky } from '@/components/brand/ark-logo';
@@ -13,8 +16,10 @@ import { router, useFocusEffect } from 'expo-router';
 import {
   Bot,
   ChevronDown,
+  Check,
   ExternalLink,
   Info,
+  Search,
   Send,
   StopCircle,
   Trash2,
@@ -22,13 +27,10 @@ import {
 import * as React from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Keyboard,
-  type KeyboardEvent,
-  Modal,
-  Pressable,
-  useWindowDimensions,
+  KeyboardAvoidingView,
+  Platform,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -62,6 +64,38 @@ function CitationItem({ citation }: { citation: AiCitation }) {
           <Icon as={ExternalLink} className="size-4" />
           <Text>{actionLabel}</Text>
         </Button>
+      ) : null}
+    </View>
+  );
+}
+
+function ThinkingPanel({
+  reasoning,
+  defaultOpen = false,
+}: {
+  reasoning?: string;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = React.useState(defaultOpen);
+  if (!reasoning?.trim()) return null;
+
+  return (
+    <View className="border-border rounded-md border">
+      <Button
+        variant="ghost"
+        className="h-10 justify-between px-3"
+        onPress={() => setOpen((current) => !current)}>
+        <Text variant="small" className="text-muted-foreground uppercase">
+          Thinking
+        </Text>
+        <Icon as={ChevronDown} className={open ? 'size-4 rotate-180' : 'size-4'} />
+      </Button>
+      {open ? (
+        <View className="border-border border-t px-3 py-2">
+          <Text variant="small" className="text-muted-foreground leading-5" selectable>
+            {reasoning}
+          </Text>
+        </View>
       ) : null}
     </View>
   );
@@ -121,6 +155,39 @@ function ModelPill({
   );
 }
 
+function ModelChoice({
+  title,
+  description,
+  active,
+  icon,
+  onPress,
+}: {
+  title: string;
+  description: string;
+  active: boolean;
+  icon: typeof Bot;
+  onPress: () => void;
+}) {
+  return (
+    <Button
+      className="h-auto min-h-14 justify-start py-3"
+      variant={active ? 'default' : 'outline'}
+      onPress={onPress}>
+      <Icon as={icon} className="size-4" />
+      <View className="min-w-0 flex-1 items-start gap-1">
+        <Text numberOfLines={1}>{title}</Text>
+        <Text
+          variant="small"
+          className={active ? 'text-primary-foreground/80' : 'text-muted-foreground'}
+          numberOfLines={2}>
+          {description}
+        </Text>
+      </View>
+      {active ? <Icon as={Check} className="size-4" /> : null}
+    </Button>
+  );
+}
+
 function MessageBubble({ message }: { message: AiMessage }) {
   if (message.role === 'tool') {
     return null;
@@ -140,9 +207,14 @@ function MessageBubble({ message }: { message: AiMessage }) {
           className={assistant ? 'text-primary uppercase' : 'text-primary-foreground uppercase'}>
           {assistant ? 'Arky' : 'You'}
         </Text>
-        <Text selectable className={assistant ? undefined : 'text-primary-foreground'}>
-          {message.content}
-        </Text>
+        {assistant ? (
+          <MarkdownText>{message.content}</MarkdownText>
+        ) : (
+          <Text selectable className="text-primary-foreground">
+            {message.content}
+          </Text>
+        )}
+        {assistant ? <ThinkingPanel reasoning={message.reasoning} /> : null}
         {message.citations.length ? (
           <View className="border-border mt-1 gap-1 border-t pt-2">
             <Text variant="small">Sources</Text>
@@ -158,10 +230,12 @@ function MessageBubble({ message }: { message: AiMessage }) {
 
 function StreamingBubble({
   content,
+  reasoning,
   progress,
   onStop,
 }: {
   content: string;
+  reasoning: string;
   progress: AiProgressEvent | null;
   onStop: () => void;
 }) {
@@ -180,9 +254,12 @@ function StreamingBubble({
             <Text>Stop</Text>
           </Button>
         </View>
-        <Text selectable numberOfLines={4}>
-          {content || progress?.label || 'Checking local sources...'}
-        </Text>
+        {content ? (
+          <MarkdownText>{content}</MarkdownText>
+        ) : (
+          <Text>{progress?.label || 'Checking local sources...'}</Text>
+        )}
+        <ThinkingPanel reasoning={reasoning} defaultOpen={!content} />
         {!content && progress?.label ? (
           <Text variant="small" className="text-muted-foreground">
             Preparing the safest source-grounded answer available offline.
@@ -195,34 +272,37 @@ function StreamingBubble({
 
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
-  const { height: windowHeight } = useWindowDimensions();
   const [threadId, setThreadId] = React.useState<string | undefined>();
   const [messages, setMessages] = React.useState<AiMessage[]>([]);
   const [content, setContent] = React.useState('');
   const [installedModels, setInstalledModels] = React.useState<ContentPack[]>([]);
+  const [installedEmbeddingModels, setInstalledEmbeddingModels] = React.useState<ContentPack[]>([]);
   const [activeModel, setActiveModel] = React.useState<ContentPack | null>(null);
   const [modelPickerEnabled, setModelPickerEnabled] = React.useState(true);
   const [modelDisabled, setModelDisabled] = React.useState(false);
   const [activeEmbeddingModel, setActiveEmbeddingModel] = React.useState<ContentPack | null>(null);
   const [modelMenuOpen, setModelMenuOpen] = React.useState(false);
   const [modelInfoOpen, setModelInfoOpen] = React.useState(false);
+  const [clearConfirmOpen, setClearConfirmOpen] = React.useState(false);
   const [sending, setSending] = React.useState(false);
   const [streamingText, setStreamingText] = React.useState('');
+  const [streamingReasoning, setStreamingReasoning] = React.useState('');
   const [progressEvent, setProgressEvent] = React.useState<AiProgressEvent | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [keyboardVisible, setKeyboardVisible] = React.useState(false);
-  const [keyboardInset, setKeyboardInset] = React.useState(0);
   const sendRunIdRef = React.useRef(0);
 
   const refreshModels = React.useCallback(async () => {
-    const [models, model, embeddingModel, preferences] = await Promise.all([
+    const [models, embeddingModels, model, embeddingModel, preferences] = await Promise.all([
       ModelManagerService.listInstalledChatModels(),
+      ModelManagerService.listInstalledEmbeddingModels(),
       ModelManagerService.getActiveModel(),
       ModelManagerService.getActiveEmbeddingModel(),
       ModelManagerService.getPreferences(),
     ]);
     setInstalledModels(models);
+    setInstalledEmbeddingModels(embeddingModels);
     setActiveModel(model);
     setActiveEmbeddingModel(embeddingModel);
     setModelPickerEnabled(preferences.modelPickerEnabled);
@@ -253,27 +333,13 @@ export default function ChatScreen() {
   );
 
   React.useEffect(() => {
-    function updateKeyboardInset(event: KeyboardEvent) {
-      const keyboardTop = event.endCoordinates.screenY;
-      const overlap = Math.max(0, windowHeight - keyboardTop);
-      setKeyboardInset(overlap);
-      setKeyboardVisible(overlap > 0);
-    }
-
-    function clearKeyboardInset() {
-      setKeyboardInset(0);
-      setKeyboardVisible(false);
-    }
-
-    const willChange = Keyboard.addListener('keyboardWillChangeFrame', updateKeyboardInset);
-    const didShow = Keyboard.addListener('keyboardDidShow', updateKeyboardInset);
-    const didHide = Keyboard.addListener('keyboardDidHide', clearKeyboardInset);
+    const didShow = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
+    const didHide = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
     return () => {
-      willChange.remove();
       didShow.remove();
       didHide.remove();
     };
-  }, [windowHeight]);
+  }, []);
 
   async function send() {
     const trimmed = content.trim();
@@ -282,6 +348,7 @@ export default function ChatScreen() {
     sendRunIdRef.current = runId;
     setSending(true);
     setStreamingText('');
+    setStreamingReasoning('');
     setProgressEvent(null);
     setError(null);
     setContent('');
@@ -297,6 +364,11 @@ export default function ChatScreen() {
               setStreamingText(token);
             }
           },
+          onReasoning: (reasoning) => {
+            if (sendRunIdRef.current === runId) {
+              setStreamingReasoning(reasoning);
+            }
+          },
         }
       );
       if (sendRunIdRef.current !== runId) return;
@@ -309,6 +381,7 @@ export default function ChatScreen() {
     } finally {
       if (sendRunIdRef.current === runId) {
         setStreamingText('');
+        setStreamingReasoning('');
         setProgressEvent(null);
         setSending(false);
       }
@@ -326,6 +399,7 @@ export default function ChatScreen() {
     sendRunIdRef.current += 1;
     setSending(false);
     setStreamingText('');
+    setStreamingReasoning('');
     setProgressEvent(null);
     await AIService.cancelActiveResponse();
   }
@@ -346,6 +420,12 @@ export default function ChatScreen() {
     setModelMenuOpen(false);
   }
 
+  async function selectEmbeddingModel(model: ContentPack | null) {
+    await ModelManagerService.setSelectedEmbeddingModel(model?.id ?? null);
+    setActiveEmbeddingModel(model);
+    await refreshModels();
+  }
+
   function openModelMenu() {
     Keyboard.dismiss();
     setKeyboardVisible(false);
@@ -354,10 +434,9 @@ export default function ChatScreen() {
 
   function confirmClear() {
     if (!threadId) return;
-    Alert.alert('Clear chat?', 'This removes the current local thread from this device.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Clear', style: 'destructive', onPress: () => void clearThread() },
-    ]);
+    Keyboard.dismiss();
+    setKeyboardVisible(false);
+    setClearConfirmOpen(true);
   }
 
   const data = React.useMemo(
@@ -367,7 +446,11 @@ export default function ChatScreen() {
   const canChooseModel = modelPickerEnabled && installedModels.length > 1;
 
   return (
-    <View className="bg-background flex-1">
+    <KeyboardAvoidingView
+      className="bg-background flex-1"
+      behavior="padding"
+      enabled={Platform.OS === 'ios'}
+      keyboardVerticalOffset={0}>
       <View className="border-border bg-background flex-row items-center gap-2 border-b px-4 py-3">
         {canChooseModel ? (
           <View className="flex-1 gap-2">
@@ -437,6 +520,7 @@ export default function ChatScreen() {
       {sending ? (
         <StreamingBubble
           content={streamingText}
+          reasoning={streamingReasoning}
           progress={progressEvent}
           onStop={() => void stopResponse()}
         />
@@ -451,7 +535,7 @@ export default function ChatScreen() {
       <View
         className="border-border bg-card border-t px-3 py-2"
         style={{
-          paddingBottom: keyboardInset > 0 ? keyboardInset + 8 : Math.max(10, insets.bottom),
+          paddingBottom: Math.max(10, insets.bottom),
         }}>
         <View className="flex-row items-end gap-2">
           <Input
@@ -467,106 +551,108 @@ export default function ChatScreen() {
         </View>
       </View>
 
-      <Modal
-        visible={modelInfoOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setModelInfoOpen(false)}>
-        <Pressable
-          className="flex-1 justify-end bg-black/60 p-4"
-          onPress={() => setModelInfoOpen(false)}>
-          <Pressable className="bg-card border-border gap-3 rounded-lg border p-4">
-            <View className="flex-row items-center gap-2">
-              <Icon as={Bot} className="text-primary size-5" />
-              <Text variant="large">AI in use</Text>
-            </View>
-            <View className="bg-muted/30 gap-1 rounded-md px-3 py-3">
-              <Text variant="small" className="text-muted-foreground uppercase">
-                Answer model
-              </Text>
-              <Text>{activeModel?.title ?? 'Source search only'}</Text>
-              <Text variant="small" className="text-muted-foreground">
-                {activeModel
-                  ? activeModel.description
-                  : 'Ark will retrieve local sources without loading an answer model.'}
-              </Text>
-            </View>
-            <View className="bg-muted/30 gap-1 rounded-md px-3 py-3">
-              <Text variant="small" className="text-muted-foreground uppercase">
-                Source search
-              </Text>
-              <Text>{activeEmbeddingModel?.title ?? 'Ark hash fallback'}</Text>
-              <Text variant="small" className="text-muted-foreground">
-                Used to find relevant local notes, guides, documents, maps, and archives.
-              </Text>
-            </View>
-            {canChooseModel ? (
-              <Button
-                variant="outline"
-                onPress={() => {
-                  setModelInfoOpen(false);
-                  openModelMenu();
-                }}>
-                <Text>Choose answer model</Text>
-              </Button>
-            ) : null}
-          </Pressable>
-        </Pressable>
-      </Modal>
+      <ConfirmModal
+        visible={clearConfirmOpen}
+        title="Clear chat?"
+        description="This removes the current local thread from this device."
+        confirmLabel="Clear"
+        onCancel={() => setClearConfirmOpen(false)}
+        onConfirm={() => {
+          setClearConfirmOpen(false);
+          void clearThread();
+        }}
+      />
 
-      <Modal
+      <ArkBottomSheet
+        visible={modelInfoOpen}
+        title="AI in use"
+        description="Choose the local answer model and source-search model for this chat."
+        onDismiss={() => setModelInfoOpen(false)}
+        scrollable
+        maxDynamicContentSize={620}>
+        <View className="gap-2">
+          <View className="flex-row items-center gap-2">
+            <Icon as={Bot} className="text-primary size-5" />
+            <Text variant="large">Answer model</Text>
+          </View>
+          <ModelChoice
+            title="Source search only"
+            description="Retrieve local sources without loading an answer model."
+            active={!activeModel}
+            icon={Search}
+            onPress={() => void disableModel()}
+          />
+          {installedModels.map((model) => (
+            <ModelChoice
+              key={model.id}
+              title={model.title}
+              description={model.description ?? 'Installed local answer model.'}
+              active={activeModel?.id === model.id}
+              icon={Bot}
+              onPress={() => void selectModel(model)}
+            />
+          ))}
+          {!installedModels.length ? (
+            <Text variant="muted" className="px-1 py-2">
+              Download an answer model in Settings to enable offline replies.
+            </Text>
+          ) : null}
+        </View>
+
+        <View className="gap-2">
+          <View className="flex-row items-center gap-2">
+            <Icon as={Search} className="text-primary size-5" />
+            <Text variant="large">Source search</Text>
+          </View>
+          <ModelChoice
+            title="Ark hash fallback"
+            description="Always available. Lower quality than a downloaded embedding model, but fully local."
+            active={!activeEmbeddingModel}
+            icon={Search}
+            onPress={() => void selectEmbeddingModel(null)}
+          />
+          {installedEmbeddingModels.map((model) => (
+            <ModelChoice
+              key={model.id}
+              title={model.title}
+              description={model.description ?? 'Installed local embedding model.'}
+              active={activeEmbeddingModel?.id === model.id}
+              icon={Search}
+              onPress={() => void selectEmbeddingModel(model)}
+            />
+          ))}
+        </View>
+      </ArkBottomSheet>
+
+      <ArkBottomSheet
         visible={modelMenuOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setModelMenuOpen(false)}>
-        <Pressable
-          className="flex-1 justify-end bg-black/60 p-4"
-          onPress={() => setModelMenuOpen(false)}>
-          <Pressable className="bg-card border-border gap-2 rounded-lg border p-3">
-            <Text variant="large">Choose AI model</Text>
-            <Button
-              className="h-auto min-h-14 justify-start py-3"
-              variant={!activeModel ? 'default' : 'outline'}
-              onPress={() => void disableModel()}>
-              <View className="min-w-0 flex-1 items-start gap-1">
-                <Text numberOfLines={1}>Source search only</Text>
-                <Text
-                  variant="small"
-                  className={!activeModel ? 'text-primary-foreground/80' : 'text-muted-foreground'}
-                  numberOfLines={2}>
-                  Retrieve local sources without loading an answer model.
-                </Text>
-              </View>
-            </Button>
-            {installedModels.map((model) => (
-              <Button
-                key={model.id}
-                className="h-auto min-h-14 justify-start py-3"
-                variant={activeModel?.id === model.id ? 'default' : 'outline'}
-                onPress={() => void selectModel(model)}>
-                <View className="min-w-0 flex-1 items-start gap-1">
-                  <Text numberOfLines={1}>{model.title}</Text>
-                  <Text
-                    variant="small"
-                    className={
-                      activeModel?.id === model.id
-                        ? 'text-primary-foreground/80'
-                        : 'text-muted-foreground'
-                    }
-                    numberOfLines={2}>
-                    {model.description}
-                  </Text>
-                </View>
-              </Button>
-            ))}
-            {!installedModels.length ? (
-              <Text variant="muted" className="px-1 py-2">
-                Download an answer model in Settings to enable offline replies.
-              </Text>
-            ) : null}
-          </Pressable>
-        </Pressable>
-      </Modal>
-    </View>
+        title="Choose answer model"
+        onDismiss={() => setModelMenuOpen(false)}
+        scrollable
+        maxDynamicContentSize={520}>
+        <ModelChoice
+          title="Source search only"
+          description="Retrieve local sources without loading an answer model."
+          active={!activeModel}
+          icon={Search}
+          onPress={() => void disableModel()}
+        />
+        {installedModels.map((model) => (
+          <ModelChoice
+            key={model.id}
+            title={model.title}
+            description={model.description ?? 'Installed local answer model.'}
+            active={activeModel?.id === model.id}
+            icon={Bot}
+            onPress={() => void selectModel(model)}
+          />
+        ))}
+        {!installedModels.length ? (
+          <Text variant="muted" className="px-1 py-2">
+            Download an answer model in Settings to enable offline replies.
+          </Text>
+        ) : null}
+      </ArkBottomSheet>
+    </KeyboardAvoidingView>
   );
 }

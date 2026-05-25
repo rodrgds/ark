@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
-import { ModalFrame } from '@/components/ui/modal-frame';
+import { ArkBottomSheet } from '@/components/ui/bottom-sheet';
 import { Text } from '@/components/ui/text';
 import { type Href, router } from 'expo-router';
 import {
@@ -28,7 +28,7 @@ import {
   type LucideIcon,
 } from 'lucide-react-native';
 import * as React from 'react';
-import { Modal, Pressable, ScrollView, type TextInput, View } from 'react-native';
+import { Keyboard, Pressable, type TextInput, View } from 'react-native';
 
 type SearchEntry = {
   title: string;
@@ -203,9 +203,17 @@ export function FunctionSearchButton() {
   }, [query]);
 
   function openEntry(entry: SearchEntry) {
+    inputRef.current?.blur();
+    Keyboard.dismiss();
     setOpen(false);
     setQuery('');
     router.push(entry.href);
+  }
+
+  function closeSearch() {
+    inputRef.current?.blur();
+    Keyboard.dismiss();
+    setOpen(false);
   }
 
   const focusInput = React.useCallback(() => {
@@ -225,7 +233,7 @@ export function FunctionSearchButton() {
     }
     const focusTimer = setTimeout(() => {
       focusInput();
-    }, 1);
+    }, 260);
     return () => {
       clearTimeout(focusTimer);
       focusTimersRef.current.forEach(clearTimeout);
@@ -244,69 +252,61 @@ export function FunctionSearchButton() {
         <Icon as={Search} className="size-4" />
       </Button>
 
-      <Modal
-        transparent
+      <ArkBottomSheet
         visible={open}
-        animationType="fade"
-        onShow={focusInput}
-        onRequestClose={() => setOpen(false)}>
-        <ModalFrame
-          onDismiss={() => setOpen(false)}
-          position="top"
-          containerClassName="px-4 pt-16"
-          surfaceClassName="max-h-[82%] gap-3 p-3">
-          <Pressable
-            accessibilityRole="none"
-            onPress={focusInput}
-            className="border-border bg-card h-11 min-h-11 flex-row items-center gap-2 rounded-md border px-3">
-            <Icon as={Search} className="text-muted-foreground size-4" />
-            <Input
-              ref={inputRef}
-              className="h-11 min-h-11 flex-1 border-0 bg-transparent px-0 py-2"
-              value={query}
-              onChangeText={setQuery}
-              placeholder="Search Ark"
-              autoFocus
-              showSoftInputOnFocus
-              returnKeyType="search"
-              accessibilityLabel="Search Ark functions"
-            />
-          </Pressable>
+        onDismiss={closeSearch}
+        scrollable
+        snapPoints={['82%']}
+        contentClassName="gap-3">
+        <Pressable
+          accessibilityRole="none"
+          onPress={focusInput}
+          className="border-border bg-card h-11 min-h-11 flex-row items-center gap-2 rounded-md border px-3">
+          <Icon as={Search} className="text-muted-foreground size-4" />
+          <Input
+            ref={inputRef}
+            className="h-11 min-h-11 flex-1 border-0 bg-transparent px-0 py-2"
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search Ark"
+            autoFocus
+            showSoftInputOnFocus
+            returnKeyType="search"
+            accessibilityLabel="Search Ark functions"
+          />
+        </Pressable>
 
-          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-            <View className="gap-1">
-              {results.map((entry) => (
-                <Pressable
-                  key={`${entry.title}-${typeof entry.href === 'string' ? entry.href : entry.href.pathname}`}
-                  accessibilityRole="button"
-                  onPress={() => openEntry(entry)}
-                  className="active:bg-accent flex-row items-center gap-3 rounded-md p-3">
-                  <View className="bg-primary/10 h-10 w-10 items-center justify-center rounded-full">
-                    <Icon as={entry.icon} className="text-primary size-5" />
-                  </View>
-                  <View className="min-w-0 flex-1">
-                    <Text className="font-semibold" numberOfLines={1}>
-                      {entry.title}
-                    </Text>
-                    <Text variant="muted" className="leading-5" numberOfLines={2}>
-                      {entry.subtitle}
-                    </Text>
-                  </View>
-                </Pressable>
-              ))}
-            </View>
-
-            {results.length === 0 ? (
-              <View className="items-center gap-2 py-6">
-                <Text variant="large">No matching function</Text>
-                <Text variant="muted" className="text-center">
-                  Try map, notes, weather, AI, security, or diagnostics.
+        <View className="gap-1">
+          {results.map((entry) => (
+            <Pressable
+              key={`${entry.title}-${typeof entry.href === 'string' ? entry.href : entry.href.pathname}`}
+              accessibilityRole="button"
+              onPress={() => openEntry(entry)}
+              className="active:bg-accent flex-row items-center gap-3 rounded-md p-3">
+              <View className="bg-primary/10 h-10 w-10 items-center justify-center rounded-full">
+                <Icon as={entry.icon} className="text-primary size-5" />
+              </View>
+              <View className="min-w-0 flex-1">
+                <Text className="font-semibold" numberOfLines={1}>
+                  {entry.title}
+                </Text>
+                <Text variant="muted" className="leading-5" numberOfLines={2}>
+                  {entry.subtitle}
                 </Text>
               </View>
-            ) : null}
-          </ScrollView>
-        </ModalFrame>
-      </Modal>
+            </Pressable>
+          ))}
+        </View>
+
+        {results.length === 0 ? (
+          <View className="items-center gap-2 py-6">
+            <Text variant="large">No matching function</Text>
+            <Text variant="muted" className="text-center">
+              Try map, notes, weather, AI, security, or diagnostics.
+            </Text>
+          </View>
+        ) : null}
+      </ArkBottomSheet>
     </>
   );
 }

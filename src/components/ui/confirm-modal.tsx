@@ -1,8 +1,8 @@
 import { Button } from '@/components/ui/button';
-import { ModalFrame } from '@/components/ui/modal-frame';
+import { ArkBottomSheet } from '@/components/ui/bottom-sheet';
 import { Text } from '@/components/ui/text';
 import * as React from 'react';
-import { Modal, View } from 'react-native';
+import { View } from 'react-native';
 
 type ConfirmModalProps = {
   visible: boolean;
@@ -28,29 +28,27 @@ export function ConfirmModal({
   if (!visible) return null;
 
   return (
-    <Modal transparent visible={visible} animationType="fade" onRequestClose={onCancel}>
-      <ModalFrame
-        onDismiss={onCancel}
-        position="center"
-        containerClassName="px-4"
-        surfaceClassName="max-w-md gap-4 p-4">
-        <View className="gap-1.5">
-          <Text variant="h4">{title}</Text>
-          {description ? (
-            <Text variant="muted" className="leading-6">
-              {description}
-            </Text>
-          ) : null}
-        </View>
-        <View className="flex-row justify-end gap-2">
-          <Button variant="outline" onPress={onCancel}>
-            <Text>{cancelLabel}</Text>
-          </Button>
-          <Button variant={confirmVariant} onPress={onConfirm}>
-            <Text>{confirmLabel}</Text>
-          </Button>
-        </View>
-      </ModalFrame>
-    </Modal>
+    <ArkBottomSheet
+      visible={visible}
+      title={title}
+      description={description}
+      onDismiss={onCancel}>
+      <View className="w-full gap-2">
+        <Button
+          className="w-full"
+          style={{ alignSelf: 'stretch' }}
+          variant="outline"
+          onPress={onCancel}>
+          <Text>{cancelLabel}</Text>
+        </Button>
+        <Button
+          className="w-full"
+          style={{ alignSelf: 'stretch' }}
+          variant={confirmVariant}
+          onPress={onConfirm}>
+          <Text>{confirmLabel}</Text>
+        </Button>
+      </View>
+    </ArkBottomSheet>
   );
 }

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
 import { Progress } from '@/components/ui/progress';
+import { showSheetAlert } from '@/components/ui/sheet-alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
 import { getPackIcon } from '@/constants/pack-presentation';
@@ -16,7 +17,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { Check, Download, FileText, Pause, Play, Trash2 } from 'lucide-react-native';
 import * as React from 'react';
-import { ActivityIndicator, Alert, RefreshControl, View } from 'react-native';
+import { ActivityIndicator, RefreshControl, View } from 'react-native';
 
 function actionLabel(pack: ContentPack) {
   if (pack.installStatus === 'downloading' || pack.installStatus === 'queued') return 'Downloading';
@@ -275,7 +276,7 @@ function DocumentList({
               variant="outline"
               disabled={workingId === document.id}
               onPress={() => {
-                Alert.alert('Delete document?', document.title, [
+                showSheetAlert('Delete document?', document.title, [
                   { text: 'Cancel', style: 'cancel' },
                   {
                     text: 'Delete',
@@ -403,7 +404,7 @@ function PackCard({
             size={pack.format === 'html' ? undefined : 'icon'}
             variant="outline"
             onPress={() =>
-              Alert.alert('Cancel download?', pack.title, [
+              showSheetAlert('Cancel download?', pack.title, [
                 { text: 'Keep', style: 'cancel' },
                 {
                   text: 'Cancel',
@@ -442,7 +443,7 @@ function PackCard({
             variant="outline"
             disabled={workingId === pack.id}
             onPress={() =>
-              Alert.alert('Cancel verification?', pack.title, [
+              showSheetAlert('Cancel verification?', pack.title, [
                 { text: 'Keep', style: 'cancel' },
                 {
                   text: 'Cancel',
@@ -495,7 +496,7 @@ function PackCard({
             size="icon"
             variant="outline"
             onPress={() =>
-              Alert.alert('Cancel download?', pack.title, [
+              showSheetAlert('Cancel download?', pack.title, [
                 { text: 'Keep', style: 'cancel' },
                 {
                   text: 'Cancel',
@@ -546,7 +547,7 @@ function PackCard({
             size={pack.format === 'gguf' ? undefined : 'icon'}
             variant="outline"
             onPress={() =>
-              Alert.alert('Remove pack?', pack.title, [
+              showSheetAlert('Remove pack?', pack.title, [
                 { text: 'Cancel', style: 'cancel' },
                 {
                   text: 'Remove',

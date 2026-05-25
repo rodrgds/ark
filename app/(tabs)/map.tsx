@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
+import { showSheetAlert } from '@/components/ui/sheet-alert';
 import { Text } from '@/components/ui/text';
 import type { MapPreset } from '@/constants/map-presets';
 import { getMapPinMeta, MAP_PIN_TYPES, type MapPinType } from '@/constants/map-pins';
@@ -62,7 +63,6 @@ import * as ImagePicker from 'expo-image-picker';
 import * as React from 'react';
 import {
   ActivityIndicator,
-  Alert,
   BackHandler,
   Image,
   Keyboard,
@@ -498,13 +498,16 @@ export default function MapScreen() {
     if (source === 'camera') {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert('Permission needed', 'Camera access is required to take spot photos.');
+        showSheetAlert('Permission needed', 'Camera access is required to take spot photos.');
         return null;
       }
     } else {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert('Permission needed', 'Photo library access is required to choose spot photos.');
+        showSheetAlert(
+          'Permission needed',
+          'Photo library access is required to choose spot photos.'
+        );
         return null;
       }
     }
@@ -732,7 +735,7 @@ export default function MapScreen() {
   }
 
   async function deleteRegion(region: MapRegion) {
-    Alert.alert('Delete offline region?', region.name, [
+    showSheetAlert('Delete offline region?', region.name, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
@@ -746,7 +749,7 @@ export default function MapScreen() {
   }
 
   async function deleteMarker(marker: MapMarker) {
-    Alert.alert('Delete spot?', marker.title, [
+    showSheetAlert('Delete spot?', marker.title, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
@@ -762,7 +765,7 @@ export default function MapScreen() {
   }
 
   async function deleteRoute(route: SavedRoute) {
-    Alert.alert('Delete route?', route.title, [
+    showSheetAlert('Delete route?', route.title, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',

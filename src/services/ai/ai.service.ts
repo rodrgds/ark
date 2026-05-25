@@ -94,6 +94,13 @@ export class AIService {
         validated.content.slice(0, 42) || 'Offline chat'
       );
       throwIfCancelled(request);
+      const history = validated.threadId
+        ? (await this.listMessages(validated.threadId))
+            .filter((message) => message.role === 'user' || message.role === 'assistant')
+            .slice(-8)
+            .map((message) => ({ role: message.role, content: message.content }))
+        : [];
+      throwIfCancelled(request);
       const timestamp = Date.now();
       const userMessage: AiMessage = {
         id: randomUUID(),
@@ -126,11 +133,15 @@ export class AIService {
       options.onProgress?.({ stage: 'generating_response', label: 'Generating response' });
       const response = await adapter.sendMessage({
         content: validated.content,
+        history,
         citations: toolRun.citations,
         sourceContext: toolRun.sourceContext,
         toolTrace: toolRun.toolTrace,
         onToken: (token) => {
           if (!request.cancelled) options.onToken?.(token);
+        },
+        onReasoning: (reasoning) => {
+          if (!request.cancelled) options.onReasoning?.(reasoning);
         },
       });
       throwIfCancelled(request);
@@ -140,6 +151,7 @@ export class AIService {
         role: 'assistant',
         content: response.content,
         citations: response.citations,
+        reasoning: response.reasoning,
         createdAt: Math.max(Date.now(), timestamp + 2),
       };
 

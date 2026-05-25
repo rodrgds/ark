@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
+import { showSheetAlert } from '@/components/ui/sheet-alert';
 import { Text } from '@/components/ui/text';
 import { ImportService } from '@/services/files/import.service';
 import {
@@ -18,7 +19,7 @@ import { Stack, router, useLocalSearchParams } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
 import { ExternalLink, FileText, RefreshCcw, Trash2 } from 'lucide-react-native';
 import * as React from 'react';
-import { ActivityIndicator, Alert, Platform, View } from 'react-native';
+import { ActivityIndicator, Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 
@@ -196,7 +197,7 @@ export default function DocumentReaderScreen() {
               variant="outline"
               disabled={busy}
               onPress={() => {
-                Alert.alert('Delete document?', document.title, [
+                showSheetAlert('Delete document?', document.title, [
                   { text: 'Cancel', style: 'cancel' },
                   {
                     text: 'Delete',

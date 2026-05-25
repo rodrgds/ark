@@ -43,10 +43,12 @@ describe('map and chat UI contracts', () => {
   test('chat resizes its scroll area with the keyboard instead of floating the composer', () => {
     const source = readFileSync(join(appDir, '(tabs)/chat.tsx'), 'utf8');
 
-    expect(source).toContain('useWindowDimensions');
-    expect(source).toContain('keyboardWillChangeFrame');
-    expect(source).toContain('const overlap = Math.max(0, windowHeight - keyboardTop)');
-    expect(source).toContain('paddingBottom: keyboardInset > 0 ? keyboardInset + 8');
+    expect(source).toContain('keyboardDidShow');
+    expect(source).toContain('keyboardDidHide');
+    expect(source).toContain("enabled={Platform.OS === 'ios'}");
+    expect(source).toContain('paddingBottom: Math.max(10, insets.bottom)');
+    expect(source).not.toContain('ArkKeyboardStickyView');
+    expect(source).not.toContain('keyboardInset');
     expect(source).not.toContain('useAnimatedKeyboard');
     expect(source).not.toContain('translateY');
   });

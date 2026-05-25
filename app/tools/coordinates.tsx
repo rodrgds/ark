@@ -1,12 +1,13 @@
 import { Screen } from '@/components/layout/screen';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { showSheetAlert } from '@/components/ui/sheet-alert';
 import { Text } from '@/components/ui/text';
 import { OfflineMapService } from '@/services/maps/offline-map.service';
 import { router } from 'expo-router';
 import * as Location from 'expo-location';
 import * as React from 'react';
-import { ActivityIndicator, Alert, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 
 type Fix = Location.LocationObjectCoords & { capturedAt: number };
 
@@ -43,7 +44,7 @@ export default function CoordinatesTool() {
       latitude: fix.latitude,
       longitude: fix.longitude,
     });
-    Alert.alert('Spot saved', 'This position is now available in Map.', [
+    showSheetAlert('Spot saved', 'This position is now available in Map.', [
       { text: 'Stay here', style: 'cancel' },
       {
         text: 'Open Map',

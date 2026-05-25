@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { FunctionSearchButton } from '@/components/layout/function-search';
-import { ModalFrame } from '@/components/ui/modal-frame';
+import { ArkBottomSheet } from '@/components/ui/bottom-sheet';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { useAuthStore } from '@/stores/auth-store';
@@ -8,7 +8,7 @@ import { VaultService } from '@/services/security/vault.service';
 import { NetworkService } from '@/services/connectivity/network.service';
 import { Lock, Unlock } from 'lucide-react-native';
 import * as React from 'react';
-import { Animated, View, Easing, Modal, Pressable } from 'react-native';
+import { Animated, View, Easing, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export function LockStateBar() {
@@ -80,7 +80,7 @@ export function LockStateBar() {
           onPress={() => setConfirmLockOpen(true)}
           className="h-9 w-9 rounded-full">
           <Icon
-            as={unlocked ? Unlock : Lock}
+            as={Lock}
             className={unlocked ? 'text-primary size-4' : 'text-muted-foreground size-4'}
           />
         </Button>
@@ -96,16 +96,12 @@ export function LockStateBar() {
         </View>
       </View>
 
-      <Modal
-        transparent
+      <ArkBottomSheet
         visible={confirmLockOpen}
-        animationType="fade"
-        onRequestClose={() => setConfirmLockOpen(false)}>
-        <ModalFrame
-          onDismiss={() => setConfirmLockOpen(false)}
-          position="center"
-          containerClassName="items-center justify-center"
-          surfaceClassName="w-auto border-0 bg-transparent">
+        title="Lock vault?"
+        description="Secure notes will require unlock again."
+        onDismiss={() => setConfirmLockOpen(false)}>
+        <View className="w-full items-center gap-4">
           <Pressable onPress={runLockAnimation} disabled={locking} hitSlop={12}>
             <Animated.View
               className="bg-card border-border h-28 w-28 items-center justify-center rounded-full border-2"
@@ -116,8 +112,11 @@ export function LockStateBar() {
               />
             </Animated.View>
           </Pressable>
-        </ModalFrame>
-      </Modal>
+          <Text variant="small" className="text-muted-foreground text-center">
+            Tap the vault control to lock this session.
+          </Text>
+        </View>
+      </ArkBottomSheet>
     </SafeAreaView>
   );
 }

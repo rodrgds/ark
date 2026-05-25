@@ -40,14 +40,19 @@ export function normalizeAssistantTurn(result: NativeCompletionLike): Normalized
 
 export function stripHiddenModelOutput(text: string) {
   let next = text;
-  const finalChannel = next.match(/<\|channel\>final\s*([\s\S]*?)(?:<channel\|>|$)/i);
+  const finalChannel = next.match(
+    /<\|channel\|?>\s*final\s*([\s\S]*?)(?:<\|channel\|?>|<channel\|>|$)/i
+  );
   if (finalChannel?.[1]?.trim()) {
     next = finalChannel[1];
   }
 
   next = next
     .replace(/<think>[\s\S]*?<\/think>/gi, ' ')
-    .replace(/<\|channel\>thought[\s\S]*?(?:<channel\|>|$)/gi, ' ')
+    .replace(
+      /<\|channel\|?>\s*(?:thought|analysis)\s*[\s\S]*?(?=<\|channel\|?>|<channel\|>|$)/gi,
+      ' '
+    )
     .replace(/<\|tool_call\>[\s\S]*?(?:<tool_call\|>|<\|tool_call_end\|>|$)/gi, ' ')
     .replace(/<\|tool_calls?\|>[\s\S]*?(?:<\|end_tool_calls?\|>|$)/gi, ' ');
 
@@ -60,7 +65,9 @@ export function stripHiddenModelOutput(text: string) {
 
 function cleanVisibleContent(text: string) {
   return text
-    .replace(/<\|(?:channel|constrain|message|end|begin_of_text|end_of_text)\|>/gi, ' ')
+    .replace(/<\|(?:channel|constrain|message|end|begin_of_text|end_of_text)\|?>/gi, ' ')
+    .replace(/^\s*(?:final|thought|analysis)\s+/, ' ')
+    .replace(/\b(?:final|thought|analysis)\s*(?=<\|)/gi, ' ')
     .replace(/<\|(?:start_header_id|end_header_id|eot_id)\|>/gi, ' ')
     .replace(/<channel\|>/gi, ' ')
     .replace(/<\/?think>/gi, ' ')
@@ -71,7 +78,9 @@ function cleanVisibleContent(text: string) {
 function extractReasoning(text: string) {
   const thinkMatch = text.match(/<think>([\s\S]*?)<\/think>/i);
   if (thinkMatch?.[1]) return thinkMatch[1];
-  const gemmaThought = text.match(/<\|channel\>thought\s*([\s\S]*?)(?:<channel\|>|$)/i);
+  const gemmaThought = text.match(
+    /<\|channel\|?>\s*(?:thought|analysis)\s*([\s\S]*?)(?:<\|channel\|?>|<channel\|>|$)/i
+  );
   return gemmaThought?.[1] ?? '';
 }
 

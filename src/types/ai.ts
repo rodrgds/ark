@@ -25,6 +25,25 @@ export type AiSendMessageInput = {
 
 export type AiSendMessageOptions = {
   onToken?: (content: string) => void;
+  onProgress?: (progress: AiProgressEvent) => void;
+};
+
+export type AiProgressStage =
+  | 'opening_database'
+  | 'searching_notes'
+  | 'searching_guides'
+  | 'searching_documents'
+  | 'searching_zim'
+  | 'searching_rss'
+  | 'searching_maps'
+  | 'ranking_sources'
+  | 'preparing_context'
+  | 'loading_model'
+  | 'generating_response';
+
+export type AiProgressEvent = {
+  stage: AiProgressStage;
+  label: string;
 };
 
 export type AiAdapterResponse = {

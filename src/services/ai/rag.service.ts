@@ -18,11 +18,13 @@ import {
   serializeEmbedding,
 } from '@/services/ai/rag-embedding';
 import { RagVectorService } from '@/services/ai/rag-vector.service';
+import { RagCleanupService } from '@/services/ai/rag-cleanup.service';
 import { EmbeddingService, type EmbeddingResult } from '@/services/ai/embedding.service';
 import { GuideService } from '@/services/content/guide.service';
 import { ZimService, type ZimArticle, type ZimSearchResult } from '@/services/content/zim.service';
 import { OcrService } from '@/services/ocr/ocr.service';
 import type { AiCitation } from '@/types/ai';
+import type { AiProgressEvent } from '@/types/ai';
 import type { ContentPack } from '@/types/content';
 import type { ArkDocument } from '@/types/db';
 import type { DocumentPage } from '@/types/db';
@@ -457,20 +459,25 @@ export class RagService {
 
   static async removeSource(sourceId: string) {
     await this.queueSourceWrite(async () => {
-      const db = await DatabaseClient.getDb();
-      await db.withTransactionAsync(async () => {
-        await db.runAsync(
-          'DELETE FROM rag_chunks_fts WHERE chunk_id IN (SELECT id FROM rag_chunks WHERE source_id = ?)',
-          [sourceId]
-        );
-        await db.runAsync(
-          'DELETE FROM chunk_embeddings WHERE chunk_id IN (SELECT id FROM rag_chunks WHERE source_id = ?)',
-          [sourceId]
-        );
-        await db.runAsync('DELETE FROM rag_chunks WHERE source_id = ?', [sourceId]);
-        await db.runAsync('DELETE FROM rag_sources WHERE id = ?', [sourceId]);
-      });
+      await RagCleanupService.removeSource(sourceId);
     });
+  }
+
+  static async removeSourcesByRef(sourceRef: string) {
+    await this.queueSourceWrite(async () => {
+      await RagCleanupService.removeSourcesByRef(sourceRef);
+    });
+  }
+
+  static async removeZimPackSources(packId: string) {
+    await this.queueSourceWrite(async () => {
+      await RagCleanupService.removeZimCache(packId);
+    });
+  }
+
+  static async markAllSourcesForReindex() {
+    const db = await DatabaseClient.getDb();
+    await db.runAsync('UPDATE rag_sources SET updated_at = 0');
   }
 
   static async seedCoreContent() {
@@ -518,12 +525,20 @@ export class RagService {
     await RagVectorService.upsertChunk(db, { chunkId, embedding });
   }
 
-  static async search(query: string, options: { limit?: number } = {}): Promise<AiCitation[]> {
+  static async search(
+    query: string,
+    options: { limit?: number; onProgress?: (progress: AiProgressEvent) => void } = {}
+  ): Promise<AiCitation[]> {
     await this.seedCoreContent();
+    options.onProgress?.({ stage: 'searching_notes', label: 'Searching local notes' });
     await this.indexNotes();
+    options.onProgress?.({ stage: 'searching_guides', label: 'Searching guides' });
     await this.indexInstalledContentPacks();
+    options.onProgress?.({ stage: 'searching_documents', label: 'Searching documents' });
     await this.indexImportedDocuments();
+    options.onProgress?.({ stage: 'searching_rss', label: 'Searching emergency feeds' });
     await this.indexRssItems();
+    options.onProgress?.({ stage: 'searching_maps', label: 'Searching saved maps' });
     await this.indexMapData();
     await this.removeSourceIfExists('weather:latest');
     const ftsQueries = toFtsQueries(query);
@@ -562,10 +577,12 @@ export class RagService {
       );
       if (rows.length) break;
     }
+    options.onProgress?.({ stage: 'ranking_sources', label: 'Ranking sources' });
     const ftsCitations = (await rankRows(query, rows)).slice(0, limit).map((row) => ({
       ...citationForRow(row),
       snippet: snippetForRow(row),
     }));
+    options.onProgress?.({ stage: 'searching_zim', label: 'Searching ZIM archives' });
     const zimCitations =
       ftsCitations.length < limit
         ? await searchInstalledZimArticles(query, limit - ftsCitations.length)
@@ -829,11 +846,18 @@ function citationForRow(row: {
   chunk_index: number;
   text: string;
 }) {
-  const section =
+  const parsedPage = parsePageNumber(row.text);
+  const indexedSection =
     row.kind === 'guide' || row.kind === 'zim'
       ? GuideService.getSections(row.source_ref)[row.chunk_index]
       : null;
-  const page = parsePageNumber(row.text) ?? section?.page;
+  const page = parsedPage ?? indexedSection?.page;
+  const section =
+    row.kind === 'guide' || row.kind === 'zim'
+      ? page
+        ? GuideService.getSectionForPage(row.source_ref, page)
+        : indexedSection
+      : null;
   const contentTarget =
     row.source_id.startsWith('content:') && row.source_ref && row.kind === 'guide'
       ? `/content/reader?packId=${encodeURIComponent(row.source_ref)}${
@@ -872,12 +896,7 @@ function citationForRow(row: {
     sourceRef: row.source_ref,
     sectionTitle: section?.title,
     page,
-    targetHref:
-      contentTarget ??
-      documentTarget ??
-      zimArticleTarget ??
-      rssTarget ??
-      mapTarget,
+    targetHref: contentTarget ?? documentTarget ?? zimArticleTarget ?? rssTarget ?? mapTarget,
   };
 }
 
@@ -894,9 +913,16 @@ function snippetForRow(row: {
   chunk_index: number;
   text: string;
 }) {
-  const section =
+  const page = parsePageNumber(row.text);
+  const indexedSection =
     row.kind === 'guide' || row.kind === 'zim'
       ? GuideService.getSections(row.source_ref)[row.chunk_index]
+      : null;
+  const section =
+    row.kind === 'guide' || row.kind === 'zim'
+      ? page
+        ? GuideService.getSectionForPage(row.source_ref, page)
+        : indexedSection
       : null;
   if (section?.detail) return section.detail;
   return (

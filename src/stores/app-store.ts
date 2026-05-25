@@ -10,6 +10,8 @@ import type { OnboardingState, VaultState } from '@/types/db';
 
 type AppState = {
   booted: boolean;
+  bootProgress: number;
+  bootStatus: string;
   onboarding: OnboardingState | null;
   vault: VaultState | null;
   error: string | null;
@@ -20,22 +22,30 @@ type AppState = {
 
 export const useAppStore = create<AppState>((set, get) => ({
   booted: false,
+  bootProgress: 0,
+  bootStatus: 'Preparing offline systems...',
   onboarding: null,
   vault: null,
   error: null,
   boot: async () => {
     try {
+      set({ bootProgress: 0.08, bootStatus: 'Opening encrypted database and migrations' });
       await DatabaseClient.getDb();
+      set({ bootProgress: 0.26, bootStatus: 'Preparing folders' });
       await FileSystemService.ensureAppDirectories();
+      set({ bootProgress: 0.42, bootStatus: 'Loading settings' });
       await ContentRepository.seedStarterPacks();
+      set({ bootProgress: 0.58, bootStatus: 'Seeding guides' });
       await AuthoredGuideSeedService.seed();
+      set({ bootProgress: 0.72, bootStatus: 'Recovering downloads' });
       await DownloadManagerService.recoverPendingDownloads();
+      set({ bootProgress: 0.84, bootStatus: 'Preparing AI indexes' });
       await useThemeStore.getState().init();
       const [onboarding, vault] = await Promise.all([
         SettingsRepository.getOnboardingState(),
         SettingsRepository.getVaultState(),
       ]);
-      set({ booted: true, onboarding, vault, error: null });
+      set({ bootProgress: 1, bootStatus: 'Ready', booted: true, onboarding, vault, error: null });
     } catch (error) {
       set({ booted: true, error: error instanceof Error ? error.message : String(error) });
     }

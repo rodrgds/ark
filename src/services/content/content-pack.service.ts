@@ -141,7 +141,11 @@ export class ContentPackService {
     } else {
       await ContentRepository.uninstall(packId);
     }
-    await RagService.removeSource(`content:${packId}`);
+    if (pack?.format === 'zim') {
+      await RagService.removeZimPackSources(packId);
+    } else {
+      await RagService.removeSourcesByRef(packId);
+    }
   }
 
   static async importLocalModel(modelRole: ContentModelRole = 'chat') {

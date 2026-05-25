@@ -73,7 +73,7 @@ export class LlamaAdapter {
           messages: [
             {
               role: 'system',
-              content: `You are Ark, an offline survival-grade assistant. Be concise, use the tool results and opened source context below as ground truth, cite retrieved local sources when relevant, and include this safety rule: ${SAFETY_COPY.ai}`,
+              content: `You are Arky, an offline survival-grade assistant. Be concise, use the tool results and opened source context below as ground truth, cite retrieved local sources when relevant, and include this safety rule: ${SAFETY_COPY.ai}`,
             },
             {
               role: 'user',

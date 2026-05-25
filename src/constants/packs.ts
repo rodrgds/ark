@@ -195,6 +195,42 @@ export const STARTER_PACKS: ContentPackManifest[] = [
     disclaimer: SAFETY_COPY.ai,
   },
   {
+    id: 'model-gemma4-e2b-it-q4-k-m',
+    title: 'Gemma 4 E2B Instruct Q4_K_M',
+    description:
+      'Google Gemma 4 edge chat model, quantized for higher-end phones and tablets with local AI builds.',
+    category: 'AI Models',
+    format: 'gguf',
+    modelRole: 'chat',
+    estimatedSize: '3.11 GB',
+    sizeBytes: Math.round(3.11 * 1024 * 1024 * 1024),
+    sourceUrl:
+      'https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_K_M.gguf',
+    sourceLabel: 'Hugging Face: Unsloth / Google Gemma 4',
+    fileName: 'gemma-4-E2B-it-Q4_K_M.gguf',
+    checksumSha256: '9378bc471710229ef165709b62e34bfb62231420ddaf6d729e727305b5b8672d',
+    installed: false,
+    disclaimer: SAFETY_COPY.ai,
+  },
+  {
+    id: 'model-gemma4-e4b-it-q4-k-m',
+    title: 'Gemma 4 E4B Instruct Q4_K_M',
+    description:
+      'Larger Gemma 4 edge chat model for newer devices with generous storage and memory.',
+    category: 'AI Models',
+    format: 'gguf',
+    modelRole: 'chat',
+    estimatedSize: '4.98 GB',
+    sizeBytes: Math.round(4.98 * 1024 * 1024 * 1024),
+    sourceUrl:
+      'https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_K_M.gguf',
+    sourceLabel: 'Hugging Face: Unsloth / Google Gemma 4',
+    fileName: 'gemma-4-E4B-it-Q4_K_M.gguf',
+    checksumSha256: '519b9793ed6ce0ff530f1b7c96e848e08e49e7af4d57bb97f76215963a54146d',
+    installed: false,
+    disclaimer: SAFETY_COPY.ai,
+  },
+  {
     id: 'model-smollm2-17b-q4-0',
     title: 'SmolLM2 1.7B Instruct Q4_0',
     description:

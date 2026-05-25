@@ -1,4 +1,5 @@
 import { MapsRepository } from '@/services/db/repositories/maps.repo';
+import { RagCleanupService } from '@/services/ai/rag-cleanup.service';
 import { FileSystemService } from '@/services/files/filesystem.service';
 import { MapService, type MapLibreModule } from '@/services/maps/map.service';
 import type { MapMarker, MapRegion, OfflineMapSearchResult, SavedRoutePoint } from '@/types/maps';
@@ -138,6 +139,7 @@ export class OfflineMapService {
     }
 
     if (this.activeRegionId === id) this.completeRegionDownload(id);
+    await RagCleanupService.removeSource(`map-region:${id}`);
     return MapsRepository.deleteRegion(id);
   }
 
@@ -339,6 +341,7 @@ export class OfflineMapService {
     const marker = await MapsRepository.getMarker(id);
     if (marker?.photoUri)
       await FileSystemService.deleteByUri(marker.photoUri).catch(() => undefined);
+    await RagCleanupService.removeSource(`map-marker:${id}`);
     return MapsRepository.deleteMarker(id);
   }
 
@@ -438,7 +441,8 @@ export class OfflineMapService {
     });
   }
 
-  static deleteRoute(id: string) {
+  static async deleteRoute(id: string) {
+    await RagCleanupService.removeSource(`map-route:${id}`);
     return MapsRepository.deleteRoute(id);
   }
 

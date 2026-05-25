@@ -1,5 +1,6 @@
 import { randomUUID } from 'expo-crypto';
 import { DatabaseClient } from '@/services/db/client';
+import { RagCleanupService } from '@/services/ai/rag-cleanup.service';
 import { toFtsPrefixQuery } from '@/services/db/fts';
 import { HapticsService } from '@/services/device/haptics.service';
 import { noteInputSchema, notePatchSchema, parseOrThrow } from '@/lib/validation';
@@ -125,6 +126,7 @@ export class NotesRepository {
       ]);
       await db.runAsync('DELETE FROM notes_fts WHERE note_id = ?', [id]);
     });
+    await RagCleanupService.removeSource(`note:${id}`);
   }
 
   static async syncFts(note: Note) {

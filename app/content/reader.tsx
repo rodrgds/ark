@@ -49,7 +49,14 @@ const HTML_READER_SCRIPT = `
       var byId = document.querySelector('#' + escaped);
       if (byId) return byId;
     }
-    return document.getElementById(id) || document.getElementsByName(id)[0] || null;
+    var direct = document.getElementById(id) || document.getElementsByName(id)[0] || null;
+    if (direct) return direct;
+    var normalized = id.replace(/[-_]+/g, ' ').trim().toLowerCase();
+    var headings = Array.prototype.slice.call(document.querySelectorAll('h1,h2,h3,h4,h5,h6,[role="heading"]'));
+    return headings.find(function(node) {
+      var text = String(node.textContent || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+      return text === normalized || text.indexOf(normalized) !== -1;
+    }) || null;
   }
 
   function scrollToHash(hash) {

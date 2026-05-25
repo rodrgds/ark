@@ -11,6 +11,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ArkMark } from '@/components/brand/ark-logo';
 import { ArkKeyboardProvider } from '@/components/layout/keyboard-controller';
+import { Progress } from '@/components/ui/progress';
 import { Text } from '@/components/ui/text';
 import { AutoLockService } from '@/services/security/autolock.service';
 import { useAppStore } from '@/stores/app-store';
@@ -24,6 +25,8 @@ export {
 export default function RootLayout() {
   const boot = useAppStore((state) => state.boot);
   const booted = useAppStore((state) => state.booted);
+  const bootProgress = useAppStore((state) => state.bootProgress);
+  const bootStatus = useAppStore((state) => state.bootStatus);
   const error = useAppStore((state) => state.error);
   const effectiveTheme = useThemeStore((state) => state.effectiveTheme);
 
@@ -49,7 +52,12 @@ export default function RootLayout() {
           <View className="bg-background flex-1 items-center justify-center gap-3 p-6">
             <ArkMark size={64} />
             <Text variant="h2">Ark</Text>
-            <Text variant="muted">Preparing offline systems...</Text>
+            <View className="w-full max-w-72 gap-2">
+              <Progress value={bootProgress} />
+              <Text variant="muted" className="text-center">
+                {bootStatus}
+              </Text>
+            </View>
           </View>
         </SafeAreaProvider>
       </GestureHandlerRootView>

@@ -79,9 +79,19 @@ const GUIDE_SECTIONS: Record<string, GuideSection[]> = {
 
   'us-army-survival-fm-21-76': [
     {
-      title: 'Survival planning',
-      detail: 'Priorities, psychology, and survival actions.',
+      title: 'Introduction and survival actions',
+      detail: 'Survival mindset, planning, priorities, and immediate actions.',
       page: 7,
+    },
+    {
+      title: 'Psychology of survival',
+      detail: 'Stress, fear, fatigue, isolation, and mental discipline in emergencies.',
+      page: 11,
+    },
+    {
+      title: 'Survival medicine',
+      detail: 'Breathing, bleeding, shock, wounds, infection, fractures, bites, and evacuation.',
+      page: 16,
     },
     {
       title: 'Shelter',
@@ -104,29 +114,64 @@ const GUIDE_SECTIONS: Record<string, GuideSection[]> = {
       page: 72,
     },
     {
+      title: 'Animals for food',
+      detail: 'Insects, fish, reptiles, birds, mammals, traps, snares, and preparation cautions.',
+      page: 83,
+    },
+    {
       title: 'Plants',
       detail: 'Universal edibility test context and why uncertain plant ID is dangerous.',
       page: 99,
     },
     {
-      title: 'Navigation',
-      detail: 'Map, compass, sun, stars, and improvised direction finding.',
-      page: 194,
+      title: 'Poisonous plants',
+      detail: 'Identification limits, contact hazards, ingestion hazards, and avoidance.',
+      page: 123,
     },
     {
-      title: 'Signaling',
-      detail: 'Ground-to-air signals, mirrors, fires, and improvised markers.',
-      page: 200,
+      title: 'Dangerous animals',
+      detail: 'Insects, snakes, aquatic hazards, mammals, and defensive precautions.',
+      page: 132,
     },
     {
-      title: 'First aid',
-      detail: 'Field priorities for breathing, bleeding, shock, wounds, and evacuation.',
-      page: 16,
+      title: 'Weapons, tools, and equipment',
+      detail: 'Field expedient tools, cordage, packs, clothing, and basic repairs.',
+      page: 150,
+    },
+    {
+      title: 'Desert survival',
+      detail: 'Heat, water discipline, desert shelters, travel timing, and hazards.',
+      page: 155,
+    },
+    {
+      title: 'Tropical survival',
+      detail: 'Jungle travel, shelter, water, food, insects, disease, and visibility.',
+      page: 172,
+    },
+    {
+      title: 'Cold weather survival',
+      detail: 'Shelter, clothing, frostbite, hypothermia, snow travel, and fire.',
+      page: 181,
     },
     {
       title: 'Sea survival',
-      detail: 'Rafts, water discipline, signaling, and exposure hazards.',
-      page: 162,
+      detail: 'Rafts, water discipline, signaling, fishing, exposure, and shore approach.',
+      page: 194,
+    },
+    {
+      title: 'Expedient water crossings',
+      detail: 'Fording, flotation aids, rafts, and river crossing risk controls.',
+      page: 211,
+    },
+    {
+      title: 'Field-expedient direction finding',
+      detail: 'Map, compass, sun, stars, shadows, and improvised direction finding.',
+      page: 216,
+    },
+    {
+      title: 'Signaling',
+      detail: 'Ground-to-air signals, mirrors, fires, markers, radios, and improvised signals.',
+      page: 223,
     },
   ],
 
@@ -206,20 +251,29 @@ const GUIDE_SECTIONS: Record<string, GuideSection[]> = {
 
   'disaster-earthquakes': [
     {
+      title: 'Prepare Before an Earthquake',
+      detail: 'Secure heavy items, make a family plan, and keep supplies ready before shaking starts.',
+      htmlTargets: ['#before', 'Prepare Before an Earthquake'],
+    },
+    {
+      title: 'During an Earthquake',
+      detail: 'Drop, cover, and hold on. Stay away from glass, exterior walls, and falling objects.',
+      htmlTargets: ['#during', 'During an Earthquake', 'Protect Yourself During Earthquakes'],
+    },
+    {
       title: 'Drop, Cover, and Hold On',
       detail: 'Protect your head and neck under sturdy furniture or against an interior wall.',
+      htmlTargets: ['1. Drop (or Lock)', '2. Cover', '3. Hold On', '#during'],
     },
     {
-      title: 'Indoor Safety',
-      detail: 'Stay away from windows, glass, and exterior walls. Do not use elevators.',
-    },
-    {
-      title: 'If Outdoors',
-      detail: 'Move to an open area away from buildings, trees, power lines, and vehicles.',
-    },
-    {
-      title: 'Aftershocks',
+      title: 'After an Earthquake',
       detail: 'Expect aftershocks. Check for injuries and damage before moving around.',
+      htmlTargets: ['#after', 'After an Earthquake', 'Expect aftershocks'],
+    },
+    {
+      title: 'Additional Resources',
+      detail: 'Open partner earthquake safety resources from Ready.gov.',
+      htmlTargets: ['#resources', 'Additional Resources', 'Partner Resources'],
     },
   ],
 
@@ -261,20 +315,29 @@ const GUIDE_SECTIONS: Record<string, GuideSection[]> = {
 
   'disaster-extreme-heat': [
     {
-      title: 'Stay Cool',
-      detail: 'Seek air conditioning, cool showers, and shaded outdoor spaces.',
+      title: 'Before Extreme Heat',
+      detail: 'Plan cooling options, check insulation, and prepare for heat emergencies before they happen.',
+      htmlTargets: ['#prepare', 'Before Extreme Heat'],
     },
     {
-      title: 'Hydration',
-      detail: 'Drink water regularly, avoid alcohol and caffeine, and check on vulnerable people.',
+      title: 'During Extreme Heat',
+      detail: 'Stay cool, drink water regularly, avoid strenuous activity, and check vulnerable people.',
+      htmlTargets: ['#during', 'During Extreme Heat'],
     },
     {
-      title: 'Heat Illness Signs',
-      detail: 'Heavy sweating, cramps, nausea, dizziness, and confusion require cooling and rest.',
+      title: 'Heat-Related Illnesses',
+      detail: 'Recognize heat cramps, heat exhaustion, and heat stroke so you can act quickly.',
+      htmlTargets: ['#illness', 'Heat-Related Illnesses', 'HEAT STROKE', 'HEAT EXHAUSTION'],
     },
     {
-      title: 'Never Leave People or Pets in Vehicles',
-      detail: 'Temperatures inside vehicles can become lethal within minutes.',
+      title: 'Summer Break',
+      detail: 'Follow summer safety guidance for children, pets, outdoor work, and heat exposure.',
+      htmlTargets: ['#break', 'Summer Break'],
+    },
+    {
+      title: 'Additional Resources',
+      detail: 'Open Ready.gov heat safety resource links and partner guidance.',
+      htmlTargets: ['#content', 'Additional Resources'],
     },
   ],
 
@@ -323,18 +386,22 @@ const GUIDE_SECTIONS: Record<string, GuideSection[]> = {
     {
       title: 'Cook safely without power',
       detail: 'Gas, camping stoves, fire, ventilation, and carbon monoxide risks.',
+      htmlTargets: ['#cook-safely-without-power'],
     },
     {
       title: 'Use food before it spoils',
       detail: 'Fridge, freezer, pantry order, and when to discard food.',
+      htmlTargets: ['#use-food-before-it-spoils'],
     },
     {
       title: 'Low-water cooking',
       detail: 'Meals that conserve water and fuel.',
+      htmlTargets: ['#low-water-cooking'],
     },
     {
       title: 'No-cook meals',
       detail: 'Shelf-stable combinations when fire is unsafe.',
+      htmlTargets: ['#no-cook-meals'],
     },
   ],
 
@@ -342,18 +409,22 @@ const GUIDE_SECTIONS: Record<string, GuideSection[]> = {
     {
       title: 'Do not guess',
       detail: 'Why uncertain plant ID is dangerous and when not to forage.',
+      htmlTargets: ['#do-not-guess'],
     },
     {
       title: 'Universal edibility test is not enough',
       detail: 'Why slow testing does not make unknown plants safe.',
+      htmlTargets: ['#universal-edibility-test-is-not-enough'],
     },
     {
       title: 'High-risk lookalikes',
       detail: 'Mushrooms, berries, bulbs, hemlock-like plants, and polluted areas.',
+      htmlTargets: ['#high-risk-lookalikes'],
     },
     {
       title: 'Safer food priorities',
       detail: 'Prefer stored food, known local plants, fishing, and community knowledge.',
+      htmlTargets: ['#safer-food-priorities'],
     },
   ],
 
@@ -361,18 +432,22 @@ const GUIDE_SECTIONS: Record<string, GuideSection[]> = {
     {
       title: 'Before hunting or fishing',
       detail: 'Legal limits, safety, contamination, humane handling, and energy cost.',
+      htmlTargets: ['#before-hunting-or-fishing'],
     },
     {
       title: 'Fishing first',
       detail: 'Why fishing is often safer and more efficient than hunting.',
+      htmlTargets: ['#fishing-first'],
     },
     {
       title: 'Animal handling risks',
       detail: 'Parasites, spoilage, bites, disease, and safe cooking temperatures.',
+      htmlTargets: ['#animal-handling-risks'],
     },
     {
       title: 'When not to hunt',
       detail: 'Injury risk, ammunition scarcity, noise, legality, and community safety.',
+      htmlTargets: ['#when-not-to-hunt'],
     },
   ],
 
@@ -380,18 +455,22 @@ const GUIDE_SECTIONS: Record<string, GuideSection[]> = {
     {
       title: 'Avoid becoming a target',
       detail: 'Movement, visibility, valuables, groups, and low-profile behavior.',
+      htmlTargets: ['#avoid-becoming-a-target'],
     },
     {
       title: 'De-escalation',
       detail: 'Distance, calm speech, exits, witnesses, and non-provocation.',
+      htmlTargets: ['#de-escalation'],
     },
     {
       title: 'Escape planning',
       detail: 'Routes, barriers, safe rooms, alarms, and regroup points.',
+      htmlTargets: ['#escape-planning'],
     },
     {
       title: 'After an incident',
       detail: 'Medical check, documentation, police/contact options, and mental recovery.',
+      htmlTargets: ['#after-an-incident'],
     },
   ],
 
@@ -399,18 +478,22 @@ const GUIDE_SECTIONS: Record<string, GuideSection[]> = {
     {
       title: 'First rule: preserve battery',
       detail: 'Airplane mode, low brightness, OLED black UI, power banks, and duty cycles.',
+      htmlTargets: ['#first-rule-preserve-battery'],
     },
     {
       title: 'SMS, radio, and meeting points',
       detail: 'Use low-bandwidth channels and pre-agreed physical fallback plans.',
+      htmlTargets: ['#sms-radio-and-meeting-points'],
     },
     {
       title: 'Signal methods',
       detail: 'Whistles, mirrors, flashlights, flags, and ground markers.',
+      htmlTargets: ['#signal-methods'],
     },
     {
       title: 'Information hygiene',
       detail: 'Avoid rumors, verify before moving, and record trusted updates.',
+      htmlTargets: ['#information-hygiene'],
     },
   ],
 };
@@ -418,5 +501,12 @@ const GUIDE_SECTIONS: Record<string, GuideSection[]> = {
 export class GuideService {
   static getSections(packId: string) {
     return GUIDE_SECTIONS[packId] ?? [];
+  }
+
+  static getSectionForPage(packId: string, page: number) {
+    const sections = this.getSections(packId)
+      .filter((section) => typeof section.page === 'number' && section.page <= page)
+      .sort((left, right) => (right.page ?? 0) - (left.page ?? 0));
+    return sections[0] ?? null;
   }
 }

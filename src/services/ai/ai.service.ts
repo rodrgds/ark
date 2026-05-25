@@ -87,6 +87,7 @@ export class AIService {
     const validated = parseOrThrow(chatMessageSchema, input);
     try {
       const db = await DatabaseClient.getDb();
+      options.onProgress?.({ stage: 'opening_database', label: 'Opening local database' });
       throwIfCancelled(request);
       const threadId = await this.ensureThread(
         validated.threadId,
@@ -103,7 +104,7 @@ export class AIService {
         createdAt: timestamp,
       };
       const toolRun = validated.useRag
-        ? await AiToolService.runLocalKnowledgeTools(validated.content)
+        ? await AiToolService.runLocalKnowledgeTools(validated.content, options.onProgress)
         : AiToolService.emptyRun();
       throwIfCancelled(request);
       const toolMessage: AiMessage | null = toolRun.toolTrace.length
@@ -117,7 +118,12 @@ export class AIService {
           }
         : null;
       const adapter = (await llamaAdapter.isAvailable()) ? llamaAdapter : mockAdapter;
+      options.onProgress?.({
+        stage: 'loading_model',
+        label: adapter === llamaAdapter ? 'Loading local model' : 'Preparing response',
+      });
       throwIfCancelled(request);
+      options.onProgress?.({ stage: 'generating_response', label: 'Generating response' });
       const response = await adapter.sendMessage({
         content: validated.content,
         citations: toolRun.citations,

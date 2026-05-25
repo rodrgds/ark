@@ -1,7 +1,7 @@
 import { RagService } from '@/services/ai/rag.service';
 import { tokenizeFtsInput } from '@/services/db/fts';
 import { WeatherCacheService } from '@/services/weather/weather-cache.service';
-import type { AiAdapterSendInput, AiCitation } from '@/types/ai';
+import type { AiAdapterSendInput, AiCitation, AiProgressEvent } from '@/types/ai';
 
 export type AiToolRun = {
   citations: AiCitation[];
@@ -53,11 +53,15 @@ const WEATHER_TIME_TERMS = new Set([...TODAY_TERMS, ...TOMORROW_TERMS, 'week', '
 const WEATHER_SOURCE_ID = 'weather:cached';
 
 export class AiToolService {
-  static async runLocalKnowledgeTools(query: string): Promise<AiToolRun> {
+  static async runLocalKnowledgeTools(
+    query: string,
+    onProgress?: (progress: AiProgressEvent) => void
+  ): Promise<AiToolRun> {
     const weatherRun = await this.runCachedWeatherTool(query);
     if (weatherRun) return weatherRun;
 
-    const citations = await RagService.search(query, { limit: 4 });
+    const citations = await RagService.search(query, { limit: 4, onProgress });
+    onProgress?.({ stage: 'preparing_context', label: 'Preparing context' });
     const sourceContext = await RagService.expandCitations(citations, {
       maxSources: 3,
       maxCharsPerSource: 1800,

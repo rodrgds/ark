@@ -5,7 +5,7 @@ import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { useAuthStore } from '@/stores/auth-store';
 import { VaultService } from '@/services/security/vault.service';
-import NetInfo from '@react-native-community/netinfo';
+import { NetworkService } from '@/services/connectivity/network.service';
 import { Lock, Unlock } from 'lucide-react-native';
 import * as React from 'react';
 import { Animated, View, Easing, Modal, Pressable } from 'react-native';
@@ -58,8 +58,11 @@ export function LockStateBar() {
     });
   }
   React.useEffect(() => {
-    return NetInfo.addEventListener((state) => {
-      setIsOnline(state.isConnected);
+    void NetworkService.getState().then((state) => {
+      setIsOnline(NetworkService.isOnline(state));
+    });
+    return NetworkService.subscribe((state) => {
+      setIsOnline(NetworkService.isOnline(state));
     });
   }, []);
 

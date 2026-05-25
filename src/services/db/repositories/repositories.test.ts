@@ -213,7 +213,8 @@ describe('repositories', () => {
     const packs = await ContentRepository.list();
     expect(packs.length).toBeGreaterThan(4);
     expect(packs.some((pack) => pack.id.includes('placeholder'))).toBe(false);
-    expect(packs.some((pack) => pack.id.includes('gemma'))).toBe(false);
+    expect(packs.some((pack) => pack.id === 'model-gemma3-1b-it-q4-0')).toBe(false);
+    expect(packs.some((pack) => pack.id === 'model-gemma4-e2b-it-q4-k-m')).toBe(true);
 
     const pack = packs.find((item) => item.id === 'wikipedia-en-top100-nopic');
     expect(pack?.sourceUrl).toMatch(/^https:\/\//);

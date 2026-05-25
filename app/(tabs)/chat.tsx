@@ -7,7 +7,8 @@ import { Text } from '@/components/ui/text';
 import { Arky } from '@/components/brand/ark-logo';
 import { AIService, isAiRequestCancelledError } from '@/services/ai/ai.service';
 import { ModelManagerService } from '@/services/ai/model-manager.service';
-import type { AiCitation, AiMessage } from '@/types/ai';
+import type { InterfaceMode } from '@/services/preferences/preferences.service';
+import type { AiCitation, AiMessage, AiProgressEvent } from '@/types/ai';
 import type { ContentPack } from '@/types/content';
 import { router, useFocusEffect } from 'expo-router';
 import {
@@ -121,8 +122,9 @@ function ModelPill({
   );
 }
 
-function MessageBubble({ message }: { message: AiMessage }) {
+function MessageBubble({ message, technicalMode }: { message: AiMessage; technicalMode: boolean }) {
   if (message.role === 'tool') {
+    if (!technicalMode) return null;
     return (
       <View className="items-start">
         <Card className="border-primary/30 bg-muted/20 max-w-[92%] gap-2 rounded-lg">
@@ -175,7 +177,19 @@ function MessageBubble({ message }: { message: AiMessage }) {
   );
 }
 
-function StreamingBubble({ content, onStop }: { content: string; onStop: () => void }) {
+function StreamingBubble({
+  content,
+  progress,
+  technicalMode,
+  tps,
+  onStop,
+}: {
+  content: string;
+  progress: AiProgressEvent | null;
+  technicalMode: boolean;
+  tps: number | null;
+  onStop: () => void;
+}) {
   return (
     <View className="px-3 pb-2">
       <Card className="gap-2 rounded-lg px-3 py-2">
@@ -192,8 +206,16 @@ function StreamingBubble({ content, onStop }: { content: string; onStop: () => v
           </Button>
         </View>
         <Text selectable numberOfLines={4}>
-          {content || 'Checking local sources...'}
+          {content ||
+            (technicalMode
+              ? (progress?.label ?? 'Checking local sources...')
+              : 'Checking sources...')}
         </Text>
+        {technicalMode ? (
+          <Text variant="small" className="text-muted-foreground">
+            {[progress?.label, tps ? `${tps.toFixed(1)} tok/s` : null].filter(Boolean).join(' · ')}
+          </Text>
+        ) : null}
       </Card>
     </View>
   );
@@ -209,9 +231,13 @@ export default function ChatScreen() {
   const [activeModel, setActiveModel] = React.useState<ContentPack | null>(null);
   const [modelPickerEnabled, setModelPickerEnabled] = React.useState(true);
   const [modelDisabled, setModelDisabled] = React.useState(false);
+  const [interfaceMode, setInterfaceMode] = React.useState<InterfaceMode>('simple');
+  const [activeEmbeddingModel, setActiveEmbeddingModel] = React.useState<ContentPack | null>(null);
   const [modelMenuOpen, setModelMenuOpen] = React.useState(false);
   const [sending, setSending] = React.useState(false);
   const [streamingText, setStreamingText] = React.useState('');
+  const [progressEvent, setProgressEvent] = React.useState<AiProgressEvent | null>(null);
+  const [tokenSpeed, setTokenSpeed] = React.useState<number | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [keyboardVisible, setKeyboardVisible] = React.useState(false);
@@ -219,15 +245,18 @@ export default function ChatScreen() {
   const sendRunIdRef = React.useRef(0);
 
   const refreshModels = React.useCallback(async () => {
-    const [models, model, preferences] = await Promise.all([
+    const [models, model, embeddingModel, preferences] = await Promise.all([
       ModelManagerService.listInstalledChatModels(),
       ModelManagerService.getActiveModel(),
+      ModelManagerService.getActiveEmbeddingModel(),
       ModelManagerService.getPreferences(),
     ]);
     setInstalledModels(models);
     setActiveModel(model);
+    setActiveEmbeddingModel(embeddingModel);
     setModelPickerEnabled(preferences.modelPickerEnabled);
     setModelDisabled(preferences.chatModelDisabled);
+    setInterfaceMode(preferences.interfaceMode);
   }, []);
 
   async function load() {
@@ -283,14 +312,24 @@ export default function ChatScreen() {
     sendRunIdRef.current = runId;
     setSending(true);
     setStreamingText('');
+    setProgressEvent(null);
+    setTokenSpeed(null);
     setError(null);
     setContent('');
+    const startedAt = Date.now();
     try {
       const result = await AIService.sendMessage(
         { threadId, content: trimmed, useRag: true },
         {
+          onProgress: (progress) => {
+            if (sendRunIdRef.current === runId) setProgressEvent(progress);
+          },
           onToken: (token) => {
-            if (sendRunIdRef.current === runId) setStreamingText(token);
+            if (sendRunIdRef.current === runId) {
+              setStreamingText(token);
+              const elapsedSeconds = Math.max((Date.now() - startedAt) / 1000, 0.5);
+              setTokenSpeed(Math.max(0, token.length / 4 / elapsedSeconds));
+            }
           },
         }
       );
@@ -304,6 +343,8 @@ export default function ChatScreen() {
     } finally {
       if (sendRunIdRef.current === runId) {
         setStreamingText('');
+        setProgressEvent(null);
+        setTokenSpeed(null);
         setSending(false);
       }
     }
@@ -320,6 +361,8 @@ export default function ChatScreen() {
     sendRunIdRef.current += 1;
     setSending(false);
     setStreamingText('');
+    setProgressEvent(null);
+    setTokenSpeed(null);
     await AIService.cancelActiveResponse();
   }
 
@@ -353,19 +396,40 @@ export default function ChatScreen() {
     ]);
   }
 
-  const data = React.useMemo(() => [...messages].reverse(), [messages]);
+  const technicalMode = interfaceMode === 'technical';
+  const data = React.useMemo(
+    () =>
+      [
+        ...(technicalMode ? messages : messages.filter((message) => message.role !== 'tool')),
+      ].reverse(),
+    [messages, technicalMode]
+  );
 
   return (
     <View className="bg-background flex-1">
       <View className="border-border bg-background flex-row items-center gap-2 border-b px-4 py-3">
-        <ModelPill
-          installedModels={installedModels}
-          activeModel={activeModel}
-          modelDisabled={modelDisabled}
-          pickerEnabled={modelPickerEnabled}
-          disabled={sending}
-          onOpen={openModelMenu}
-        />
+        {technicalMode ? (
+          <View className="flex-1 gap-2">
+            <ModelPill
+              installedModels={installedModels}
+              activeModel={activeModel}
+              modelDisabled={modelDisabled}
+              pickerEnabled={modelPickerEnabled}
+              disabled={sending}
+              onOpen={openModelMenu}
+            />
+            <Text variant="small" className="text-muted-foreground" numberOfLines={1}>
+              Search model: {activeEmbeddingModel?.title ?? 'Ark hash fallback'}
+            </Text>
+          </View>
+        ) : (
+          <View className="min-h-12 flex-1 justify-center">
+            <Text variant="large">Ask Arky</Text>
+            <Text variant="small" className="text-muted-foreground">
+              Offline source search
+            </Text>
+          </View>
+        )}
         <Button size="icon" variant="ghost" disabled={!threadId || sending} onPress={confirmClear}>
           <Icon as={Trash2} className="size-5" />
         </Button>
@@ -399,7 +463,7 @@ export default function ChatScreen() {
           inverted
           data={data}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <MessageBubble message={item} />}
+          renderItem={({ item }) => <MessageBubble message={item} technicalMode={technicalMode} />}
           contentContainerStyle={{
             gap: 12,
             padding: 16,
@@ -410,7 +474,13 @@ export default function ChatScreen() {
       )}
 
       {sending ? (
-        <StreamingBubble content={streamingText} onStop={() => void stopResponse()} />
+        <StreamingBubble
+          content={streamingText}
+          progress={progressEvent}
+          technicalMode={technicalMode}
+          tps={tokenSpeed}
+          onStop={() => void stopResponse()}
+        />
       ) : null}
 
       {error ? (

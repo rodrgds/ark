@@ -10,6 +10,7 @@ import {
   RAG_HASH_EMBEDDING_MODEL_ID,
   embedText,
 } from '@/services/ai/rag-embedding';
+import { PreferencesService } from '@/services/preferences/preferences.service';
 
 type LlamaModule = typeof import('llama.rn');
 type LlamaContext = Awaited<ReturnType<LlamaModule['initLlama']>>;
@@ -32,12 +33,19 @@ export function resetEmbeddingServiceForTests() {
   embeddingContextPromise = null;
 }
 
+export function resetEmbeddingRuntimeContext() {
+  embeddingContextPromise = null;
+}
+
 export class EmbeddingService {
   static async getActiveModelConfig() {
     const packs = await ContentPackService.listPacks();
-    const installed = packs.find(
+    const installedModels = packs.filter(
       (pack) => isEmbeddingModelPack(pack) && pack.installed && pack.localUri
     );
+    const selectedId = await PreferencesService.getSelectedEmbeddingModelId();
+    const installed =
+      installedModels.find((pack) => pack.id === selectedId) ?? installedModels[0] ?? null;
     return getEmbeddingModelConfig(installed);
   }
 
@@ -95,10 +103,16 @@ async function getEmbeddingContext() {
       const pack = packs.find(
         (item) => isEmbeddingModelPack(item) && item.installed && item.localUri
       );
-      const config = getEmbeddingModelConfig(pack);
-      if (!pack?.localUri || !config) return null;
+      const selectedId = await PreferencesService.getSelectedEmbeddingModelId();
+      const selectedPack =
+        packs.find(
+          (item) =>
+            item.id === selectedId && isEmbeddingModelPack(item) && item.installed && item.localUri
+        ) ?? pack;
+      const config = getEmbeddingModelConfig(selectedPack);
+      if (!selectedPack?.localUri || !config) return null;
       const context = await module.initLlama({
-        model: pack.localUri,
+        model: selectedPack.localUri,
         embedding: true,
         n_ctx: config.family === 'qwen3' ? 8192 : 4096,
         n_gpu_layers: 0,

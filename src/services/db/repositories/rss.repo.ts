@@ -1,5 +1,6 @@
 import { randomUUID } from 'expo-crypto';
 import { DatabaseClient } from '@/services/db/client';
+import { RagCleanupService } from '@/services/ai/rag-cleanup.service';
 
 export type RssFeedRow = {
   id: string;
@@ -64,6 +65,13 @@ export class RssRepository {
 
   static async removeFeed(id: string) {
     const db = await DatabaseClient.getDb();
+    const items = await db.getAllAsync<{ id: string }>(
+      'SELECT id FROM rss_items WHERE feed_id = ?',
+      [id]
+    );
+    for (const item of items) {
+      await RagCleanupService.removeSource(`rss:${item.id}`);
+    }
     await db.runAsync('DELETE FROM rss_items WHERE feed_id = ?', [id]);
     await db.runAsync('DELETE FROM rss_feeds WHERE id = ?', [id]);
   }

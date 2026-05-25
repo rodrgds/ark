@@ -1,4 +1,5 @@
 import { DatabaseClient } from '@/services/db/client';
+import { RagCleanupService } from '@/services/ai/rag-cleanup.service';
 import type { ArkDocument } from '@/types/db';
 
 function now() {
@@ -150,6 +151,7 @@ export class DocumentsRepository {
 
   static async delete(id: string) {
     const db = await DatabaseClient.getDb();
+    await RagCleanupService.removeSource(`document:${id}`);
     await db.runAsync('DELETE FROM documents WHERE id = ?', [id]);
   }
 }

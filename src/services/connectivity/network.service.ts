@@ -11,11 +11,13 @@ export class NetworkService {
 
   static isOnline(state: NetInfoState | null) {
     if (!state) return null;
+    const type = String(state.type).toLowerCase();
+
     if (state.isInternetReachable === true) return true;
-    if (String(state.type).toLowerCase() === 'vpn' && state.isConnected === true) return true;
     if (state.isInternetReachable === false) return false;
+    if (type === 'none' || type === 'unknown' || type === 'vpn') return false;
     if (state.isConnected === true) return true;
-    return state.type !== 'none' && state.type !== 'unknown';
+    return false;
   }
 
   static label(state: NetInfoState | null) {

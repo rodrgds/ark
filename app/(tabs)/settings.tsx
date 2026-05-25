@@ -24,16 +24,26 @@ import type { DownloadRow } from '@/types/downloads';
 import type { MapRegion } from '@/types/maps';
 import type { DiagnosticReport } from '@/types/sensors';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Bot, Download, HardDrive, Map, Smartphone, Trash2, Upload } from 'lucide-react-native';
+import {
+  Bot,
+  Download,
+  HardDrive,
+  Map,
+  RefreshCw,
+  Smartphone,
+  Trash2,
+  Upload,
+} from 'lucide-react-native';
 import * as React from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, View } from 'react-native';
 
-type SettingsTab = 'appearance' | 'security' | 'ai' | 'internals';
+type SettingsTab = 'appearance' | 'security' | 'ai' | 'downloads' | 'internals';
 
 const SETTINGS_TABS: Array<{ value: SettingsTab; label: string }> = [
   { value: 'appearance', label: 'Appearance' },
   { value: 'security', label: 'Security' },
   { value: 'ai', label: 'AI' },
+  { value: 'downloads', label: 'Downloads' },
   { value: 'internals', label: 'Internals' },
 ];
 
@@ -92,6 +102,7 @@ export default function SettingsScreen() {
   );
 
   async function load() {
+    await OfflineMapService.syncNativePacks().catch(() => undefined);
     const [
       vault,
       biometricState,
@@ -162,12 +173,25 @@ export default function SettingsScreen() {
     const hasActiveModelDownload = availableModels.some((model) =>
       ['queued', 'downloading', 'verifying'].includes(model.installStatus)
     );
-    if (!hasActiveModelDownload && activeTab !== 'internals') return;
+    const hasActiveDownload = downloads.some((download) =>
+      ['queued', 'downloading', 'verifying'].includes(download.status)
+    );
+    const hasActiveMapDownload = mapRegions.some((region) =>
+      ['queued', 'downloading'].includes(region.status)
+    );
+    if (
+      !hasActiveModelDownload &&
+      !hasActiveDownload &&
+      !hasActiveMapDownload &&
+      activeTab !== 'internals' &&
+      activeTab !== 'downloads'
+    )
+      return;
     const interval = setInterval(() => {
       void load();
     }, 1000);
     return () => clearInterval(interval);
-  }, [activeTab, availableModels]);
+  }, [activeTab, availableModels, downloads, mapRegions]);
 
   async function setLockMinutes(minutes: number) {
     await SettingsRepository.updateVaultState({ autoLockMinutes: minutes });
@@ -303,6 +327,37 @@ export default function SettingsScreen() {
     }
   }
 
+  async function retryDownload(download: DownloadRow) {
+    setBusy(`download-${download.id}`);
+    try {
+      await DownloadManagerService.resumeDownload(download.id);
+      await load();
+    } catch (error) {
+      Alert.alert(
+        'Retry failed',
+        error instanceof Error ? error.message : 'Unable to retry this download.'
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function retryMapRegion(region: MapRegion) {
+    setBusy(`map-${region.id}`);
+    try {
+      const result = await OfflineMapService.refreshRegion(region.id);
+      if (!result.ok) throw new Error(result.reason ?? 'Unable to retry this map download.');
+      await load();
+    } catch (error) {
+      Alert.alert(
+        'Retry failed',
+        error instanceof Error ? error.message : 'Unable to retry this map download.'
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function removeModel(model: ContentPack) {
     setBusy(`remove-${model.id}`);
     setAiMessage(null);
@@ -333,6 +388,21 @@ export default function SettingsScreen() {
   }
 
   const currentTheme = THEME_OPTIONS.find((option) => option.value === preference);
+  const nativeMapStorageBytes = mapRegions.reduce(
+    (sum, region) => sum + Math.max(0, region.sizeBytes ?? 0),
+    0
+  );
+  const displayDirectorySizes = storage
+    ? {
+        ...storage.directorySizes,
+        maps: Math.max(storage.directorySizes.maps ?? 0, nativeMapStorageBytes),
+      }
+    : null;
+  const displayTotalBytes = storage
+    ? storage.totalBytes -
+      (storage.directorySizes.maps ?? 0) +
+      Math.max(storage.directorySizes.maps ?? 0, nativeMapStorageBytes)
+    : 0;
 
   return (
     <Screen>
@@ -668,7 +738,11 @@ export default function SettingsScreen() {
               </View>
               <View className="min-w-0 flex-1 gap-1">
                 <Text variant="muted">Offline storage</Text>
-                <Text variant="h3">{storage?.label ?? 'Calculating...'}</Text>
+                <Text variant="h3">
+                  {storage
+                    ? `${FileSystemService.formatBytes(displayTotalBytes)} stored offline`
+                    : 'Calculating...'}
+                </Text>
                 {storage?.freeBytes != null ? (
                   <Text variant="muted">
                     {FileSystemService.formatBytes(storage.freeBytes)} free on this device
@@ -676,9 +750,9 @@ export default function SettingsScreen() {
                 ) : null}
               </View>
             </View>
-            {storage ? (
+            {displayDirectorySizes ? (
               <View className="border-border overflow-hidden rounded-md border">
-                {Object.entries(storage.directorySizes).map(([name, bytes]) => (
+                {Object.entries(displayDirectorySizes).map(([name, bytes]) => (
                   <View
                     key={name}
                     className="border-border flex-row justify-between gap-3 border-b px-3 py-2 last:border-b-0">
@@ -689,8 +763,6 @@ export default function SettingsScreen() {
               </View>
             ) : null}
           </Card>
-
-          <DownloadsCard downloads={downloads} mapRegions={mapRegions} />
 
           <DiagnosticsCard report={diagnostics} />
 
@@ -705,6 +777,16 @@ export default function SettingsScreen() {
           </Pressable>
         </>
       ) : null}
+
+      {activeTab === 'downloads' ? (
+        <DownloadsCard
+          downloads={downloads}
+          mapRegions={mapRegions}
+          busy={busy}
+          onRetryDownload={retryDownload}
+          onRetryRegion={retryMapRegion}
+        />
+      ) : null}
     </Screen>
   );
 }
@@ -712,24 +794,55 @@ export default function SettingsScreen() {
 function DownloadsCard({
   downloads,
   mapRegions,
+  busy,
+  onRetryDownload,
+  onRetryRegion,
 }: {
   downloads: DownloadRow[];
   mapRegions: MapRegion[];
+  busy: string | null;
+  onRetryDownload: (download: DownloadRow) => Promise<void>;
+  onRetryRegion: (region: MapRegion) => Promise<void>;
 }) {
   const activeRows = downloads.filter((download) => download.status !== 'canceled');
+  const totalBytes =
+    activeRows.reduce((sum, download) => sum + Math.max(0, download.totalBytes ?? 0), 0) +
+    mapRegions.reduce((sum, region) => sum + Math.max(0, region.sizeBytes ?? 0), 0);
   return (
     <Card className="gap-3">
-      <View className="flex-row items-center gap-2">
-        <Icon as={Download} className="text-primary size-5" />
-        <Text variant="large">Downloads</Text>
+      <View className="flex-row items-start justify-between gap-3">
+        <View className="min-w-0 flex-1 gap-1">
+          <View className="flex-row items-center gap-2">
+            <Icon as={Download} className="text-primary size-5" />
+            <Text variant="large">Downloads</Text>
+          </View>
+          <Text variant="muted">
+            Guides, models, archives, and map regions stored for offline use.
+          </Text>
+        </View>
+        {totalBytes > 0 ? (
+          <Text variant="small" className="text-muted-foreground">
+            {FileSystemService.formatBytes(totalBytes)}
+          </Text>
+        ) : null}
       </View>
       {activeRows.length || mapRegions.length ? (
         <View className="gap-3">
           {activeRows.map((download) => (
-            <DownloadRowView key={download.id} download={download} />
+            <DownloadRowView
+              key={download.id}
+              download={download}
+              busy={busy === `download-${download.id}`}
+              onRetry={() => onRetryDownload(download)}
+            />
           ))}
           {mapRegions.map((region) => (
-            <MapRegionRow key={region.id} region={region} />
+            <MapRegionRow
+              key={region.id}
+              region={region}
+              busy={busy === `map-${region.id}`}
+              onRetry={() => onRetryRegion(region)}
+            />
           ))}
         </View>
       ) : (
@@ -739,7 +852,16 @@ function DownloadsCard({
   );
 }
 
-function DownloadRowView({ download }: { download: DownloadRow }) {
+function DownloadRowView({
+  download,
+  busy,
+  onRetry,
+}: {
+  download: DownloadRow;
+  busy: boolean;
+  onRetry: () => Promise<void>;
+}) {
+  const canRetry = download.status === 'failed' && !!download.sourceUrl && !!download.localUri;
   return (
     <View className="bg-muted/30 gap-2 rounded-lg px-3 py-3">
       <View className="flex-row items-start justify-between gap-3">
@@ -763,11 +885,30 @@ function DownloadRowView({ download }: { download: DownloadRow }) {
         </Text>
       ) : null}
       {download.error ? <Text className="text-destructive text-sm">{download.error}</Text> : null}
+      {canRetry ? (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={busy}
+          onPress={() => void onRetry()}
+          className="self-start">
+          {busy ? <ActivityIndicator /> : <Icon as={RefreshCw} className="size-4" />}
+          <Text>Retry</Text>
+        </Button>
+      ) : null}
     </View>
   );
 }
 
-function MapRegionRow({ region }: { region: MapRegion }) {
+function MapRegionRow({
+  region,
+  busy,
+  onRetry,
+}: {
+  region: MapRegion;
+  busy: boolean;
+  onRetry: () => Promise<void>;
+}) {
   return (
     <View className="bg-muted/30 gap-2 rounded-lg px-3 py-3">
       <View className="flex-row items-start justify-between gap-3">
@@ -784,6 +925,17 @@ function MapRegionRow({ region }: { region: MapRegion }) {
         <Text variant="small" className="text-muted-foreground">
           {FileSystemService.formatBytes(region.sizeBytes)}
         </Text>
+      ) : null}
+      {region.status === 'failed' ? (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={busy}
+          onPress={() => void onRetry()}
+          className="self-start">
+          {busy ? <ActivityIndicator /> : <Icon as={RefreshCw} className="size-4" />}
+          <Text>Retry</Text>
+        </Button>
       ) : null}
     </View>
   );

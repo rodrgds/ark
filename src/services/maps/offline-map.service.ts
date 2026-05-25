@@ -93,7 +93,7 @@ export class OfflineMapService {
       await MapsRepository.updateRegionStatus(region.id, {
         status: nextStatus,
         progress: progressFromPackStatus(status),
-        sizeBytes: status.completedResourceSize || status.completedTileSize || null,
+        sizeBytes: sizeFromPackStatus(status),
         offlinePackId: pack.id,
       });
 
@@ -210,8 +210,7 @@ export class OfflineMapService {
           await MapsRepository.updateRegionStatus(id, {
             status: 'downloaded',
             progress: 1,
-            sizeBytes:
-              existingStatus.completedResourceSize || existingStatus.completedTileSize || null,
+            sizeBytes: sizeFromPackStatus(existingStatus),
             offlinePackId: existingPack.id,
           });
           this.completeRegionDownload(id);
@@ -223,8 +222,7 @@ export class OfflineMapService {
           await MapsRepository.updateRegionStatus(id, {
             status: 'downloading',
             progress: progressFromPackStatus(existingStatus),
-            sizeBytes:
-              existingStatus.completedResourceSize || existingStatus.completedTileSize || null,
+            sizeBytes: sizeFromPackStatus(existingStatus),
             offlinePackId: existingPack.id,
           });
         }
@@ -247,7 +245,7 @@ export class OfflineMapService {
       await MapsRepository.updateRegionStatus(id, {
         status: status && isOfflinePackComplete(status) ? 'downloaded' : 'downloading',
         progress: status ? progressFromPackStatus(status) : 0,
-        sizeBytes: status?.completedResourceSize || status?.completedTileSize || null,
+        sizeBytes: status ? sizeFromPackStatus(status) : null,
         offlinePackId: pack.id,
       });
       if (status && isOfflinePackComplete(status)) this.completeRegionDownload(id);
@@ -474,7 +472,7 @@ export class OfflineMapService {
     void MapsRepository.updateRegionStatus(regionId, {
       status: completed ? 'downloaded' : 'downloading',
       progress: progressFromPackStatus(status),
-      sizeBytes: status.completedResourceSize || status.completedTileSize || null,
+      sizeBytes: sizeFromPackStatus(status),
       offlinePackId: packId,
     });
     if (completed) this.completeRegionDownload(regionId);
@@ -610,6 +608,15 @@ function progressFromPackStatus(
   }
   const normalized = status.percentage > 1 ? status.percentage / 100 : status.percentage;
   return Math.max(0, Math.min(1, normalized));
+}
+
+export function sizeFromPackStatus(
+  status: Pick<OfflinePackStatusLike, 'completedResourceSize' | 'completedTileSize'>
+) {
+  const resourceBytes = Math.max(0, status.completedResourceSize ?? 0);
+  const tileBytes = Math.max(0, status.completedTileSize ?? 0);
+  const total = resourceBytes + tileBytes;
+  return total > 0 ? total : null;
 }
 
 function distance(a: SavedRoutePoint, b: SavedRoutePoint) {

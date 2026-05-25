@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { MapService } from '@/services/maps/map.service';
+import { sizeFromPackStatus } from '@/services/maps/offline-map.service';
 
 describe('MapService runtime status', () => {
   test('does not report MapLibre available before the dynamic native check completes', () => {
@@ -52,5 +53,15 @@ describe('MapService runtime status', () => {
     MapService.setNetworkConnected(null, true);
 
     expect(calls).toEqual([false]);
+  });
+
+  test('counts native offline map resources and tiles as map storage', () => {
+    expect(
+      sizeFromPackStatus({
+        completedResourceSize: 40 * 1024 * 1024,
+        completedTileSize: 104 * 1024 * 1024,
+      })
+    ).toBe(144 * 1024 * 1024);
+    expect(sizeFromPackStatus({ completedResourceSize: 0, completedTileSize: 0 })).toBeNull();
   });
 });

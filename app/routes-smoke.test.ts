@@ -42,6 +42,8 @@ describe('app route contracts', () => {
     const models = readFileSync(join(appDir, 'onboarding/models.tsx'), 'utf8');
     const finish = readFileSync(join(appDir, 'onboarding/finish.tsx'), 'utf8');
 
+    expect(intro).toContain('Interface mode');
+    expect(intro).toContain('PreferencesService.setInterfaceMode');
     expect(intro).toContain('nextHref="/onboarding/security"');
     expect(security).toContain('nextHref="/onboarding/permissions"');
     expect(permissions).toContain('/onboarding/maps');
@@ -51,6 +53,16 @@ describe('app route contracts', () => {
     expect(models).toContain('nextHref="/onboarding/finish"');
     expect(finish).toContain("router.replace('/(tabs)')");
     expect(finish).toContain('completeOnboarding');
+  });
+
+  test('settings exposes downloads outside technical internals', () => {
+    const settings = readFileSync(join(appDir, '(tabs)/settings.tsx'), 'utf8');
+
+    expect(settings).toContain("{ value: 'downloads', label: 'Downloads' }");
+    expect(settings).toContain("SETTINGS_TABS.filter((item) => item.value !== 'internals')");
+    expect(settings).toContain("activeTab === 'downloads'");
+    expect(settings).toContain('onRetryDownload');
+    expect(settings).not.toContain('<DownloadsCard downloads={downloads} mapRegions={mapRegions} />');
   });
 
   test('screens do not ship obvious placeholder copy', () => {

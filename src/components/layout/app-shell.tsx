@@ -15,8 +15,11 @@ export function LockStateBar() {
   const unlocked = useAuthStore((state) => state.unlocked);
   const [confirmLockOpen, setConfirmLockOpen] = React.useState(false);
   const [locking, setLocking] = React.useState(false);
-  const [isOnline, setIsOnline] = React.useState<boolean | null>(true);
+  const [isOnline, setIsOnline] = React.useState<boolean | null>(null);
   const anim = React.useRef(new Animated.Value(0)).current;
+  const networkStatusClass =
+    isOnline === null ? 'bg-muted-foreground' : isOnline ? 'bg-green-500' : 'bg-red-500';
+  const networkStatusLabel = isOnline === null ? 'Checking' : isOnline ? 'Online' : 'Offline';
 
   const scale = anim.interpolate({
     inputRange: [0, 1],
@@ -85,9 +88,9 @@ export function LockStateBar() {
         <View className="flex-row items-center gap-2">
           <FunctionSearchButton />
           <View className="flex-row items-center gap-1.5">
-            <View className={`h-2 w-2 rounded-full ${isOnline ? 'bg-green-500' : 'bg-red-500'}`} />
+            <View className={`h-2 w-2 rounded-full ${networkStatusClass}`} />
             <Text variant="small" className="text-muted-foreground text-[10px] font-bold uppercase">
-              {isOnline ? 'Online' : 'Offline'}
+              {networkStatusLabel}
             </Text>
           </View>
         </View>

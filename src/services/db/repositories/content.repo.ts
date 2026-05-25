@@ -13,11 +13,7 @@ const LEGACY_PLACEHOLDER_PACK_IDS = [
   'mushrooms-safety-placeholder',
 ];
 
-const REMOVED_STARTER_PACK_IDS = [
-  ...LEGACY_PLACEHOLDER_PACK_IDS,
-  'model-gemma3-1b-it-q4-0',
-  'wikipedia-en-top100-nopic',
-];
+const REMOVED_STARTER_PACK_IDS = [...LEGACY_PLACEHOLDER_PACK_IDS, 'model-gemma3-1b-it-q4-0'];
 
 function now() {
   return Date.now();
@@ -73,6 +69,7 @@ function rowToPack(row: {
     progress: row.progress,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    testOnly: manifest?.testOnly,
     disclaimer: manifest?.disclaimer,
   };
 }
@@ -134,13 +131,15 @@ export class ContentRepository {
     }
   }
 
-  static async list() {
+  static async list(options: { includeTestOnly?: boolean } = {}) {
     await this.seedStarterPacks();
     const db = await DatabaseClient.getDb();
     const rows = await db.getAllAsync<Parameters<typeof rowToPack>[0]>(
       'SELECT * FROM content_packs ORDER BY category, title'
     );
-    return rows.map(rowToPack);
+    const packs = rows.map(rowToPack);
+    if (options.includeTestOnly) return packs;
+    return packs.filter((pack) => !pack.testOnly);
   }
 
   static async updateInstallStatus(input: {

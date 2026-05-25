@@ -210,13 +210,13 @@ describe('repositories', () => {
       ['model-gemma3-1b-it-q4-0']
     );
 
-    const packs = await ContentRepository.list();
+    const packs = await ContentRepository.list({ includeTestOnly: true });
     expect(packs.length).toBeGreaterThan(4);
     expect(packs.some((pack) => pack.id.includes('placeholder'))).toBe(false);
     expect(packs.some((pack) => pack.id === 'model-gemma3-1b-it-q4-0')).toBe(false);
     expect(packs.some((pack) => pack.id === 'model-gemma4-e2b-it-q4-k-m')).toBe(true);
 
-    const pack = packs.find((item) => item.id === 'wikivoyage-en-nopic');
+    const pack = packs.find((item) => item.id === 'wikipedia-en-top100-nopic');
     expect(pack?.sourceUrl).toMatch(/^https:\/\//);
 
     await testDb.runAsync(
@@ -224,33 +224,33 @@ describe('repositories', () => {
        SET installed = 1,
            install_status = 'installed',
            progress = 1,
-           local_uri = 'file:///ark/content/wikivoyage.zim',
+           local_uri = 'file:///ark/content/top100.zim',
            updated_at = 12345
        WHERE id = ?`,
-      ['wikivoyage-en-nopic']
+      ['wikipedia-en-top100-nopic']
     );
-    const seededAgain = (await ContentRepository.list()).find(
-      (item) => item.id === 'wikivoyage-en-nopic'
+    const seededAgain = (await ContentRepository.list({ includeTestOnly: true })).find(
+      (item) => item.id === 'wikipedia-en-top100-nopic'
     );
     expect(seededAgain?.updatedAt).toBe(12345);
 
     await ContentRepository.updateInstallStatus({
-      id: 'wikivoyage-en-nopic',
+      id: 'wikipedia-en-top100-nopic',
       status: 'paused',
       progress: 0.42,
-      localUri: 'file:///ark/content/wikivoyage.zim',
+      localUri: 'file:///ark/content/top100.zim',
       sizeBytes: 1024,
     });
-    const updated = (await ContentRepository.list()).find(
-      (item) => item.id === 'wikivoyage-en-nopic'
+    const updated = (await ContentRepository.list({ includeTestOnly: true })).find(
+      (item) => item.id === 'wikipedia-en-top100-nopic'
     );
     expect(updated?.installStatus).toBe('paused');
     expect(updated?.progress).toBe(0.42);
-    expect(updated?.localUri).toBe('file:///ark/content/wikivoyage.zim');
+    expect(updated?.localUri).toBe('file:///ark/content/top100.zim');
 
-    await ContentRepository.uninstall('wikivoyage-en-nopic');
-    const uninstalled = (await ContentRepository.list()).find(
-      (item) => item.id === 'wikivoyage-en-nopic'
+    await ContentRepository.uninstall('wikipedia-en-top100-nopic');
+    const uninstalled = (await ContentRepository.list({ includeTestOnly: true })).find(
+      (item) => item.id === 'wikipedia-en-top100-nopic'
     );
     expect(uninstalled?.installed).toBe(false);
     expect(uninstalled?.installStatus).toBe('not_installed');

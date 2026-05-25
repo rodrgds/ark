@@ -34,6 +34,7 @@ export type ContentPackManifest = {
   checksumSha256?: string | null;
   checksumSha256Url?: string | null;
   installed: boolean;
+  testOnly?: boolean;
   disclaimer?: string;
 };
 

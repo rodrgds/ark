@@ -128,6 +128,23 @@ export const STARTER_PACKS: ContentPackManifest[] = [
     installed: false,
   },
   {
+    id: 'wikipedia-en-top100-nopic',
+    title: 'Wikipedia Top 100',
+    description: 'Tiny smoke-test archive with the top English Wikipedia pages, no images.',
+    category: 'Wiki',
+    format: 'zim',
+    estimatedSize: '13 MB',
+    sizeBytes: 13 * 1024 * 1024,
+    sourceUrl: 'https://download.kiwix.org/zim/wikipedia/wikipedia_en_100_nopic_2026-04.zim',
+    checksumSha256Url: kiwixSha256Url(
+      'https://download.kiwix.org/zim/wikipedia/wikipedia_en_100_nopic_2026-04.zim'
+    ),
+    sourceLabel: 'Kiwix ZIM archive',
+    fileName: 'wikipedia_en_100_nopic_2026-04.zim',
+    installed: false,
+    testOnly: true,
+  },
+  {
     id: 'embedding-nomic-v15-q4-k-m',
     title: 'Nomic Embed Text v1.5 Q4_K_M',
     description:

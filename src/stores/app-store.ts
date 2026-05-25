@@ -5,6 +5,7 @@ import { ContentRepository } from '@/services/db/repositories/content.repo';
 import { FileSystemService } from '@/services/files/filesystem.service';
 import { DownloadManagerService } from '@/services/files/download-manager.service';
 import { AuthoredGuideSeedService } from '@/services/content/authored-guide-seed.service';
+import { MapService } from '@/services/maps/map.service';
 import { useThemeStore } from '@/stores/theme-store';
 import type { OnboardingState, VaultState } from '@/types/db';
 
@@ -39,6 +40,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       await AuthoredGuideSeedService.seed();
       set({ bootProgress: 0.72, bootStatus: 'Recovering downloads' });
       await DownloadManagerService.recoverPendingDownloads();
+      set({ bootProgress: 0.82, bootStatus: 'Preparing maps' });
+      await MapService.loadMapLibre().catch(() => undefined);
       set({ bootProgress: 0.84, bootStatus: 'Preparing AI indexes' });
       await useThemeStore.getState().init();
       const [onboarding, vault] = await Promise.all([

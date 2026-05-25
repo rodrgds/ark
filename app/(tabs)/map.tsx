@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Text } from '@/components/ui/text';
 import type { MapPreset } from '@/constants/map-presets';
+import { NAV_COLORS } from '@/constants/theme';
 import { FileSystemService } from '@/services/files/filesystem.service';
 import { MapService, type MapLibreModule } from '@/services/maps/map.service';
 import { MapPresetsService } from '@/services/maps/map-presets.service';
@@ -27,7 +28,6 @@ import {
   MapPin,
   Maximize2,
   Minimize2,
-  Navigation2,
   Pause,
   Pencil,
   Play,
@@ -50,13 +50,16 @@ import {
   Pressable,
   ScrollView,
   type TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
   FadeIn,
   FadeOut,
   LinearTransition,
+  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -79,7 +82,14 @@ const TOP_TRANSITION = LinearTransition.duration(180).easing(Easing.out(Easing.q
 const SEARCH_INSET_WITH_COMPASS = 64;
 const SEARCH_INSET_WITHOUT_COMPASS = 12;
 const COMPASS_NORTH_EPSILON_DEGREES = 1.25;
+const BEARING_UPDATE_EPSILON_DEGREES = 0.35;
+const CENTER_UPDATE_EPSILON_DEGREES = 0.00001;
+const COMPASS_RESET_SUPPRESS_MS = 500;
 const SEARCH_GESTURE_SUPPRESS_MS = 450;
+const LAST_KNOWN_LOCATION_MAX_AGE_MS = 10 * 60 * 1000;
+const LAST_KNOWN_LOCATION_REQUIRED_ACCURACY_M = 1500;
+const FRESH_LOCATION_TIMEOUT_MS = 7000;
+const FRESH_LOCATION_TIMEOUT_WITH_CACHE_MS = 3500;
 const WORLD_OVERVIEW_PATHS = [
   'M42 58L72 45L101 53L116 72L107 94L80 100L58 88Z',
   'M118 95L135 105L128 134L113 154L98 132L103 110Z',
@@ -185,7 +195,10 @@ export default function MapScreen() {
   const [isPlacing, setIsPlacing] = React.useState(false);
   const [searchFocused, setSearchFocused] = React.useState(false);
   const [mapBearing, setMapBearing] = React.useState(0);
-  const [compassVisible, setCompassVisible] = React.useState(false);
+  const compassVisible = bearingDistanceFromNorth(mapBearing) > COMPASS_NORTH_EPSILON_DEGREES;
+  const mapBearingRef = React.useRef(0);
+  const mapCenterRef = React.useRef<LngLat>(DEFAULT_CENTER);
+  const compassResetSuppressUntilRef = React.useRef(0);
   const searchInputRef = React.useRef<TextInput>(null);
   const searchGestureSuppressUntilRef = React.useRef(0);
   const searchRightInset = useSharedValue(SEARCH_INSET_WITHOUT_COMPASS);
@@ -198,13 +211,20 @@ export default function MapScreen() {
     [regions]
   );
   const primaryDownloadedRegion = downloadedRegions[0] ?? null;
+  const userLocationCenter = React.useMemo<LngLat | null>(
+    () => (userLocation ? [userLocation.longitude, userLocation.latitude] : null),
+    [userLocation]
+  );
   const mapInitialCenter = React.useMemo(() => {
+    if (userLocationCenter) return userLocationCenter;
     const downloadedCenter = regionCenter(primaryDownloadedRegion);
     return downloadedCenter && isDefaultCenter(center) ? downloadedCenter : center;
-  }, [center, primaryDownloadedRegion]);
-  const mapInitialZoom = primaryDownloadedRegion
-    ? regionInitialZoom(primaryDownloadedRegion)
-    : WORLD_OVERVIEW_ZOOM;
+  }, [center, primaryDownloadedRegion, userLocationCenter]);
+  const mapInitialZoom = userLocationCenter
+    ? 15
+    : primaryDownloadedRegion
+      ? regionInitialZoom(primaryDownloadedRegion)
+      : WORLD_OVERVIEW_ZOOM;
   const hasActiveMapDownloads = React.useMemo(
     () => regions.some((region) => region.status === 'downloading' || region.status === 'queued'),
     [regions]
@@ -215,7 +235,8 @@ export default function MapScreen() {
     }
     return MapService.getOverviewStyle(theme);
   }, [downloadedRegions.length, theme]);
-  const mapInstanceKey = downloadedRegions.length > 0 ? 'offline-regions-map' : 'world-overview-map';
+  const mapInstanceKey =
+    downloadedRegions.length > 0 ? 'offline-regions-map' : 'world-overview-map';
   const activeMapKeyRef = React.useRef(mapInstanceKey);
   const status = MapService.getRuntimeStatus(maplibre, maplibreChecked);
   const nativeMapAvailable = Boolean(getMapComponent(maplibre) && getCameraComponent(maplibre));
@@ -252,6 +273,7 @@ export default function MapScreen() {
 
   React.useEffect(() => {
     void load({ syncNative: true });
+    void focusUserLocation({ requestPermission: true, centerMap: true, showBusy: false });
     MapService.loadMapLibre()
       .then(setMaplibre)
       .finally(() => setMaplibreChecked(true));
@@ -270,7 +292,9 @@ export default function MapScreen() {
   );
 
   React.useEffect(() => {
-    navigation.setOptions({ tabBarStyle: fullscreen ? { display: 'none' } : undefined });
+    navigation.setOptions({
+      tabBarStyle: fullscreen ? { display: 'none' } : undefined,
+    });
     return () => navigation.setOptions({ tabBarStyle: undefined });
   }, [fullscreen, navigation]);
 
@@ -300,13 +324,17 @@ export default function MapScreen() {
   }, [markers, selectedMarkerId]);
 
   React.useEffect(() => {
-    if (!primaryDownloadedRegion || autoFocusedRegionIdRef.current === primaryDownloadedRegion.id) {
+    if (
+      userLocation ||
+      !primaryDownloadedRegion ||
+      autoFocusedRegionIdRef.current === primaryDownloadedRegion.id
+    ) {
       return;
     }
     if (!regionBounds(primaryDownloadedRegion)) return;
     autoFocusedRegionIdRef.current = primaryDownloadedRegion.id;
     fitRegion(primaryDownloadedRegion);
-  }, [primaryDownloadedRegion?.id, mapReady, canMountMap]);
+  }, [primaryDownloadedRegion?.id, mapReady, canMountMap, userLocation]);
 
   React.useEffect(() => {
     const targetMarkerId = Array.isArray(markerId) ? markerId[0] : markerId;
@@ -337,31 +365,7 @@ export default function MapScreen() {
       canceled = true;
       clearTimeout(timeout);
     };
-  }, [search, markers.length, regions.length, routes.length]);
-
-  React.useEffect(() => {
-    let canceled = false;
-    Location.getForegroundPermissionsAsync()
-      .then((permission) => {
-        if (!permission.granted) return null;
-        return Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      })
-      .then((position) => {
-        if (canceled) return;
-        setUserLocation(
-          position
-            ? {
-                latitude: position.coords.latitude,
-                longitude: position.coords.longitude,
-              }
-            : null
-        );
-      })
-      .catch(() => undefined);
-    return () => {
-      canceled = true;
-    };
-  }, []);
+  }, [catalogVersion, markers, regions, routes, search]);
 
   React.useEffect(() => {
     setRecommendedPresets(MapPresetsService.recommendedForLocation(userLocation));
@@ -376,13 +380,12 @@ export default function MapScreen() {
   }, []);
 
   React.useEffect(() => {
-    const visible = bearingDistanceFromNorth(mapBearing) > COMPASS_NORTH_EPSILON_DEGREES;
-    setCompassVisible(visible);
+    const visible = compassVisible;
     searchRightInset.value = withTiming(
       visible ? SEARCH_INSET_WITH_COMPASS : SEARCH_INSET_WITHOUT_COMPASS,
-      { duration: 180, easing: Easing.out(Easing.quad) }
+      { duration: 140, easing: Easing.out(Easing.quad) }
     );
-  }, [mapBearing, searchRightInset]);
+  }, [compassVisible, searchRightInset]);
 
   React.useEffect(() => {
     if (!searchFocused && topMode !== 'search') return undefined;
@@ -541,28 +544,79 @@ export default function MapScreen() {
   }
 
   async function locateMe() {
-    setBusy('locate');
+    await focusUserLocation({ requestPermission: true, centerMap: true, showBusy: true });
+  }
+
+  async function focusUserLocation({
+    requestPermission,
+    centerMap: shouldCenterMap,
+    showBusy,
+  }: {
+    requestPermission: boolean;
+    centerMap: boolean;
+    showBusy: boolean;
+  }) {
+    if (showBusy) setBusy('locate');
     setError(null);
+    let hadUsableLocation = false;
     try {
-      const permission = await Location.requestForegroundPermissionsAsync();
+      const permission = requestPermission
+        ? await Location.requestForegroundPermissionsAsync()
+        : await Location.getForegroundPermissionsAsync();
       if (!permission.granted) {
-        setError('Location permission is required to center the map.');
+        if (showBusy) setError('Location permission is required to center the map.');
         return;
       }
-      const current = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-      const nextLocation = {
-        latitude: current.coords.latitude,
-        longitude: current.coords.longitude,
-      };
-      setUserLocation(nextLocation);
-      centerOn([nextLocation.longitude, nextLocation.latitude], 15);
+
+      const lastKnown = await Location.getLastKnownPositionAsync({
+        maxAge: LAST_KNOWN_LOCATION_MAX_AGE_MS,
+        requiredAccuracy: LAST_KNOWN_LOCATION_REQUIRED_ACCURACY_M,
+      }).catch(() => null);
+      if (lastKnown) {
+        hadUsableLocation = true;
+        applyUserPosition(lastKnown, shouldCenterMap, 15, showBusy ? 180 : 0);
+        if (showBusy) setBusy(null);
+      }
+
+      const current = await withTimeout(
+        Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+          mayShowUserSettingsDialog: showBusy,
+        }),
+        lastKnown ? FRESH_LOCATION_TIMEOUT_WITH_CACHE_MS : FRESH_LOCATION_TIMEOUT_MS
+      );
+      if (current) {
+        hadUsableLocation = true;
+        const shouldMoveToFreshPosition =
+          shouldCenterMap ||
+          !lastKnown ||
+          centerDistance(locationToCenter(lastKnown), locationToCenter(current)) >
+            CENTER_UPDATE_EPSILON_DEGREES;
+        applyUserPosition(current, shouldMoveToFreshPosition, 15, showBusy ? 260 : 420);
+      } else if (!hadUsableLocation && showBusy) {
+        setError('Location is taking too long. Try again with a clearer sky view.');
+      }
     } catch {
-      setError('Unable to get your current location.');
+      if (!hadUsableLocation && showBusy) setError('Unable to get your current location.');
     } finally {
-      setBusy(null);
+      if (showBusy) setBusy(null);
     }
+  }
+
+  function applyUserPosition(
+    position: Location.LocationObject,
+    shouldCenterMap: boolean,
+    zoom: number,
+    duration: number
+  ) {
+    const nextLocation = {
+      latitude: position.coords.latitude,
+      longitude: position.coords.longitude,
+    };
+    setUserLocation((current) =>
+      current && sameLocation(current, nextLocation) ? current : nextLocation
+    );
+    if (shouldCenterMap) centerOn([nextLocation.longitude, nextLocation.latitude], zoom, duration);
   }
 
   async function downloadPreset(preset: MapPreset) {
@@ -642,17 +696,20 @@ export default function MapScreen() {
     ]);
   }
 
-  function centerOn(nextCenter: LngLat, zoom = 13) {
+  function centerOn(nextCenter: LngLat, zoom = 13, duration = 420) {
     setCenter(nextCenter);
+    mapCenterRef.current = nextCenter;
     queueCameraAction({
       type: 'center',
       center: nextCenter,
       zoom,
-      duration: 650,
+      duration,
     });
   }
 
   function resetNorth() {
+    compassResetSuppressUntilRef.current = Date.now() + COMPASS_RESET_SUPPRESS_MS;
+    mapBearingRef.current = 0;
     setMapBearing(0);
     if (!mapReady || !canMountMap) return;
     cameraRef.current?.easeTo?.({
@@ -666,7 +723,9 @@ export default function MapScreen() {
     const bounds = regionBounds(region);
     if (!bounds) return;
     const [west, south, east, north] = bounds;
-    setCenter([(west + east) / 2, (south + north) / 2]);
+    const nextCenter: LngLat = [(west + east) / 2, (south + north) / 2];
+    setCenter(nextCenter);
+    mapCenterRef.current = nextCenter;
     queueCameraAction({
       type: 'bounds',
       bounds: [west, south, east, north],
@@ -679,7 +738,9 @@ export default function MapScreen() {
     const bounds = routeBounds(route);
     if (!bounds) return;
     const [west, south, east, north] = bounds;
-    setCenter([(west + east) / 2, (south + north) / 2]);
+    const nextCenter: LngLat = [(west + east) / 2, (south + north) / 2];
+    setCenter(nextCenter);
+    mapCenterRef.current = nextCenter;
     queueCameraAction({
       type: 'bounds',
       bounds: [west, south, east, north],
@@ -724,6 +785,21 @@ export default function MapScreen() {
     if (route) centerOnRoute(route);
   }
 
+  const handleBearingChange = React.useCallback((bearing: number) => {
+    if (Date.now() < compassResetSuppressUntilRef.current) return;
+    const normalized = normalizeBearing(bearing);
+    if (bearingDelta(mapBearingRef.current, normalized) < BEARING_UPDATE_EPSILON_DEGREES) return;
+    mapBearingRef.current = normalized;
+    setMapBearing(normalized);
+  }, []);
+
+  const handleCenterChange = React.useCallback((nextCenter: LngLat) => {
+    if (!isFiniteLngLat(nextCenter)) return;
+    if (centerDistance(mapCenterRef.current, nextCenter) < CENTER_UPDATE_EPSILON_DEGREES) return;
+    mapCenterRef.current = nextCenter;
+    setCenter(nextCenter);
+  }, []);
+
   const mapStatus = nativeMapAvailable
     ? 'Low-detail world overview is available without network tiles.'
     : status.reason;
@@ -746,8 +822,9 @@ export default function MapScreen() {
         selectedMarker={selectedMarker}
         status={mapStatus}
         suppressLongPressUntilRef={searchGestureSuppressUntilRef}
-        onBearingChange={setMapBearing}
-        onCenterChange={setCenter}
+        userLocation={userLocation}
+        onBearingChange={handleBearingChange}
+        onCenterChange={handleCenterChange}
         onCloseMarkerPopup={() => setSelectedMarkerId(null)}
         onDismissSearch={closeSearchKeyboard}
         onLongPress={openSpotDialog}
@@ -793,8 +870,8 @@ export default function MapScreen() {
         </Animated.View>
       ) : null}
 
-      {!isPlacing && compassVisible ? (
-        <CompassButton bearing={mapBearing} top={6} onPress={resetNorth} />
+      {!isPlacing ? (
+        <CompassButton bearing={mapBearing} top={6} visible={compassVisible} onPress={resetNorth} />
       ) : null}
 
       {!isPlacing ? (
@@ -839,10 +916,7 @@ export default function MapScreen() {
       </View>
 
       {isPlacing ? (
-        <View
-          className="absolute inset-0 items-center justify-center"
-          pointerEvents="box-none"
-          style={{ paddingBottom: 140 }}>
+        <View className="absolute inset-0 items-center justify-center" pointerEvents="box-none">
           <View className="bg-primary/20 border-primary/40 size-20 items-center justify-center rounded-full border-2">
             <View className="bg-primary size-2 rounded-full" />
             <View className="bg-primary absolute h-8 w-0.5" />
@@ -850,7 +924,7 @@ export default function MapScreen() {
           </View>
           <View
             className="absolute right-3 left-3 flex-row gap-2"
-            style={{ bottom: Math.max(insets.bottom + 12, 20) }}>
+            style={{ bottom: fullscreen ? Math.max(insets.bottom + 6, 10) : 6 }}>
             <Button
               className="bg-background/95 h-12 flex-1"
               variant="outline"
@@ -961,6 +1035,7 @@ function MapCanvas({
   selectedMarker,
   status,
   suppressLongPressUntilRef,
+  userLocation,
   onBearingChange,
   onCenterChange,
   onCloseMarkerPopup,
@@ -986,6 +1061,7 @@ function MapCanvas({
   selectedMarker: MapMarker | null;
   status: string;
   suppressLongPressUntilRef: React.MutableRefObject<number>;
+  userLocation: { latitude: number; longitude: number } | null;
   onBearingChange: (bearing: number) => void;
   onCenterChange: (center: LngLat) => void;
   onCloseMarkerPopup: () => void;
@@ -1001,7 +1077,6 @@ function MapCanvas({
   const GeoJSONSource = getGeoJSONSourceComponent(maplibre);
   const Layer = getLayerComponent(maplibre);
   const Marker = getMarkerComponent(maplibre);
-  const UserLocation = getUserLocationComponent(maplibre);
   const routeData = React.useMemo(() => routeFeatureCollection(routes), [routes]);
   const markerData = React.useMemo(() => markerFeatureCollection(markers), [markers]);
   const overviewData = React.useMemo(() => worldOverviewFeatureCollection(), []);
@@ -1048,13 +1123,21 @@ function MapCanvas({
           zoom: hasDownloadedRegion ? initialZoom : WORLD_OVERVIEW_ZOOM,
         }}
       />
-      {UserLocation ? <UserLocation animated /> : null}
+      {Marker && userLocation ? (
+        <Marker
+          key="ark-user-location"
+          id="ark-user-location"
+          lngLat={[userLocation.longitude, userLocation.latitude]}
+          anchor="center">
+          <UserLocationDot />
+        </Marker>
+      ) : null}
       {!hasDownloadedRegion && GeoJSONSource && Layer ? (
         <GeoJSONSource id="ark-world-overview" data={overviewData}>
           <Layer
             id="ark-world-land"
             type="fill"
-            style={{
+            paint={{
               fillColor: '#2f3a2a',
               fillOpacity: 0.72,
             }}
@@ -1062,7 +1145,7 @@ function MapCanvas({
           <Layer
             id="ark-world-coast"
             type="line"
-            style={{
+            paint={{
               lineColor: '#95a78b',
               lineOpacity: 0.75,
               lineWidth: 1,
@@ -1075,10 +1158,12 @@ function MapCanvas({
           <Layer
             id="ark-routes-line"
             type="line"
-            style={{
+            paint={{
               lineColor: '#95a78b',
               lineOpacity: 0.92,
               lineWidth: 4,
+            }}
+            layout={{
               lineCap: 'round',
               lineJoin: 'round',
             }}
@@ -1098,7 +1183,7 @@ function MapCanvas({
           <Layer
             id="ark-marker-halo"
             type="circle"
-            style={{
+            paint={{
               circleColor: '#050316',
               circleOpacity: 0.95,
               circleRadius: ['interpolate', ['linear'], ['zoom'], 6, 5, 14, 8],
@@ -1109,7 +1194,7 @@ function MapCanvas({
           <Layer
             id="ark-marker-core"
             type="circle"
-            style={{
+            paint={{
               circleColor: '#F2B84B',
               circleOpacity: 1,
               circleRadius: ['interpolate', ['linear'], ['zoom'], 6, 2.5, 14, 4.5],
@@ -1137,7 +1222,7 @@ function MapCanvas({
           anchor="bottom"
           onPress={onCloseMarkerPopup}
           offset={[0, -14]}>
-          <MarkerPopup marker={selectedMarker} />
+          <MarkerPopup marker={selectedMarker} onClose={onCloseMarkerPopup} />
         </Marker>
       ) : null}
     </Map>
@@ -1147,28 +1232,82 @@ function MapCanvas({
 function CompassButton({
   bearing,
   top,
+  visible,
   onPress,
 }: {
   bearing: number;
   top: number;
+  visible: boolean;
   onPress: () => void;
 }) {
+  const theme = useThemeStore((state) => state.effectiveTheme);
+  const colors = NAV_COLORS[theme];
+  const visibility = useSharedValue(0);
+
+  React.useEffect(() => {
+    visibility.value = withTiming(visible ? 1 : 0, {
+      duration: visible ? 110 : 90,
+      easing: Easing.out(Easing.quad),
+    });
+  }, [visibility, visible]);
+
+  const visibilityStyle = useAnimatedStyle(() => ({
+    opacity: visibility.value,
+    transform: [{ scale: 0.94 + visibility.value * 0.06 }],
+  }));
+
   return (
     <Animated.View
-      entering={FadeIn.duration(140)}
-      exiting={FadeOut.duration(120)}
       className="absolute right-3"
-      style={{ top }}>
+      pointerEvents={visible ? 'auto' : 'none'}
+      style={[{ top }, visibilityStyle]}>
       <Pressable
         accessibilityLabel="Reset map north"
         className="border-primary/40 bg-card/95 size-12 items-center justify-center rounded-lg border"
         onPress={onPress}>
-        <Animated.View style={{ transform: [{ rotate: `${-normalizeBearing(bearing)}deg` }] }}>
-          <Icon as={Navigation2} className="text-primary size-5" />
+        <Animated.View
+          className="h-8 w-5 items-center justify-center"
+          style={{ transform: [{ rotate: `${-normalizeBearing(bearing)}deg` }] }}>
+          <View
+            style={{
+              width: 0,
+              height: 0,
+              borderLeftWidth: 5,
+              borderRightWidth: 5,
+              borderBottomWidth: 16,
+              borderLeftColor: 'transparent',
+              borderRightColor: 'transparent',
+              borderBottomColor: colors.primary,
+            }}
+          />
+          <View className="relative h-4 w-3 items-center">
+            <View
+              style={{
+                width: 0,
+                height: 0,
+                borderLeftWidth: 6,
+                borderRightWidth: 6,
+                borderTopWidth: 17,
+                borderLeftColor: 'transparent',
+                borderRightColor: 'transparent',
+                borderTopColor: colors.primary,
+              }}
+            />
+            <View
+              className="absolute top-0"
+              style={{
+                width: 0,
+                height: 0,
+                borderLeftWidth: 4,
+                borderRightWidth: 4,
+                borderTopWidth: 13,
+                borderLeftColor: 'transparent',
+                borderRightColor: 'transparent',
+                borderTopColor: colors.card,
+              }}
+            />
+          </View>
         </Animated.View>
-        <Text variant="small" className="text-primary absolute bottom-1 text-[10px] leading-3">
-          N
-        </Text>
       </Pressable>
     </Animated.View>
   );
@@ -1224,6 +1363,14 @@ function MarkerDot({ marker, selected }: { marker: MapMarker; selected: boolean 
           backgroundColor: color,
         }}
       />
+    </View>
+  );
+}
+
+function UserLocationDot() {
+  return (
+    <View className="bg-primary/20 size-9 items-center justify-center rounded-full">
+      <View className="border-background bg-primary size-5 rounded-full border-4" />
     </View>
   );
 }
@@ -1291,7 +1438,7 @@ function TopMapControls({
 
       {noDownloadedRegions ? (
         <Animated.View entering={FadeIn.duration(120)} exiting={FadeOut.duration(100)}>
-          <View className="border-primary/40 bg-card/95 self-start flex-row items-center gap-2 rounded-full border px-3 py-2">
+          <View className="border-primary/40 bg-card/95 flex-row items-center gap-2 self-start rounded-full border px-3 py-2">
             <Icon as={AlertTriangle} className="text-primary size-4" />
             <Text variant="small">No downloaded map regions</Text>
           </View>
@@ -1378,90 +1525,91 @@ function OfflineManagerPanel({
 
   return (
     <Panel title="Offline maps" visible={visible} onClose={onClose}>
-      <View className="flex-row gap-2">
-        <Button
-          className="flex-1"
-          variant={managerTab === 'downloaded' ? 'default' : 'outline'}
-          onPress={() => onChangeTab('downloaded')}>
-          <Text>Downloaded</Text>
-        </Button>
-        <Button
-          className="flex-1"
-          variant={managerTab === 'browse' ? 'default' : 'outline'}
-          onPress={() => onChangeTab('browse')}>
-          <Text>Download more</Text>
-        </Button>
-      </View>
+      {({ expand }) => (
+        <>
+          <MapManagerTabSwitcher value={managerTab} onChange={onChangeTab} />
 
-      {managerTab === 'downloaded' ? (
-        <View className="gap-3">
-          <View className="gap-1">
-            <Text variant="large">Available maps</Text>
-            <Text variant="muted">
-              These offline maps will render seamlessly when panning the map.
-            </Text>
-          </View>
-          {downloadedRegions.length ? (
-            downloadedRegions.map((region) => (
-              <RegionCard
-                key={region.id}
-                busy={busy === `download:${region.id}`}
-                region={region}
-                onDelete={() => onDeleteRegion(region)}
-                onDownload={() => undefined}
-                onPause={() => onPauseRegion(region)}
-                onResume={() => onResumeRegion(region)}
-              />
-            ))
+          {managerTab === 'downloaded' ? (
+            <View className="gap-3">
+              <View className="gap-1">
+                <Text variant="large">Available maps</Text>
+                <Text variant="muted">
+                  These offline maps will render seamlessly when panning the map.
+                </Text>
+              </View>
+              {downloadedRegions.length ? (
+                downloadedRegions.map((region) => (
+                  <RegionCard
+                    key={region.id}
+                    busy={busy === `download:${region.id}`}
+                    region={region}
+                    onDelete={() => onDeleteRegion(region)}
+                    onDownload={() => undefined}
+                    onPause={() => onPauseRegion(region)}
+                    onResume={() => onResumeRegion(region)}
+                  />
+                ))
+              ) : (
+                <Card className="gap-1">
+                  <Text>No downloaded maps yet.</Text>
+                  <Text variant="muted">Open Download more and choose a preset region.</Text>
+                </Card>
+              )}
+            </View>
           ) : (
-            <Card className="gap-1">
-              <Text>No downloaded maps yet.</Text>
-              <Text variant="muted">Open Download more and choose a preset region.</Text>
-            </Card>
+            <View className="gap-3">
+              <View className="relative">
+                <View
+                  pointerEvents="none"
+                  style={{ position: 'absolute', left: 16, top: 14, zIndex: 1 }}>
+                  <Icon as={Search} className="text-muted-foreground size-5" />
+                </View>
+                <Input
+                  value={presetSearch}
+                  onChangeText={onChangePresetSearch}
+                  placeholder="Search map catalog"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  className="pl-12"
+                  style={{ paddingLeft: 48 }}
+                  onFocus={expand}
+                />
+              </View>
+              <Text variant="small" className="text-muted-foreground">
+                {catalogMeta.count} regions from {catalogMeta.source}
+              </Text>
+              {searching ? (
+                <PresetList
+                  busy={busy}
+                  presets={presetResults}
+                  regions={regions}
+                  title="Search results"
+                  onDownloadPreset={onDownloadPreset}
+                  onPauseRegion={onPauseRegion}
+                />
+              ) : (
+                <>
+                  <PresetList
+                    busy={busy}
+                    presets={recommendedPresets}
+                    regions={regions}
+                    title="Recommended near you"
+                    onDownloadPreset={onDownloadPreset}
+                    onPauseRegion={onPauseRegion}
+                  />
+                  <PresetList
+                    busy={busy}
+                    presets={catalogPresets}
+                    regions={regions}
+                    title="Map catalog"
+                    onDownloadPreset={onDownloadPreset}
+                    onPauseRegion={onPauseRegion}
+                  />
+                </>
+              )}
+            </View>
           )}
-        </View>
-      ) : (
-        <View className="gap-3">
-          <Input
-            value={presetSearch}
-            onChangeText={onChangePresetSearch}
-            placeholder="Search map catalog"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          <Text variant="small" className="text-muted-foreground">
-            {catalogMeta.count} regions from {catalogMeta.source}
-          </Text>
-          {searching ? (
-            <PresetList
-              busy={busy}
-              presets={presetResults}
-              regions={regions}
-              title="Search results"
-              onDownloadPreset={onDownloadPreset}
-              onPauseRegion={onPauseRegion}
-            />
-          ) : (
-            <>
-              <PresetList
-                busy={busy}
-                presets={recommendedPresets}
-                regions={regions}
-                title="Recommended near you"
-                onDownloadPreset={onDownloadPreset}
-                onPauseRegion={onPauseRegion}
-              />
-              <PresetList
-                busy={busy}
-                presets={catalogPresets}
-                regions={regions}
-                title="Map catalog"
-                onDownloadPreset={onDownloadPreset}
-                onPauseRegion={onPauseRegion}
-              />
-            </>
-          )}
-        </View>
+        </>
       )}
     </Panel>
   );
@@ -1508,6 +1656,109 @@ function PresetList({
       ) : (
         <Text variant="muted">No matching regions.</Text>
       )}
+    </View>
+  );
+}
+
+function MapManagerTabSwitcher({
+  value,
+  onChange,
+}: {
+  value: ManagerTab;
+  onChange: (tab: ManagerTab) => void;
+}) {
+  const [width, setWidth] = React.useState(0);
+  const [selectedValue, setSelectedValue] = React.useState(value);
+  const pendingValueRef = React.useRef<ManagerTab | null>(null);
+  const changeFrameRef = React.useRef<number | null>(null);
+  const progress = useSharedValue(value === 'downloaded' ? 0 : 1);
+  const segmentWidth = Math.max(0, (width - 4) / 2);
+
+  React.useEffect(() => {
+    if (pendingValueRef.current === value) {
+      pendingValueRef.current = null;
+      return;
+    }
+    if (pendingValueRef.current || selectedValue === value) {
+      return;
+    }
+    setSelectedValue(value);
+    progress.value = withTiming(value === 'downloaded' ? 0 : 1, {
+      duration: 240,
+      easing: Easing.inOut(Easing.cubic),
+    });
+  }, [progress, selectedValue, value]);
+
+  React.useEffect(
+    () => () => {
+      if (changeFrameRef.current !== null) {
+        cancelAnimationFrame(changeFrameRef.current);
+      }
+    },
+    []
+  );
+
+  const highlightStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: progress.value * segmentWidth }],
+  }));
+
+  const selectTab = React.useCallback(
+    (tab: ManagerTab) => {
+      if (changeFrameRef.current !== null) {
+        cancelAnimationFrame(changeFrameRef.current);
+      }
+      pendingValueRef.current = tab;
+      setSelectedValue(tab);
+      progress.value = withTiming(tab === 'downloaded' ? 0 : 1, {
+        duration: 240,
+        easing: Easing.inOut(Easing.cubic),
+      });
+      changeFrameRef.current = requestAnimationFrame(() => {
+        changeFrameRef.current = null;
+        onChange(tab);
+      });
+    },
+    [onChange, progress]
+  );
+
+  return (
+    <View
+      className="border-border bg-muted/50 relative h-11 overflow-hidden rounded-lg border p-0.5"
+      onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
+      {segmentWidth > 0 ? (
+        <Animated.View
+          className="bg-primary absolute top-0.5 bottom-0.5 left-0.5 rounded-md"
+          style={[{ width: segmentWidth }, highlightStyle]}
+        />
+      ) : null}
+      <View className="relative flex-1 flex-row">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ selected: selectedValue === 'downloaded' }}
+          className="flex-1 items-center justify-center"
+          onPress={() => selectTab('downloaded')}>
+          <Text
+            className={
+              selectedValue === 'downloaded'
+                ? 'text-primary-foreground font-medium'
+                : 'text-foreground'
+            }>
+            Downloaded
+          </Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ selected: selectedValue === 'browse' }}
+          className="flex-1 items-center justify-center"
+          onPress={() => selectTab('browse')}>
+          <Text
+            className={
+              selectedValue === 'browse' ? 'text-primary-foreground font-medium' : 'text-foreground'
+            }>
+            Download more
+          </Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -1760,38 +2011,39 @@ function SavedRow({
   );
 }
 
-function MarkerPopup({ marker }: { marker: MapMarker }) {
+function MarkerPopup({ marker, onClose }: { marker: MapMarker; onClose: () => void }) {
   return (
     <View className="w-72 items-center">
-      <Card className="border-primary/40 bg-background/95 h-36 w-72 overflow-hidden p-3">
-        <View className="flex-1 flex-row items-start gap-3">
-          {marker.photoUri ? (
-            <Image source={{ uri: marker.photoUri }} className="bg-muted size-16 rounded-md" />
-          ) : (
-            <View className="bg-primary/15 size-16 shrink-0 items-center justify-center rounded-md">
-              <Icon as={MapPin} className="text-primary size-7" />
+      <Card className="border-primary/40 bg-background/95 w-72 gap-3 overflow-hidden p-3">
+        <View className="flex-row items-start gap-3">
+          <View className="h-16 w-16 shrink-0 overflow-hidden rounded-md">
+            {marker.photoUri ? (
+              <Image source={{ uri: marker.photoUri }} className="bg-muted h-full w-full" />
+            ) : (
+              <View className="bg-primary/15 h-full w-full items-center justify-center">
+                <Icon as={MapPin} className="text-primary size-7" />
+              </View>
+            )}
+          </View>
+
+          <View className="min-w-0 flex-1 gap-1">
+            <View className="flex-row items-start gap-2">
+              <Text variant="large" className="min-w-0 flex-1 leading-5" numberOfLines={2}>
+                {marker.title}
+              </Text>
+              <Pressable
+                accessibilityLabel="Close spot details"
+                className="bg-muted/70 size-8 shrink-0 items-center justify-center rounded-md"
+                onPress={onClose}>
+                <Icon as={X} className="text-muted-foreground size-4" />
+              </Pressable>
             </View>
-          )}
-          <View className="min-w-0 flex-1 pr-7">
-            <Text variant="large" className="leading-5" numberOfLines={2} ellipsizeMode="tail">
-              {marker.title}
-            </Text>
-            <Text
-              variant="muted"
-              className="mt-1 text-sm leading-5"
-              numberOfLines={2}
-              ellipsizeMode="tail">
+            <Text variant="muted" className="text-sm leading-5" numberOfLines={2}>
               {marker.description || 'No description saved.'}
             </Text>
-            <Text variant="small" className="text-muted-foreground mt-1" numberOfLines={1}>
+            <Text variant="small" className="text-muted-foreground" numberOfLines={1}>
               {formatPoint(marker.latitude, marker.longitude)}
             </Text>
-          </View>
-          <View
-            accessibilityLabel="Close spot details"
-            className="absolute top-1 right-1 size-8 items-center justify-center rounded-md"
-            pointerEvents="none">
-            <Icon as={X} className="text-muted-foreground size-4" />
           </View>
         </View>
       </Card>
@@ -1817,32 +2069,137 @@ function Panel({
   visible,
   onClose,
 }: {
-  children: React.ReactNode;
+  children: React.ReactNode | ((controls: { expand: () => void }) => React.ReactNode);
   title: string;
   visible: boolean;
   onClose: () => void;
 }) {
+  const { height: windowHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const collapsedHeight = Math.round(
+    Math.min(windowHeight * 0.58, windowHeight - Math.max(insets.top, 12) - 112)
+  );
+  const expandedHeight = Math.round(
+    Math.min(windowHeight * 0.92, windowHeight - Math.max(insets.top, 12) - 16)
+  );
+  const startHeight = useSharedValue(collapsedHeight);
+  const sheetHeight = useSharedValue(collapsedHeight);
+  const translateY = useSharedValue(windowHeight);
+  const panelStyle = useAnimatedStyle(() => ({
+    height: sheetHeight.value,
+    transform: [{ translateY: Math.max(0, translateY.value) }],
+  }));
+
+  const closeWithAnimation = React.useCallback(() => {
+    translateY.value = withTiming(
+      windowHeight,
+      { duration: 220, easing: Easing.out(Easing.cubic) },
+      (finished) => {
+        if (finished) runOnJS(onClose)();
+      }
+    );
+  }, [onClose, translateY, windowHeight]);
+
+  const expandPanel = React.useCallback(() => {
+    translateY.value = withTiming(0, { duration: 170, easing: Easing.out(Easing.quad) });
+    sheetHeight.value = withTiming(expandedHeight, {
+      duration: 220,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, [expandedHeight, sheetHeight, translateY]);
+  const renderedChildren =
+    typeof children === 'function' ? children({ expand: expandPanel }) : children;
+
+  const panGesture = React.useMemo(
+    () =>
+      Gesture.Pan()
+        .activeOffsetY([-8, 8])
+        .failOffsetX([-28, 28])
+        .hitSlop({ top: 12, bottom: 12, left: 0, right: 0 })
+        .onBegin(() => {
+          startHeight.value = sheetHeight.value;
+        })
+        .onUpdate((event) => {
+          if (event.translationY < 0) {
+            translateY.value = 0;
+            sheetHeight.value = Math.min(
+              expandedHeight,
+              Math.max(collapsedHeight, startHeight.value - event.translationY)
+            );
+            return;
+          }
+          translateY.value = event.translationY;
+        })
+        .onEnd((event) => {
+          if (event.translationY > 80 || event.velocityY > 760) {
+            translateY.value = withTiming(
+              windowHeight,
+              { duration: 220, easing: Easing.out(Easing.cubic) },
+              (finished) => {
+                if (finished) runOnJS(onClose)();
+              }
+            );
+          } else {
+            const shouldExpand =
+              event.translationY < -36 ||
+              event.velocityY < -520 ||
+              sheetHeight.value > (collapsedHeight + expandedHeight) / 2;
+            translateY.value = withTiming(0, { duration: 170, easing: Easing.out(Easing.quad) });
+            sheetHeight.value = withTiming(shouldExpand ? expandedHeight : collapsedHeight, {
+              duration: 190,
+              easing: Easing.out(Easing.cubic),
+            });
+          }
+        }),
+    [collapsedHeight, expandedHeight, onClose, sheetHeight, startHeight, translateY, windowHeight]
+  );
+
+  React.useEffect(() => {
+    if (visible) {
+      translateY.value = windowHeight;
+      sheetHeight.value = withTiming(collapsedHeight, {
+        duration: 170,
+        easing: Easing.out(Easing.quad),
+      });
+      translateY.value = withTiming(0, {
+        duration: 260,
+        easing: Easing.out(Easing.cubic),
+      });
+    }
+  }, [collapsedHeight, sheetHeight, translateY, visible, windowHeight]);
+
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        className="flex-1 justify-end bg-black/55">
-        <Pressable className="flex-1" onPress={onClose} />
-        <View className="border-border bg-background max-h-[82%] rounded-t-xl border-t p-3">
-          <View className="mb-3 flex-row items-center justify-between gap-3">
-            <Text variant="h3">{title}</Text>
-            <Button size="icon" variant="outline" onPress={onClose}>
-              <Icon as={X} className="size-4" />
-            </Button>
-          </View>
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ gap: 12, paddingBottom: 16 }}
-            keyboardShouldPersistTaps="handled">
-            {children}
-          </ScrollView>
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={closeWithAnimation}>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <View className="flex-1 justify-end">
+          <Pressable className="absolute inset-0 bg-black/55" onPress={closeWithAnimation} />
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            className="flex-1 justify-end"
+            pointerEvents="box-none">
+            <Animated.View className="bg-background rounded-t-xl p-3" style={panelStyle}>
+              <GestureDetector gesture={panGesture}>
+                <View className="mb-3 gap-3 py-1">
+                  <View className="bg-muted-foreground/40 h-1.5 w-12 self-center rounded-full" />
+                  <View className="flex-row items-center justify-between gap-3">
+                    <Text variant="h3">{title}</Text>
+                    <Button size="icon" variant="outline" onPress={closeWithAnimation}>
+                      <Icon as={X} className="size-4" />
+                    </Button>
+                  </View>
+                </View>
+              </GestureDetector>
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                style={{ flex: 1 }}
+                contentContainerStyle={{ gap: 12, paddingBottom: 16 }}
+                keyboardShouldPersistTaps="handled">
+                {renderedChildren}
+              </ScrollView>
+            </Animated.View>
+          </KeyboardAvoidingView>
         </View>
-      </KeyboardAvoidingView>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
@@ -2124,10 +2481,6 @@ function getMarkerComponent(maplibre: MapLibreModule | null) {
   return getMapLibreExport(maplibre, 'Marker');
 }
 
-function getUserLocationComponent(maplibre: MapLibreModule | null) {
-  return getMapLibreExport(maplibre, 'UserLocation');
-}
-
 function getMapLibreExport(maplibre: MapLibreModule | null, name: string) {
   const maybeDefault = maplibre as (MapLibreModule & { default?: Record<string, unknown> }) | null;
   return (maplibre?.[name as keyof MapLibreModule] ?? maybeDefault?.default?.[name]) as
@@ -2196,16 +2549,16 @@ function mapPadding(value: number) {
 function runCameraAction(camera: any, action: CameraAction) {
   if (!camera) return false;
   if (action.type === 'center') {
-    if (typeof camera.flyTo === 'function') {
-      camera.flyTo({
+    if (typeof camera.easeTo === 'function') {
+      camera.easeTo({
         center: action.center,
         zoom: action.zoom,
         duration: action.duration,
       });
       return true;
     }
-    if (typeof camera.easeTo === 'function') {
-      camera.easeTo({
+    if (typeof camera.flyTo === 'function') {
+      camera.flyTo({
         center: action.center,
         zoom: action.zoom,
         duration: action.duration,
@@ -2279,8 +2632,48 @@ function formatPoint(latitude: number, longitude: number) {
   return `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
 }
 
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | null> {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<null>((resolve) => {
+        timeout = setTimeout(() => resolve(null), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
+function sameLocation(
+  left: { latitude: number; longitude: number },
+  right: { latitude: number; longitude: number }
+) {
+  return (
+    Math.abs(left.latitude - right.latitude) < CENTER_UPDATE_EPSILON_DEGREES &&
+    Math.abs(left.longitude - right.longitude) < CENTER_UPDATE_EPSILON_DEGREES
+  );
+}
+
+function isFiniteLngLat(center: LngLat) {
+  return Number.isFinite(center[0]) && Number.isFinite(center[1]);
+}
+
+function centerDistance(left: LngLat, right: LngLat) {
+  return Math.max(Math.abs(left[0] - right[0]), Math.abs(left[1] - right[1]));
+}
+
+function locationToCenter(position: Location.LocationObject): LngLat {
+  return [position.coords.longitude, position.coords.latitude];
+}
+
 function normalizeBearing(bearing: number) {
   return ((bearing % 360) + 360) % 360;
+}
+
+function bearingDelta(left: number, right: number) {
+  return bearingDistanceFromNorth(right - left);
 }
 
 function bearingDistanceFromNorth(bearing: number) {

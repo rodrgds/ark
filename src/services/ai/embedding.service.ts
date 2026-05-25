@@ -1,4 +1,3 @@
-import { ContentPackService } from '@/services/content/content-pack.service';
 import {
   EMBEDDING_MODEL_CONFIGS,
   getEmbeddingModelConfig,
@@ -11,6 +10,7 @@ import {
   embedText,
 } from '@/services/ai/rag-embedding';
 import { PreferencesService } from '@/services/preferences/preferences.service';
+import { ContentRepository } from '@/services/db/repositories/content.repo';
 
 type LlamaModule = typeof import('llama.rn');
 type LlamaContext = Awaited<ReturnType<LlamaModule['initLlama']>>;
@@ -39,7 +39,7 @@ export function resetEmbeddingRuntimeContext() {
 
 export class EmbeddingService {
   static async getActiveModelConfig() {
-    const packs = await ContentPackService.listPacks();
+    const packs = await listContentPacks();
     const installedModels = packs.filter(
       (pack) => isEmbeddingModelPack(pack) && pack.installed && pack.localUri
     );
@@ -95,10 +95,7 @@ export class EmbeddingService {
 async function getEmbeddingContext() {
   if (!embeddingContextPromise) {
     embeddingContextPromise = (async () => {
-      const [module, packs] = await Promise.all([
-        loadLlamaModule(),
-        ContentPackService.listPacks(),
-      ]);
+      const [module, packs] = await Promise.all([loadLlamaModule(), listContentPacks()]);
       if (!module) return null;
       const pack = packs.find(
         (item) => isEmbeddingModelPack(item) && item.installed && item.localUri
@@ -128,6 +125,10 @@ async function loadLlamaModule() {
     llamaModulePromise = import('llama.rn').catch(() => null);
   }
   return llamaModulePromise;
+}
+
+async function listContentPacks() {
+  return ContentRepository.list();
 }
 
 function sliceVector(vector: number[], dimensions: number) {

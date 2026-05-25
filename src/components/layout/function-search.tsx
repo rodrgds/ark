@@ -28,14 +28,7 @@ import {
   type LucideIcon,
 } from 'lucide-react-native';
 import * as React from 'react';
-import {
-  InteractionManager,
-  Modal,
-  Pressable,
-  ScrollView,
-  type TextInput,
-  View,
-} from 'react-native';
+import { Modal, Pressable, ScrollView, type TextInput, View } from 'react-native';
 
 type SearchEntry = {
   title: string;
@@ -230,11 +223,11 @@ export function FunctionSearchButton() {
       focusTimersRef.current = [];
       return;
     }
-    const task = InteractionManager.runAfterInteractions(() => {
+    const focusTimer = setTimeout(() => {
       focusInput();
-    });
+    }, 1);
     return () => {
-      task.cancel();
+      clearTimeout(focusTimer);
       focusTimersRef.current.forEach(clearTimeout);
       focusTimersRef.current = [];
     };

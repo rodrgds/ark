@@ -25,7 +25,7 @@ export default function PacksScreen() {
 
   async function saveSelection() {
     await Promise.allSettled(
-      STARTER_PACKS.filter((item) => selected.has(item.id)).map((pack) =>
+      STARTER_PACKS.filter((item) => !item.testOnly && selected.has(item.id)).map((pack) =>
         ContentPackService.installPack(pack.id)
       )
     );
@@ -35,12 +35,16 @@ export default function PacksScreen() {
   const packsByCategory = React.useMemo(() => {
     const groups: Record<string, ContentPackManifest[]> = {};
     for (const pack of STARTER_PACKS) {
+      if (pack.testOnly) continue;
       if (!groups[pack.category]) groups[pack.category] = [];
       groups[pack.category].push(pack);
     }
     return groups;
   }, []);
-  const orderedCategories = React.useMemo(() => getOrderedContentCategories(STARTER_PACKS), []);
+  const visiblePacks = React.useMemo(() => STARTER_PACKS.filter((p) => !p.testOnly), []);
+  const orderedCategories = React.useMemo(() => getOrderedContentCategories(visiblePacks), [
+    visiblePacks,
+  ]);
   const contentCategories = orderedCategories.filter((category) => category !== 'AI Models');
 
   return (

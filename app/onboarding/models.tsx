@@ -13,7 +13,9 @@ import * as React from 'react';
 import { Pressable, View } from 'react-native';
 
 const RECOMMENDED_MODEL_IDS = ['embedding-nomic-v15-q4-k-m'];
-const MODEL_PACKS = STARTER_PACKS.filter((pack) => pack.category === 'AI Models');
+const MODEL_PACKS = STARTER_PACKS.filter(
+  (pack) => !pack.testOnly && pack.category === 'AI Models'
+);
 
 export default function ModelsScreen() {
   const [selected, setSelected] = React.useState(() => new Set(RECOMMENDED_MODEL_IDS));

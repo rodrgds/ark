@@ -4,8 +4,9 @@ export const THEME_OPTIONS: Array<{ value: ThemePreference; label: string; descr
   [
     {
       value: 'oled',
-      label: 'OLED (Recommended)',
-      description: 'True black command-center mode.',
+      label: 'OLED',
+      description:
+        'True black command-center mode. Better for OLED screens and low-light environments.',
     },
     {
       value: 'dark',

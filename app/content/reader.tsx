@@ -1,6 +1,8 @@
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { getNativePdf } from '@/components/readers/native-pdf';
+import { ArkBottomSheet } from '@/components/ui/bottom-sheet';
+import { showSheetAlert } from '@/components/ui/sheet-alert';
 import { Text } from '@/components/ui/text';
 import { Arky } from '@/components/brand/ark-logo';
 import { ContentPackService } from '@/services/content/content-pack.service';
@@ -11,15 +13,7 @@ import type { ContentPack } from '@/types/content';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { ChevronLeft, ExternalLink, List, Printer, Share2, X } from 'lucide-react-native';
 import * as React from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  BackHandler,
-  Modal,
-  Pressable,
-  ScrollView,
-  View,
-} from 'react-native';
+import { ActivityIndicator, BackHandler, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import * as Sharing from 'expo-sharing';
@@ -254,7 +248,7 @@ export default function GuideReaderScreen() {
         await Sharing.shareAsync(pack.localUri);
       }
     } catch {
-      Alert.alert('Error', 'Unable to share document.');
+      showSheetAlert('Error', 'Unable to share document.');
     }
   }
 
@@ -273,7 +267,7 @@ export default function GuideReaderScreen() {
       }
       await ContentPackService.openPack(pack.id);
     } catch (err) {
-      Alert.alert('Error', err instanceof Error ? err.message : 'Unable to export guide.');
+      showSheetAlert('Error', err instanceof Error ? err.message : 'Unable to export guide.');
     } finally {
       setExportingPdf(false);
     }
@@ -484,7 +478,7 @@ export default function GuideReaderScreen() {
               onPress={() => {
                 if (pack?.localUri) {
                   ContentPackService.openPack(pack.id).catch((err) => {
-                    Alert.alert(
+                    showSheetAlert(
                       'Error',
                       err instanceof Error ? err.message : 'Could not open file.'
                     );
@@ -516,50 +510,33 @@ export default function GuideReaderScreen() {
         </View>
       )}
 
-      {/* TOC Drawer */}
-      <Modal
+      <ArkBottomSheet
         visible={showToc}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowToc(false)}>
-        <View className="bg-background/60 flex-1 justify-end">
-          <Pressable className="flex-1" onPress={() => setShowToc(false)} />
-          <View
-            style={{ paddingBottom: insets.bottom + 20 }}
-            className="bg-card border-border max-h-[80%] rounded-t-3xl border-t">
-            <View className="border-border flex-row items-center justify-between border-b px-6 py-5">
-              <Text variant="h3" className="text-foreground">
-                Table of Contents
-              </Text>
-              <Button variant="ghost" size="icon" onPress={() => setShowToc(false)}>
-                <Icon as={X} className="text-muted-foreground" />
-              </Button>
+        title="Table of Contents"
+        onDismiss={() => setShowToc(false)}
+        scrollable
+        snapPoints={['80%']}>
+        {sections.map((sec) => (
+          <Pressable
+            key={sec.title}
+            onPress={() => handleSectionSelect(sec)}
+            className="bg-muted/40 active:bg-muted/60 my-1 flex-row items-center justify-between rounded-xl p-4">
+            <View className="flex-1 pr-4">
+              <Text className="text-foreground font-bold">{sec.title}</Text>
+              {sec.detail && (
+                <Text variant="small" className="text-muted-foreground mt-1">
+                  {sec.detail}
+                </Text>
+              )}
             </View>
-            <ScrollView className="px-3 pt-2">
-              {sections.map((sec) => (
-                <Pressable
-                  key={sec.title}
-                  onPress={() => handleSectionSelect(sec)}
-                  className="bg-muted/40 active:bg-muted/60 my-1 flex-row items-center justify-between rounded-xl p-4">
-                  <View className="flex-1 pr-4">
-                    <Text className="text-foreground font-bold">{sec.title}</Text>
-                    {sec.detail && (
-                      <Text variant="small" className="text-muted-foreground mt-1">
-                        {sec.detail}
-                      </Text>
-                    )}
-                  </View>
-                  {sec.page && (
-                    <Text variant="small" className="text-primary/70">
-                      p.{sec.page}
-                    </Text>
-                  )}
-                </Pressable>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+            {sec.page && (
+              <Text variant="small" className="text-primary/70">
+                p.{sec.page}
+              </Text>
+            )}
+          </Pressable>
+        ))}
+      </ArkBottomSheet>
     </View>
   );
 }

@@ -14,6 +14,7 @@ export type AiMessage = {
   role: 'user' | 'assistant' | 'system' | 'tool';
   content: string;
   citations: AiCitation[];
+  reasoning?: string;
   createdAt: number;
 };
 
@@ -25,6 +26,7 @@ export type AiSendMessageInput = {
 
 export type AiSendMessageOptions = {
   onToken?: (content: string) => void;
+  onReasoning?: (content: string) => void;
   onProgress?: (progress: AiProgressEvent) => void;
 };
 
@@ -49,10 +51,12 @@ export type AiProgressEvent = {
 export type AiAdapterResponse = {
   content: string;
   citations: AiCitation[];
+  reasoning?: string;
 };
 
 export type AiAdapterSendInput = {
   content: string;
+  history?: Array<Pick<AiMessage, 'role' | 'content'>>;
   citations: AiCitation[];
   sourceContext?: Array<{
     sourceId: string;
@@ -64,4 +68,5 @@ export type AiAdapterSendInput = {
     summary: string;
   }>;
   onToken?: (content: string) => void;
+  onReasoning?: (content: string) => void;
 };

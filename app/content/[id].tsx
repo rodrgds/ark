@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/card';
 import { ArkKeyboardAwareScrollView } from '@/components/layout/keyboard-controller';
 import { Icon } from '@/components/ui/icon';
 import { Progress } from '@/components/ui/progress';
+import { showSheetAlert } from '@/components/ui/sheet-alert';
 import { Text } from '@/components/ui/text';
 import { ContentPackService } from '@/services/content/content-pack.service';
 import { GuideService, type GuideSection } from '@/services/content/guide.service';
@@ -25,7 +26,7 @@ import {
   TriangleAlert,
 } from 'lucide-react-native';
 import * as React from 'react';
-import { ActivityIndicator, Alert, Linking, Modal, View, Pressable } from 'react-native';
+import { ActivityIndicator, Linking, Modal, View, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { Input } from '@/components/ui/input';
@@ -184,7 +185,7 @@ export default function ContentDetailScreen() {
     try {
       await ContentPackService.openPack(pack.id);
     } catch (err) {
-      Alert.alert('Unable to open', err instanceof Error ? err.message : 'Could not open file.');
+      showSheetAlert('Unable to open', err instanceof Error ? err.message : 'Could not open file.');
     }
   }
 
@@ -303,7 +304,7 @@ export default function ContentDetailScreen() {
                   }
                   disabled={busy}
                   onPress={() =>
-                    Alert.alert('Remove Pack?', `Delete ${pack.title} from offline storage?`, [
+                    showSheetAlert('Remove Pack?', `Delete ${pack.title} from offline storage?`, [
                       { text: 'Cancel', style: 'cancel' },
                       {
                         text: 'Remove',
@@ -332,7 +333,7 @@ export default function ContentDetailScreen() {
                   className="border-border active:bg-muted"
                   disabled={busy}
                   onPress={() =>
-                    Alert.alert('Cancel download?', pack.title, [
+                    showSheetAlert('Cancel download?', pack.title, [
                       { text: 'Keep', style: 'cancel' },
                       {
                         text: 'Cancel',

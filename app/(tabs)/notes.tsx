@@ -1,11 +1,12 @@
 import { Arky } from '@/components/brand/ark-logo';
 import { Screen } from '@/components/layout/screen';
+import { ArkBottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
-import { ModalFrame } from '@/components/ui/modal-frame';
+import { showSheetAlert } from '@/components/ui/sheet-alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
 import { getLabelColor, getLabelForegroundColor } from '@/lib/label-colors';
@@ -19,11 +20,9 @@ import { router, useFocusEffect } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { Plus, Printer, Star, Tag, Trash2 } from 'lucide-react-native';
 import * as React from 'react';
-import { Alert, Linking, Modal, Pressable, RefreshControl, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Linking, Pressable, RefreshControl, View } from 'react-native';
 
 export default function NotesScreen() {
-  const insets = useSafeAreaInsets();
   const unlocked = useAuthStore((state) => state.unlocked);
   const [password, setPassword] = React.useState('');
   const [unlockError, setUnlockError] = React.useState<string | null>(null);
@@ -41,7 +40,10 @@ export default function NotesScreen() {
 
   async function load(search = query) {
     if (!unlocked) return;
-    const [list, colors] = await Promise.all([NotesRepository.list(search), SettingsRepository.getLabelColors()]);
+    const [list, colors] = await Promise.all([
+      NotesRepository.list(search),
+      SettingsRepository.getLabelColors(),
+    ]);
     list.sort((a, b) => {
       if (a.isFavorite !== b.isFavorite) return a.isFavorite ? -1 : 1;
       return b.updatedAt - a.updatedAt;
@@ -102,7 +104,10 @@ export default function NotesScreen() {
       if (!canOpen) throw new Error('No app is available to open this PDF.');
       await Linking.openURL(uri);
     } catch (error) {
-      Alert.alert('Print failed', error instanceof Error ? error.message : 'Unable to export note.');
+      showSheetAlert(
+        'Print failed',
+        error instanceof Error ? error.message : 'Unable to export note.'
+      );
     } finally {
       setPrintingNoteId(null);
     }
@@ -114,7 +119,7 @@ export default function NotesScreen() {
         <Card className="items-center gap-4 py-8">
           <Arky pose="secure" size={160} />
           <Text variant="h2">Vault Locked</Text>
-          <Text variant="muted" className="text-center px-4">
+          <Text variant="muted" className="px-4 text-center">
             Secure notes and personal documents are inaccessible until the vault is unlocked.
           </Text>
           <View className="mt-4 w-full gap-3">
@@ -213,7 +218,9 @@ export default function NotesScreen() {
                             style={{ backgroundColor: getLabelColor(label, labelColors) }}>
                             <Text
                               className="text-xs"
-                              style={{ color: getLabelForegroundColor(getLabelColor(label, labelColors)) }}>
+                              style={{
+                                color: getLabelForegroundColor(getLabelColor(label, labelColors)),
+                              }}>
                               {label}
                             </Text>
                           </View>
@@ -257,7 +264,9 @@ export default function NotesScreen() {
                             style={{ backgroundColor: getLabelColor(label, labelColors) }}>
                             <Text
                               className="text-xs"
-                              style={{ color: getLabelForegroundColor(getLabelColor(label, labelColors)) }}>
+                              style={{
+                                color: getLabelForegroundColor(getLabelColor(label, labelColors)),
+                              }}>
                               {label}
                             </Text>
                           </View>
@@ -274,60 +283,57 @@ export default function NotesScreen() {
 
       <Button
         size="icon"
-        className="absolute bottom-6 right-6 h-14 w-14 rounded-full"
+        className="absolute right-6 bottom-6 h-14 w-14 rounded-full"
         onPress={() => router.push('/notes/editor' as never)}>
         <Icon as={Plus} className="size-6" />
       </Button>
 
-      <Modal transparent visible={!!actionNote} animationType="fade" onRequestClose={() => setActionNote(null)}>
-        <ModalFrame
-          onDismiss={() => setActionNote(null)}
-          position="bottom"
-          containerStyle={{ paddingBottom: Math.max(insets.bottom, 12) }}
-          surfaceClassName="gap-1 p-2">
-          <Button
-            variant="ghost"
-            className="h-10 justify-start px-2"
-            disabled={!actionNote || printingNoteId === actionNote?.id}
-            onPress={() => {
-              if (actionNote) void printNote(actionNote);
-            }}>
-            <Icon as={Printer} className="size-4" />
-            <Text>{printingNoteId === actionNote?.id ? 'Preparing PDF...' : 'Print'}</Text>
-          </Button>
-          <Button
-            variant="ghost"
-            className="h-10 justify-start px-2"
-            onPress={() => {
-              if (actionNote) void toggleStar(actionNote);
-            }}>
-            <Icon as={Star} className="size-4" />
-            <Text>{actionNote?.isFavorite ? 'Unstar' : 'Star'}</Text>
-          </Button>
-          <Button
-            variant="ghost"
-            className="h-10 justify-start px-2"
-            onPress={() => {
-              if (!actionNote) return;
-              setActionNote(null);
-              router.push({ pathname: '/notes/labels' as never, params: { noteId: actionNote.id } as never });
-            }}>
-            <Icon as={Tag} className="size-4" />
-            <Text>Labels</Text>
-          </Button>
-          <Button
-            variant="ghost"
-            className="h-10 justify-start px-2"
-            onPress={() => {
-              if (!actionNote) return;
-              setConfirmDeleteNote(actionNote);
-              setActionNote(null);
-            }}>
-            <Icon as={Trash2} className="text-destructive size-4" />
-            <Text className="text-destructive">Delete</Text>
-          </Button>
-        </ModalFrame>
-      </Modal>
+      <ArkBottomSheet visible={!!actionNote} onDismiss={() => setActionNote(null)}>
+        <Button
+          variant="ghost"
+          className="h-10 justify-start px-2"
+          disabled={!actionNote || printingNoteId === actionNote?.id}
+          onPress={() => {
+            if (actionNote) void printNote(actionNote);
+          }}>
+          <Icon as={Printer} className="size-4" />
+          <Text>{printingNoteId === actionNote?.id ? 'Preparing PDF...' : 'Print'}</Text>
+        </Button>
+        <Button
+          variant="ghost"
+          className="h-10 justify-start px-2"
+          onPress={() => {
+            if (actionNote) void toggleStar(actionNote);
+          }}>
+          <Icon as={Star} className="size-4" />
+          <Text>{actionNote?.isFavorite ? 'Unstar' : 'Star'}</Text>
+        </Button>
+        <Button
+          variant="ghost"
+          className="h-10 justify-start px-2"
+          onPress={() => {
+            if (!actionNote) return;
+            setActionNote(null);
+            router.push({
+              pathname: '/notes/labels' as never,
+              params: { noteId: actionNote.id } as never,
+            });
+          }}>
+          <Icon as={Tag} className="size-4" />
+          <Text>Labels</Text>
+        </Button>
+        <Button
+          variant="ghost"
+          className="h-10 justify-start px-2"
+          onPress={() => {
+            if (!actionNote) return;
+            setConfirmDeleteNote(actionNote);
+            setActionNote(null);
+          }}>
+          <Icon as={Trash2} className="text-destructive size-4" />
+          <Text className="text-destructive">Delete</Text>
+        </Button>
+      </ArkBottomSheet>
 
       <ConfirmModal
         visible={!!confirmDeleteNote}

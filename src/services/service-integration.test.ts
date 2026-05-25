@@ -6,6 +6,7 @@ let llamaStopCalls = 0;
 let llamaCompletionGate: Promise<void> | null = null;
 let llamaCompletionStarted: (() => void) | null = null;
 let lastLlamaInitModel: string | null = null;
+let lastLlamaCompletionParams: unknown = null;
 let mockLlamaCompletionResults: Array<{
   text?: string;
   content?: string;
@@ -195,7 +196,7 @@ mock.module('llama.rn', () => ({
     lastLlamaInitModel = params.model ?? null;
     return {
       completion: async (
-        _params: unknown,
+        params: unknown,
         callback?: (data: {
           token?: string;
           accumulated_text?: string;
@@ -208,9 +209,16 @@ mock.module('llama.rn', () => ({
           }>;
         }) => void
       ) => {
+        lastLlamaCompletionParams = params;
         const scripted = mockLlamaCompletionResults.shift();
         const stream = scripted?.stream ?? scripted?.content ?? 'Local ';
-        if (stream) callback?.({ token: stream, accumulated_text: stream, content: stream });
+        if (stream)
+          callback?.({
+            token: stream,
+            accumulated_text: stream,
+            content: stream,
+            reasoning_content: scripted?.reasoning_content,
+          });
         llamaCompletionStarted?.();
         if (llamaCompletionGate) await llamaCompletionGate;
         return scripted ?? { text: 'Local mocked llama response.', content: stream };
@@ -328,6 +336,7 @@ beforeEach(async () => {
   llamaCompletionGate = null;
   llamaCompletionStarted = null;
   lastLlamaInitModel = null;
+  lastLlamaCompletionParams = null;
   mockLlamaCompletionResults = [];
   freeDiskStorageBytes = 10 * 1024 * 1024 * 1024;
   mockFiles.clear();
@@ -824,9 +833,7 @@ describe('service integration', () => {
       "what's on the trailhead-sign OR north spring?",
       { limit: 3 }
     );
-    expect(punctuationCitations.some((citation) => citation.sourceRef === document?.id)).toBe(
-      true
-    );
+    expect(punctuationCitations.some((citation) => citation.sourceRef === document?.id)).toBe(true);
   });
 
   test('imported PDFs use text-layer extraction before OCR', async () => {
@@ -933,9 +940,7 @@ describe('service integration', () => {
 
     expect(mapCitations.some((citation) => citation.sourceId.startsWith('map-marker:'))).toBe(true);
     expect(mapCitations.some((citation) => citation.targetHref === '/(tabs)/map')).toBe(true);
-    expect(weatherCitations.some((citation) => citation.sourceId === 'weather:latest')).toBe(
-      false
-    );
+    expect(weatherCitations.some((citation) => citation.sourceId === 'weather:latest')).toBe(false);
     expect(staleWeatherSource).toBeNull();
   });
 
@@ -1125,13 +1130,58 @@ describe('service integration', () => {
     });
 
     expect(result.messages).toHaveLength(2);
-    expect(result.messages[1].content).toBe(
-      'Filter the north spring water and store it sealed.'
-    );
+    expect(result.messages[1].content).toBe('Filter the north spring water and store it sealed.');
     expect(result.messages[1].content).not.toContain('scratchpad');
     expect(result.messages[1].citations.some((citation) => citation.sourceRef === note.id)).toBe(
       true
     );
+  });
+
+  test('local llama receives recent chat history and exposes reasoning separately', async () => {
+    await ContentRepository.createPack({
+      id: 'custom-model-history-test',
+      title: 'History chat model',
+      description: 'Installed local model for history coverage.',
+      category: 'AI Models',
+      format: 'gguf',
+      localUri: 'file:///ark/models/history.gguf',
+      installed: true,
+      installStatus: 'installed',
+      progress: 1,
+    });
+    mockLlamaCompletionResults = [
+      {
+        content: 'A simple fishing hook can be carved from a thorn, bone, or wire.',
+      },
+      {
+        content: 'I should not have refused that. It is ordinary food-procurement guidance.',
+        reasoning_content: 'The follow-up refers to the previous refusal.',
+      },
+    ];
+    resetLlamaAdapterForTests();
+
+    const first = await AIService.sendMessage({
+      content: 'How do I make a fishing hook?',
+      useRag: false,
+    });
+    const second = await AIService.sendMessage({
+      threadId: first.threadId,
+      content: 'Why not?',
+      useRag: false,
+    });
+    const completionParams = lastLlamaCompletionParams as {
+      enable_thinking?: boolean;
+      chat_template_kwargs?: { enable_thinking?: boolean };
+      messages?: Array<{ role: string; content: string }>;
+    };
+
+    expect(second.messages[1].reasoning).toBe('The follow-up refers to the previous refusal.');
+    expect(completionParams.enable_thinking).toBe(true);
+    expect(completionParams.chat_template_kwargs?.enable_thinking).toBe(true);
+    expect(completionParams.messages?.map((message) => message.role)).toContain('assistant');
+    expect(
+      completionParams.messages?.some((message) => message.content.includes('fishing hook'))
+    ).toBe(true);
   });
 
   test('model manager reports runtime readiness for installed local models', async () => {

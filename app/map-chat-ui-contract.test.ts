@@ -33,7 +33,9 @@ describe('map and chat UI contracts', () => {
     expect(source).toContain("BackHandler.addEventListener('hardwareBackPress'");
     expect(source).toContain("navigation.addListener('beforeRemove'");
     expect(source).toContain('searchGestureSuppressUntilRef.current = Date.now()');
-    expect(source).toContain('if (isSearchActive || Date.now() < suppressLongPressUntilRef.current)');
+    expect(source).toContain(
+      'if (isSearchActive || Date.now() < suppressLongPressUntilRef.current)'
+    );
     expect(source).toContain('onDismissSearch();');
     expect(source).toContain('return;');
   });
@@ -41,10 +43,10 @@ describe('map and chat UI contracts', () => {
   test('chat resizes its scroll area with the keyboard instead of floating the composer', () => {
     const source = readFileSync(join(appDir, '(tabs)/chat.tsx'), 'utf8');
 
-    expect(source).toContain('useWindowDimensions');
-    expect(source).toContain('keyboardWillChangeFrame');
-    expect(source).toContain('const overlap = Math.max(0, windowHeight - keyboardTop)');
-    expect(source).toContain('paddingBottom: keyboardInset > 0 ? keyboardInset + 8');
+    expect(source).toContain('keyboardDidShow');
+    expect(source).toContain('keyboardDidHide');
+    expect(source).toContain('paddingBottom: Math.max(10, insets.bottom)');
+    expect(source).not.toContain('keyboardInset');
     expect(source).not.toContain('useAnimatedKeyboard');
     expect(source).not.toContain('translateY');
   });
@@ -55,7 +57,9 @@ describe('map and chat UI contracts', () => {
     expect(source).toContain('hasActiveMapDownloads');
     expect(source).toContain("region.status === 'downloading' || region.status === 'queued'");
     expect(source).toContain('MapService.setNetworkConnected(maplibre, hasActiveMapDownloads)');
-    expect(source).not.toContain('MapService.setNetworkConnected(maplibre, false);\n      setBusy(null);');
+    expect(source).not.toContain(
+      'MapService.setNetworkConnected(maplibre, false);\n      setBusy(null);'
+    );
   });
 
   test('downloaded maps open centered on the downloaded region', () => {

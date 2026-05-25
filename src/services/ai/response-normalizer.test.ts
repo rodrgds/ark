@@ -34,7 +34,15 @@ describe('AI response normalizer', () => {
       'Keep water sealed.'
     );
     expect(
-      stripHiddenModelOutput('<|channel>thought\nprivate plan<channel|><|channel>final\nMove uphill.')
+      stripHiddenModelOutput(
+        '<|channel>thought\nprivate plan<channel|><|channel>final\nMove uphill.'
+      )
     ).toBe('Move uphill.');
+    expect(
+      stripHiddenModelOutput(
+        '<|channel|>analysis\nprivate plan\n<|channel|>final\nMake a hook from wire, bone, or a thorn.'
+      )
+    ).toBe('Make a hook from wire, bone, or a thorn.');
+    expect(stripHiddenModelOutput('<|channel|>')).toBe('');
   });
 });

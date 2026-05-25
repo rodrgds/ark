@@ -3,13 +3,14 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
+import { showSheetAlert } from '@/components/ui/sheet-alert';
 import { Text } from '@/components/ui/text';
 import { RssService } from '@/services/rss/rss.service';
 import { formatDistanceToNow } from 'date-fns';
 import { router } from 'expo-router';
 import { CheckCheck, Newspaper, Plus, Radio, RefreshCw, Trash2 } from 'lucide-react-native';
 import * as React from 'react';
-import { ActivityIndicator, Alert, RefreshControl, View } from 'react-native';
+import { ActivityIndicator, RefreshControl, View } from 'react-native';
 
 type NewsFilter = 'unread' | 'all';
 
@@ -219,7 +220,7 @@ export default function NewsScreen() {
                   size="icon"
                   variant="ghost"
                   onPress={() => {
-                    Alert.alert('Remove feed?', feed.title, [
+                    showSheetAlert('Remove feed?', feed.title, [
                       { text: 'Cancel', style: 'cancel' },
                       {
                         text: 'Remove',

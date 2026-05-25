@@ -1,6 +1,7 @@
 import '@/global.css';
 
 import { NAV_THEME } from '@/lib/theme';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { ThemeProvider } from '@react-navigation/native';
 import { PortalHost } from '@rn-primitives/portal';
 import { Stack } from 'expo-router';
@@ -20,6 +21,8 @@ import Animated, {
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ArkMark } from '@/components/brand/ark-logo';
 import { ArkKeyboardProvider } from '@/components/layout/keyboard-controller';
+import { Progress } from '@/components/ui/progress';
+import { SheetAlertProvider } from '@/components/ui/sheet-alert';
 import { Text } from '@/components/ui/text';
 import { AutoLockService } from '@/services/security/autolock.service';
 import { useAppStore } from '@/stores/app-store';
@@ -33,6 +36,8 @@ export {
 export default function RootLayout() {
   const boot = useAppStore((state) => state.boot);
   const booted = useAppStore((state) => state.booted);
+  const bootProgress = useAppStore((state) => state.bootProgress);
+  const bootStatus = useAppStore((state) => state.bootStatus);
   const error = useAppStore((state) => state.error);
   const effectiveTheme = useThemeStore((state) => state.effectiveTheme);
 
@@ -55,8 +60,14 @@ export default function RootLayout() {
     return (
       <GestureHandlerRootView className="bg-background flex-1">
         <SafeAreaProvider>
-          <View className="bg-background flex-1 items-center justify-center p-6">
+          <View className="bg-background flex-1 items-center justify-center gap-5 p-6">
             <BootSplashMark />
+            <View className="w-full max-w-72 gap-2">
+              <Progress value={bootProgress} />
+              <Text variant="muted" className="text-center">
+                {bootStatus}
+              </Text>
+            </View>
           </View>
         </SafeAreaProvider>
       </GestureHandlerRootView>
@@ -68,29 +79,33 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <ArkKeyboardProvider>
           <ThemeProvider value={NAV_THEME[effectiveTheme]}>
-            <StatusBar style={effectiveTheme === 'light' ? 'dark' : 'light'} />
-            <Stack
-              screenOptions={{
-                headerStyle: { backgroundColor: NAV_THEME[effectiveTheme].colors.background },
-                headerTintColor: NAV_THEME[effectiveTheme].colors.text,
-                contentStyle: { backgroundColor: NAV_THEME[effectiveTheme].colors.background },
-              }}>
-              <Stack.Screen name="index" options={{ headerShown: false }} />
-              <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen name="tools" options={{ headerShown: false }} />
-              <Stack.Screen name="content" options={{ headerShown: false }} />
-              <Stack.Screen name="documents" options={{ headerShown: false }} />
-              <Stack.Screen name="library" options={{ headerShown: false }} />
-              <Stack.Screen name="easter-egg" options={{ headerShown: false }} />
-              <Stack.Screen name="notes" />
-            </Stack>
-            {error ? (
-              <View className="bg-destructive p-3">
-                <Text className="text-white">{error}</Text>
-              </View>
-            ) : null}
-            <PortalHost />
+            <BottomSheetModalProvider>
+              <SheetAlertProvider>
+                <StatusBar style={effectiveTheme === 'light' ? 'dark' : 'light'} />
+                <Stack
+                  screenOptions={{
+                    headerStyle: { backgroundColor: NAV_THEME[effectiveTheme].colors.background },
+                    headerTintColor: NAV_THEME[effectiveTheme].colors.text,
+                    contentStyle: { backgroundColor: NAV_THEME[effectiveTheme].colors.background },
+                  }}>
+                  <Stack.Screen name="index" options={{ headerShown: false }} />
+                  <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+                  <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                  <Stack.Screen name="tools" options={{ headerShown: false }} />
+                  <Stack.Screen name="content" options={{ headerShown: false }} />
+                  <Stack.Screen name="documents" options={{ headerShown: false }} />
+                  <Stack.Screen name="library" options={{ headerShown: false }} />
+                  <Stack.Screen name="easter-egg" options={{ headerShown: false }} />
+                  <Stack.Screen name="notes" options={{ headerShown: false }} />
+                </Stack>
+                {error ? (
+                  <View className="bg-destructive p-3">
+                    <Text className="text-white">{error}</Text>
+                  </View>
+                ) : null}
+                <PortalHost />
+              </SheetAlertProvider>
+            </BottomSheetModalProvider>
           </ThemeProvider>
         </ArkKeyboardProvider>
       </SafeAreaProvider>

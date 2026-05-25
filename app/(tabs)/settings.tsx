@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
+import { showSheetAlert } from '@/components/ui/sheet-alert';
 import { Text } from '@/components/ui/text';
 import { getPackIcon, getPackModelRoleLabel } from '@/constants/pack-presentation';
 import { THEME_OPTIONS } from '@/constants/theme';
@@ -34,7 +35,7 @@ import {
   Upload,
 } from 'lucide-react-native';
 import * as React from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 
 type SettingsTab = 'appearance' | 'security' | 'ai' | 'downloads' | 'internals';
 
@@ -196,7 +197,7 @@ export default function SettingsScreen() {
       }
       setCurrentPassword('');
       setNextPassword('');
-      Alert.alert('Passphrase changed', 'The vault verifier has been updated on this device.');
+      showSheetAlert('Passphrase changed', 'The vault verifier has been updated on this device.');
     } finally {
       setBusy(null);
     }
@@ -311,7 +312,7 @@ export default function SettingsScreen() {
       await DownloadManagerService.resumeDownload(download.id);
       await load();
     } catch (error) {
-      Alert.alert(
+      showSheetAlert(
         'Retry failed',
         error instanceof Error ? error.message : 'Unable to retry this download.'
       );
@@ -327,7 +328,7 @@ export default function SettingsScreen() {
       if (!result.ok) throw new Error(result.reason ?? 'Unable to retry this map download.');
       await load();
     } catch (error) {
-      Alert.alert(
+      showSheetAlert(
         'Retry failed',
         error instanceof Error ? error.message : 'Unable to retry this map download.'
       );
@@ -458,7 +459,7 @@ export default function SettingsScreen() {
               <Button
                 size="sm"
                 onPress={() =>
-                  Alert.alert('Lock vault?', 'Secure notes will require unlock again.', [
+                  showSheetAlert('Lock vault?', 'Secure notes will require unlock again.', [
                     { text: 'Cancel', style: 'cancel' },
                     { text: 'Lock', style: 'destructive', onPress: () => VaultService.lock() },
                   ])

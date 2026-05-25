@@ -28,7 +28,7 @@ import {
   type LucideIcon,
 } from 'lucide-react-native';
 import * as React from 'react';
-import { Pressable, type TextInput, View } from 'react-native';
+import { Keyboard, Pressable, type TextInput, View } from 'react-native';
 
 type SearchEntry = {
   title: string;
@@ -203,9 +203,17 @@ export function FunctionSearchButton() {
   }, [query]);
 
   function openEntry(entry: SearchEntry) {
+    inputRef.current?.blur();
+    Keyboard.dismiss();
     setOpen(false);
     setQuery('');
     router.push(entry.href);
+  }
+
+  function closeSearch() {
+    inputRef.current?.blur();
+    Keyboard.dismiss();
+    setOpen(false);
   }
 
   const focusInput = React.useCallback(() => {
@@ -246,7 +254,7 @@ export function FunctionSearchButton() {
 
       <ArkBottomSheet
         visible={open}
-        onDismiss={() => setOpen(false)}
+        onDismiss={closeSearch}
         scrollable
         snapPoints={['82%']}
         contentClassName="gap-3">

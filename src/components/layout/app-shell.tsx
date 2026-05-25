@@ -100,18 +100,22 @@ export function LockStateBar() {
         visible={confirmLockOpen}
         title="Lock vault?"
         description="Secure notes will require unlock again."
-        onDismiss={() => setConfirmLockOpen(false)}
-        contentClassName="items-center">
-        <Pressable onPress={runLockAnimation} disabled={locking} hitSlop={12}>
-          <Animated.View
-            className="bg-card border-border h-28 w-28 items-center justify-center rounded-full border-2"
-            style={{ transform: [{ scale }, { rotate }] }}>
-            <Icon
-              as={locking ? Lock : Unlock}
-              className={locking ? 'text-primary size-10' : 'text-muted-foreground size-10'}
-            />
-          </Animated.View>
-        </Pressable>
+        onDismiss={() => setConfirmLockOpen(false)}>
+        <View className="w-full items-center gap-4">
+          <Pressable onPress={runLockAnimation} disabled={locking} hitSlop={12}>
+            <Animated.View
+              className="bg-card border-border h-28 w-28 items-center justify-center rounded-full border-2"
+              style={{ transform: [{ scale }, { rotate }] }}>
+              <Icon
+                as={locking ? Lock : Unlock}
+                className={locking ? 'text-primary size-10' : 'text-muted-foreground size-10'}
+              />
+            </Animated.View>
+          </Pressable>
+          <Text variant="small" className="text-muted-foreground text-center">
+            Tap the vault control to lock this session.
+          </Text>
+        </View>
       </ArkBottomSheet>
     </SafeAreaView>
   );

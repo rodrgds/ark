@@ -52,14 +52,13 @@ export function SheetAlertProvider({ children }: { children: React.ReactNode }) 
         visible={Boolean(alert)}
         title={alert?.title}
         description={alert?.message}
-        onDismiss={dismiss}
-        maxDynamicContentSize={420}
-        contentClassName="gap-5">
-        <View className="gap-2">
+        onDismiss={dismiss}>
+        <View className="w-full gap-2">
           {(alert?.buttons ?? []).map((button, index) => (
             <Button
               key={`${button.text}-${index}`}
               className="w-full"
+              style={{ alignSelf: 'stretch' }}
               variant={
                 button.style === 'destructive'
                   ? 'destructive'

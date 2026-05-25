@@ -8,7 +8,7 @@ import BottomSheet, {
   type BottomSheetBackdropProps,
 } from '@gorhom/bottom-sheet';
 import * as React from 'react';
-import { View } from 'react-native';
+import { Keyboard, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '@/components/ui/text';
 
@@ -38,8 +38,15 @@ export function ArkBottomSheet({
   const ref = React.useRef<BottomSheetModal>(null);
   const [mounted, setMounted] = React.useState(visible);
   const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
   const effectiveTheme = useThemeStore((state) => state.effectiveTheme);
   const colors = NAV_COLORS[effectiveTheme];
+  const contentSized = !scrollable && !snapPoints;
+  const resolvedSnapPoints = React.useMemo<Array<string | number>>(
+    () => snapPoints ?? ['82%'],
+    [snapPoints]
+  );
+  const effectiveMaxDynamicContentSize = maxDynamicContentSize ?? Math.round(height * 0.82);
 
   React.useEffect(() => {
     if (visible) {
@@ -72,17 +79,18 @@ export function ArkBottomSheet({
 
   const header =
     title || description ? (
-      <BottomSheetView style={{ gap: 4 }}>
+      <View style={{ gap: 4, width: '100%' }}>
         {title ? <Text variant="h4">{title}</Text> : null}
         {description ? (
           <Text variant="muted" className="leading-6">
             {description}
           </Text>
         ) : null}
-      </BottomSheetView>
+      </View>
     ) : null;
 
   const handleDismiss = React.useCallback(() => {
+    Keyboard.dismiss();
     setMounted(false);
     onDismiss();
   }, [onDismiss]);
@@ -93,9 +101,9 @@ export function ArkBottomSheet({
     <BottomSheetModal
       ref={ref}
       index={0}
-      snapPoints={snapPoints}
-      enableDynamicSizing={!snapPoints}
-      maxDynamicContentSize={maxDynamicContentSize}
+      snapPoints={contentSized ? undefined : resolvedSnapPoints}
+      enableDynamicSizing={contentSized}
+      maxDynamicContentSize={contentSized ? effectiveMaxDynamicContentSize : maxDynamicContentSize}
       backdropComponent={renderBackdrop}
       backgroundStyle={{
         backgroundColor: colors.card,
@@ -105,31 +113,31 @@ export function ArkBottomSheet({
       handleIndicatorStyle={{ backgroundColor: colors.mutedForeground }}
       onDismiss={handleDismiss}
       enablePanDownToClose
+      enableBlurKeyboardOnGesture
       keyboardBehavior="interactive"
-      keyboardBlurBehavior="restore">
+      keyboardBlurBehavior="none"
+      android_keyboardInputMode="adjustResize">
       {scrollable ? (
         <BottomSheetScrollView
-          className={contentClassName}
           contentContainerStyle={{
-            gap: 16,
             paddingHorizontal: 16,
             paddingTop: 4,
             paddingBottom: Math.max(insets.bottom, 12) + 12,
           }}
           keyboardShouldPersistTaps="handled">
-          {header}
-          {children}
+          <View className={contentClassName} style={{ gap: 16, width: '100%' }}>
+            {header}
+            {children}
+          </View>
         </BottomSheetScrollView>
       ) : (
         <BottomSheetView
-          className={contentClassName}
           style={{
-            gap: 16,
             paddingHorizontal: 16,
             paddingTop: 4,
             paddingBottom: Math.max(insets.bottom, 12) + 12,
           }}>
-          <View style={{ gap: 16 }}>
+          <View className={contentClassName} style={{ gap: 16, width: '100%' }}>
             {header}
             {children}
           </View>

@@ -45,7 +45,9 @@ describe('map and chat UI contracts', () => {
 
     expect(source).toContain('keyboardDidShow');
     expect(source).toContain('keyboardDidHide');
+    expect(source).toContain("enabled={Platform.OS === 'ios'}");
     expect(source).toContain('paddingBottom: Math.max(10, insets.bottom)');
+    expect(source).not.toContain('ArkKeyboardStickyView');
     expect(source).not.toContain('keyboardInset');
     expect(source).not.toContain('useAnimatedKeyboard');
     expect(source).not.toContain('translateY');

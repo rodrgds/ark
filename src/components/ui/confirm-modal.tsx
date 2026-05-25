@@ -32,14 +32,20 @@ export function ConfirmModal({
       visible={visible}
       title={title}
       description={description}
-      onDismiss={onCancel}
-      maxDynamicContentSize={420}
-      contentClassName="gap-5">
-      <View className="gap-2">
-        <Button className="w-full" variant="outline" onPress={onCancel}>
+      onDismiss={onCancel}>
+      <View className="w-full gap-2">
+        <Button
+          className="w-full"
+          style={{ alignSelf: 'stretch' }}
+          variant="outline"
+          onPress={onCancel}>
           <Text>{cancelLabel}</Text>
         </Button>
-        <Button className="w-full" variant={confirmVariant} onPress={onConfirm}>
+        <Button
+          className="w-full"
+          style={{ alignSelf: 'stretch' }}
+          variant={confirmVariant}
+          onPress={onConfirm}>
           <Text>{confirmLabel}</Text>
         </Button>
       </View>

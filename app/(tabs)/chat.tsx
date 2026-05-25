@@ -25,7 +25,14 @@ import {
   Trash2,
 } from 'lucide-react-native';
 import * as React from 'react';
-import { ActivityIndicator, FlatList, Keyboard, View } from 'react-native';
+import {
+  ActivityIndicator,
+  FlatList,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function CitationItem({ citation }: { citation: AiCitation }) {
@@ -427,6 +434,8 @@ export default function ChatScreen() {
 
   function confirmClear() {
     if (!threadId) return;
+    Keyboard.dismiss();
+    setKeyboardVisible(false);
     setClearConfirmOpen(true);
   }
 
@@ -437,7 +446,11 @@ export default function ChatScreen() {
   const canChooseModel = modelPickerEnabled && installedModels.length > 1;
 
   return (
-    <View className="bg-background flex-1">
+    <KeyboardAvoidingView
+      className="bg-background flex-1"
+      behavior="padding"
+      enabled={Platform.OS === 'ios'}
+      keyboardVerticalOffset={0}>
       <View className="border-border bg-background flex-row items-center gap-2 border-b px-4 py-3">
         {canChooseModel ? (
           <View className="flex-1 gap-2">
@@ -640,6 +653,6 @@ export default function ChatScreen() {
           </Text>
         ) : null}
       </ArkBottomSheet>
-    </View>
+    </KeyboardAvoidingView>
   );
 }

@@ -42,15 +42,19 @@ describe('map and chat UI contracts', () => {
 
   test('chat resizes its scroll area with the keyboard instead of floating the composer', () => {
     const source = readFileSync(join(appDir, '(tabs)/chat.tsx'), 'utf8');
+    const tabSource = readFileSync(join(appDir, '(tabs)/_layout.tsx'), 'utf8');
 
     expect(source).toContain('keyboardDidShow');
     expect(source).toContain('keyboardDidHide');
-    expect(source).toContain("enabled={Platform.OS === 'ios'}");
-    expect(source).toContain('paddingBottom: Math.max(10, insets.bottom)');
+    expect(source).toContain('ArkKeyboardAvoidingView');
+    expect(source).toContain('behavior="padding"');
+    expect(source).toContain('paddingBottom: keyboardVisible ? 6 : 6');
     expect(source).not.toContain('ArkKeyboardStickyView');
     expect(source).not.toContain('keyboardInset');
     expect(source).not.toContain('useAnimatedKeyboard');
     expect(source).not.toContain('translateY');
+    expect(tabSource).toContain('Keyboard.addListener');
+    expect(tabSource).toContain('keyboardVisible ||');
   });
 
   test('map keeps network enabled while native offline packs are active', () => {
@@ -110,5 +114,14 @@ describe('map and chat UI contracts', () => {
     expect(source).toContain('getUnsupportedMapPackReason(preset)');
     expect(source).toContain("? 'Planned'");
     expect(source).toContain('disabled={(downloaded && !updateAvailable) || busy || unsupported}');
+  });
+
+  test('map overlays use shared bottom sheets instead of native modals', () => {
+    const source = readFileSync(join(appDir, '(tabs)/map.tsx'), 'utf8');
+
+    expect(source).toContain('ArkBottomSheet');
+    expect(source).toContain("snapPoints={['58%', '92%']}");
+    expect(source).not.toContain('<Modal');
+    expect(source).not.toContain('KeyboardAvoidingView');
   });
 });

@@ -19,11 +19,29 @@
       "skillPath": "plugins/creating-reanimated-animations/skills/creating-reanimated-animations/SKILL.md",
       "computedHash": "5406c06d9f9462e0562d419db34d75eeb0ae1e42fe34660a4a425e04acbbae91"
     },
+    "github": {
+      "source": "callstackincubator/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/github/SKILL.md",
+      "computedHash": "32131aefe2317287d83e1d3ed5b2a83ca5b1a08142ee3b9bb4fc9d54ea348c31"
+    },
+    "github-actions": {
+      "source": "callstackincubator/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/github-actions/SKILL.md",
+      "computedHash": "3632dc997b2d8810bdc753173e269dfc0fd40b6fe6be0dd27b8f2abc58e47ada"
+    },
     "impeccable": {
       "source": "pbakaus/impeccable",
       "sourceType": "github",
       "skillPath": "skill/SKILL.md",
       "computedHash": "34e59a34b9705187e87039faa5d9585aebe0056ef657f761b905afef276a3362"
+    },
+    "react-native-best-practices": {
+      "source": "callstackincubator/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/react-native-best-practices/SKILL.md",
+      "computedHash": "15bd57b18d9ad0dcd003bd2c7ec6ed17d813cc671dd4d423e1d904d2a7b9d2bb"
     },
     "react-native-design": {
       "source": "wshobson/agents",
@@ -36,6 +54,12 @@
       "sourceType": "github",
       "skillPath": "skills/react-native-reusables/SKILL.md",
       "computedHash": "f37d8d5a20779994c9e84d527521a3727a2968a57fa6d5485f281623e8ff5c31"
+    },
+    "react-native-testing": {
+      "source": "callstack/react-native-testing-library",
+      "sourceType": "github",
+      "skillPath": "skills/react-native-testing/SKILL.md",
+      "computedHash": "ef0b758c3df5e9fcb7bb31a26d99e0cff6e559c92ae394d59b6db66e1450e552"
     },
     "sqlite-vec": {
       "source": "existential-birds/beagle",

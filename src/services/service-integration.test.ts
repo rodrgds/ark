@@ -256,6 +256,160 @@ mock.module('llama.rn', () => ({
   },
 }));
 
+mock.module('@react-native-ai/llama', () => ({
+  llama: {
+    languageModel: (modelPath: string, options?: unknown) =>
+      createMockAiSdkLanguageModel(modelPath, options),
+    textEmbeddingModel: (modelPath: string, options?: unknown) =>
+      createMockAiSdkEmbeddingModel(modelPath, options),
+  },
+}));
+
+function createMockAiSdkLanguageModel(modelPath: string, options?: unknown) {
+  let context: { stopCompletion: () => Promise<void> } | null = null;
+  return {
+    specificationVersion: 'v3',
+    provider: 'llama',
+    modelId: modelPath,
+    supportedUrls: {},
+    prepare: async () => {
+      lastLlamaInitModel = modelPath;
+      context = {
+        stopCompletion: async () => {
+          llamaStopCalls += 1;
+        },
+      };
+      return context;
+    },
+    getContext: () => context,
+    unload: async () => {
+      context = null;
+    },
+    doStream: async (callOptions: any) => {
+      const completionParams = {
+        messages: normalizeAiSdkPrompt(callOptions.prompt),
+        tools: callOptions.tools,
+        tool_choice: callOptions.toolChoice?.type ?? 'auto',
+        n_predict: callOptions.maxOutputTokens,
+        temperature: callOptions.temperature,
+        contextParams: options,
+      };
+      const stream = new ReadableStream({
+        start: async (controller) => {
+          controller.enqueue({ type: 'stream-start', warnings: [] });
+          const scripted = mockLlamaCompletionResults.shift();
+          lastLlamaCompletionParams = completionParams;
+
+          if (scripted?.reasoning_content) {
+            controller.enqueue({ type: 'reasoning-start', id: 'reasoning-1' });
+            controller.enqueue({
+              type: 'reasoning-delta',
+              id: 'reasoning-1',
+              delta: scripted.reasoning_content,
+            });
+            controller.enqueue({ type: 'reasoning-end', id: 'reasoning-1' });
+          }
+
+          const text = scripted?.stream ?? scripted?.content ?? 'Local';
+          if (text) {
+            controller.enqueue({ type: 'text-start', id: 'text-1' });
+            controller.enqueue({ type: 'text-delta', id: 'text-1', delta: text });
+            controller.enqueue({ type: 'text-end', id: 'text-1' });
+          }
+
+          llamaCompletionStarted?.();
+          if (llamaCompletionGate) await llamaCompletionGate;
+
+          for (const toolCall of scripted?.tool_calls ?? []) {
+            controller.enqueue({
+              type: 'tool-call',
+              toolCallId: toolCall.id ?? crypto.randomUUID(),
+              toolName: toolCall.function.name,
+              input: toolCall.function.arguments,
+            });
+          }
+
+          controller.enqueue({
+            type: 'finish',
+            finishReason: {
+              unified: scripted?.tool_calls?.length ? 'tool-calls' : 'stop',
+              raw: scripted?.tool_calls?.length ? 'tool-calls' : 'stop',
+            },
+            usage: {
+              inputTokens: {
+                total: 0,
+                noCache: undefined,
+                cacheRead: undefined,
+                cacheWrite: undefined,
+              },
+              outputTokens: {
+                total: 0,
+                text: undefined,
+                reasoning: undefined,
+              },
+            },
+          });
+          controller.close();
+        },
+        cancel: async () => {
+          await context?.stopCompletion();
+        },
+      });
+      return {
+        stream,
+        rawCall: {
+          rawPrompt: callOptions.prompt,
+          rawSettings: {},
+        },
+      };
+    },
+  };
+}
+
+function createMockAiSdkEmbeddingModel(modelPath: string, options?: unknown) {
+  return {
+    specificationVersion: 'v3',
+    provider: 'llama',
+    modelId: modelPath,
+    maxEmbeddingsPerCall: 8,
+    supportsParallelCalls: true,
+    prepare: async () => {
+      lastLlamaInitModel = modelPath;
+      return {};
+    },
+    getContext: () => ({}),
+    unload: async () => undefined,
+    doEmbed: async ({ values }: { values: string[] }) => ({
+      embeddings: values.map((text) =>
+        Array.from({ length: 768 }, (_, index) =>
+          text.toLowerCase().includes('water') && index === 0 ? 1 : index === 1 ? 0.5 : 0
+        )
+      ),
+      usage: { tokens: 0 },
+      warnings: [],
+      providerMetadata: { llama: { options } },
+    }),
+  };
+}
+
+function normalizeAiSdkPrompt(prompt: Array<{ role: string; content: unknown }>) {
+  return prompt.map((message) => ({
+    role: message.role,
+    content:
+      typeof message.content === 'string'
+        ? message.content
+        : Array.isArray(message.content)
+          ? message.content
+              .map((part) =>
+                part && typeof part === 'object' && 'text' in part
+                  ? String((part as { text: string }).text)
+                  : ''
+              )
+              .join('')
+          : '',
+  }));
+}
+
 type Params = unknown[] | readonly unknown[] | undefined;
 
 class TestSQLiteDatabase {
@@ -1291,6 +1445,7 @@ describe('service integration', () => {
       { onToken: (content) => streamed.push(content) }
     );
     await completionStarted;
+    await waitFor(async () => streamed.length > 0);
     expect(streamed).toEqual(['Local']);
     await AIService.cancelActiveResponse();
     expect(llamaStopCalls).toBe(1);
@@ -1335,9 +1490,10 @@ describe('service integration', () => {
         ],
       },
       {
-        text: '<think>private scratchpad</think>Filter the north spring water and store it sealed.',
+        content:
+          '<|channel>thought\nprivate scratchpad<channel|><|channel>final\nFilter the north spring water and store it sealed.',
         stream:
-          '<think>private scratchpad</think>Filter the north spring water and store it sealed.',
+          '<|channel>thought\nprivate scratchpad<channel|><|channel>final\nFilter the north spring water and store it sealed.',
       },
     ];
     resetLlamaAdapterForTests();
@@ -1349,6 +1505,7 @@ describe('service integration', () => {
 
     expect(result.messages).toHaveLength(2);
     expect(result.messages[1].content).toBe('Filter the north spring water and store it sealed.');
+    expect(result.messages[1].reasoning).toBe('private scratchpad');
     expect(result.messages[1].content).not.toContain('scratchpad');
     expect(result.messages[1].citations.some((citation) => citation.sourceRef === note.id)).toBe(
       true
@@ -1388,14 +1545,12 @@ describe('service integration', () => {
       useRag: false,
     });
     const completionParams = lastLlamaCompletionParams as {
-      enable_thinking?: boolean;
-      chat_template_kwargs?: { enable_thinking?: boolean };
+      tools?: Array<unknown>;
       messages?: Array<{ role: string; content: string }>;
     };
 
     expect(second.messages[1].reasoning).toBe('The follow-up refers to the previous refusal.');
-    expect(completionParams.enable_thinking).toBe(true);
-    expect(completionParams.chat_template_kwargs?.enable_thinking).toBe(true);
+    expect(completionParams.tools?.length).toBeGreaterThan(0);
     expect(completionParams.messages?.map((message) => message.role)).toContain('assistant');
     expect(
       completionParams.messages?.some((message) => message.content.includes('fishing hook'))

@@ -18,6 +18,7 @@ export type ArkBottomSheetProps = {
   description?: string;
   children: React.ReactNode;
   onDismiss: () => void;
+  sheetRef?: React.RefObject<BottomSheetModal | null>;
   snapPoints?: Array<string | number>;
   scrollable?: boolean;
   contentClassName?: string;
@@ -30,12 +31,14 @@ export function ArkBottomSheet({
   description,
   children,
   onDismiss,
+  sheetRef,
   snapPoints,
   scrollable = false,
   contentClassName,
   maxDynamicContentSize,
 }: ArkBottomSheetProps) {
-  const ref = React.useRef<BottomSheetModal>(null);
+  const internalRef = React.useRef<BottomSheetModal>(null);
+  const ref = sheetRef ?? internalRef;
   const [mounted, setMounted] = React.useState(visible);
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();

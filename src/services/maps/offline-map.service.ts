@@ -5,7 +5,6 @@ import { MapService, type MapLibreModule } from '@/services/maps/map.service';
 import { sizeFromPackStatus } from '@/services/maps/map-pack-status';
 import { getUnsupportedMapPackReason } from '@/services/maps/map-pack-format';
 import { MapPresetsService } from '@/services/maps/map-presets.service';
-import { GeocodingService } from '@/services/maps/geocoding.service';
 import { getDownloadedRegionForCoordinate } from '@/services/maps/map-region-utils';
 import { estimatedMapRegionBytes } from '@/services/maps/map-storage';
 import type { MapPinType } from '@/constants/map-pins';
@@ -536,9 +535,7 @@ export class OfflineMapService {
         longitude: (preset.bounds.east + preset.bounds.west) / 2,
       }));
 
-    const geocodingResults = await GeocodingService.search(normalized, 5);
-
-    return [...markerResults, ...regionResults, ...routeResults, ...catalogResults, ...geocodingResults].slice(0, limit);
+    return [...markerResults, ...regionResults, ...routeResults, ...catalogResults].slice(0, limit);
   }
 
   static async createRouteFromMarkers(title: string, markers: MapMarker[]) {

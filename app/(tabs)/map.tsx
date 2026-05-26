@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { ArkBottomSheet } from '@/components/ui/bottom-sheet';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
@@ -66,23 +67,16 @@ import {
   BackHandler,
   Image,
   Keyboard,
-  KeyboardAvoidingView,
   Linking,
-  Modal,
-  Platform,
   Pressable,
-  ScrollView,
   type TextInput,
-  useWindowDimensions,
   View,
 } from 'react-native';
-import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
   FadeIn,
   FadeOut,
   LinearTransition,
-  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -2423,133 +2417,30 @@ function Panel({
   visible: boolean;
   onClose: () => void;
 }) {
-  const { height: windowHeight } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
-  const collapsedHeight = Math.round(
-    Math.min(windowHeight * 0.58, windowHeight - Math.max(insets.top, 12) - 112)
-  );
-  const expandedHeight = Math.round(
-    Math.min(windowHeight * 0.92, windowHeight - Math.max(insets.top, 12) - 16)
-  );
-  const startHeight = useSharedValue(collapsedHeight);
-  const sheetHeight = useSharedValue(collapsedHeight);
-  const translateY = useSharedValue(windowHeight);
-  const panelStyle = useAnimatedStyle(() => ({
-    height: sheetHeight.value,
-    transform: [{ translateY: Math.max(0, translateY.value) }],
-  }));
-
-  const closeWithAnimation = React.useCallback(() => {
-    translateY.value = withTiming(
-      windowHeight,
-      { duration: 220, easing: Easing.out(Easing.cubic) },
-      (finished) => {
-        if (finished) runOnJS(onClose)();
-      }
-    );
-  }, [onClose, translateY, windowHeight]);
-
+  const sheetRef = React.useRef<any>(null);
   const expandPanel = React.useCallback(() => {
-    translateY.value = withTiming(0, { duration: 170, easing: Easing.out(Easing.quad) });
-    sheetHeight.value = withTiming(expandedHeight, {
-      duration: 220,
-      easing: Easing.out(Easing.cubic),
-    });
-  }, [expandedHeight, sheetHeight, translateY]);
+    sheetRef.current?.expand?.();
+  }, []);
   const renderedChildren =
     typeof children === 'function' ? children({ expand: expandPanel }) : children;
 
-  const panGesture = React.useMemo(
-    () =>
-      Gesture.Pan()
-        .activeOffsetY([-8, 8])
-        .failOffsetX([-28, 28])
-        .hitSlop({ top: 12, bottom: 12, left: 0, right: 0 })
-        .onBegin(() => {
-          startHeight.value = sheetHeight.value;
-        })
-        .onUpdate((event) => {
-          if (event.translationY < 0) {
-            translateY.value = 0;
-            sheetHeight.value = Math.min(
-              expandedHeight,
-              Math.max(collapsedHeight, startHeight.value - event.translationY)
-            );
-            return;
-          }
-          translateY.value = event.translationY;
-        })
-        .onEnd((event) => {
-          if (event.translationY > 80 || event.velocityY > 760) {
-            translateY.value = withTiming(
-              windowHeight,
-              { duration: 220, easing: Easing.out(Easing.cubic) },
-              (finished) => {
-                if (finished) runOnJS(onClose)();
-              }
-            );
-          } else {
-            const shouldExpand =
-              event.translationY < -36 ||
-              event.velocityY < -520 ||
-              sheetHeight.value > (collapsedHeight + expandedHeight) / 2;
-            translateY.value = withTiming(0, { duration: 170, easing: Easing.out(Easing.quad) });
-            sheetHeight.value = withTiming(shouldExpand ? expandedHeight : collapsedHeight, {
-              duration: 190,
-              easing: Easing.out(Easing.cubic),
-            });
-          }
-        }),
-    [collapsedHeight, expandedHeight, onClose, sheetHeight, startHeight, translateY, windowHeight]
-  );
-
-  React.useEffect(() => {
-    if (visible) {
-      translateY.value = windowHeight;
-      sheetHeight.value = withTiming(collapsedHeight, {
-        duration: 170,
-        easing: Easing.out(Easing.quad),
-      });
-      translateY.value = withTiming(0, {
-        duration: 260,
-        easing: Easing.out(Easing.cubic),
-      });
-    }
-  }, [collapsedHeight, sheetHeight, translateY, visible, windowHeight]);
-
   return (
-    <Modal visible={visible} animationType="fade" transparent onRequestClose={closeWithAnimation}>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <View className="flex-1 justify-end">
-          <Pressable className="absolute inset-0 bg-black/55" onPress={closeWithAnimation} />
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            className="flex-1 justify-end"
-            pointerEvents="box-none">
-            <Animated.View className="bg-background rounded-t-xl p-3" style={panelStyle}>
-              <GestureDetector gesture={panGesture}>
-                <View className="mb-3 gap-3 py-1">
-                  <View className="bg-muted-foreground/40 h-1.5 w-12 self-center rounded-full" />
-                  <View className="flex-row items-center justify-between gap-3">
-                    <Text variant="h3">{title}</Text>
-                    <Button size="icon" variant="outline" onPress={closeWithAnimation}>
-                      <Icon as={X} className="size-4" />
-                    </Button>
-                  </View>
-                </View>
-              </GestureDetector>
-              <ScrollView
-                showsVerticalScrollIndicator={false}
-                style={{ flex: 1 }}
-                contentContainerStyle={{ gap: 12, paddingBottom: 16 }}
-                keyboardShouldPersistTaps="handled">
-                {renderedChildren}
-              </ScrollView>
-            </Animated.View>
-          </KeyboardAvoidingView>
-        </View>
-      </GestureHandlerRootView>
-    </Modal>
+    <ArkBottomSheet
+      visible={visible}
+      onDismiss={onClose}
+      scrollable
+      sheetRef={sheetRef}
+      snapPoints={['58%', '92%']}>
+      <View className="flex-row items-center justify-between gap-3">
+        <Text variant="h3" className="min-w-0 flex-1">
+          {title}
+        </Text>
+        <Button size="icon" variant="outline" onPress={onClose}>
+          <Icon as={X} className="size-4" />
+        </Button>
+      </View>
+      {renderedChildren}
+    </ArkBottomSheet>
   );
 }
 
@@ -2587,89 +2478,68 @@ function SpotDialog({
   onSave: () => void;
 }) {
   return (
-    <Modal visible={Boolean(lngLat)} animationType="fade" transparent onRequestClose={onCancel}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        className="flex-1 justify-center bg-black/60 p-4">
-        <Card className="max-h-[88%] gap-3">
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ gap: 12 }}
-            keyboardShouldPersistTaps="handled">
-            <View className="gap-1">
-              <Text variant="h3">Save spot</Text>
-              <Text variant="muted">{lngLat ? formatPoint(lngLat[1], lngLat[0]) : ''}</Text>
-            </View>
-            <Input value={title} onChangeText={onChangeTitle} placeholder="Spot title" />
-            <PinTypeSelector
-              emergency={isEmergency}
-              value={pinType}
-              onChangeEmergency={onChangeEmergency}
-              onChangeValue={onChangePinType}
-            />
-            <Input
-              className="min-h-24"
-              multiline
-              textAlignVertical="top"
-              value={description}
-              onChangeText={onChangeDescription}
-              placeholder="Description"
-            />
-            {photoUri ? (
-              <View className="gap-2">
-                <Image source={{ uri: photoUri }} className="bg-muted h-36 w-full rounded-lg" />
-                <View className="flex-row gap-2">
-                  <Button
-                    className="flex-1"
-                    variant="outline"
-                    onPress={() => onAttachPhoto('camera')}>
-                    <Icon as={Camera} className="size-4" />
-                    <Text>Camera</Text>
-                  </Button>
-                  <Button
-                    className="flex-1"
-                    variant="outline"
-                    onPress={() => onAttachPhoto('library')}>
-                    <Icon as={ImageIcon} className="size-4" />
-                    <Text>Library</Text>
-                  </Button>
-                  <Button className="flex-1" variant="outline" onPress={onRemovePhoto}>
-                    <Icon as={Trash2} className="size-4" />
-                    <Text>Remove</Text>
-                  </Button>
-                </View>
-              </View>
-            ) : (
-              <View className="flex-row gap-2">
-                <Button
-                  className="flex-1"
-                  variant="outline"
-                  onPress={() => onAttachPhoto('camera')}>
-                  <Icon as={Camera} className="size-4" />
-                  <Text>Take</Text>
-                </Button>
-                <Button
-                  className="flex-1"
-                  variant="outline"
-                  onPress={() => onAttachPhoto('library')}>
-                  <Icon as={ImageIcon} className="size-4" />
-                  <Text>Choose</Text>
-                </Button>
-              </View>
-            )}
-            <View className="flex-row gap-2">
-              <Button className="flex-1" variant="outline" onPress={onCancel}>
-                <Text>Cancel</Text>
-              </Button>
-              <Button className="flex-1" disabled={busy} onPress={onSave}>
-                {busy ? <ActivityIndicator /> : <Icon as={MapPin} className="size-4" />}
-                <Text>Save</Text>
-              </Button>
-            </View>
-          </ScrollView>
-        </Card>
-      </KeyboardAvoidingView>
-    </Modal>
+    <ArkBottomSheet
+      visible={Boolean(lngLat)}
+      title="Save spot"
+      description={lngLat ? formatPoint(lngLat[1], lngLat[0]) : ''}
+      onDismiss={onCancel}
+      scrollable
+      snapPoints={['88%']}>
+      <Input value={title} onChangeText={onChangeTitle} placeholder="Spot title" />
+      <PinTypeSelector
+        emergency={isEmergency}
+        value={pinType}
+        onChangeEmergency={onChangeEmergency}
+        onChangeValue={onChangePinType}
+      />
+      <Input
+        className="min-h-24"
+        multiline
+        textAlignVertical="top"
+        value={description}
+        onChangeText={onChangeDescription}
+        placeholder="Description"
+      />
+      {photoUri ? (
+        <View className="gap-2">
+          <Image source={{ uri: photoUri }} className="bg-muted h-36 w-full rounded-lg" />
+          <View className="flex-row gap-2">
+            <Button className="flex-1" variant="outline" onPress={() => onAttachPhoto('camera')}>
+              <Icon as={Camera} className="size-4" />
+              <Text>Camera</Text>
+            </Button>
+            <Button className="flex-1" variant="outline" onPress={() => onAttachPhoto('library')}>
+              <Icon as={ImageIcon} className="size-4" />
+              <Text>Library</Text>
+            </Button>
+            <Button className="flex-1" variant="outline" onPress={onRemovePhoto}>
+              <Icon as={Trash2} className="size-4" />
+              <Text>Remove</Text>
+            </Button>
+          </View>
+        </View>
+      ) : (
+        <View className="flex-row gap-2">
+          <Button className="flex-1" variant="outline" onPress={() => onAttachPhoto('camera')}>
+            <Icon as={Camera} className="size-4" />
+            <Text>Take</Text>
+          </Button>
+          <Button className="flex-1" variant="outline" onPress={() => onAttachPhoto('library')}>
+            <Icon as={ImageIcon} className="size-4" />
+            <Text>Choose</Text>
+          </Button>
+        </View>
+      )}
+      <View className="flex-row gap-2">
+        <Button className="flex-1" variant="outline" onPress={onCancel}>
+          <Text>Cancel</Text>
+        </Button>
+        <Button className="flex-1" disabled={busy} onPress={onSave}>
+          {busy ? <ActivityIndicator /> : <Icon as={MapPin} className="size-4" />}
+          <Text>Save</Text>
+        </Button>
+      </View>
+    </ArkBottomSheet>
   );
 }
 
@@ -2707,91 +2577,68 @@ function EditSpotDialog({
   onSave: () => void;
 }) {
   return (
-    <Modal visible={Boolean(marker)} animationType="fade" transparent onRequestClose={onCancel}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        className="flex-1 justify-center bg-black/60 p-4">
-        <Card className="max-h-[88%] gap-3">
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ gap: 12 }}
-            keyboardShouldPersistTaps="handled">
-            <View className="gap-1">
-              <Text variant="h3">Edit spot</Text>
-              <Text variant="muted">
-                {marker ? formatPoint(marker.latitude, marker.longitude) : ''}
-              </Text>
-            </View>
-            <Input value={title} onChangeText={onChangeTitle} placeholder="Name" />
-            <PinTypeSelector
-              emergency={isEmergency}
-              value={pinType}
-              onChangeEmergency={onChangeEmergency}
-              onChangeValue={onChangePinType}
-            />
-            <Input
-              className="min-h-24"
-              multiline
-              textAlignVertical="top"
-              value={description}
-              onChangeText={onChangeDescription}
-              placeholder="Description"
-            />
-            {photoUri ? (
-              <View className="gap-2">
-                <Image source={{ uri: photoUri }} className="bg-muted h-40 w-full rounded-lg" />
-                <View className="flex-row gap-2">
-                  <Button
-                    className="flex-1"
-                    variant="outline"
-                    onPress={() => onAttachPhoto('camera')}>
-                    <Icon as={Camera} className="size-4" />
-                    <Text>Camera</Text>
-                  </Button>
-                  <Button
-                    className="flex-1"
-                    variant="outline"
-                    onPress={() => onAttachPhoto('library')}>
-                    <Icon as={ImageIcon} className="size-4" />
-                    <Text>Library</Text>
-                  </Button>
-                  <Button className="flex-1" variant="outline" onPress={onRemovePhoto}>
-                    <Icon as={Trash2} className="size-4" />
-                    <Text>Remove</Text>
-                  </Button>
-                </View>
-              </View>
-            ) : (
-              <View className="flex-row gap-2">
-                <Button
-                  className="flex-1"
-                  variant="outline"
-                  onPress={() => onAttachPhoto('camera')}>
-                  <Icon as={Camera} className="size-4" />
-                  <Text>Take</Text>
-                </Button>
-                <Button
-                  className="flex-1"
-                  variant="outline"
-                  onPress={() => onAttachPhoto('library')}>
-                  <Icon as={ImageIcon} className="size-4" />
-                  <Text>Choose</Text>
-                </Button>
-              </View>
-            )}
-            <View className="flex-row gap-2">
-              <Button className="flex-1" variant="outline" onPress={onCancel}>
-                <Text>Cancel</Text>
-              </Button>
-              <Button className="flex-1" disabled={busy} onPress={onSave}>
-                {busy ? <ActivityIndicator /> : <Icon as={Check} className="size-4" />}
-                <Text>Update</Text>
-              </Button>
-            </View>
-          </ScrollView>
-        </Card>
-      </KeyboardAvoidingView>
-    </Modal>
+    <ArkBottomSheet
+      visible={Boolean(marker)}
+      title="Edit spot"
+      description={marker ? formatPoint(marker.latitude, marker.longitude) : ''}
+      onDismiss={onCancel}
+      scrollable
+      snapPoints={['88%']}>
+      <Input value={title} onChangeText={onChangeTitle} placeholder="Name" />
+      <PinTypeSelector
+        emergency={isEmergency}
+        value={pinType}
+        onChangeEmergency={onChangeEmergency}
+        onChangeValue={onChangePinType}
+      />
+      <Input
+        className="min-h-24"
+        multiline
+        textAlignVertical="top"
+        value={description}
+        onChangeText={onChangeDescription}
+        placeholder="Description"
+      />
+      {photoUri ? (
+        <View className="gap-2">
+          <Image source={{ uri: photoUri }} className="bg-muted h-40 w-full rounded-lg" />
+          <View className="flex-row gap-2">
+            <Button className="flex-1" variant="outline" onPress={() => onAttachPhoto('camera')}>
+              <Icon as={Camera} className="size-4" />
+              <Text>Camera</Text>
+            </Button>
+            <Button className="flex-1" variant="outline" onPress={() => onAttachPhoto('library')}>
+              <Icon as={ImageIcon} className="size-4" />
+              <Text>Library</Text>
+            </Button>
+            <Button className="flex-1" variant="outline" onPress={onRemovePhoto}>
+              <Icon as={Trash2} className="size-4" />
+              <Text>Remove</Text>
+            </Button>
+          </View>
+        </View>
+      ) : (
+        <View className="flex-row gap-2">
+          <Button className="flex-1" variant="outline" onPress={() => onAttachPhoto('camera')}>
+            <Icon as={Camera} className="size-4" />
+            <Text>Take</Text>
+          </Button>
+          <Button className="flex-1" variant="outline" onPress={() => onAttachPhoto('library')}>
+            <Icon as={ImageIcon} className="size-4" />
+            <Text>Choose</Text>
+          </Button>
+        </View>
+      )}
+      <View className="flex-row gap-2">
+        <Button className="flex-1" variant="outline" onPress={onCancel}>
+          <Text>Cancel</Text>
+        </Button>
+        <Button className="flex-1" disabled={busy} onPress={onSave}>
+          {busy ? <ActivityIndicator /> : <Icon as={Check} className="size-4" />}
+          <Text>Update</Text>
+        </Button>
+      </View>
+    </ArkBottomSheet>
   );
 }
 

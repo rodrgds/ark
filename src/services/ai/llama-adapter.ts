@@ -1,219 +1,118 @@
+import { streamText, stepCountIs, type ModelMessage } from 'ai';
 import { SAFETY_COPY } from '@/constants/app';
-import { ContentPackService } from '@/services/content/content-pack.service';
-import { ARK_LLAMARN_TOOLS, executeArkToolCall } from '@/services/ai/ark-tool-executor';
+import { createArkAiSdkTools } from '@/services/ai/ai-sdk-tools';
 import { isEmbeddingModelPack } from '@/services/ai/embedding-models';
+import { normalizeReasoningOutput } from '@/services/ai/reasoning-normalizer';
+import { ContentPackService } from '@/services/content/content-pack.service';
 import { PreferencesService } from '@/services/preferences/preferences.service';
-import { normalizeAssistantTurn, stripHiddenModelOutput } from '@/services/ai/response-normalizer';
-import type { AiAdapterResponse } from '@/types/ai';
-import type { AiAdapterSendInput } from '@/types/ai';
+import type { AiAdapterResponse, AiAdapterSendInput, AiCitation } from '@/types/ai';
 
-type LlamaModule = typeof import('llama.rn');
-type LlamaContext = Awaited<ReturnType<LlamaModule['initLlama']>>;
-type LlamaMessage = {
-  role: string;
-  content?: string;
-  tool_calls?: Array<{
-    type: 'function';
-    id?: string;
-    function: { name: string; arguments: string };
-  }>;
-  tool_call_id?: string;
-};
+type ReactNativeAiLlamaModule = typeof import('@react-native-ai/llama');
+type LlamaLanguageModel = ReturnType<ReactNativeAiLlamaModule['llama']['languageModel']>;
 
-let llamaModulePromise: Promise<LlamaModule | null> | null = null;
-let contextPromise: Promise<LlamaContext | null> | null = null;
-let activeCompletionContext: LlamaContext | null = null;
+let llamaModulePromise: Promise<ReactNativeAiLlamaModule | null> | null = null;
+let modelPromise: Promise<LlamaLanguageModel | null> | null = null;
+let activeAbortController: AbortController | null = null;
+let activeModel: LlamaLanguageModel | null = null;
 
 export function resetLlamaAdapterForTests() {
   llamaModulePromise = null;
-  contextPromise = null;
-  activeCompletionContext = null;
+  modelPromise = null;
+  activeAbortController = null;
+  activeModel = null;
 }
 
 export function resetLlamaRuntimeContext() {
-  contextPromise = null;
-  activeCompletionContext = null;
+  modelPromise = null;
+  activeAbortController = null;
+  activeModel = null;
 }
 
 export class LlamaAdapter {
   readonly id = 'llama';
 
   async isAvailable() {
-    const [module, model] = await Promise.all([loadLlamaModule(), getInstalledModelUri()]);
-    return !!module && !!model;
+    const [module, model] = await Promise.all([loadLlamaModule(), getInstalledModel()]);
+    return !!module && !!model?.localUri;
   }
 
   async sendMessage(input: AiAdapterSendInput): Promise<AiAdapterResponse> {
-    const context = await getContext();
-    if (!context) {
+    const model = await getLanguageModel();
+    if (!model) {
       return {
         content:
           'No on-device AI runtime is available in this build. Download an answer model and use a build with local AI enabled.',
         citations: input.citations,
       };
     }
-    const sourceText = input.citations.length
-      ? input.citations
-          .map((citation, index) => `${index + 1}. ${citation.title}: ${citation.snippet}`)
-          .map((line, index) => {
-            const citation = input.citations[index];
-            const location = [
-              citation.sectionTitle ? `section ${citation.sectionTitle}` : null,
-              typeof citation.page === 'number' ? `page ${citation.page}` : null,
-            ]
-              .filter(Boolean)
-              .join(', ');
-            return location ? `${line} (${location})` : line;
-          })
-          .join('\n')
-      : 'No retrieved sources.';
-    const sourceContextText =
-      input.sourceContext && input.sourceContext.length
-        ? input.sourceContext
-            .map(
-              (source, index) => `${index + 1}. ${source.title}\n${source.content.slice(0, 1200)}`
-            )
-            .join('\n\n')
-        : 'No expanded source content.';
-    const toolTraceText =
-      input.toolTrace?.map((entry) => `- ${entry.summary}`).join('\n') ?? 'No tools used.';
-    let streamedText = '';
-    activeCompletionContext = context;
-    const messages: LlamaMessage[] = [
-      {
-        role: 'system',
-        content: [
-          'You are Arky, an offline survival-grade assistant for practical emergency, field, and self-reliance questions.',
-          'Answer the user directly and keep continuity with the conversation history. Resolve short follow-ups such as "why not?" against the previous user and assistant turns.',
-          'Use local tool results and opened source context when they are relevant. If retrieved sources are weak, irrelevant, or incomplete, say that briefly and answer from general survival knowledge instead of pretending the sources answer the question.',
-          'Do not refuse ordinary survival skills such as making fishing hooks, knots, shelter, fire, water storage, food procurement, navigation, tool repair, or improvised non-weapon field gear. Include practical cautions, local-law reminders, and safer alternatives where useful.',
-          'Refuse instructions for harming people, traps intended for people, explosives, poisons, or evading law enforcement.',
-          'Never print chat-template control tokens such as <|channel|>, thought, analysis, or final in the visible answer.',
-          `Safety note to include when advice is high-stakes: ${SAFETY_COPY.ai}`,
-        ].join('\n'),
-      },
-      ...(input.history ?? []).map((message) => ({
-        role: message.role,
-        content: message.content,
-      })),
-      {
-        role: 'user',
-        content: `Tools already used:\n${toolTraceText}\n\nRetrieved local sources:\n${sourceText}\n\nOpened source context:\n${sourceContextText}\n\nUser question:\n${input.content}`,
-      },
-    ];
+
+    const abortController = new AbortController();
+    activeAbortController = abortController;
+    activeModel = model;
     const combinedCitations = [...input.citations];
-    let turn;
+    let rawText = '';
+    let visibleText = '';
+    let channelReasoning = '';
+    let sdkReasoning = '';
+
     try {
-      let result = await completeWithLlama(
-        context,
-        messages,
-        (content) => {
-          streamedText = content;
-          if (streamedText) input.onToken?.(streamedText);
-        },
-        (reasoning) => input.onReasoning?.(reasoning)
-      );
+      const result = streamText({
+        model,
+        system: buildSystemPrompt(),
+        messages: buildMessages(input),
+        tools: createArkAiSdkTools({
+          onRun: (run) => {
+            mergeCitations(combinedCitations, run.citations);
+          },
+        }),
+        toolChoice: 'auto',
+        stopWhen: stepCountIs(3),
+        maxOutputTokens: 640,
+        temperature: 0.2,
+        abortSignal: abortController.signal,
+      });
 
-      turn = normalizeAssistantTurn(result);
-      if (turn.reasoning) input.onReasoning?.(turn.reasoning);
-      for (let iteration = 0; iteration < 2 && turn.toolCalls.length; iteration += 1) {
-        messages.push({
-          role: 'assistant',
-          content: turn.content || '',
-          tool_calls: turn.toolCalls.map((call) => ({
-            type: 'function',
-            id: call.id,
-            function: { name: call.name, arguments: JSON.stringify(call.arguments ?? {}) },
-          })),
-        });
-
-        for (const call of turn.toolCalls) {
-          const executed = await executeArkToolCall(call).catch((error) => ({
-            call,
-            output: {
-              citations: [],
-              sourceContext: [],
-              toolTrace: [
-                {
-                  tool: 'search_local_knowledge' as const,
-                  summary:
-                    error instanceof Error
-                      ? `Tool call rejected: ${error.message}`
-                      : 'Tool call rejected.',
-                },
-              ],
-            },
-          }));
-          for (const citation of executed.output.citations) {
-            if (!combinedCitations.some((item) => item.sourceId === citation.sourceId)) {
-              combinedCitations.push(citation);
-            }
-          }
-          messages.push({
-            role: 'tool',
-            tool_call_id: call.id,
-            content: JSON.stringify({
-              summary: executed.output.toolTrace.map((entry) => entry.summary),
-              sources: executed.output.sourceContext.map((source) => ({
-                title: source.title,
-                content: source.content.slice(0, 1200),
-              })),
-            }),
-          });
+      for await (const part of result.fullStream) {
+        if (part.type === 'start-step') {
+          rawText = '';
+          visibleText = '';
+          channelReasoning = '';
+          sdkReasoning = '';
+        } else if (part.type === 'text-delta') {
+          rawText += part.text;
+          const normalized = normalizeReasoningOutput(rawText);
+          visibleText = normalized.content;
+          channelReasoning = normalized.reasoning;
+          if (visibleText) input.onToken?.(visibleText);
+        } else if (part.type === 'reasoning-delta') {
+          sdkReasoning += part.text;
+          const nextReasoning = joinReasoning(sdkReasoning, channelReasoning);
+          if (nextReasoning) input.onReasoning?.(nextReasoning);
+        } else if (part.type === 'tool-result') {
+          const output = part.output as unknown;
+          if (isArkToolOutput(output)) mergeCitations(combinedCitations, output.citations);
         }
-
-        streamedText = '';
-        result = await completeWithLlama(
-          context,
-          messages,
-          (content) => {
-            streamedText = content;
-            if (streamedText) input.onToken?.(streamedText);
-          },
-          (reasoning) => input.onReasoning?.(reasoning)
-        );
-        turn = normalizeAssistantTurn(result);
-        if (turn.reasoning) input.onReasoning?.(turn.reasoning);
-      }
-
-      if (!turn.content && turn.reasoning && !turn.toolCalls.length) {
-        streamedText = '';
-        const finalResult = await completeWithLlama(
-          context,
-          [
-            ...messages,
-            {
-              role: 'user',
-              content:
-                'Return the final answer to the last user question now. Do not include hidden reasoning, analysis notes, or channel markers.',
-            },
-          ],
-          (content) => {
-            streamedText = content;
-            if (streamedText) input.onToken?.(streamedText);
-          },
-          (reasoning) => input.onReasoning?.(reasoning),
-          { enableThinking: false, useTools: false }
-        );
-        const finalTurn = normalizeAssistantTurn(finalResult);
-        turn = { ...finalTurn, reasoning: turn.reasoning || finalTurn.reasoning };
+        const nextReasoning = joinReasoning(sdkReasoning, channelReasoning);
+        if (part.type === 'text-delta' && nextReasoning) input.onReasoning?.(nextReasoning);
       }
     } finally {
-      if (activeCompletionContext === context) activeCompletionContext = null;
+      if (activeAbortController === abortController) activeAbortController = null;
+      if (activeModel === model) activeModel = null;
     }
 
     return {
-      content:
-        turn.content ||
-        stripHiddenModelOutput(streamedText) ||
-        'The local model returned an empty response.',
+      content: visibleText.trim() || 'The local model returned an empty response.',
       citations: combinedCitations,
-      reasoning: turn.reasoning,
+      reasoning: joinReasoning(sdkReasoning, channelReasoning) || undefined,
     };
   }
 
   async cancelActiveCompletion() {
-    await activeCompletionContext?.stopCompletion().catch(() => undefined);
+    activeAbortController?.abort();
+    await activeModel
+      ?.getContext()
+      ?.stopCompletion()
+      .catch(() => undefined);
   }
 
   async getRuntimeStatus() {
@@ -230,13 +129,28 @@ export class LlamaAdapter {
 
 async function loadLlamaModule() {
   if (!llamaModulePromise) {
-    llamaModulePromise = import('llama.rn').catch(() => null);
+    llamaModulePromise = import('@react-native-ai/llama').catch(() => null);
   }
   return llamaModulePromise;
 }
 
-async function getInstalledModelUri() {
-  return (await getInstalledModel())?.localUri ?? null;
+async function getLanguageModel() {
+  if (!modelPromise) {
+    modelPromise = (async () => {
+      const [module, model] = await Promise.all([loadLlamaModule(), getInstalledModel()]);
+      if (!module || !model?.localUri) return null;
+      const languageModel = module.llama.languageModel(model.localUri, {
+        contextParams: {
+          n_ctx: contextTokensForModel(model.sizeBytes ?? null),
+          n_gpu_layers: 0,
+          ctx_shift: true,
+        },
+      });
+      await languageModel.prepare();
+      return languageModel;
+    })().catch(() => null);
+  }
+  return modelPromise;
 }
 
 async function getInstalledModel() {
@@ -252,61 +166,103 @@ async function getInstalledModel() {
   return models.find((model) => model.id === selectedId) ?? models[0] ?? null;
 }
 
-async function getContext() {
-  if (!contextPromise) {
-    contextPromise = (async () => {
-      const module = await loadLlamaModule();
-      const model = await getInstalledModel();
-      if (!module || !model?.localUri) return null;
-      return module.initLlama({
-        model: model.localUri,
-        n_ctx: contextTokensForModel(model.sizeBytes ?? null),
-        n_gpu_layers: 0,
-        ctx_shift: true,
-      });
-    })().catch(() => null);
-  }
-  return contextPromise;
+function buildSystemPrompt() {
+  return [
+    'You are Arky, an offline survival-grade assistant for practical emergency, field, and self-reliance questions.',
+    'Answer the user directly and keep continuity with the conversation history. Resolve short follow-ups such as "why not?" against the previous user and assistant turns.',
+    'Use local tool results and opened source context when they are relevant. If retrieved sources are weak, irrelevant, or incomplete, say that briefly and answer from general survival knowledge instead of pretending the sources answer the question.',
+    'Do not refuse ordinary survival skills such as making fishing hooks, knots, shelter, fire, water storage, food procurement, navigation, tool repair, or improvised non-weapon field gear. Include practical cautions, local-law reminders, and safer alternatives where useful.',
+    'Refuse instructions for harming people, traps intended for people, explosives, poisons, or evading law enforcement.',
+    `Safety note to include when advice is high-stakes: ${SAFETY_COPY.ai}`,
+  ].join('\n');
 }
 
-async function completeWithLlama(
-  context: LlamaContext,
-  messages: LlamaMessage[],
-  onContent: (content: string) => void,
-  onReasoning: (content: string) => void,
-  options: { enableThinking?: boolean; useTools?: boolean } = {}
-) {
-  let streamedText = '';
-  let streamedReasoning = '';
-  const enableThinking = options.enableThinking ?? true;
-  const useTools = options.useTools ?? true;
-  return context.completion(
+function buildMessages(input: AiAdapterSendInput): ModelMessage[] {
+  return [
+    ...(input.history ?? []).flatMap((message): ModelMessage[] =>
+      message.role === 'user' || message.role === 'assistant'
+        ? [
+            {
+              role: message.role,
+              content: message.content,
+            },
+          ]
+        : []
+    ),
     {
-      messages: messages as never,
-      ...(useTools ? { tools: ARK_LLAMARN_TOOLS, tool_choice: 'auto' } : {}),
-      jinja: true,
-      enable_thinking: enableThinking,
-      reasoning_format: 'auto',
-      chat_template_kwargs: {
-        enable_thinking: enableThinking,
-        thinking: enableThinking,
-      },
-      n_predict: 640,
-      temperature: 0.2,
+      role: 'user',
+      content: [
+        `Tools already used:\n${formatToolTrace(input)}`,
+        `Retrieved local sources:\n${formatCitations(input.citations)}`,
+        `Opened source context:\n${formatSourceContext(input)}`,
+        `User question:\n${input.content}`,
+      ].join('\n\n'),
     },
-    (data) => {
-      const reasoning =
-        data.reasoning_content ??
-        (data as { accumulated_reasoning_content?: string }).accumulated_reasoning_content;
-      if (reasoning && reasoning !== streamedReasoning) {
-        streamedReasoning = reasoning;
-        onReasoning(streamedReasoning);
-      }
-      const next = data.content ?? data.accumulated_text ?? `${streamedText}${data.token ?? ''}`;
-      streamedText = stripHiddenModelOutput(next);
-      if (streamedText) onContent(streamedText);
+  ];
+}
+
+function formatToolTrace(input: AiAdapterSendInput) {
+  return input.toolTrace?.length
+    ? input.toolTrace.map((entry) => `- ${entry.summary}`).join('\n')
+    : 'No tools used yet.';
+}
+
+function formatCitations(citations: AiCitation[]) {
+  if (!citations.length) return 'No retrieved sources yet.';
+  return citations
+    .map((citation, index) => {
+      const location = [
+        citation.sectionTitle ? `section ${citation.sectionTitle}` : null,
+        typeof citation.page === 'number' ? `page ${citation.page}` : null,
+      ]
+        .filter(Boolean)
+        .join(', ');
+      return `${index + 1}. ${citation.title}: ${citation.snippet}${
+        location ? ` (${location})` : ''
+      }`;
+    })
+    .join('\n');
+}
+
+function formatSourceContext(input: AiAdapterSendInput) {
+  if (!input.sourceContext?.length) return 'No expanded source content yet.';
+  return input.sourceContext
+    .map((source, index) => `${index + 1}. ${source.title}\n${source.content.slice(0, 1200)}`)
+    .join('\n\n');
+}
+
+function mergeCitations(target: AiCitation[], citations: AiCitation[]) {
+  for (const citation of citations) {
+    const key = `${citation.sourceId}:${citation.sourceRef ?? ''}:${citation.sectionTitle ?? ''}:${
+      citation.page ?? ''
+    }`;
+    if (
+      !target.some(
+        (item) =>
+          `${item.sourceId}:${item.sourceRef ?? ''}:${item.sectionTitle ?? ''}:${item.page ?? ''}` ===
+          key
+      )
+    ) {
+      target.push(citation);
     }
+  }
+}
+
+function isArkToolOutput(
+  value: unknown
+): value is { citations: AiCitation[]; summary: string; sources: unknown[] } {
+  return (
+    !!value &&
+    typeof value === 'object' &&
+    Array.isArray((value as { citations?: unknown }).citations)
   );
+}
+
+function joinReasoning(...parts: string[]) {
+  return parts
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join('\n\n');
 }
 
 function contextTokensForModel(sizeBytes: number | null) {

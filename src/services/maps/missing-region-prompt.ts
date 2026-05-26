@@ -72,6 +72,7 @@ function getMissingRegionCandidate(input: MissingRegionPromptInput) {
     getRegionForCoordinate(input.latitude, input.longitude, input.regions),
     ...(input.viewedBounds ? getRegionsForBoundingBox(input.viewedBounds, input.regions) : []),
   ];
+  const hasPredefinedCoverage = predefined.some(Boolean);
 
   const seen = new Set<string>();
   const matchedPredefined = predefined.find((region) => {
@@ -83,6 +84,7 @@ function getMissingRegionCandidate(input: MissingRegionPromptInput) {
   });
 
   if (matchedPredefined) return matchedPredefined;
+  if (hasPredefinedCoverage) return undefined;
 
   // If no predefined preset matches, check if the current center is covered by ANY downloaded region
   const isCenterCovered = input.downloadedRegions.some((dlRegion) => {
@@ -124,9 +126,11 @@ function getMissingRegionCandidate(input: MissingRegionPromptInput) {
 
   const dynamicId = `dynamic-${Math.round(bounds[0] * 10)}-${Math.round(bounds[1] * 10)}`;
   if (input.state.dismissedRegionIds.includes(dynamicId)) return undefined;
-  
+
   // Also verify this dynamic region isn't already downloaded
-  const isDynamicCovered = input.downloadedRegions.some(r => r.id === dynamicId || r.manifestRegionId === dynamicId);
+  const isDynamicCovered = input.downloadedRegions.some(
+    (r) => r.id === dynamicId || r.manifestRegionId === dynamicId
+  );
   if (isDynamicCovered) return undefined;
 
   return {

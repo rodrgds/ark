@@ -10,7 +10,7 @@ import { PlatformPressable } from '@react-navigation/elements';
 import { Tabs } from 'expo-router';
 import { Bot, BookOpen, Compass, Map, NotebookPen, Settings } from 'lucide-react-native';
 import * as React from 'react';
-import { StyleSheet, Text as RNText, View } from 'react-native';
+import { Keyboard, StyleSheet, Text as RNText, View } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -105,6 +105,7 @@ function ArkTabBar({
 }: BottomTabBarProps & { theme: keyof typeof NAV_COLORS }) {
   const insets = useSafeAreaInsets();
   const [rowWidth, setRowWidth] = React.useState(0);
+  const [keyboardVisible, setKeyboardVisible] = React.useState(false);
   const colors = NAV_THEME[theme].colors;
   const navColors = NAV_COLORS[theme];
   const glowOuterColor = addHexAlpha(colors.primary, theme === 'light' ? '14' : '18');
@@ -120,6 +121,15 @@ function ArkTabBar({
   );
   const glowX = useSharedValue(0);
   const glowOpacity = useSharedValue(0);
+
+  React.useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
+    const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
 
   React.useEffect(() => {
     if (!rowWidth || routes.length === 0) {
@@ -142,11 +152,12 @@ function ArkTabBar({
   }));
 
   if (
-    activeTabStyle &&
-    typeof activeTabStyle === 'object' &&
-    !Array.isArray(activeTabStyle) &&
-    'display' in activeTabStyle &&
-    activeTabStyle.display === 'none'
+    keyboardVisible ||
+    (activeTabStyle &&
+      typeof activeTabStyle === 'object' &&
+      !Array.isArray(activeTabStyle) &&
+      'display' in activeTabStyle &&
+      activeTabStyle.display === 'none')
   ) {
     return null;
   }
@@ -161,9 +172,7 @@ function ArkTabBar({
           paddingBottom: Math.max(insets.bottom + 8, 26),
         },
       ]}>
-      <View
-        style={styles.tabRow}
-        onLayout={(event) => setRowWidth(event.nativeEvent.layout.width)}>
+      <View style={styles.tabRow} onLayout={(event) => setRowWidth(event.nativeEvent.layout.width)}>
         {rowWidth > 0 ? (
           <Animated.View
             pointerEvents="none"

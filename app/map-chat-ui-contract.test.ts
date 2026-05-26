@@ -42,6 +42,7 @@ describe('map and chat UI contracts', () => {
 
   test('chat resizes its scroll area with the keyboard instead of floating the composer', () => {
     const source = readFileSync(join(appDir, '(tabs)/chat.tsx'), 'utf8');
+    const tabSource = readFileSync(join(appDir, '(tabs)/_layout.tsx'), 'utf8');
 
     expect(source).toContain('keyboardDidShow');
     expect(source).toContain('keyboardDidHide');
@@ -52,6 +53,8 @@ describe('map and chat UI contracts', () => {
     expect(source).not.toContain('keyboardInset');
     expect(source).not.toContain('useAnimatedKeyboard');
     expect(source).not.toContain('translateY');
+    expect(tabSource).toContain('Keyboard.addListener');
+    expect(tabSource).toContain('keyboardVisible ||');
   });
 
   test('map keeps network enabled while native offline packs are active', () => {

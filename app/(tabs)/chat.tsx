@@ -11,6 +11,7 @@ import { Arky } from '@/components/brand/ark-logo';
 import { ArkKeyboardAvoidingView } from '@/components/layout/keyboard-controller';
 import { AIService, isAiRequestCancelledError } from '@/services/ai/ai.service';
 import { ModelManagerService } from '@/services/ai/model-manager.service';
+import { normalizeReasoningOutput } from '@/services/ai/reasoning-normalizer';
 import type { AiCitation, AiMessage, AiProgressEvent } from '@/types/ai';
 import type { ContentPack } from '@/types/content';
 import { router, useFocusEffect } from 'expo-router';
@@ -26,13 +27,7 @@ import {
   Trash2,
 } from 'lucide-react-native';
 import * as React from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  Keyboard,
-  View,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ActivityIndicator, FlatList, Keyboard, View } from 'react-native';
 
 function CitationItem({ citation }: { citation: AiCitation }) {
   const location = [
@@ -193,6 +188,10 @@ function MessageBubble({ message }: { message: AiMessage }) {
   }
 
   const assistant = message.role === 'assistant';
+  const normalized = assistant ? normalizeReasoningOutput(message.content) : null;
+  const displayContent = normalized?.content || message.content;
+  const displayReasoning = joinReasoning(message.reasoning ?? '', normalized?.reasoning ?? '');
+
   return (
     <View className={assistant ? 'items-start' : 'items-end'}>
       <Card
@@ -207,13 +206,13 @@ function MessageBubble({ message }: { message: AiMessage }) {
           {assistant ? 'Arky' : 'You'}
         </Text>
         {assistant ? (
-          <MarkdownText>{message.content}</MarkdownText>
+          <MarkdownText>{displayContent}</MarkdownText>
         ) : (
           <Text selectable className="text-primary-foreground">
             {message.content}
           </Text>
         )}
-        {assistant ? <ThinkingPanel reasoning={message.reasoning} /> : null}
+        {assistant ? <ThinkingPanel reasoning={displayReasoning} /> : null}
         {message.citations.length ? (
           <View className="border-border mt-1 gap-1 border-t pt-2">
             <Text variant="small">Sources</Text>
@@ -269,8 +268,14 @@ function StreamingBubble({
   );
 }
 
+function joinReasoning(...parts: string[]) {
+  return parts
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join('\n\n');
+}
+
 export default function ChatScreen() {
-  const insets = useSafeAreaInsets();
   const [threadId, setThreadId] = React.useState<string | undefined>();
   const [messages, setMessages] = React.useState<AiMessage[]>([]);
   const [content, setContent] = React.useState('');
@@ -447,7 +452,7 @@ export default function ChatScreen() {
   return (
     <ArkKeyboardAvoidingView
       className="bg-background flex-1"
-      behavior="translate-with-padding"
+      behavior="padding"
       enabled
       keyboardVerticalOffset={0}>
       <View className="border-border bg-background flex-row items-center gap-2 border-b px-4 py-3">
@@ -532,9 +537,9 @@ export default function ChatScreen() {
       ) : null}
 
       <View
-        className="border-border bg-card border-t px-3 py-2"
+        className="border-border bg-card border-t px-3 pt-2"
         style={{
-          paddingBottom: keyboardVisible ? 10 : Math.max(10, insets.bottom),
+          paddingBottom: keyboardVisible ? 6 : 6,
         }}>
         <View className="flex-row items-end gap-2">
           <Input

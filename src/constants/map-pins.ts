@@ -9,6 +9,12 @@ export const MAP_PIN_TYPES: Array<{
 }> = [
   { type: 'home', label: 'Home', color: '#F2B84B' },
   { type: 'meeting_point', label: 'Meeting point', color: '#95A78B' },
+  { type: 'hospital', label: 'Hospital', color: '#EF4444' },
+  { type: 'pharmacy', label: 'Pharmacy', color: '#22C55E' },
+  { type: 'police', label: 'Police', color: '#60A5FA' },
+  { type: 'fire_station', label: 'Fire station', color: '#F97316' },
+  { type: 'water', label: 'Water', color: '#38BDF8' },
+  { type: 'shelter', label: 'Shelter', color: '#A78BFA' },
   { type: 'custom', label: 'Custom', color: '#F2B84B' },
 ];
 

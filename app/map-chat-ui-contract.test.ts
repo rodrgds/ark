@@ -46,8 +46,8 @@ describe('map and chat UI contracts', () => {
     expect(source).toContain('keyboardDidShow');
     expect(source).toContain('keyboardDidHide');
     expect(source).toContain('ArkKeyboardAvoidingView');
-    expect(source).toContain('behavior="translate-with-padding"');
-    expect(source).toContain('paddingBottom: keyboardVisible ? 10 : Math.max(10, insets.bottom)');
+    expect(source).toContain('behavior="padding"');
+    expect(source).toContain('paddingBottom: keyboardVisible ? 6 : 6');
     expect(source).not.toContain('ArkKeyboardStickyView');
     expect(source).not.toContain('keyboardInset');
     expect(source).not.toContain('useAnimatedKeyboard');

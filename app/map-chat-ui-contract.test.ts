@@ -45,8 +45,9 @@ describe('map and chat UI contracts', () => {
 
     expect(source).toContain('keyboardDidShow');
     expect(source).toContain('keyboardDidHide');
-    expect(source).toContain("enabled={Platform.OS === 'ios'}");
-    expect(source).toContain('paddingBottom: Math.max(10, insets.bottom)');
+    expect(source).toContain('ArkKeyboardAvoidingView');
+    expect(source).toContain('behavior="translate-with-padding"');
+    expect(source).toContain('paddingBottom: keyboardVisible ? 10 : Math.max(10, insets.bottom)');
     expect(source).not.toContain('ArkKeyboardStickyView');
     expect(source).not.toContain('keyboardInset');
     expect(source).not.toContain('useAnimatedKeyboard');
@@ -110,5 +111,14 @@ describe('map and chat UI contracts', () => {
     expect(source).toContain('getUnsupportedMapPackReason(preset)');
     expect(source).toContain("? 'Planned'");
     expect(source).toContain('disabled={(downloaded && !updateAvailable) || busy || unsupported}');
+  });
+
+  test('map overlays use shared bottom sheets instead of native modals', () => {
+    const source = readFileSync(join(appDir, '(tabs)/map.tsx'), 'utf8');
+
+    expect(source).toContain('ArkBottomSheet');
+    expect(source).toContain("snapPoints={['58%', '92%']}");
+    expect(source).not.toContain('<Modal');
+    expect(source).not.toContain('KeyboardAvoidingView');
   });
 });

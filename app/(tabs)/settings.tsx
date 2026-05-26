@@ -333,12 +333,12 @@ export default function SettingsScreen() {
       } else if (action === 'pause') {
         const result = await OfflineMapService.pauseRegion(region.id);
         if (!result.ok) {
-          Alert.alert('Unable to pause map', result.reason ?? 'Try again from the map screen.');
+          showSheetAlert('Unable to pause map', result.reason ?? 'Try again from the map screen.');
         }
       } else {
         const result = await OfflineMapService.refreshRegion(region.id);
         if (!result.ok) {
-          Alert.alert('Unable to download map', result.reason ?? 'Check connection and storage.');
+          showSheetAlert('Unable to download map', result.reason ?? 'Check connection and storage.');
         }
       }
       await load();
@@ -353,7 +353,7 @@ export default function SettingsScreen() {
   }
 
   function confirmDeleteMapRegion(region: MapRegion) {
-    Alert.alert('Delete offline map?', `${region.name} will be removed from this device.`, [
+    showSheetAlert('Delete offline map?', `${region.name} will be removed from this device.`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',

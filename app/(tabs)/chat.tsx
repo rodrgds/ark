@@ -8,6 +8,7 @@ import { MarkdownText } from '@/components/ui/markdown-text';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
 import { Arky } from '@/components/brand/ark-logo';
+import { ArkKeyboardAvoidingView } from '@/components/layout/keyboard-controller';
 import { AIService, isAiRequestCancelledError } from '@/services/ai/ai.service';
 import { ModelManagerService } from '@/services/ai/model-manager.service';
 import type { AiCitation, AiMessage, AiProgressEvent } from '@/types/ai';
@@ -29,8 +30,6 @@ import {
   ActivityIndicator,
   FlatList,
   Keyboard,
-  KeyboardAvoidingView,
-  Platform,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -446,10 +445,10 @@ export default function ChatScreen() {
   const canChooseModel = modelPickerEnabled && installedModels.length > 1;
 
   return (
-    <KeyboardAvoidingView
+    <ArkKeyboardAvoidingView
       className="bg-background flex-1"
-      behavior="padding"
-      enabled={Platform.OS === 'ios'}
+      behavior="translate-with-padding"
+      enabled
       keyboardVerticalOffset={0}>
       <View className="border-border bg-background flex-row items-center gap-2 border-b px-4 py-3">
         {canChooseModel ? (
@@ -535,7 +534,7 @@ export default function ChatScreen() {
       <View
         className="border-border bg-card border-t px-3 py-2"
         style={{
-          paddingBottom: Math.max(10, insets.bottom),
+          paddingBottom: keyboardVisible ? 10 : Math.max(10, insets.bottom),
         }}>
         <View className="flex-row items-end gap-2">
           <Input
@@ -653,6 +652,6 @@ export default function ChatScreen() {
           </Text>
         ) : null}
       </ArkBottomSheet>
-    </KeyboardAvoidingView>
+    </ArkKeyboardAvoidingView>
   );
 }

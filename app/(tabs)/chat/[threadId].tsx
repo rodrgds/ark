@@ -134,39 +134,6 @@ function SourceMentions({ content, citations }: { content: string; citations: Ai
   );
 }
 
-function SourcesPanel({ messageId, citations }: { messageId: string; citations: AiCitation[] }) {
-  const [open, setOpen] = React.useState(false);
-  if (!citations.length) return null;
-
-  return (
-    <View className="border-border rounded-md border">
-      <Button
-        variant="ghost"
-        className="h-10 justify-between px-3"
-        onPress={() => setOpen((current) => !current)}>
-        <View className="flex-row items-center gap-2">
-          <Icon as={ExternalLink} className="text-primary size-4" />
-          <Text variant="small" className="text-muted-foreground uppercase">
-            {citations.length} {citations.length === 1 ? 'source' : 'sources'}
-          </Text>
-        </View>
-        <Icon as={ChevronDown} className={open ? 'size-4 rotate-180' : 'size-4'} />
-      </Button>
-      {open ? (
-        <View className="border-border gap-2 border-t px-3 py-2">
-          {citations.map((citation, index) => (
-            <CitationItem
-              key={`${messageId}-${citation.sourceId}-${index}`}
-              citation={citation}
-              index={index}
-            />
-          ))}
-        </View>
-      ) : null}
-    </View>
-  );
-}
-
 type TraceAction = {
   summary: string;
   tool?: string;
@@ -174,69 +141,98 @@ type TraceAction = {
 };
 
 function ProcessPanel({
+  messageId,
   actions,
   reasoning,
+  citations = [],
   defaultOpen = false,
   streaming = false,
 }: {
+  messageId?: string;
   actions?: TraceAction[];
   reasoning?: string;
+  citations?: AiCitation[];
   defaultOpen?: boolean;
   streaming?: boolean;
 }) {
   const [open, setOpen] = React.useState(defaultOpen);
   const visibleActions = actions?.filter((action) => action.summary.trim()) ?? [];
   const hasReasoning = !!reasoning?.trim();
-  if (!visibleActions.length && !hasReasoning) return null;
+  const hasCitations = citations.length > 0;
+
+  if (!visibleActions.length && !hasReasoning && !hasCitations) return null;
 
   return (
-    <View className="border-border rounded-md border">
+    <View className="border-border rounded-md border mt-1">
       <Button
         variant="ghost"
         className="h-10 justify-between px-3"
         onPress={() => setOpen((current) => !current)}>
         <View className="min-w-0 flex-1 flex-row items-center gap-2">
-          <Icon as={Search} className="text-primary size-4" />
-          <Text variant="small" className="text-muted-foreground uppercase">
-            Process
+          <Icon as={Brain} className="text-primary size-4" />
+          <Text variant="small" className="text-muted-foreground uppercase font-semibold">
+            Process & Sources
           </Text>
-          {streaming ? <ActivityIndicator size="small" /> : null}
+          {streaming ? <ActivityIndicator size="small" className="ml-1" /> : null}
         </View>
         <Icon as={ChevronDown} className={open ? 'size-4 rotate-180' : 'size-4'} />
       </Button>
       {open ? (
-        <View className="border-border gap-3 border-t px-3 py-2">
+        <View className="border-border gap-4 border-t px-3 py-3">
           {visibleActions.length ? (
             <View className="gap-2">
               <View className="flex-row items-center gap-2">
                 <Icon as={Search} className="text-primary size-4" />
-                <Text variant="small" className="text-muted-foreground uppercase">
+                <Text variant="small" className="text-muted-foreground uppercase font-semibold">
                   Activity
                 </Text>
               </View>
-              {visibleActions.map((action, index) => (
-                <View key={`${action.summary}-${index}`} className="flex-row gap-2">
-                  <Text variant="small" className="text-primary">
-                    {index + 1}.
-                  </Text>
-                  <Text variant="small" className="text-muted-foreground flex-1 leading-5">
-                    {action.summary}
-                  </Text>
-                </View>
-              ))}
+              <View className="gap-1.5 pl-6">
+                {visibleActions.map((action, index) => (
+                  <View key={`${action.summary}-${index}`} className="flex-row items-start gap-2">
+                    <Text variant="small" className="text-primary mt-0.5">•</Text>
+                    <Text variant="small" className="text-muted-foreground flex-1 leading-5">
+                      {action.summary}
+                    </Text>
+                  </View>
+                ))}
+              </View>
             </View>
           ) : null}
+
+          {hasCitations ? (
+            <View className="gap-2">
+              <View className="flex-row items-center gap-2">
+                <Icon as={ExternalLink} className="text-primary size-4" />
+                <Text variant="small" className="text-muted-foreground uppercase font-semibold">
+                  Checked Sources ({citations.length})
+                </Text>
+              </View>
+              <View className="gap-3 pl-6">
+                {citations.map((citation, index) => (
+                  <CitationItem
+                    key={messageId ? `${messageId}-${citation.sourceId}-${index}` : `${citation.sourceId}-${index}`}
+                    citation={citation}
+                    index={index}
+                  />
+                ))}
+              </View>
+            </View>
+          ) : null}
+
           {hasReasoning ? (
             <View className="gap-2">
               <View className="flex-row items-center gap-2">
                 <Icon as={Brain} className="text-primary size-4" />
-                <Text variant="small" className="text-muted-foreground uppercase">
-                  Thinking
+                <Text variant="small" className="text-muted-foreground uppercase font-semibold">
+                  Thinking Process
                 </Text>
               </View>
-              <Text variant="small" className="text-muted-foreground leading-5" selectable>
-                {reasoning}
-              </Text>
+              <View className="pl-6">
+                <Text variant="small" className="text-muted-foreground leading-5" selectable>
+                  {reasoning}
+                </Text>
+              </View>
             </View>
           ) : null}
         </View>
@@ -320,9 +316,14 @@ function MessageBubble({
         </Text>
       )}
       {assistant ? (
-        <ProcessPanel actions={actions} reasoning={displayReasoning} defaultOpen={false} />
+        <ProcessPanel
+          messageId={message.id}
+          actions={actions}
+          reasoning={displayReasoning}
+          citations={message.citations}
+          defaultOpen={false}
+        />
       ) : null}
-      {assistant ? <SourcesPanel messageId={message.id} citations={message.citations} /> : null}
     </Card>
   );
 
@@ -607,7 +608,7 @@ function FloatingComposer({
             placeholder="Ask Arky"
             placeholderTextColor="#9CA3AF"
             returnKeyType="send"
-            editable={!disabled}
+            editable={true}
             multiline={false}
             style={[styles.composerInput, { color: colors.text }]}
           />
@@ -659,6 +660,41 @@ export default function ChatScreen() {
   const [error, setError] = React.useState<string | null>(null);
   const [keyboardVisible, setKeyboardVisible] = React.useState(false);
   const sendRunIdRef = React.useRef(0);
+  const flatListRef = React.useRef<FlatList>(null);
+
+  const scrollToBottom = React.useCallback((animated = true) => {
+    setTimeout(() => {
+      flatListRef.current?.scrollToEnd({ animated });
+    }, 60);
+  }, []);
+
+  const handleScroll = React.useCallback(
+    (event: any) => {
+      const offsetY = event.nativeEvent.contentOffset.y;
+      if (offsetY <= 100 && !olderLoading && hasOlderMessages && messages.length > 0) {
+        void loadOlderMessages();
+      }
+    },
+    [olderLoading, hasOlderMessages, messages.length]
+  );
+
+  React.useEffect(() => {
+    if (!loading) {
+      scrollToBottom(false);
+    }
+  }, [loading, scrollToBottom]);
+
+  React.useEffect(() => {
+    if (messages.length > 0 || sending) {
+      scrollToBottom(true);
+    }
+  }, [messages.length, sending, scrollToBottom]);
+
+  React.useEffect(() => {
+    if (keyboardVisible) {
+      scrollToBottom(true);
+    }
+  }, [keyboardVisible, scrollToBottom]);
 
   const refreshModels = React.useCallback(async () => {
     const [models, globalModel, embeddingModel, preferences] = await Promise.all([
@@ -930,7 +966,10 @@ export default function ChatScreen() {
           <Text variant="muted">Loading local thread...</Text>
         </View>
       ) : emptyThread ? (
-        <View className="flex-1 justify-end px-4" style={{ paddingBottom: MESSAGE_LIST_BOTTOM_PADDING + 176 }}>
+        <Pressable
+          className="flex-1 justify-end px-4"
+          style={{ paddingBottom: MESSAGE_LIST_BOTTOM_PADDING + 176 }}
+          onPress={() => Keyboard.dismiss()}>
           {!keyboardVisible ? (
             <View className="gap-2">
               <Text variant="large">What do you need to know?</Text>
@@ -939,11 +978,11 @@ export default function ChatScreen() {
               </Text>
             </View>
           ) : null}
-        </View>
+        </Pressable>
       ) : (
         <FlatList
+          ref={flatListRef}
           className="flex-1"
-          inverted
           data={data}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) =>
@@ -968,9 +1007,10 @@ export default function ChatScreen() {
             paddingBottom: MESSAGE_LIST_BOTTOM_PADDING,
             paddingTop: 56,
           }}
-          onEndReached={() => void loadOlderMessages()}
-          onEndReachedThreshold={0.15}
-          ListFooterComponent={
+          maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
+          ListHeaderComponent={
             olderLoading ? (
               <View className="items-center py-3">
                 <ActivityIndicator size="small" />
@@ -985,6 +1025,13 @@ export default function ChatScreen() {
         <View className="border-destructive/40 bg-background/95 border-t px-4 py-2">
           <Text className="text-destructive text-sm">{error}</Text>
         </View>
+      ) : null}
+
+      {keyboardVisible ? (
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={() => Keyboard.dismiss()}
+        />
       ) : null}
 
       <FloatingComposer

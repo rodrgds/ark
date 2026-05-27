@@ -433,14 +433,24 @@ export function createTacticalStyle(theme: MapTheme): StyleSpecification {
         source: 'openmaptiles',
         'source-layer': 'poi',
         minzoom: 14,
-        filter: ['any', ['in', ['get', 'class'], ['literal', ['grocery', 'pharmacy', 'shop', 'hospital', 'market', 'mall', 'commercial']]], ['in', ['get', 'subclass'], ['literal', ['grocery', 'pharmacy', 'shop', 'hospital', 'market', 'mall', 'commercial']]]],
+        filter: ['any', ['in', ['get', 'class'], ['literal', ['grocery', 'pharmacy', 'shop', 'hospital', 'market', 'mall', 'commercial', 'police', 'fire_station']]], ['in', ['get', 'subclass'], ['literal', ['grocery', 'pharmacy', 'shop', 'hospital', 'market', 'mall', 'commercial', 'police', 'fire_station']]]],
         layout: {
-          'icon-image': ['concat', ['get', 'class'], '_11'],
+          'icon-image': [
+            'match',
+            ['get', 'class'],
+            'pharmacy', 'pharmacy_11',
+            'shop', 'grocery_11',
+            'mall', 'grocery_11',
+            'commercial', 'grocery_11',
+            'market', 'grocery_11',
+            ['concat', ['get', 'class'], '_11']
+          ],
+          'icon-size': 1.25,
           'text-field': ['get', 'name'],
           'text-font': ['Noto Sans Regular'],
           'text-size': 11,
           'text-anchor': 'top',
-          'text-offset': [0, 0.6],
+          'text-offset': [0, 0.75],
         },
         paint: {
           'text-color': colors.text,

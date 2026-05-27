@@ -25,6 +25,7 @@ import {
 import { OfflineMapService } from '@/services/maps/offline-map.service';
 import { isPresetDownloaded } from '@/services/maps/map-region-utils';
 import { useThemeStore } from '@/stores/theme-store';
+import { useSensorStore } from '@/stores/sensor-store';
 import type { MapMarker, MapRegion, OfflineMapSearchResult, SavedRoute } from '@/types/maps';
 import type { LocationObject } from 'expo-location';
 import { useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
@@ -68,6 +69,7 @@ import {
   Image,
   Keyboard,
   Linking,
+  Modal,
   Pressable,
   type TextInput,
   View,
@@ -215,6 +217,7 @@ export default function MapScreen() {
     MapPresetsService.recommendedForLocation(null)
   );
   const [missingRegionPrompt, setMissingRegionPrompt] = React.useState<MapPreset | null>(null);
+  const [missingPromptModalVisible, setMissingPromptModalVisible] = React.useState(false);
   const [isPlacing, setIsPlacing] = React.useState(false);
   const [searchFocused, setSearchFocused] = React.useState(false);
   const [mapBearing, setMapBearing] = React.useState(0);
@@ -902,6 +905,7 @@ export default function MapScreen() {
         hasDownloadedRegion={hasDownloadedRegion}
         initialZoom={mapInitialZoom}
         isSearchActive={searchFocused || topMode === 'search'}
+        mapBearing={mapBearing}
         mapKey={mapInstanceKey}
         mapStyle={mapStyle}
         maplibre={maplibre}
@@ -940,7 +944,7 @@ export default function MapScreen() {
         }}
       />
 
-      {!isPlacing ? (
+      {!isPlacing && !fullscreen ? (
         <Animated.View
           layout={LinearTransition}
           className="absolute left-3 gap-2"
@@ -960,14 +964,21 @@ export default function MapScreen() {
         </Animated.View>
       ) : null}
 
-      {!isPlacing ? (
+      {!isPlacing && !fullscreen ? (
         <CompassButton bearing={mapBearing} top={6} visible={compassVisible} onPress={resetNorth} />
       ) : null}
 
       {!isPlacing ? (
         <View
           className="absolute right-3 gap-2"
-          style={{ bottom: Math.max(insets.bottom + 12, 20) }}>
+          style={{ bottom: fullscreen ? Math.max(insets.bottom + 12, 32) : 12 }}>
+          {visibleMissingRegionPrompt ? (
+            <MapFab
+              icon={Download}
+              label="Map missing"
+              onPress={() => setMissingPromptModalVisible(true)}
+            />
+          ) : null}
           <MapFab label="Locate me" loading={busy === 'locate'} onPress={locateMe} text="Me" />
           <MapFab
             icon={MapPin}
@@ -996,7 +1007,7 @@ export default function MapScreen() {
 
       <View
         className="absolute left-3 w-72 gap-2"
-        style={{ bottom: Math.max(insets.bottom + 12, 20) }}>
+        style={{ bottom: fullscreen ? Math.max(insets.bottom + 12, 32) : 12 }}>
         {locationIssue && !userLocation ? (
           <LocationNoticeCard
             issue={locationIssue}
@@ -1010,14 +1021,6 @@ export default function MapScreen() {
             <Icon as={AlertTriangle} className="text-destructive mt-0.5 size-4" />
             <Text className="text-destructive flex-1 text-sm">{error}</Text>
           </Card>
-        ) : null}
-        {visibleMissingRegionPrompt ? (
-          <MissingRegionPromptCard
-            busy={busy === `download:${visibleMissingRegionPrompt.id}`}
-            region={visibleMissingRegionPrompt}
-            onDismiss={() => dismissMissingPrompt(visibleMissingRegionPrompt.id)}
-            onDownload={() => downloadMissingRegion(visibleMissingRegionPrompt)}
-          />
         ) : null}
       </View>
 
@@ -1129,6 +1132,20 @@ export default function MapScreen() {
         onRemovePhoto={removeEditPhoto}
         onSave={saveMarkerEdit}
       />
+
+      <MissingRegionPromptModal
+        visible={missingPromptModalVisible}
+        busy={Boolean(visibleMissingRegionPrompt && busy === `download:${visibleMissingRegionPrompt.id}`)}
+        region={visibleMissingRegionPrompt}
+        onDismiss={() => {
+          setMissingPromptModalVisible(false);
+          if (visibleMissingRegionPrompt) dismissMissingPrompt(visibleMissingRegionPrompt.id);
+        }}
+        onDownload={() => {
+          if (visibleMissingRegionPrompt) downloadMissingRegion(visibleMissingRegionPrompt);
+          setMissingPromptModalVisible(false);
+        }}
+      />
     </View>
   );
 }
@@ -1141,6 +1158,7 @@ function MapCanvas({
   hasDownloadedRegion,
   initialZoom,
   isSearchActive,
+  mapBearing,
   mapKey,
   mapStyle,
   maplibre,
@@ -1168,6 +1186,7 @@ function MapCanvas({
   hasDownloadedRegion: boolean;
   initialZoom: number;
   isSearchActive: boolean;
+  mapBearing: number;
   mapKey: string;
   mapStyle: unknown;
   maplibre: MapLibreModule | null;
@@ -1246,7 +1265,7 @@ function MapCanvas({
           id="ark-user-location"
           lngLat={[userLocation.longitude, userLocation.latitude]}
           anchor="center">
-          <UserLocationDot />
+          <UserLocationDot mapBearing={mapBearing} />
         </Marker>
       ) : null}
       {!hasDownloadedRegion && GeoJSONSource && Layer ? (
@@ -1383,43 +1402,55 @@ function LocationNoticeCard({
   );
 }
 
-function MissingRegionPromptCard({
+function MissingRegionPromptModal({
+  visible,
   busy,
   region,
   onDismiss,
   onDownload,
 }: {
+  visible: boolean;
   busy: boolean;
-  region: MapPreset;
+  region: MapPreset | null;
   onDismiss: () => void;
   onDownload: () => void;
 }) {
+  if (!visible || !region) return null;
+
   const size = region.estimatedSizeMb
     ? `About ${Math.round(region.estimatedSizeMb)} MB`
     : region.estimatedSize;
 
   return (
-    <Card className="border-primary/35 bg-background/95 gap-3 p-3">
-      <View className="flex-row items-start gap-2">
-        <Icon as={Download} className="text-primary mt-0.5 size-4" />
-        <View className="min-w-0 flex-1 gap-1">
-          <Text className="text-sm font-semibold">Offline map missing</Text>
-          <Text className="text-muted-foreground text-xs">
-            You are viewing {region.name}. Download this region for offline use?
-          </Text>
-          <Text className="text-muted-foreground text-xs">{size}</Text>
-        </View>
-      </View>
-      <View className="flex-row gap-2">
-        <Button className="h-9 flex-1" size="sm" variant="outline" onPress={onDismiss}>
-          <Text>Later</Text>
-        </Button>
-        <Button className="h-9 flex-1" disabled={busy} size="sm" onPress={onDownload}>
-          {busy ? <ActivityIndicator size="small" /> : <Icon as={Download} className="size-4" />}
-          <Text>Download</Text>
-        </Button>
-      </View>
-    </Card>
+    <Modal transparent visible={visible} animationType="fade" onRequestClose={onDismiss}>
+      <Pressable className="flex-1 bg-black/60 items-center justify-center p-4" onPress={onDismiss}>
+        <Pressable className="w-full max-w-sm" onPress={(e) => e.stopPropagation()}>
+          <Card className="border-primary/35 bg-card gap-4 p-4 shadow-lg">
+            <View className="flex-row items-start gap-3">
+              <View className="bg-primary/20 rounded-full p-2">
+                <Icon as={Download} className="text-primary size-6" />
+              </View>
+              <View className="min-w-0 flex-1 gap-1.5">
+                <Text variant="h4">Offline map missing</Text>
+                <Text className="text-muted-foreground text-sm leading-5">
+                  You are viewing {region.name}. Download this region for offline use?
+                </Text>
+                <Text className="text-muted-foreground font-medium text-sm">{size}</Text>
+              </View>
+            </View>
+            <View className="flex-row justify-end gap-2 pt-2">
+              <Button size="sm" variant="outline" onPress={onDismiss}>
+                <Text>Later</Text>
+              </Button>
+              <Button disabled={busy} size="sm" onPress={onDownload}>
+                {busy ? <ActivityIndicator size="small" /> : null}
+                <Text>Download</Text>
+              </Button>
+            </View>
+          </Card>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -1466,9 +1497,9 @@ function CompassButton({
             style={{
               width: 0,
               height: 0,
-              borderLeftWidth: 5,
-              borderRightWidth: 5,
-              borderBottomWidth: 16,
+              borderLeftWidth: 6,
+              borderRightWidth: 6,
+              borderBottomWidth: 17,
               borderLeftColor: 'transparent',
               borderRightColor: 'transparent',
               borderBottomColor: colors.primary,
@@ -1563,10 +1594,26 @@ function MarkerDot({ marker, selected }: { marker: MapMarker; selected: boolean 
   );
 }
 
-function UserLocationDot() {
+function UserLocationDot({ mapBearing }: { mapBearing: number }) {
+  const heading = useSensorStore((state) => state.heading);
+
   return (
-    <View className="bg-primary/20 size-9 items-center justify-center rounded-full">
-      <View className="border-background bg-primary size-5 rounded-full border-4" />
+    <View className="items-center justify-center">
+      {heading !== null ? (
+        <View
+          className="absolute"
+          style={{ transform: [{ rotate: `${heading - mapBearing}deg` }] }}>
+          <Svg width={100} height={100} viewBox="0 0 100 100">
+            <Path
+              d="M50 50 L75 5 A 40 40 0 0 0 25 5 Z"
+              fill="rgba(149, 167, 139, 0.45)"
+            />
+          </Svg>
+        </View>
+      ) : null}
+      <View className="bg-primary/20 size-9 items-center justify-center rounded-full">
+        <View className="border-background bg-primary size-5 rounded-full border-4" />
+      </View>
     </View>
   );
 }

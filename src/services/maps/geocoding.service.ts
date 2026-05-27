@@ -1,7 +1,12 @@
 import type { OfflineMapSearchResult } from '@/types/maps';
-import { DatabaseClient } from '@/services/db/client';
+import { SettingsRepository } from '@/services/db/repositories/settings.repo';
 
 const PHOTON_API_URL = 'https://photon.komoot.io/api/';
+const GEOCODE_CACHE_KEY = 'maps.geocoding.cache';
+
+type GeocodeCache = {
+  [query: string]: OfflineMapSearchResult[];
+};
 
 export class GeocodingService {
   /**
@@ -9,21 +14,60 @@ export class GeocodingService {
    * If offline, relies on the cached SQLite results (if any).
    */
   static async search(query: string, limit = 10): Promise<OfflineMapSearchResult[]> {
-    const isOnline = true; // Ideally we check NetInfo here, but fetch will just fail if offline
-
+    const normalized = query.trim().toLowerCase();
+    
     try {
-      const url = `${PHOTON_API_URL}?q=${encodeURIComponent(query)}&limit=${limit}`;
+      const url = `${PHOTON_API_URL}?q=${encodeURIComponent(normalized)}&limit=${limit}`;
       const response = await fetch(url, { method: 'GET' });
       
       if (response.ok) {
         const data = await response.json();
-        return this.parsePhotonResponse(data);
+        const results = this.parsePhotonResponse(data);
+        await this.cacheResults(normalized, results);
+        return results;
       }
     } catch (e) {
       // Offline or network error
     }
 
+    return this.getCachedResults(normalized);
+  }
+
+  private static async getCachedResults(query: string): Promise<OfflineMapSearchResult[]> {
+    try {
+      const dataStr = await SettingsRepository.get(GEOCODE_CACHE_KEY);
+      if (!dataStr) return [];
+      const cache: GeocodeCache = JSON.parse(dataStr);
+      
+      // Match exact or prefix
+      for (const cachedQuery of Object.keys(cache)) {
+        if (cachedQuery.includes(query) || query.includes(cachedQuery)) {
+          return cache[cachedQuery] || [];
+        }
+      }
+    } catch {
+      // Ignored
+    }
     return [];
+  }
+
+  private static async cacheResults(query: string, results: OfflineMapSearchResult[]) {
+    try {
+      const dataStr = await SettingsRepository.get(GEOCODE_CACHE_KEY);
+      const cache: GeocodeCache = dataStr ? JSON.parse(dataStr) : {};
+      
+      cache[query] = results;
+      
+      // Keep cache small
+      const keys = Object.keys(cache);
+      if (keys.length > 50) {
+        delete cache[keys[0]];
+      }
+      
+      await SettingsRepository.set(GEOCODE_CACHE_KEY, JSON.stringify(cache));
+    } catch {
+      // Best effort
+    }
   }
 
   private static parsePhotonResponse(data: any): OfflineMapSearchResult[] {

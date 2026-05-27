@@ -5,6 +5,7 @@ import { MapService, type MapLibreModule } from '@/services/maps/map.service';
 import { sizeFromPackStatus } from '@/services/maps/map-pack-status';
 import { getUnsupportedMapPackReason } from '@/services/maps/map-pack-format';
 import { MapPresetsService } from '@/services/maps/map-presets.service';
+import { GeocodingService } from '@/services/maps/geocoding.service';
 import { getDownloadedRegionForCoordinate } from '@/services/maps/map-region-utils';
 import { estimatedMapRegionBytes } from '@/services/maps/map-storage';
 import type { MapPinType } from '@/constants/map-pins';
@@ -463,9 +464,8 @@ export class OfflineMapService {
   static async searchOffline(query: string, limit = 12): Promise<OfflineMapSearchResult[]> {
     const normalized = query.trim().toLowerCase();
     if (normalized.length < 2) return [];
-    const [markers, regions, routes] = await Promise.all([
+    const [markers, routes] = await Promise.all([
       MapsRepository.listMarkers(),
-      MapsRepository.listRegions(),
       MapsRepository.listRoutes(),
     ]);
 
@@ -488,22 +488,6 @@ export class OfflineMapService {
         longitude: marker.longitude,
       }));
 
-    const regionResults = regions
-      .filter((region) => matches(normalized, region.name, region.status, region.provider))
-      .map<OfflineMapSearchResult>((region) => {
-        const center = centerForBounds(region);
-        return {
-          id: region.id,
-          kind: 'region',
-          title: region.name,
-          subtitle: `${region.status.replace('_', ' ')} · Zoom ${region.minZoom ?? '-'}-${
-            region.maxZoom ?? '-'
-          }`,
-          latitude: center?.latitude ?? null,
-          longitude: center?.longitude ?? null,
-        };
-      });
-
     const routeResults = routes
       .filter((route) =>
         matches(
@@ -523,19 +507,9 @@ export class OfflineMapService {
         longitude: route.points[0]?.longitude ?? null,
       }));
 
-    const plannedRegionNames = new Set(regions.map((region) => region.name.toLowerCase()));
-    const catalogResults = MapPresetsService.search(normalized, 6)
-      .filter((preset) => !plannedRegionNames.has(preset.name.toLowerCase()))
-      .map<OfflineMapSearchResult>((preset) => ({
-        id: `catalog:${preset.id}`,
-        kind: 'region',
-        title: preset.name,
-        subtitle: `Offline catalog · ${preset.description}`,
-        latitude: (preset.bounds.north + preset.bounds.south) / 2,
-        longitude: (preset.bounds.east + preset.bounds.west) / 2,
-      }));
+    const geocodingResults = await GeocodingService.search(normalized, 8);
 
-    return [...markerResults, ...regionResults, ...routeResults, ...catalogResults].slice(0, limit);
+    return [...markerResults, ...geocodingResults, ...routeResults].slice(0, limit);
   }
 
   static async createRouteFromMarkers(title: string, markers: MapMarker[]) {

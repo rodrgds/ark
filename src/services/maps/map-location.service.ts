@@ -14,8 +14,8 @@ export type MapLocationResolution = {
 
 const LAST_KNOWN_LOCATION_MAX_AGE_MS = 10 * 60 * 1000;
 const LAST_KNOWN_LOCATION_REQUIRED_ACCURACY_M = 1500;
-const FRESH_LOCATION_TIMEOUT_MS = 7000;
-const FRESH_LOCATION_TIMEOUT_WITH_CACHE_MS = 3500;
+const FRESH_LOCATION_TIMEOUT_MS = 4000;
+const FRESH_LOCATION_TIMEOUT_WITH_CACHE_MS = 2500;
 const CACHED_LOCATION_KEY = 'maps.location.cached';
 
 export class MapLocationService {

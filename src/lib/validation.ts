@@ -23,6 +23,8 @@ export const chatMessageSchema = z.object({
   threadId: z.string().min(1).optional(),
   content: z.string().trim().min(1, 'Message cannot be empty.').max(12_000),
   useRag: z.boolean().default(true),
+  selectedModelId: z.string().min(1).nullable().optional(),
+  chatModelDisabled: z.boolean().optional(),
 });
 
 export const contentPackIdSchema = z.string().trim().min(1).max(160);

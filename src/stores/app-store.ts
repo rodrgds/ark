@@ -34,15 +34,18 @@ export const useAppStore = create<AppState>((set, get) => ({
       await DatabaseClient.getDb();
       set({ bootProgress: 0.26, bootStatus: 'Preparing folders' });
       await FileSystemService.ensureAppDirectories();
-      set({ bootProgress: 0.42, bootStatus: 'Loading settings' });
+      set({ bootProgress: 0.42, bootStatus: 'Loading settings and content catalog' });
       await ContentRepository.seedStarterPacks();
-      set({ bootProgress: 0.58, bootStatus: 'Seeding guides' });
+      set({
+        bootProgress: 0.58,
+        bootStatus: 'Checking built-in guides for offline reading and search',
+      });
       await AuthoredGuideSeedService.seed();
-      set({ bootProgress: 0.72, bootStatus: 'Recovering downloads' });
+      set({ bootProgress: 0.72, bootStatus: 'Recovering paused and queued downloads' });
       await DownloadManagerService.recoverPendingDownloads();
-      set({ bootProgress: 0.82, bootStatus: 'Preparing maps' });
+      set({ bootProgress: 0.82, bootStatus: 'Checking native map support' });
       await MapService.loadMapLibre().catch(() => undefined);
-      set({ bootProgress: 0.84, bootStatus: 'Preparing AI indexes' });
+      set({ bootProgress: 0.84, bootStatus: 'Loading theme and vault state' });
       await useThemeStore.getState().init();
       const [onboarding, vault] = await Promise.all([
         SettingsRepository.getOnboardingState(),

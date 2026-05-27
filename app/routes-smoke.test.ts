@@ -30,6 +30,10 @@ describe('app route contracts', () => {
     for (const route of ['index', 'chat', 'map', 'library', 'notes', 'tools', 'settings']) {
       expect(source).toContain(`name="${route}"`);
     }
+    expect(source).toContain('name="chat/[threadId]"');
+    expect(source).toContain("tabBarStyle: { display: 'none' }");
+    expect(source).toContain("chat: 'Arky'");
+    expect(source).toContain("require('@/assets/images/arky/normal.png')");
   });
 
   test('onboarding flow keeps the expected step order and tab handoff', () => {
@@ -59,13 +63,16 @@ describe('app route contracts', () => {
     expect(settings).toContain("{ value: 'downloads', label: 'Downloads' }");
     expect(settings).toContain("activeTab === 'downloads'");
     expect(settings).toContain('onRetryDownload');
-    expect(settings).not.toContain('<DownloadsCard downloads={downloads} mapRegions={mapRegions} />');
+    expect(settings).not.toContain(
+      '<DownloadsCard downloads={downloads} mapRegions={mapRegions} />'
+    );
   });
 
   test('screens do not ship obvious placeholder copy', () => {
     const allowed = new Set([
       'app/(tabs)/notes.tsx',
-      'app/(tabs)/chat.tsx',
+      'app/(tabs)/chat/index.tsx',
+      'app/(tabs)/chat/[threadId].tsx',
       'app/(tabs)/library.tsx',
       'app/(tabs)/map.tsx',
       'app/(tabs)/settings.tsx',

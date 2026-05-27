@@ -252,6 +252,8 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
         CREATE TABLE IF NOT EXISTS chat_threads (
           id TEXT PRIMARY KEY,
           title TEXT NOT NULL,
+          selected_model_id TEXT,
+          chat_model_disabled INTEGER,
           created_at INTEGER,
           updated_at INTEGER
         );
@@ -262,6 +264,9 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
           role TEXT NOT NULL,
           content TEXT NOT NULL,
           citations_json TEXT,
+          reasoning TEXT,
+          metadata_json TEXT,
+          deleted_at INTEGER,
           created_at INTEGER
         );
 
@@ -554,10 +559,14 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
         'PRAGMA table_info(map_markers)'
       );
       if (!markerColumns.some((column) => column.name === 'pin_type')) {
-        await db.execAsync("ALTER TABLE map_markers ADD COLUMN pin_type TEXT NOT NULL DEFAULT 'custom'");
+        await db.execAsync(
+          "ALTER TABLE map_markers ADD COLUMN pin_type TEXT NOT NULL DEFAULT 'custom'"
+        );
       }
       if (!markerColumns.some((column) => column.name === 'is_emergency')) {
-        await db.execAsync('ALTER TABLE map_markers ADD COLUMN is_emergency INTEGER NOT NULL DEFAULT 0');
+        await db.execAsync(
+          'ALTER TABLE map_markers ADD COLUMN is_emergency INTEGER NOT NULL DEFAULT 0'
+        );
       }
       await db.runAsync('PRAGMA user_version = 10');
     });
@@ -610,6 +619,45 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
         await db.execAsync('ALTER TABLE map_regions ADD COLUMN region_updated_at TEXT');
       }
       await db.runAsync('PRAGMA user_version = 12');
+    });
+  }
+
+  if (currentVersion < 13) {
+    await db.withTransactionAsync(async () => {
+      const chatColumns = await db.getAllAsync<{ name: string }>(
+        'PRAGMA table_info(chat_messages)'
+      );
+      const hasChatColumn = (name: string) => chatColumns.some((column) => column.name === name);
+      if (!hasChatColumn('reasoning')) {
+        await db.execAsync('ALTER TABLE chat_messages ADD COLUMN reasoning TEXT');
+      }
+      if (!hasChatColumn('metadata_json')) {
+        await db.execAsync('ALTER TABLE chat_messages ADD COLUMN metadata_json TEXT');
+      }
+      if (!hasChatColumn('deleted_at')) {
+        await db.execAsync('ALTER TABLE chat_messages ADD COLUMN deleted_at INTEGER');
+      }
+      await db.runAsync(
+        'CREATE INDEX IF NOT EXISTS idx_chat_messages_thread_visible ON chat_messages(thread_id, deleted_at, created_at)'
+      );
+      await db.runAsync('PRAGMA user_version = 13');
+    });
+  }
+
+  if (currentVersion < 14) {
+    await db.withTransactionAsync(async () => {
+      const threadColumns = await db.getAllAsync<{ name: string }>(
+        'PRAGMA table_info(chat_threads)'
+      );
+      const hasThreadColumn = (name: string) =>
+        threadColumns.some((column) => column.name === name);
+      if (!hasThreadColumn('selected_model_id')) {
+        await db.execAsync('ALTER TABLE chat_threads ADD COLUMN selected_model_id TEXT');
+      }
+      if (!hasThreadColumn('chat_model_disabled')) {
+        await db.execAsync('ALTER TABLE chat_threads ADD COLUMN chat_model_disabled INTEGER');
+      }
+      await db.runAsync('PRAGMA user_version = 14');
     });
   }
 }

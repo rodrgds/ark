@@ -14,7 +14,7 @@ export class MockAIAdapter {
       ]
         .filter(Boolean)
         .join(', ');
-      return `${index + 1}. ${citation.title}${location ? ` (${location})` : ''}`;
+      return `[${index + 1}] ${citation.title}${location ? ` (${location})` : ''}`;
     });
 
     return {

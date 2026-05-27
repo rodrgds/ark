@@ -26,11 +26,11 @@ export class AuthoredGuideSeedService {
   static async seed() {
     const contentDir = FileSystemService.dir('content');
     await FileSystem.makeDirectoryAsync(contentDir, { intermediates: true }).catch(() => undefined);
+    const existingPacks = await ContentRepository.list({ includeTestOnly: true });
 
     for (const [id, guide] of Object.entries(AUTHORED_GUIDES)) {
       const fileName = `${id}.html`;
       const localUri = `${contentDir}${fileName}`;
-
       const info = await FileSystem.getInfoAsync(localUri);
       if (!info.exists) {
         await FileSystem.writeAsStringAsync(localUri, guide.html, {
@@ -39,19 +39,31 @@ export class AuthoredGuideSeedService {
       }
 
       const sizeBytes = utf8ByteLength(guide.html);
+      const existing = existingPacks.find((pack) => pack.id === id);
+      const unchanged =
+        existing?.installed &&
+        existing.installStatus === 'installed' &&
+        existing.localUri === localUri &&
+        existing.sizeBytes === sizeBytes &&
+        existing.title === guide.title &&
+        existing.description === guide.description &&
+        existing.category === guide.category &&
+        existing.format === 'html';
 
-      await ContentRepository.createPack({
-        id,
-        title: guide.title,
-        description: guide.description,
-        category: guide.category,
-        format: 'html',
-        localUri,
-        sizeBytes,
-        installed: true,
-        installStatus: 'installed',
-        progress: 1,
-      });
+      if (!unchanged) {
+        await ContentRepository.createPack({
+          id,
+          title: guide.title,
+          description: guide.description,
+          category: guide.category,
+          format: 'html',
+          localUri,
+          sizeBytes,
+          installed: true,
+          installStatus: 'installed',
+          progress: 1,
+        });
+      }
 
       await RagService.indexContentPack(id).catch(() => undefined);
     }

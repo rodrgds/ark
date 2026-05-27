@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button';
+import { AppHeaderActionsSlot } from '@/components/layout/app-header-actions';
 import { FunctionSearchButton } from '@/components/layout/function-search';
 import { ArkBottomSheet } from '@/components/ui/bottom-sheet';
 import { Icon } from '@/components/ui/icon';
@@ -86,6 +87,7 @@ export function LockStateBar() {
         </Button>
 
         <View className="flex-row items-center gap-2">
+          <AppHeaderActionsSlot />
           <FunctionSearchButton />
           <View className="flex-row items-center gap-1.5">
             <View className={`h-2 w-2 rounded-full ${networkStatusClass}`} />

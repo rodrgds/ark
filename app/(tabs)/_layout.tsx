@@ -1,4 +1,5 @@
 import { Icon } from '@/components/ui/icon';
+import { AppHeaderActionsProvider } from '@/components/layout/app-header-actions';
 import { LockStateBar } from '@/components/layout/app-shell';
 import { NAV_COLORS } from '@/constants/theme';
 import { NAV_THEME } from '@/lib/theme';
@@ -8,9 +9,10 @@ import { useThemeStore } from '@/stores/theme-store';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { PlatformPressable } from '@react-navigation/elements';
 import { Tabs } from 'expo-router';
+import { Image } from 'expo-image';
 import { Bot, BookOpen, Compass, Map, NotebookPen, Settings } from 'lucide-react-native';
 import * as React from 'react';
-import { Keyboard, StyleSheet, Text as RNText, View } from 'react-native';
+import { StyleSheet, Text as RNText, View } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -29,7 +31,7 @@ const icons = {
 };
 
 const tabLabels = {
-  chat: 'Ask Arky',
+  chat: 'Arky',
   map: 'Map',
   library: 'Library',
   notes: 'Notes',
@@ -60,39 +62,45 @@ export default function TabsLayout() {
 
   return (
     <View className="bg-background flex-1">
-      <LockStateBar />
-      <Tabs
-        tabBar={(props) => <ArkTabBar {...props} theme={theme} />}
-        screenOptions={({ route }) => ({
-          headerShown: false,
-          headerStyle: { backgroundColor: colors.background },
-          headerTintColor: colors.text,
-          tabBarHideOnKeyboard: true,
-          tabBarActiveTintColor: colors.primary,
-          tabBarInactiveTintColor: NAV_COLORS[theme].mutedForeground,
-          sceneStyle: { backgroundColor: colors.background },
-          tabBarIcon: ({ color, size }) => {
-            if (route.name === 'notes') {
-              return <Icon as={NotebookPen} color={color} size={size} />;
-            }
+      <AppHeaderActionsProvider>
+        <LockStateBar />
+        <Tabs
+          tabBar={(props) => <ArkTabBar {...props} theme={theme} />}
+          screenOptions={({ route }) => ({
+            headerShown: false,
+            headerStyle: { backgroundColor: colors.background },
+            headerTintColor: colors.text,
+            tabBarHideOnKeyboard: true,
+            tabBarActiveTintColor: colors.primary,
+            tabBarInactiveTintColor: NAV_COLORS[theme].mutedForeground,
+            sceneStyle: { backgroundColor: colors.background },
+            tabBarIcon: ({ color, size }) => {
+              if (route.name === 'notes') {
+                return <Icon as={NotebookPen} color={color} size={size} />;
+              }
 
-            const Component = icons[route.name as keyof typeof icons] ?? Bot;
-            return <Icon as={Component} color={color} size={size} />;
-          },
-        })}>
-        <Tabs.Screen name="index" options={{ href: null }} />
-        <Tabs.Screen name="chat" options={{ title: 'Ask Arky' }} />
-        <Tabs.Screen name="map" options={{ title: 'Map' }} />
-        <Tabs.Screen
-          name="library"
-          options={{
-            title: 'Library',
-          }}
-        />
-        <Tabs.Screen name="notes" options={{ title: 'Notes' }} />
-        <Tabs.Screen name="tools" options={{ title: 'Tools' }} />
-        <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
-      </Tabs>
+              const Component = icons[route.name as keyof typeof icons] ?? Bot;
+              return <Icon as={Component} color={color} size={size} />;
+            },
+          })}>
+          <Tabs.Screen name="index" options={{ href: null }} />
+          <Tabs.Screen name="chat" options={{ title: 'Arky' }} />
+          <Tabs.Screen
+            name="chat/[threadId]"
+            options={{ href: null, tabBarStyle: { display: 'none' } }}
+          />
+          <Tabs.Screen name="map" options={{ title: 'Map' }} />
+          <Tabs.Screen
+            name="library"
+            options={{
+              title: 'Library',
+            }}
+          />
+          <Tabs.Screen name="notes" options={{ title: 'Notes' }} />
+          <Tabs.Screen name="tools" options={{ title: 'Tools' }} />
+          <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
+        </Tabs>
+      </AppHeaderActionsProvider>
     </View>
   );
 }
@@ -105,7 +113,6 @@ function ArkTabBar({
 }: BottomTabBarProps & { theme: keyof typeof NAV_COLORS }) {
   const insets = useSafeAreaInsets();
   const [rowWidth, setRowWidth] = React.useState(0);
-  const [keyboardVisible, setKeyboardVisible] = React.useState(false);
   const colors = NAV_THEME[theme].colors;
   const navColors = NAV_COLORS[theme];
   const glowOuterColor = addHexAlpha(colors.primary, theme === 'light' ? '14' : '18');
@@ -113,7 +120,9 @@ function ArkTabBar({
   const glowInnerColor = addHexAlpha(colors.primary, theme === 'light' ? '28' : '30');
   const activeOptions = descriptors[state.routes[state.index].key]?.options;
   const activeTabStyle = activeOptions?.tabBarStyle;
-  const routes = state.routes.filter((route) => route.name !== 'index');
+  const routes = state.routes.filter(
+    (route) => route.name !== 'index' && !route.name.includes('/')
+  );
   const activeRouteKey = state.routes[state.index]?.key;
   const activeIndex = Math.max(
     0,
@@ -121,15 +130,6 @@ function ArkTabBar({
   );
   const glowX = useSharedValue(0);
   const glowOpacity = useSharedValue(0);
-
-  React.useEffect(() => {
-    const show = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
-    const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
-    return () => {
-      show.remove();
-      hide.remove();
-    };
-  }, []);
 
   React.useEffect(() => {
     if (!rowWidth || routes.length === 0) {
@@ -152,12 +152,11 @@ function ArkTabBar({
   }));
 
   if (
-    keyboardVisible ||
-    (activeTabStyle &&
-      typeof activeTabStyle === 'object' &&
-      !Array.isArray(activeTabStyle) &&
-      'display' in activeTabStyle &&
-      activeTabStyle.display === 'none')
+    activeTabStyle &&
+    typeof activeTabStyle === 'object' &&
+    !Array.isArray(activeTabStyle) &&
+    'display' in activeTabStyle &&
+    activeTabStyle.display === 'none'
   ) {
     return null;
   }
@@ -221,7 +220,15 @@ function ArkTabBar({
               pressOpacity={0.82}
               style={styles.tabItem}>
               <View style={styles.iconShell}>
-                <Icon as={IconComponent} color={color} size={26} />
+                {route.name === 'chat' ? (
+                  <Image
+                    source={require('@/assets/images/arky/normal.png')}
+                    style={[styles.arkyTabIcon, { opacity: focused ? 1 : 0.74 }]}
+                    contentFit="contain"
+                  />
+                ) : (
+                  <Icon as={IconComponent} color={color} size={26} />
+                )}
               </View>
               <RNText
                 numberOfLines={1}
@@ -269,6 +276,10 @@ const styles = StyleSheet.create({
     height: 42,
     justifyContent: 'center',
     width: 42,
+  },
+  arkyTabIcon: {
+    height: 30,
+    width: 30,
   },
   iconShell: {
     alignItems: 'center',

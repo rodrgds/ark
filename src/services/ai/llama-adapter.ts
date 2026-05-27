@@ -12,18 +12,21 @@ type LlamaLanguageModel = ReturnType<ReactNativeAiLlamaModule['llama']['language
 
 let llamaModulePromise: Promise<ReactNativeAiLlamaModule | null> | null = null;
 let modelPromise: Promise<LlamaLanguageModel | null> | null = null;
+let modelPromiseKey: string | null = null;
 let activeAbortController: AbortController | null = null;
 let activeModel: LlamaLanguageModel | null = null;
 
 export function resetLlamaAdapterForTests() {
   llamaModulePromise = null;
   modelPromise = null;
+  modelPromiseKey = null;
   activeAbortController = null;
   activeModel = null;
 }
 
 export function resetLlamaRuntimeContext() {
   modelPromise = null;
+  modelPromiseKey = null;
   activeAbortController = null;
   activeModel = null;
 }
@@ -31,13 +34,13 @@ export function resetLlamaRuntimeContext() {
 export class LlamaAdapter {
   readonly id = 'llama';
 
-  async isAvailable() {
-    const [module, model] = await Promise.all([loadLlamaModule(), getInstalledModel()]);
+  async isAvailable(selectedModelId?: string | null) {
+    const [module, model] = await Promise.all([loadLlamaModule(), getInstalledModel(selectedModelId)]);
     return !!module && !!model?.localUri;
   }
 
   async sendMessage(input: AiAdapterSendInput): Promise<AiAdapterResponse> {
-    const model = await getLanguageModel();
+    const model = await getLanguageModel(input.selectedModelId);
     if (!model) {
       return {
         content:
@@ -134,10 +137,12 @@ async function loadLlamaModule() {
   return llamaModulePromise;
 }
 
-async function getLanguageModel() {
-  if (!modelPromise) {
+async function getLanguageModel(selectedModelId?: string | null) {
+  const key = selectedModelId ?? '__default__';
+  if (!modelPromise || modelPromiseKey !== key) {
+    modelPromiseKey = key;
     modelPromise = (async () => {
-      const [module, model] = await Promise.all([loadLlamaModule(), getInstalledModel()]);
+      const [module, model] = await Promise.all([loadLlamaModule(), getInstalledModel(selectedModelId)]);
       if (!module || !model?.localUri) return null;
       const languageModel = module.llama.languageModel(model.localUri, {
         contextParams: {
@@ -153,8 +158,10 @@ async function getLanguageModel() {
   return modelPromise;
 }
 
-async function getInstalledModel() {
-  if (await PreferencesService.getAiChatModelDisabled()) return null;
+async function getInstalledModel(selectedModelId?: string | null) {
+  if (selectedModelId === undefined && (await PreferencesService.getAiChatModelDisabled())) {
+    return null;
+  }
   const models = (await ContentPackService.listPacks()).filter(
     (pack) =>
       pack.category === 'AI Models' &&
@@ -162,7 +169,7 @@ async function getInstalledModel() {
       pack.localUri &&
       !isEmbeddingModelPack(pack)
   );
-  const selectedId = await PreferencesService.getSelectedAiModelId();
+  const selectedId = selectedModelId ?? (await PreferencesService.getSelectedAiModelId());
   return models.find((model) => model.id === selectedId) ?? models[0] ?? null;
 }
 
@@ -171,6 +178,8 @@ function buildSystemPrompt() {
     'You are Arky, an offline survival-grade assistant for practical emergency, field, and self-reliance questions.',
     'Answer the user directly and keep continuity with the conversation history. Resolve short follow-ups such as "why not?" against the previous user and assistant turns.',
     'Use local tool results and opened source context when they are relevant. If retrieved sources are weak, irrelevant, or incomplete, say that briefly and answer from general survival knowledge instead of pretending the sources answer the question.',
+    'When using retrieved local sources, cite them inline with their source number like [1] or [2]. Cite only the specific source that supports that sentence.',
+    'Do not include hidden reasoning, analysis channels, or scratchpad text in the final answer. If the model has a separate final channel, move to it promptly.',
     'Do not refuse ordinary survival skills such as making fishing hooks, knots, shelter, fire, water storage, food procurement, navigation, tool repair, or improvised non-weapon field gear. Include practical cautions, local-law reminders, and safer alternatives where useful.',
     'Refuse instructions for harming people, traps intended for people, explosives, poisons, or evading law enforcement.',
     `Safety note to include when advice is high-stakes: ${SAFETY_COPY.ai}`,

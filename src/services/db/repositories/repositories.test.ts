@@ -118,7 +118,7 @@ beforeEach(async () => {
 describe('database migrations', () => {
   test('creates the current schema with FTS and resumable download columns', async () => {
     const version = await testDb.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
-    expect(version?.user_version).toBe(12);
+    expect(version?.user_version).toBe(14);
 
     const downloadColumns = await testDb.getAllAsync<{ name: string }>(
       'PRAGMA table_info(downloads)'
@@ -148,6 +148,17 @@ describe('database migrations', () => {
     expect(regionColumns.map((column) => column.name)).toContain('manifest_version');
     expect(regionColumns.map((column) => column.name)).toContain('data_version');
     expect(regionColumns.map((column) => column.name)).toContain('checksum_sha256');
+    const chatColumns = await testDb.getAllAsync<{ name: string }>(
+      'PRAGMA table_info(chat_messages)'
+    );
+    expect(chatColumns.map((column) => column.name)).toContain('reasoning');
+    expect(chatColumns.map((column) => column.name)).toContain('metadata_json');
+    expect(chatColumns.map((column) => column.name)).toContain('deleted_at');
+    const chatThreadColumns = await testDb.getAllAsync<{ name: string }>(
+      'PRAGMA table_info(chat_threads)'
+    );
+    expect(chatThreadColumns.map((column) => column.name)).toContain('selected_model_id');
+    expect(chatThreadColumns.map((column) => column.name)).toContain('chat_model_disabled');
     const documentColumns = await testDb.getAllAsync<{ name: string }>(
       'PRAGMA table_info(documents)'
     );

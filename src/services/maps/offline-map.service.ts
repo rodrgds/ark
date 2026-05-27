@@ -5,7 +5,6 @@ import { MapService, type MapLibreModule } from '@/services/maps/map.service';
 import { sizeFromPackStatus } from '@/services/maps/map-pack-status';
 import { getUnsupportedMapPackReason } from '@/services/maps/map-pack-format';
 import { MapPresetsService } from '@/services/maps/map-presets.service';
-import { GeocodingService } from '@/services/maps/geocoding.service';
 import { getDownloadedRegionForCoordinate } from '@/services/maps/map-region-utils';
 import { estimatedMapRegionBytes } from '@/services/maps/map-storage';
 import type { MapPinType } from '@/constants/map-pins';
@@ -464,8 +463,9 @@ export class OfflineMapService {
   static async searchOffline(query: string, limit = 12): Promise<OfflineMapSearchResult[]> {
     const normalized = query.trim().toLowerCase();
     if (normalized.length < 2) return [];
-    const [markers, routes] = await Promise.all([
+    const [markers, regions, routes] = await Promise.all([
       MapsRepository.listMarkers(),
+      MapsRepository.listRegions(),
       MapsRepository.listRoutes(),
     ]);
 
@@ -488,6 +488,47 @@ export class OfflineMapService {
         longitude: marker.longitude,
       }));
 
+    const savedRegionResults = regions
+      .filter((region) =>
+        matches(
+          normalized,
+          region.name,
+          region.status,
+          region.manifestRegionId,
+          region.provider,
+          region.packFormat
+        )
+      )
+      .map<OfflineMapSearchResult>((region) => {
+        const center = centerForBounds(region);
+        return {
+          id: region.id,
+          kind: 'region',
+          title: region.name,
+          subtitle: `${mapRegionStatusLabel(region.status)}${
+            region.progress > 0 && region.progress < 1
+              ? ` · ${Math.round(region.progress * 100)}%`
+              : ''
+          }`,
+          latitude: center?.latitude ?? null,
+          longitude: center?.longitude ?? null,
+        };
+      });
+
+    const savedRegionIds = new Set(
+      regions.map((region) => region.manifestRegionId).filter((id): id is string => !!id)
+    );
+    const presetRegionResults = MapPresetsService.search(normalized, limit)
+      .filter((preset) => !savedRegionIds.has(preset.id))
+      .map<OfflineMapSearchResult>((preset) => ({
+        id: preset.id,
+        kind: 'region',
+        title: preset.name,
+        subtitle: `available offline pack · ${preset.estimatedSize}`,
+        latitude: preset.center[1],
+        longitude: preset.center[0],
+      }));
+
     const routeResults = routes
       .filter((route) =>
         matches(
@@ -507,9 +548,10 @@ export class OfflineMapService {
         longitude: route.points[0]?.longitude ?? null,
       }));
 
-    const geocodingResults = await GeocodingService.search(normalized, 8);
-
-    return [...markerResults, ...geocodingResults, ...routeResults].slice(0, limit);
+    return [...markerResults, ...savedRegionResults, ...presetRegionResults, ...routeResults].slice(
+      0,
+      limit
+    );
   }
 
   static async createRouteFromMarkers(title: string, markers: MapMarker[]) {
@@ -653,6 +695,11 @@ function centerForBounds(region: {
     latitude: (region.north + region.south) / 2,
     longitude: (region.east + region.west) / 2,
   };
+}
+
+function mapRegionStatusLabel(status: MapRegion['status']) {
+  if (status === 'not_downloaded') return 'not downloaded';
+  return status;
 }
 
 function formatPoint(latitude: number, longitude: number) {

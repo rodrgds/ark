@@ -608,10 +608,7 @@ export class RagService {
 
   static async readSourceContext(citation: AiCitation, maxChars = 1600) {
     const db = await DatabaseClient.getDb();
-    let rows = await db.getAllAsync<{ text: string }>(
-      'SELECT text FROM rag_chunks WHERE source_id = ? ORDER BY chunk_index ASC LIMIT 4',
-      [citation.sourceId]
-    );
+    let rows = await readFocusedSourceRows(db, citation);
 
     if (!rows.length && citation.sourceId.startsWith('zim:')) {
       const [, packId, ...pathParts] = citation.sourceId.split(':');
@@ -896,8 +893,31 @@ function citationForRow(row: {
     sourceRef: row.source_ref,
     sectionTitle: section?.title,
     page,
+    chunkIndex: row.chunk_index,
     targetHref: contentTarget ?? documentTarget ?? zimArticleTarget ?? rssTarget ?? mapTarget,
   };
+}
+
+async function readFocusedSourceRows(
+  db: Awaited<ReturnType<typeof DatabaseClient.getDb>>,
+  citation: AiCitation
+) {
+  if (typeof citation.chunkIndex === 'number') {
+    const start = Math.max(0, citation.chunkIndex - 1);
+    const end = citation.chunkIndex + 2;
+    const focusedRows = await db.getAllAsync<{ text: string }>(
+      `SELECT text FROM rag_chunks
+       WHERE source_id = ? AND chunk_index BETWEEN ? AND ?
+       ORDER BY chunk_index ASC
+       LIMIT 4`,
+      [citation.sourceId, start, end]
+    );
+    if (focusedRows.length) return focusedRows;
+  }
+  return db.getAllAsync<{ text: string }>(
+    'SELECT text FROM rag_chunks WHERE source_id = ? ORDER BY chunk_index ASC LIMIT 4',
+    [citation.sourceId]
+  );
 }
 
 function parsePageNumber(text: string) {

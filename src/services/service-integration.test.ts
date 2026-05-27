@@ -1510,6 +1510,8 @@ describe('service integration', () => {
     expect(result.messages[1].citations.some((citation) => citation.sourceRef === note.id)).toBe(
       true
     );
+    const stored = await AIService.listMessages(result.threadId);
+    expect(stored[1].reasoning).toBe('private scratchpad');
   });
 
   test('local llama receives recent chat history and exposes reasoning separately', async () => {
@@ -1555,6 +1557,48 @@ describe('service integration', () => {
     expect(
       completionParams.messages?.some((message) => message.content.includes('fishing hook'))
     ).toBe(true);
+  });
+
+  test('separate chat threads keep their own stored context', async () => {
+    await ContentRepository.createPack({
+      id: 'custom-model-multiple-chat-test',
+      title: 'Multiple chat model',
+      description: 'Installed local model for multiple chat coverage.',
+      category: 'AI Models',
+      format: 'gguf',
+      localUri: 'file:///ark/models/multiple-chat.gguf',
+      installed: true,
+      installStatus: 'installed',
+      progress: 1,
+    });
+    mockLlamaCompletionResults = [
+      { content: 'The old code word is ember.' },
+      { content: 'I only see the current context.' },
+    ];
+    resetLlamaAdapterForTests();
+
+    const first = await AIService.sendMessage({
+      content: 'Remember the code word ember.',
+      useRag: false,
+    });
+    const second = await AIService.sendMessage({
+      content: 'What was the old code word?',
+      useRag: false,
+    });
+    const completionParams = lastLlamaCompletionParams as {
+      messages?: Array<{ role: string; content: string }>;
+    };
+
+    const stored = await AIService.listMessages(first.threadId);
+    const threads = await AIService.listThreads();
+    expect(stored.map((message) => message.role)).toEqual(['user', 'assistant']);
+    expect(threads.map((thread) => thread.id)).toContain(first.threadId);
+    expect(threads.map((thread) => thread.id)).toContain(second.threadId);
+    expect(first.threadId).not.toBe(second.threadId);
+    expect(second.messages[1].content).toBe('I only see the current context.');
+    expect(completionParams.messages?.some((message) => message.content.includes('ember'))).toBe(
+      false
+    );
   });
 
   test('model manager reports runtime readiness for installed local models', async () => {
@@ -1629,6 +1673,51 @@ describe('service integration', () => {
     await AIService.sendMessage({ content: 'hello', useRag: false });
 
     expect(lastLlamaInitModel).toBe('file:///ark/models/bravo.gguf');
+  });
+
+  test('chat threads can override the answer model without changing global AI settings', async () => {
+    await ContentRepository.createPack({
+      id: 'custom-model-thread-alpha-test',
+      title: 'Thread Alpha',
+      description: 'Global chat model.',
+      category: 'AI Models',
+      format: 'gguf',
+      localUri: 'file:///ark/models/thread-alpha.gguf',
+      installed: true,
+      installStatus: 'installed',
+      progress: 1,
+      sizeBytes: 900 * 1024 * 1024,
+    });
+    await ContentRepository.createPack({
+      id: 'custom-model-thread-bravo-test',
+      title: 'Thread Bravo',
+      description: 'Per-thread chat model.',
+      category: 'AI Models',
+      format: 'gguf',
+      localUri: 'file:///ark/models/thread-bravo.gguf',
+      installed: true,
+      installStatus: 'installed',
+      progress: 1,
+      sizeBytes: 900 * 1024 * 1024,
+    });
+    await ModelManagerService.setSelectedModel('custom-model-thread-alpha-test');
+    mockLlamaCompletionResults = [{ content: 'Thread-specific model response.' }];
+    resetLlamaAdapterForTests();
+
+    const result = await AIService.sendMessage({
+      content: 'Use this chat model.',
+      useRag: false,
+      selectedModelId: 'custom-model-thread-bravo-test',
+      chatModelDisabled: false,
+    });
+
+    expect(lastLlamaInitModel).toBe('file:///ark/models/thread-bravo.gguf');
+    expect((await AIService.getThreadModelSettings(result.threadId)).selectedModelId).toBe(
+      'custom-model-thread-bravo-test'
+    );
+    expect((await ModelManagerService.getPreferences()).selectedModelId).toBe(
+      'custom-model-thread-alpha-test'
+    );
   });
 
   test('custom model URLs can be registered as search models without entering chat selection', async () => {

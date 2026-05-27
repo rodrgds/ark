@@ -40,21 +40,25 @@ describe('map and chat UI contracts', () => {
     expect(source).toContain('return;');
   });
 
-  test('chat resizes its scroll area with the keyboard instead of floating the composer', () => {
-    const source = readFileSync(join(appDir, '(tabs)/chat.tsx'), 'utf8');
-    const tabSource = readFileSync(join(appDir, '(tabs)/_layout.tsx'), 'utf8');
+  test('chat uses a floating split composer that follows the keyboard', () => {
+    const source = readFileSync(join(appDir, '(tabs)/chat/[threadId].tsx'), 'utf8');
 
     expect(source).toContain('keyboardDidShow');
     expect(source).toContain('keyboardDidHide');
-    expect(source).toContain('ArkKeyboardAvoidingView');
-    expect(source).toContain('behavior="padding"');
-    expect(source).toContain('paddingBottom: keyboardVisible ? 6 : 6');
+    expect(source).toContain('keyboardOffset');
+    expect(source).toContain('FloatingComposer');
+    expect(source).toContain('AnimatedPressable');
+    expect(source).toContain('detachedPlusStyle');
+    expect(source).toContain('embeddedPlusStyle');
+    expect(source).toContain('translateY: -keyboardOffset.value');
+    expect(source).toContain('COMPOSER_BOTTOM_GAP');
+    expect(source).toContain('EMPTY_THREAD_PROMPTS');
+    expect(source).not.toContain('useBottomTabBarHeight');
+    expect(source).not.toContain('marginBottom: keyboardOffset');
     expect(source).not.toContain('ArkKeyboardStickyView');
+    expect(source).not.toContain('ArkKeyboardAvoidingView');
+    expect(source).not.toContain('KeyboardAvoidingView');
     expect(source).not.toContain('keyboardInset');
-    expect(source).not.toContain('useAnimatedKeyboard');
-    expect(source).not.toContain('translateY');
-    expect(tabSource).toContain('Keyboard.addListener');
-    expect(tabSource).toContain('keyboardVisible ||');
   });
 
   test('map keeps network enabled while native offline packs are active', () => {

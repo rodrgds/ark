@@ -5,16 +5,38 @@ export type AiCitation = {
   sourceRef?: string;
   sectionTitle?: string;
   page?: number;
+  chunkIndex?: number;
   targetHref?: string;
+};
+
+export type AiThread = {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+  messageCount: number;
+  lastMessage?: string;
+  selectedModelId?: string | null;
+  chatModelDisabled?: boolean | null;
+};
+
+export type AiMessageRole = 'user' | 'assistant' | 'system' | 'tool';
+
+export type AiMessageMetadata = {
+  actions?: Array<{
+    tool?: string;
+    summary: string;
+  }>;
 };
 
 export type AiMessage = {
   id: string;
   threadId: string;
-  role: 'user' | 'assistant' | 'system' | 'tool';
+  role: AiMessageRole;
   content: string;
   citations: AiCitation[];
   reasoning?: string;
+  metadata?: AiMessageMetadata;
   createdAt: number;
 };
 
@@ -22,6 +44,8 @@ export type AiSendMessageInput = {
   threadId?: string;
   content: string;
   useRag: boolean;
+  selectedModelId?: string | null;
+  chatModelDisabled?: boolean;
 };
 
 export type AiSendMessageOptions = {
@@ -56,6 +80,7 @@ export type AiAdapterResponse = {
 
 export type AiAdapterSendInput = {
   content: string;
+  selectedModelId?: string | null;
   history?: Array<Pick<AiMessage, 'role' | 'content'>>;
   citations: AiCitation[];
   sourceContext?: Array<{

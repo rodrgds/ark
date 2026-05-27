@@ -62,7 +62,6 @@ export default function SettingsScreen() {
   const [passwordHint, setPasswordHint] = React.useState('');
   const [biometricsEnabled, setBiometricsEnabled] = React.useState(false);
   const [motionEnabled, setMotionEnabled] = React.useState(true);
-  const [modelPickerEnabled, setModelPickerEnabled] = React.useState(true);
   const [availableModels, setAvailableModels] = React.useState<ContentPack[]>([]);
   const [installedModels, setInstalledModels] = React.useState<ContentPack[]>([]);
   const [activeModel, setActiveModel] = React.useState<ContentPack | null>(null);
@@ -112,7 +111,6 @@ export default function SettingsScreen() {
       nextActiveModel,
       nextActiveEmbeddingModel,
       nextEmbeddingIndexStatus,
-      aiPreferences,
     ] = await Promise.all([
       SettingsRepository.getVaultState(),
       VaultService.getBiometricsEnabled(),
@@ -127,7 +125,6 @@ export default function SettingsScreen() {
       ModelManagerService.getActiveModel(),
       ModelManagerService.getActiveEmbeddingModel(),
       ModelManagerService.getEmbeddingIndexStatus(),
-      ModelManagerService.getPreferences(),
     ]);
     setAutoLock(vault.autoLockMinutes);
     setPasswordHint(vault.passwordHint ?? '');
@@ -143,7 +140,6 @@ export default function SettingsScreen() {
     setActiveModel(nextActiveModel);
     setActiveEmbeddingModel(nextActiveEmbeddingModel);
     setEmbeddingIndexStatus(nextEmbeddingIndexStatus);
-    setModelPickerEnabled(aiPreferences.modelPickerEnabled);
   }
 
   React.useEffect(() => {
@@ -226,13 +222,6 @@ export default function SettingsScreen() {
     const next = !motionEnabled;
     setMotionEnabled(next);
     await PreferencesService.setMotionEnabled(next);
-  }
-
-  async function toggleModelPicker() {
-    const next = !modelPickerEnabled;
-    setModelPickerEnabled(next);
-    await ModelManagerService.setModelPickerEnabled(next);
-    setModelStatus(await ModelManagerService.getStatus());
   }
 
   async function selectModel(model: ContentPack) {
@@ -338,7 +327,10 @@ export default function SettingsScreen() {
       } else {
         const result = await OfflineMapService.refreshRegion(region.id);
         if (!result.ok) {
-          showSheetAlert('Unable to download map', result.reason ?? 'Check connection and storage.');
+          showSheetAlert(
+            'Unable to download map',
+            result.reason ?? 'Check connection and storage.'
+          );
         }
       }
       await load();
@@ -583,23 +575,6 @@ export default function SettingsScreen() {
               <Text variant="muted">
                 Current source search model: {activeEmbeddingModel?.title ?? 'Ark hash fallback'}
               </Text>
-            </View>
-          </Card>
-
-          <Card className="gap-3">
-            <View className="flex-row items-center justify-between gap-3">
-              <View className="min-w-0 flex-1 gap-1">
-                <Text variant="large">Answer model selector</Text>
-                <Text variant="muted">
-                  Show a model switcher in Ask Arky when more than one answer model is installed.
-                </Text>
-              </View>
-              <Button
-                size="sm"
-                variant={modelPickerEnabled ? 'default' : 'outline'}
-                onPress={toggleModelPicker}>
-                <Text>{modelPickerEnabled ? 'On' : 'Off'}</Text>
-              </Button>
             </View>
           </Card>
 

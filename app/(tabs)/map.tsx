@@ -69,7 +69,6 @@ import {
   Image,
   Keyboard,
   Linking,
-  Modal,
   Pressable,
   type TextInput,
   View,
@@ -1422,35 +1421,35 @@ function MissingRegionPromptModal({
     : region.estimatedSize;
 
   return (
-    <Modal transparent visible={visible} animationType="fade" onRequestClose={onDismiss}>
-      <Pressable className="flex-1 bg-black/60 items-center justify-center p-4" onPress={onDismiss}>
-        <Pressable className="w-full max-w-sm" onPress={(e) => e.stopPropagation()}>
-          <Card className="border-primary/35 bg-card gap-4 p-4 shadow-lg">
-            <View className="flex-row items-start gap-3">
-              <View className="bg-primary/20 rounded-full p-2">
-                <Icon as={Download} className="text-primary size-6" />
-              </View>
-              <View className="min-w-0 flex-1 gap-1.5">
-                <Text variant="h4">Offline map missing</Text>
-                <Text className="text-muted-foreground text-sm leading-5">
-                  You are viewing {region.name}. Download this region for offline use?
-                </Text>
-                <Text className="text-muted-foreground font-medium text-sm">{size}</Text>
-              </View>
-            </View>
-            <View className="flex-row justify-end gap-2 pt-2">
-              <Button size="sm" variant="outline" onPress={onDismiss}>
-                <Text>Later</Text>
-              </Button>
-              <Button disabled={busy} size="sm" onPress={onDownload}>
-                {busy ? <ActivityIndicator size="small" /> : null}
-                <Text>Download</Text>
-              </Button>
-            </View>
-          </Card>
-        </Pressable>
-      </Pressable>
-    </Modal>
+    <ArkBottomSheet
+      visible={visible}
+      title="Offline map missing"
+      description={`You are viewing ${region.name}. Download this region for offline use?`}
+      onDismiss={onDismiss}
+      maxDynamicContentSize={360}>
+      <View className="gap-4">
+        <View className="flex-row items-start gap-3">
+          <View className="bg-primary/20 rounded-full p-2">
+            <Icon as={Download} className="text-primary size-6" />
+          </View>
+          <View className="min-w-0 flex-1 gap-1.5">
+            <Text className="text-muted-foreground text-sm leading-5">
+              Save this region so the map remains available without connectivity.
+            </Text>
+            <Text className="text-muted-foreground font-medium text-sm">{size}</Text>
+          </View>
+        </View>
+        <View className="flex-row justify-end gap-2 pt-2">
+          <Button size="sm" variant="outline" onPress={onDismiss}>
+            <Text>Later</Text>
+          </Button>
+          <Button disabled={busy} size="sm" onPress={onDownload}>
+            {busy ? <ActivityIndicator size="small" /> : null}
+            <Text>Download</Text>
+          </Button>
+        </View>
+      </View>
+    </ArkBottomSheet>
   );
 }
 

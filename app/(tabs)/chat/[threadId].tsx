@@ -33,7 +33,6 @@ import {
   ActivityIndicator,
   FlatList,
   Keyboard,
-  Platform,
   Pressable,
   StyleSheet,
   TextInput,
@@ -449,6 +448,34 @@ function FloatingComposer({
   const keyboardProgress = useSharedValue(0);
   const keyboardOffset = useSharedValue(0);
 
+  const calculateKeyboardOffset = React.useCallback(
+    (event: { endCoordinates?: { height?: number; screenY?: number } } | undefined, fallbackOffset: number) => {
+      const input = inputRef.current;
+      if (!input || !event?.endCoordinates) {
+        keyboardOffset.value = withTiming(fallbackOffset, {
+          duration: 220,
+          easing: Easing.bezier(0.2, 0.8, 0.2, 1),
+        });
+        return;
+      }
+
+      input.measure((_x, _y, _width, height, _pageX, pageY) => {
+        const keyboardTop =
+          typeof event.endCoordinates?.screenY === 'number'
+            ? event.endCoordinates.screenY
+            : windowHeight - (event.endCoordinates?.height ?? 0);
+        const inputBottom = pageY + height;
+        const overlap = Math.max(0, inputBottom + COMPOSER_BOTTOM_GAP_FOCUSED - keyboardTop);
+
+        keyboardOffset.value = withTiming(overlap, {
+          duration: 220,
+          easing: Easing.bezier(0.2, 0.8, 0.2, 1),
+        });
+      });
+    },
+    [keyboardOffset, windowHeight]
+  );
+
   const animateKeyboard = React.useCallback(
     (visible: boolean, event?: { duration?: number; endCoordinates?: { height?: number; screenY?: number } }) => {
       const duration = Math.min(Math.max(event?.duration ?? 220, 160), 280);
@@ -456,14 +483,19 @@ function FloatingComposer({
       const eventHeight = event?.endCoordinates?.height ?? 0;
       const measuredOffset =
         typeof screenY === 'number' ? Math.max(0, windowHeight - screenY) : eventHeight;
-      const nextOffset = Platform.OS === 'android' ? 0 : measuredOffset;
       const easing = Easing.bezier(0.2, 0.8, 0.2, 1);
 
       keyboardProgress.value = withTiming(visible ? 1 : 0, { duration, easing });
-      keyboardOffset.value = withTiming(visible ? nextOffset : 0, { duration, easing });
+      if (visible) {
+        const fallbackOffset = measuredOffset;
+        requestAnimationFrame(() => calculateKeyboardOffset(event, fallbackOffset));
+        setTimeout(() => calculateKeyboardOffset(event, fallbackOffset), 80);
+      } else {
+        keyboardOffset.value = withTiming(0, { duration, easing });
+      }
       onKeyboardVisibleChange(visible);
     },
-    [keyboardOffset, keyboardProgress, onKeyboardVisibleChange, windowHeight]
+    [calculateKeyboardOffset, keyboardOffset, keyboardProgress, onKeyboardVisibleChange, windowHeight]
   );
 
   React.useEffect(() => {
@@ -870,7 +902,7 @@ export default function ChatScreen() {
           <Text variant="muted">Loading local thread...</Text>
         </View>
       ) : emptyThread ? (
-        <View className="flex-1 justify-end px-4" style={{ paddingBottom: MESSAGE_LIST_BOTTOM_PADDING + 92 }}>
+        <View className="flex-1 justify-end px-4" style={{ paddingBottom: MESSAGE_LIST_BOTTOM_PADDING + 176 }}>
           {!keyboardVisible ? (
             <View className="gap-2">
               <Text variant="large">What do you need to know?</Text>

@@ -50,6 +50,8 @@ describe('map and chat UI contracts', () => {
     expect(source).toContain('AnimatedPressable');
     expect(source).toContain('detachedPlusStyle');
     expect(source).toContain('embeddedPlusStyle');
+    expect(source).toContain('input.measure');
+    expect(source).toContain('inputBottom + COMPOSER_BOTTOM_GAP_FOCUSED - keyboardTop');
     expect(source).toContain('translateY: -keyboardOffset.value');
     expect(source).toContain('COMPOSER_BOTTOM_GAP');
     expect(source).toContain('EMPTY_THREAD_PROMPTS');

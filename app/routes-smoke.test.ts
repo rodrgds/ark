@@ -27,11 +27,13 @@ describe('app route contracts', () => {
 
   test('tab layout registers the primary app sections', () => {
     const source = readFileSync(join(appDir, '(tabs)/_layout.tsx'), 'utf8');
-    for (const route of ['index', 'chat', 'map', 'library', 'notes', 'tools', 'settings']) {
+    for (const route of ['index', 'chat/index', 'map', 'library', 'notes', 'tools', 'settings']) {
       expect(source).toContain(`name="${route}"`);
     }
     expect(source).toContain('name="chat/[threadId]"');
     expect(source).toContain("tabBarStyle: { display: 'none' }");
+    expect(source).toContain("'chat/index': 'Arky'");
+    expect(source).toContain("visibleTabRoutes.has(route.name)");
     expect(source).toContain("chat: 'Arky'");
     expect(source).toContain("require('@/assets/images/arky/normal.png')");
   });

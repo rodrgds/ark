@@ -23,6 +23,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const icons = {
   chat: Bot,
+  'chat/index': Bot,
   map: Map,
   library: BookOpen,
   notes: NotebookPen,
@@ -32,6 +33,7 @@ const icons = {
 
 const tabLabels = {
   chat: 'Arky',
+  'chat/index': 'Arky',
   map: 'Map',
   library: 'Library',
   notes: 'Notes',
@@ -40,6 +42,7 @@ const tabLabels = {
 };
 
 const ACTIVE_GLOW_SIZE = 58;
+const visibleTabRoutes = new Set(['chat', 'chat/index', 'map', 'library', 'notes', 'tools', 'settings']);
 
 export default function TabsLayout() {
   const theme = useThemeStore((state) => state.effectiveTheme);
@@ -84,7 +87,7 @@ export default function TabsLayout() {
             },
           })}>
           <Tabs.Screen name="index" options={{ href: null }} />
-          <Tabs.Screen name="chat" options={{ title: 'Arky' }} />
+          <Tabs.Screen name="chat/index" options={{ title: 'Arky' }} />
           <Tabs.Screen
             name="chat/[threadId]"
             options={{ href: null, tabBarStyle: { display: 'none' } }}
@@ -120,9 +123,7 @@ function ArkTabBar({
   const glowInnerColor = addHexAlpha(colors.primary, theme === 'light' ? '28' : '30');
   const activeOptions = descriptors[state.routes[state.index].key]?.options;
   const activeTabStyle = activeOptions?.tabBarStyle;
-  const routes = state.routes.filter(
-    (route) => route.name !== 'index' && !route.name.includes('/')
-  );
+  const routes = state.routes.filter((route) => visibleTabRoutes.has(route.name));
   const activeRouteKey = state.routes[state.index]?.key;
   const activeIndex = Math.max(
     0,
@@ -185,9 +186,10 @@ function ArkTabBar({
           const focused = state.routes[state.index].key === route.key;
           const options = descriptors[route.key].options;
           const color = focused ? colors.primary : navColors.mutedForeground;
-          const IconComponent = icons[route.name as keyof typeof icons] ?? Bot;
+          const tabKey = route.name as keyof typeof tabLabels;
+          const IconComponent = icons[tabKey] ?? Bot;
           const label =
-            tabLabels[route.name as keyof typeof tabLabels] ??
+            tabLabels[tabKey] ??
             (typeof options.title === 'string' ? options.title : route.name);
 
           const onPress = () => {
@@ -220,7 +222,7 @@ function ArkTabBar({
               pressOpacity={0.82}
               style={styles.tabItem}>
               <View style={styles.iconShell}>
-                {route.name === 'chat' ? (
+                {route.name === 'chat' || route.name === 'chat/index' ? (
                   <Image
                     source={require('@/assets/images/arky/normal.png')}
                     style={[styles.arkyTabIcon, { opacity: focused ? 1 : 0.74 }]}

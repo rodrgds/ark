@@ -51,10 +51,14 @@ describe('map and chat UI contracts', () => {
     expect(source).toContain('detachedPlusStyle');
     expect(source).toContain('embeddedPlusStyle');
     expect(source).toContain('input.measure');
+    expect(source).toContain("Platform.OS === 'android'");
+    expect(source).toContain('keyboardOffset.value = withTiming(fallbackOffset');
     expect(source).toContain('inputBottom + COMPOSER_BOTTOM_GAP_FOCUSED - keyboardTop');
     expect(source).toContain('translateY: -keyboardOffset.value');
     expect(source).toContain('COMPOSER_BOTTOM_GAP');
     expect(source).toContain('EMPTY_THREAD_PROMPTS');
+    expect(source).toContain('pendingUserMessage');
+    expect(source).not.toContain('.reverse()');
     expect(source).not.toContain('useBottomTabBarHeight');
     expect(source).not.toContain('marginBottom: keyboardOffset');
     expect(source).not.toContain('ArkKeyboardStickyView');

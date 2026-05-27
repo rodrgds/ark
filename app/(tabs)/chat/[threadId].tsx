@@ -33,6 +33,7 @@ import {
   ActivityIndicator,
   FlatList,
   Keyboard,
+  Platform,
   Pressable,
   StyleSheet,
   TextInput,
@@ -55,7 +56,7 @@ const COMPOSER_SIDE_PADDING = 12;
 const COMPOSER_OPEN_GAP = 10;
 const COMPOSER_BOTTOM_GAP = 14;
 const COMPOSER_BOTTOM_GAP_FOCUSED = 10;
-const MESSAGE_LIST_BOTTOM_PADDING = 112;
+const MESSAGE_LIST_BOTTOM_PADDING = 168;
 const EMPTY_THREAD_PROMPTS = [
   'Create a survival checklist for tonight',
   'Write or edit a field note',
@@ -488,8 +489,12 @@ function FloatingComposer({
       keyboardProgress.value = withTiming(visible ? 1 : 0, { duration, easing });
       if (visible) {
         const fallbackOffset = measuredOffset;
-        requestAnimationFrame(() => calculateKeyboardOffset(event, fallbackOffset));
-        setTimeout(() => calculateKeyboardOffset(event, fallbackOffset), 80);
+        if (Platform.OS === 'android') {
+          keyboardOffset.value = withTiming(fallbackOffset, { duration, easing });
+        } else {
+          requestAnimationFrame(() => calculateKeyboardOffset(event, fallbackOffset));
+          setTimeout(() => calculateKeyboardOffset(event, fallbackOffset), 80);
+        }
       } else {
         keyboardOffset.value = withTiming(0, { duration, easing });
       }
@@ -647,6 +652,7 @@ export default function ChatScreen() {
   const [streamingText, setStreamingText] = React.useState('');
   const [streamingReasoning, setStreamingReasoning] = React.useState('');
   const [progressEvents, setProgressEvents] = React.useState<AiProgressEvent[]>([]);
+  const [pendingUserMessage, setPendingUserMessage] = React.useState<AiMessage | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [olderLoading, setOlderLoading] = React.useState(false);
   const [hasOlderMessages, setHasOlderMessages] = React.useState(false);
@@ -737,6 +743,14 @@ export default function ChatScreen() {
     const runId = sendRunIdRef.current + 1;
     sendRunIdRef.current = runId;
     setSending(true);
+    setPendingUserMessage({
+      id: `pending-user-${runId}`,
+      threadId: threadId ?? 'pending-thread',
+      role: 'user',
+      content: trimmed,
+      citations: [],
+      createdAt: Date.now(),
+    });
     setStreamingText('');
     setStreamingReasoning('');
     setProgressEvents([]);
@@ -771,12 +785,14 @@ export default function ChatScreen() {
       );
       if (sendRunIdRef.current !== runId) return;
       setThreadId(result.threadId);
+      setPendingUserMessage(null);
       setMessages((current) => [...current, ...result.messages]);
       if (!threadId) {
         router.replace(`/(tabs)/chat/${result.threadId}` as never);
       }
     } catch (sendError) {
       if (isAiRequestCancelledError(sendError)) return;
+      setPendingUserMessage(null);
       setContent(trimmed);
       setError(sendError instanceof Error ? sendError.message : 'Unable to send message.');
     } finally {
@@ -817,6 +833,7 @@ export default function ChatScreen() {
   async function stopResponse() {
     sendRunIdRef.current += 1;
     setSending(false);
+    setPendingUserMessage(null);
     setStreamingText('');
     setStreamingReasoning('');
     setProgressEvents([]);
@@ -876,6 +893,20 @@ export default function ChatScreen() {
 
   const data = React.useMemo(
     () => [
+      ...buildChatListItems(messages).map((item) => ({
+        kind: 'message' as const,
+        id: item.message.id,
+        item,
+      })),
+      ...(pendingUserMessage
+        ? [
+            {
+              kind: 'message' as const,
+              id: pendingUserMessage.id,
+              item: { message: pendingUserMessage, activityMessages: [] },
+            },
+          ]
+        : []),
       ...(sending
         ? [
             {
@@ -884,11 +915,8 @@ export default function ChatScreen() {
             },
           ]
         : []),
-      ...buildChatListItems(messages)
-        .reverse()
-        .map((item) => ({ kind: 'message' as const, id: item.message.id, item })),
     ],
-    [messages, sending]
+    [messages, pendingUserMessage, sending]
   );
   const emptyThread = messages.length === 0 && !sending;
 
@@ -938,6 +966,7 @@ export default function ChatScreen() {
             gap: 12,
             padding: 16,
             paddingBottom: MESSAGE_LIST_BOTTOM_PADDING,
+            paddingTop: 56,
           }}
           onEndReached={() => void loadOlderMessages()}
           onEndReachedThreshold={0.15}

@@ -5,6 +5,7 @@ const CHECKLIST_STATE_KEY = 'tools.readiness-checklist';
 const AI_MODEL_PICKER_ENABLED_KEY = 'ai.modelPickerEnabled';
 const AI_SELECTED_MODEL_ID_KEY = 'ai.selectedModelId';
 const AI_SELECTED_EMBEDDING_MODEL_ID_KEY = 'ai.selectedEmbeddingModelId';
+const AI_SELECTED_VOICE_MODEL_ID_KEY = 'ai.selectedVoiceModelId';
 const AI_CHAT_MODEL_DISABLED_KEY = 'ai.chatModelDisabled';
 
 export type ReadinessChecklistState = Record<string, boolean>;
@@ -44,6 +45,15 @@ export class PreferencesService {
 
   static async setSelectedEmbeddingModelId(modelId: string | null) {
     await SettingsRepository.set(AI_SELECTED_EMBEDDING_MODEL_ID_KEY, modelId ?? '');
+  }
+
+  static async getSelectedVoiceModelId() {
+    const value = await SettingsRepository.get(AI_SELECTED_VOICE_MODEL_ID_KEY);
+    return value || null;
+  }
+
+  static async setSelectedVoiceModelId(modelId: string | null) {
+    await SettingsRepository.set(AI_SELECTED_VOICE_MODEL_ID_KEY, modelId ?? '');
   }
 
   static async getAiChatModelDisabled() {

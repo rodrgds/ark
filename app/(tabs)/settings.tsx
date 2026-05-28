@@ -66,6 +66,10 @@ export default function SettingsScreen() {
   const [installedModels, setInstalledModels] = React.useState<ContentPack[]>([]);
   const [activeModel, setActiveModel] = React.useState<ContentPack | null>(null);
   const [activeEmbeddingModel, setActiveEmbeddingModel] = React.useState<ContentPack | null>(null);
+  const [activeVoiceModel, setActiveVoiceModel] = React.useState<ContentPack | null>(null);
+  const [voiceStatus, setVoiceStatus] = React.useState<Awaited<
+    ReturnType<typeof ModelManagerService.getVoiceStatus>
+  > | null>(null);
   const [embeddingIndexStatus, setEmbeddingIndexStatus] = React.useState<Awaited<
     ReturnType<typeof ModelManagerService.getEmbeddingIndexStatus>
   > | null>(null);
@@ -95,6 +99,10 @@ export default function SettingsScreen() {
     () => availableModels.filter((model) => model.modelRole === 'embedding'),
     [availableModels]
   );
+  const voiceModels = React.useMemo(
+    () => availableModels.filter((model) => model.modelRole === 'voice'),
+    [availableModels]
+  );
   async function load() {
     await OfflineMapService.syncNativePacks().catch(() => undefined);
     const [
@@ -110,6 +118,8 @@ export default function SettingsScreen() {
       nextInstalledModels,
       nextActiveModel,
       nextActiveEmbeddingModel,
+      nextActiveVoiceModel,
+      nextVoiceStatus,
       nextEmbeddingIndexStatus,
     ] = await Promise.all([
       SettingsRepository.getVaultState(),
@@ -124,6 +134,8 @@ export default function SettingsScreen() {
       ModelManagerService.listInstalledChatModels(),
       ModelManagerService.getActiveModel(),
       ModelManagerService.getActiveEmbeddingModel(),
+      ModelManagerService.getActiveVoiceModel(),
+      ModelManagerService.getVoiceStatus(),
       ModelManagerService.getEmbeddingIndexStatus(),
     ]);
     setAutoLock(vault.autoLockMinutes);
@@ -139,6 +151,8 @@ export default function SettingsScreen() {
     setInstalledModels(nextInstalledModels);
     setActiveModel(nextActiveModel);
     setActiveEmbeddingModel(nextActiveEmbeddingModel);
+    setActiveVoiceModel(nextActiveVoiceModel);
+    setVoiceStatus(nextVoiceStatus);
     setEmbeddingIndexStatus(nextEmbeddingIndexStatus);
   }
 
@@ -236,6 +250,12 @@ export default function SettingsScreen() {
     setEmbeddingIndexStatus(await ModelManagerService.getEmbeddingIndexStatus());
   }
 
+  async function selectVoiceModel(model: ContentPack) {
+    await ModelManagerService.setSelectedVoiceModel(model.id);
+    setActiveVoiceModel(model);
+    setVoiceStatus(await ModelManagerService.getVoiceStatus());
+  }
+
   async function importLocalModel() {
     setBusy('model-import');
     setAiMessage(null);
@@ -285,9 +305,11 @@ export default function SettingsScreen() {
       } else if (model.installed) {
         if (model.modelRole === 'chat') {
           await selectModel(model);
+        } else if (model.modelRole === 'voice') {
+          await selectVoiceModel(model);
         }
       } else {
-        await ContentPackService.installPack(model.id);
+        await ContentPackService.installPackWithCompanions(model.id);
       }
       await load();
     } catch (modelError) {
@@ -362,6 +384,9 @@ export default function SettingsScreen() {
       await ContentPackService.removePack(model.id);
       if (activeModel?.id === model.id) {
         await ModelManagerService.setSelectedModel(null);
+      }
+      if (activeVoiceModel?.id === model.id) {
+        await ModelManagerService.setSelectedVoiceModel(null);
       }
       await load();
     } catch (modelError) {
@@ -564,6 +589,9 @@ export default function SettingsScreen() {
                 Source search models installed:{' '}
                 {embeddingModels.filter((model) => model.installed).length}
               </Text>
+              <Text variant="small">
+                Voice models installed: {voiceModels.filter((model) => model.installed).length}
+              </Text>
               <Text variant="muted">
                 Current answer model:{' '}
                 {activeModel
@@ -574,6 +602,9 @@ export default function SettingsScreen() {
               </Text>
               <Text variant="muted">
                 Current source search model: {activeEmbeddingModel?.title ?? 'Ark hash fallback'}
+              </Text>
+              <Text variant="muted">
+                Current voice model: {activeVoiceModel?.title ?? 'None installed'}
               </Text>
             </View>
           </Card>
@@ -664,6 +695,35 @@ export default function SettingsScreen() {
             }}
             onRemove={removeModel}
           />
+
+          <ModelSection
+            title="Voice AI models"
+            description="These transcribe microphone prompts locally before Ask Arky sends them."
+            models={voiceModels}
+            activeModelId={activeVoiceModel?.id ?? null}
+            busy={busy}
+            onPrimaryAction={async (model) => {
+              if (model.installed) await selectVoiceModel(model);
+              else await runModelAction(model);
+            }}
+            onRemove={removeModel}
+          />
+
+          {voiceStatus ? (
+            <Card className="gap-2">
+              <View className="flex-row items-center gap-2">
+                <Icon as={Bot} className="text-primary size-4" />
+                <Text variant="large">Voice transcription</Text>
+              </View>
+              <Text variant="muted">{voiceStatus.message}</Text>
+              {voiceStatus.projector ? (
+                <Text variant="small" className="text-muted-foreground">
+                  Projector: {voiceStatus.projector.title}{' '}
+                  {voiceStatus.installedProjector ? 'installed' : 'not installed'}
+                </Text>
+              ) : null}
+            </Card>
+          ) : null}
 
           <EmbeddingIndexCard status={embeddingIndexStatus} />
 
@@ -1150,6 +1210,7 @@ function primaryLabel(model: ContentPack, isActive: boolean) {
   if (model.installed && model.modelRole === 'embedding') {
     return isActive ? 'In use' : 'Use for search';
   }
+  if (model.installed && model.modelRole === 'voice') return isActive ? 'In use' : 'Use for voice';
   if (model.installed) return 'Installed';
   return 'Download';
 }

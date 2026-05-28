@@ -4,6 +4,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { ContentRepository } from '@/services/db/repositories/content.repo';
 import { RagService } from '@/services/ai/rag.service';
+import { getVoiceProjectorId } from '@/services/ai/voice-models';
 import { DownloadManagerService } from '@/services/files/download-manager.service';
 import { FileSystemService } from '@/services/files/filesystem.service';
 import { contentPackIdSchema, parseOrThrow } from '@/lib/validation';
@@ -60,6 +61,21 @@ export class ContentPackService {
       expectedSizeBytes: pack.sizeBytes,
       snapshotHtml: pack.downloadStrategy === 'html_snapshot',
     });
+  }
+
+  static async installPackWithCompanions(id: string) {
+    await this.installPack(id);
+    const projectorId = getVoiceProjectorId(id);
+    if (projectorId) {
+      const projector = await this.getPack(projectorId);
+      if (
+        projector &&
+        !projector.installed &&
+        !['queued', 'downloading', 'verifying'].includes(projector.installStatus)
+      ) {
+        await this.installPack(projectorId);
+      }
+    }
   }
 
   static async pausePackDownload(id: string) {
@@ -135,7 +151,8 @@ export class ContentPackService {
     if (
       packId.startsWith('custom-model-') ||
       packId.startsWith('custom-chat-model-') ||
-      packId.startsWith('custom-embedding-model-')
+      packId.startsWith('custom-embedding-model-') ||
+      packId.startsWith('custom-voice-model-')
     ) {
       await ContentRepository.delete(packId);
     } else {
@@ -162,9 +179,10 @@ export class ContentPackService {
     }
 
     await FileSystemService.ensureAppDirectories();
-    const normalizedRole = modelRole === 'embedding' ? 'embedding' : 'chat';
+    const normalizedRole =
+      modelRole === 'embedding' ? 'embedding' : modelRole === 'voice' ? 'voice' : 'chat';
     const id = `custom-${
-      normalizedRole === 'embedding' ? 'embedding' : 'chat'
+      normalizedRole === 'embedding' ? 'embedding' : normalizedRole === 'voice' ? 'voice' : 'chat'
     }-model-${randomUUID()}`;
     const localUri = `${FileSystemService.dir('models')}${id}-${FileSystemService.safeFileName(asset.name)}`;
     await FileSystem.copyAsync({ from: asset.uri, to: localUri });
@@ -177,7 +195,9 @@ export class ContentPackService {
       description:
         normalizedRole === 'embedding'
           ? 'User-imported GGUF search model for local source matching.'
-          : 'User-imported GGUF chat model for on-device AI.',
+          : normalizedRole === 'voice'
+            ? 'User-imported GGUF voice model for on-device transcription.'
+            : 'User-imported GGUF chat model for on-device AI.',
       category: 'AI Models',
       format: 'gguf',
       localUri,
@@ -217,7 +237,9 @@ export class ContentPackService {
       throw new Error('SHA-256 checksum must be 64 hexadecimal characters.');
     }
     const modelRole = input.modelRole ?? 'chat';
-    const id = `custom-${modelRole === 'embedding' ? 'embedding' : 'chat'}-model-${randomUUID()}`;
+    const id = `custom-${
+      modelRole === 'embedding' ? 'embedding' : modelRole === 'voice' ? 'voice' : 'chat'
+    }-model-${randomUUID()}`;
     const fileName = sourceUrl.split('/').pop()?.split('?')[0] ?? `${id}.gguf`;
     await ContentRepository.createPack({
       id,
@@ -225,7 +247,9 @@ export class ContentPackService {
       description:
         modelRole === 'embedding'
           ? 'Custom GGUF search model URL. Download before using it for local source matching.'
-          : 'Custom GGUF chat model URL. Download before using local AI.',
+          : modelRole === 'voice'
+            ? 'Custom GGUF voice model URL. Download before using local transcription.'
+            : 'Custom GGUF chat model URL. Download before using local AI.',
       category: 'AI Models',
       format: 'gguf',
       sourceUrl,

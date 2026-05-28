@@ -2,6 +2,12 @@ import { ContentPackService } from '@/services/content/content-pack.service';
 import { isEmbeddingModelPack } from '@/services/ai/embedding-models';
 import { resetEmbeddingRuntimeContext } from '@/services/ai/embedding.service';
 import {
+  getVoiceProjectorId,
+  isVoiceModelPack,
+  isVoiceProjectorPack,
+} from '@/services/ai/voice-models';
+import { resetVoiceRuntimeContext } from '@/services/ai/voice-transcription.service';
+import {
   RAG_HASH_EMBEDDING_DIMENSIONS,
   RAG_HASH_EMBEDDING_MODEL_ID,
 } from '@/services/ai/rag-embedding';
@@ -18,11 +24,22 @@ export class ModelManagerService {
   }
 
   static async listAvailableChatModels() {
-    return (await this.listAvailableModels()).filter((model) => !isEmbeddingModelPack(model));
+    return (await this.listAvailableModels()).filter(
+      (model) =>
+        !isEmbeddingModelPack(model) && !isVoiceModelPack(model) && !isVoiceProjectorPack(model)
+    );
   }
 
   static async listAvailableEmbeddingModels() {
     return (await this.listAvailableModels()).filter((model) => isEmbeddingModelPack(model));
+  }
+
+  static async listAvailableVoiceModels() {
+    return (await this.listAvailableModels()).filter((model) => isVoiceModelPack(model));
+  }
+
+  static async listAvailableVoiceProjectors() {
+    return (await this.listAvailableModels()).filter((model) => isVoiceProjectorPack(model));
   }
 
   static async listInstalledModels() {
@@ -41,6 +58,18 @@ export class ModelManagerService {
     );
   }
 
+  static async listInstalledVoiceModels() {
+    return (await this.listAvailableVoiceModels()).filter(
+      (model) => model.installed && model.localUri
+    );
+  }
+
+  static async listInstalledVoiceProjectors() {
+    return (await this.listAvailableVoiceProjectors()).filter(
+      (model) => model.installed && model.localUri
+    );
+  }
+
   static async getActiveModel() {
     if (await PreferencesService.getAiChatModelDisabled()) return null;
     const installed = await this.listInstalledChatModels();
@@ -54,18 +83,45 @@ export class ModelManagerService {
     return installed.find((model) => model.id === selectedId) ?? installed[0] ?? null;
   }
 
+  static async getActiveVoiceModel() {
+    const installed = await this.listInstalledVoiceModels();
+    const selectedId = await PreferencesService.getSelectedVoiceModelId();
+    return installed.find((model) => model.id === selectedId) ?? installed[0] ?? null;
+  }
+
+  static async getVoiceProjectorForModel(modelId: string | null | undefined) {
+    if (!modelId) return null;
+    const projectorId = getVoiceProjectorId(modelId);
+    if (!projectorId) return null;
+    return (
+      (await this.listAvailableVoiceProjectors()).find((model) => model.id === projectorId) ?? null
+    );
+  }
+
+  static async getInstalledVoiceProjectorForModel(modelId: string | null | undefined) {
+    const projector = await this.getVoiceProjectorForModel(modelId);
+    return projector?.installed && projector.localUri ? projector : null;
+  }
+
   static async getPreferences() {
-    const [modelPickerEnabled, selectedModelId, selectedEmbeddingModelId, chatModelDisabled] =
-      await Promise.all([
-        PreferencesService.getAiModelPickerEnabled(),
-        PreferencesService.getSelectedAiModelId(),
-        PreferencesService.getSelectedEmbeddingModelId(),
-        PreferencesService.getAiChatModelDisabled(),
-      ]);
+    const [
+      modelPickerEnabled,
+      selectedModelId,
+      selectedEmbeddingModelId,
+      selectedVoiceModelId,
+      chatModelDisabled,
+    ] = await Promise.all([
+      PreferencesService.getAiModelPickerEnabled(),
+      PreferencesService.getSelectedAiModelId(),
+      PreferencesService.getSelectedEmbeddingModelId(),
+      PreferencesService.getSelectedVoiceModelId(),
+      PreferencesService.getAiChatModelDisabled(),
+    ]);
     return {
       modelPickerEnabled,
       selectedModelId,
       selectedEmbeddingModelId,
+      selectedVoiceModelId,
       chatModelDisabled,
     };
   }
@@ -95,6 +151,15 @@ export class ModelManagerService {
     await RagService.markAllSourcesForReindex();
   }
 
+  static async setSelectedVoiceModel(modelId: string | null) {
+    if (modelId) {
+      const model = (await this.listAvailableVoiceModels()).find((item) => item.id === modelId);
+      if (!model) throw new Error('Choose a voice transcription model.');
+    }
+    await PreferencesService.setSelectedVoiceModelId(modelId);
+    resetVoiceRuntimeContext();
+  }
+
   static async setChatModelDisabled(disabled: boolean) {
     await PreferencesService.setAiChatModelDisabled(disabled);
     if (disabled) {
@@ -104,13 +169,19 @@ export class ModelManagerService {
   }
 
   static async getStatus() {
-    const [models, chatModels, embeddingModels] = await Promise.all([
+    const [models, chatModels, embeddingModels, voiceModels] = await Promise.all([
       this.listAvailableModels(),
       this.listAvailableChatModels(),
       this.listAvailableEmbeddingModels(),
+      this.listAvailableVoiceModels(),
     ]);
     const installedChatModels = chatModels.filter((model) => model.installed);
     const installedEmbeddingModels = embeddingModels.filter((model) => model.installed);
+    const installedVoiceModels = voiceModels.filter((model) => model.installed);
+    const activeVoiceModel = await this.getActiveVoiceModel();
+    const activeVoiceProjector = await this.getInstalledVoiceProjectorForModel(
+      activeVoiceModel?.id
+    );
     const runtime = await llamaAdapter.getRuntimeStatus();
     const adapter = runtime.moduleAvailable && runtime.modelUri ? 'llama' : 'mock';
     const preferences = await this.getPreferences();
@@ -120,13 +191,18 @@ export class ModelManagerService {
       installedModels: installedChatModels.length,
       installedChatModels: installedChatModels.length,
       installedEmbeddingModels: installedEmbeddingModels.length,
+      installedVoiceModels: installedVoiceModels.length,
       availableModels: models.length,
       availableChatModels: chatModels.length,
       availableEmbeddingModels: embeddingModels.length,
+      availableVoiceModels: voiceModels.length,
       selectedModelId: preferences.selectedModelId,
       selectedEmbeddingModelId: preferences.selectedEmbeddingModelId,
+      selectedVoiceModelId: preferences.selectedVoiceModelId,
       modelPickerEnabled: preferences.modelPickerEnabled,
       chatModelDisabled: preferences.chatModelDisabled,
+      activeVoiceModelTitle: activeVoiceModel?.title ?? null,
+      voiceReady: !!activeVoiceModel?.localUri && !!activeVoiceProjector?.localUri,
       activeModelTitle: runtime.modelTitle,
       contextTokens: runtime.contextTokens,
       maxResponseTokens: runtime.maxResponseTokens,
@@ -137,6 +213,29 @@ export class ModelManagerService {
           : installedChatModels.length
             ? 'An answer model is downloaded. Use a build with local AI enabled to run it fully offline.'
             : 'No answer model is installed. Add an answer GGUF in Settings > AI before using offline AI.',
+    };
+  }
+
+  static async getVoiceStatus() {
+    const [availableVoiceModels, installedVoiceModels, activeVoiceModel] = await Promise.all([
+      this.listAvailableVoiceModels(),
+      this.listInstalledVoiceModels(),
+      this.getActiveVoiceModel(),
+    ]);
+    const projector = await this.getVoiceProjectorForModel(activeVoiceModel?.id);
+    const installedProjector = await this.getInstalledVoiceProjectorForModel(activeVoiceModel?.id);
+    return {
+      availableVoiceModels: availableVoiceModels.length,
+      installedVoiceModels: installedVoiceModels.length,
+      activeVoiceModel,
+      projector,
+      installedProjector,
+      ready: !!activeVoiceModel?.localUri && !!installedProjector?.localUri,
+      message: !activeVoiceModel
+        ? 'Download a voice model to dictate Ask Arky prompts offline.'
+        : !installedProjector
+          ? 'Download the matching audio projector before using voice transcription.'
+          : `${activeVoiceModel.title} is ready for offline transcription.`,
     };
   }
 

@@ -1,0 +1,14 @@
+{
+  "name": "ark-speech",
+  "version": "1.0.0",
+  "description": "Ark Android speech recognition module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "keywords": ["expo", "speech", "offline"],
+  "license": "UNLICENSED",
+  "peerDependencies": {
+    "expo": "*",
+    "expo-modules-core": "*"
+  },
+  "private": true
+}

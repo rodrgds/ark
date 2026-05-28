@@ -41,8 +41,10 @@ function rowToPack(row: {
   const customModel =
     row.id.startsWith('custom-model-') ||
     row.id.startsWith('custom-chat-model-') ||
-    row.id.startsWith('custom-embedding-model-');
+    row.id.startsWith('custom-embedding-model-') ||
+    row.id.startsWith('custom-voice-model-');
   const customEmbeddingModel = row.id.startsWith('custom-embedding-model-');
+  const customVoiceModel = row.id.startsWith('custom-voice-model-');
   return {
     id: row.id,
     title: row.title,
@@ -60,7 +62,13 @@ function rowToPack(row: {
     checksumSha256Url: row.checksum_sha256_url ?? manifest?.checksumSha256Url ?? null,
     modelRole:
       manifest?.modelRole ??
-      (customEmbeddingModel ? 'embedding' : customModel ? 'chat' : undefined),
+      (customEmbeddingModel
+        ? 'embedding'
+        : customVoiceModel
+          ? 'voice'
+          : customModel
+            ? 'chat'
+            : undefined),
     downloadStrategy: manifest?.downloadStrategy,
     localUri: row.local_uri,
     sizeBytes: row.size_bytes,

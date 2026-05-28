@@ -14,7 +14,7 @@ export type ContentCategory =
   | 'Health';
 
 export type ContentFormat = 'pdf' | 'markdown' | 'zim' | 'html' | 'txt' | 'bundle' | 'gguf';
-export type ContentModelRole = 'embedding' | 'chat';
+export type ContentModelRole = 'embedding' | 'chat' | 'voice' | 'voiceProjector';
 export type ContentDownloadStrategy = 'file' | 'html_snapshot';
 
 export type ContentPackManifest = {

@@ -17,6 +17,7 @@ import {
   Library,
   Map,
   MessageSquareText,
+  Mic,
   PackageOpen,
   PillBottle,
   Plane,
@@ -47,6 +48,8 @@ const PACK_ICONS: Record<string, LucideIcon> = {
   'embedding-qwen3-06b-q8': Languages,
   'model-qwen25-15b-q4-0': MessageSquareText,
   'model-smollm2-17b-q4-0': BrainCircuit,
+  'voice-qwen3-asr-17b-q8-0': Mic,
+  'voice-qwen3-asr-17b-mmproj-bf16': Mic,
   'disaster-power-outage': HousePlug,
   'disaster-floods': Waves,
   'disaster-earthquakes': House,
@@ -97,6 +100,8 @@ export function getPackModelRoleLabel(pack: Pick<ContentPackManifest, 'category'
   if (pack.category !== 'AI Models') return null;
   if (pack.modelRole === 'embedding') return 'Search';
   if (pack.modelRole === 'chat') return 'Chat';
+  if (pack.modelRole === 'voice') return 'Voice';
+  if (pack.modelRole === 'voiceProjector') return 'Voice projector';
   return 'AI';
 }
 

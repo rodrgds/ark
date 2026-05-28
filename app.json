@@ -18,7 +18,8 @@
       "infoPlist": {
         "NSFaceIDUsageDescription": "Allow Ark to protect your offline vault with Face ID.",
         "NSMotionUsageDescription": "Allow Ark to use motion sensors for compass, level, and survival tools.",
-        "NSLocationWhenInUseUsageDescription": "Allow Ark to save your position and offline map regions."
+        "NSLocationWhenInUseUsageDescription": "Allow Ark to save your position and offline map regions.",
+        "NSMicrophoneUsageDescription": "Allow Ark to record short voice prompts for offline transcription."
       },
       "bundleIdentifier": "app.ark.offline"
     },
@@ -28,7 +29,12 @@
         "backgroundColor": "#000000"
       },
       "package": "app.ark.offline",
-      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION", "ACTIVITY_RECOGNITION"],
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACTIVITY_RECOGNITION",
+        "RECORD_AUDIO"
+      ],
       "softwareKeyboardLayoutMode": "resize"
     },
     "web": {
@@ -43,6 +49,15 @@
         "expo-local-authentication",
         {
           "faceIDPermission": "Allow Ark to protect your offline vault with Face ID."
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow Ark to record short voice prompts for offline transcription.",
+          "recordAudioAndroid": true,
+          "enableBackgroundPlayback": false,
+          "enableBackgroundRecording": false
         }
       ],
       [

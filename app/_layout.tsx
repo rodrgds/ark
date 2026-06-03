@@ -2,7 +2,7 @@ import '../polyfills';
 import '@/global.css';
 
 import { NAV_THEME } from '@/lib/theme';
-import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
+import { BottomSheetProvider } from '@swmansion/react-native-bottom-sheet';
 import { ThemeProvider } from '@react-navigation/native';
 import { PortalHost } from '@rn-primitives/portal';
 import { Stack } from 'expo-router';
@@ -80,7 +80,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <ArkKeyboardProvider>
           <ThemeProvider value={NAV_THEME[effectiveTheme]}>
-            <BottomSheetModalProvider>
+            <BottomSheetProvider>
               <SheetAlertProvider>
                 <StatusBar style={effectiveTheme === 'light' ? 'dark' : 'light'} />
                 <Stack
@@ -106,7 +106,7 @@ export default function RootLayout() {
                 ) : null}
                 <PortalHost />
               </SheetAlertProvider>
-            </BottomSheetModalProvider>
+            </BottomSheetProvider>
           </ThemeProvider>
         </ArkKeyboardProvider>
       </SafeAreaProvider>

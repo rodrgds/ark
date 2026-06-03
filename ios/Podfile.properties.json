@@ -1,0 +1,9 @@
+{
+  "expo.jsEngine": "hermes",
+  "EX_DEV_CLIENT_NETWORK_INSPECTOR": "true",
+  "ios.forceStaticLinking": "[]",
+  "apple.privacyManifestAggregationEnabled": "true",
+  "expo.sqlite.enableFTS": "true",
+  "expo.sqlite.useSQLCipher": "true",
+  "expo.sqlite.withSQLiteVecExtension": "true"
+}

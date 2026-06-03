@@ -1,7 +1,7 @@
 {
   "name": "ark-ocr",
   "version": "1.0.0",
-  "description": "Ark Android OCR module",
+  "description": "Ark OCR module for image and PDF text extraction",
   "main": "src/index.ts",
   "scripts": {},
   "keywords": [

@@ -47,7 +47,7 @@ export class OcrService {
       return {
         status: 'unavailable',
         text: '',
-        error: 'Image text recognition is available in the Android development build.',
+        error: 'Image text recognition needs an Ark development build with the native OCR module.',
       };
     }
 
@@ -68,7 +68,7 @@ export class OcrService {
     if (!module) {
       return {
         status: 'unavailable' as const,
-        error: 'PDF text extraction is available in the Android development build.',
+        error: 'PDF text extraction needs an Ark development build with the native OCR module.',
         pageCount: 0,
         pages: [],
         truncated: false,
@@ -99,7 +99,7 @@ export class OcrService {
     if (!module) {
       return {
         status: 'unavailable' as const,
-        error: 'PDF OCR is available in the Android development build.',
+        error: 'PDF OCR needs an Ark development build with the native OCR module.',
         pageCount: 0,
         pages: [],
         truncated: false,

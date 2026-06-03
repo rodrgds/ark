@@ -60,7 +60,11 @@ export class AiToolService {
     const weatherRun = await this.runCachedWeatherTool(query);
     if (weatherRun) return weatherRun;
 
-    const citations = await RagService.search(query, { limit: 4, onProgress });
+    const citations = await RagService.search(query, {
+      limit: 4,
+      onProgress,
+      refreshIndexes: 'chat',
+    });
     onProgress?.({ stage: 'preparing_context', label: 'Preparing context' });
     const sourceContext = await RagService.expandCitations(citations, {
       maxSources: 3,

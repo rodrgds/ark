@@ -25,12 +25,12 @@ export class VoiceTranscriptionService {
     const module = await loadArkSpeechModule();
     if (!module) {
       throw new Error(
-        'Android voice input needs the ArkSpeech development build. Rebuild the app to enable on-device Google speech recognition.'
+        'Voice input needs the ArkSpeech development build. Rebuild the app to enable platform speech recognition.'
       );
     }
     const available = await module.isAvailable();
     if (!available) {
-      throw new Error('Android speech recognition is not available on this device.');
+      throw new Error('Speech recognition is not available on this device.');
     }
     const transcript = await module.recognizeOnce({
       preferOffline: true,

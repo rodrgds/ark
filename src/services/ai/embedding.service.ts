@@ -82,6 +82,7 @@ export class EmbeddingService {
 }
 
 async function getEmbeddingModel() {
+  if (await PreferencesService.getBatteryReduceModeEnabled()) return null;
   if (!embeddingModelPromise) {
     embeddingModelPromise = (async () => {
       const [module, packs] = await Promise.all([loadLlamaModule(), listContentPacks()]);

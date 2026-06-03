@@ -147,14 +147,14 @@ const FUNCTION_ENTRIES: SearchEntry[] = [
   {
     title: 'Diagnostics',
     subtitle: 'Native capabilities and offline storage',
-    keywords: 'diagnostics native status storage sensors internals',
+    keywords: 'diagnostics native status storage sensors advanced',
     icon: Smartphone,
-    href: { pathname: '/(tabs)/settings', params: { tab: 'internals' } },
+    href: { pathname: '/(tabs)/settings', params: { tab: 'advanced' } },
   },
   {
     title: 'Appearance Settings',
-    subtitle: 'Theme and motion',
-    keywords: 'settings appearance theme motion display',
+    subtitle: 'Theme and battery reduce mode',
+    keywords: 'settings appearance theme battery reduce mode power display',
     icon: SlidersHorizontal,
     href: { pathname: '/(tabs)/settings', params: { tab: 'appearance' } },
   },
@@ -180,11 +180,11 @@ const FUNCTION_ENTRIES: SearchEntry[] = [
     href: { pathname: '/(tabs)/settings', params: { tab: 'downloads' } },
   },
   {
-    title: 'Internals',
+    title: 'Advanced',
     subtitle: 'Storage and diagnostics',
-    keywords: 'settings storage disk files directories diagnostics internals',
+    keywords: 'settings storage disk files directories diagnostics advanced',
     icon: Settings,
-    href: { pathname: '/(tabs)/settings', params: { tab: 'internals' } },
+    href: { pathname: '/(tabs)/settings', params: { tab: 'advanced' } },
   },
 ];
 

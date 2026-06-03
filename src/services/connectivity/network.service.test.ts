@@ -49,4 +49,14 @@ describe('NetworkService', () => {
     expect(NetworkService.isOnline(netState({ type: 'wifi', isConnected: true }))).toBe(true);
     expect(NetworkService.isOnline(netState({ type: 'cellular', isConnected: true }))).toBe(true);
   });
+
+  test('identifies Wi-Fi only when the network is reachable over Wi-Fi', async () => {
+    const { NetworkService } = await import('@/services/connectivity/network.service');
+
+    expect(NetworkService.isWifi(netState({ type: 'wifi', isConnected: true }))).toBe(true);
+    expect(NetworkService.isWifi(netState({ type: 'cellular', isConnected: true }))).toBe(false);
+    expect(NetworkService.isWifi(netState({ type: 'wifi', isInternetReachable: false }))).toBe(
+      false
+    );
+  });
 });

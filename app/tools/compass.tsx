@@ -1,5 +1,7 @@
 import { Text } from '@/components/ui/text';
 import { NAV_COLORS } from '@/constants/theme';
+import { useBatteryReduceMode } from '@/hooks/use-battery-reduce-mode';
+import { useMotionEnabled } from '@/hooks/use-motion-enabled';
 import { hexToRgba } from '@/lib/colors';
 import { CompassService } from '@/services/sensors/compass.service';
 import { useSensorStore } from '@/stores/sensor-store';
@@ -129,48 +131,50 @@ function arcPath(heading: number): string {
 const ARROW_TIP_Y = CY - ARC_R + 2;
 const ARROW = `${CX},${ARROW_TIP_Y + 12} ${CX - 7},${ARROW_TIP_Y + 22} ${CX + 7},${ARROW_TIP_Y + 22}`;
 
-const Bezel = React.memo(({ palette }: { palette: ToolPalette }) => (
-  <Svg
-    width={SIZE}
-    height={SIZE}
-    viewBox={`0 0 ${SIZE} ${SIZE}`}
-    style={StyleSheet.absoluteFillObject}>
-    <Circle
-      cx={CX}
-      cy={CY}
-      r={BEZEL_R - 1}
-      fill={palette.card}
-      stroke={palette.border}
-      strokeWidth={1}
-    />
-    <Circle cx={CX} cy={CY} r={DIAL_R} fill={hexToRgba(palette.background, 0.62)} />
-    <Line
-      x1={CX - 36}
-      y1={CY}
-      x2={CX + 36}
-      y2={CY}
-      stroke={hexToRgba(palette.foreground, 0.18)}
-      strokeWidth={1}
-    />
-    <Line
-      x1={CX}
-      y1={CY - 36}
-      x2={CX}
-      y2={CY + 36}
-      stroke={hexToRgba(palette.foreground, 0.18)}
-      strokeWidth={1}
-    />
-  </Svg>
-));
+const Bezel = React.memo(function Bezel({ palette }: { palette: ToolPalette }) {
+  return (
+    <Svg
+      width={SIZE}
+      height={SIZE}
+      viewBox={`0 0 ${SIZE} ${SIZE}`}
+      style={StyleSheet.absoluteFillObject}>
+      <Circle
+        cx={CX}
+        cy={CY}
+        r={BEZEL_R - 1}
+        fill={palette.card}
+        stroke={palette.border}
+        strokeWidth={1}
+      />
+      <Circle cx={CX} cy={CY} r={DIAL_R} fill={hexToRgba(palette.background, 0.62)} />
+      <Line
+        x1={CX - 36}
+        y1={CY}
+        x2={CX + 36}
+        y2={CY}
+        stroke={hexToRgba(palette.foreground, 0.18)}
+        strokeWidth={1}
+      />
+      <Line
+        x1={CX}
+        y1={CY - 36}
+        x2={CX}
+        y2={CY + 36}
+        stroke={hexToRgba(palette.foreground, 0.18)}
+        strokeWidth={1}
+      />
+    </Svg>
+  );
+});
 
-const RotatingDial = React.memo(
-  ({
+const RotatingDial = React.memo(function RotatingDial({
     rotate,
     palette,
   }: {
     rotate: Animated.AnimatedInterpolation<string>;
     palette: ToolPalette;
-  }) => (
+  }) {
+  return (
     <Animated.View style={[StyleSheet.absoluteFillObject, { transform: [{ rotate }] }]}>
       <Svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`}>
         <Defs>
@@ -244,10 +248,16 @@ const RotatingDial = React.memo(
         ))}
       </Svg>
     </Animated.View>
-  )
-);
+  );
+});
 
-const ArcOverlay = React.memo(({ heading, palette }: { heading: number; palette: ToolPalette }) => {
+const ArcOverlay = React.memo(function ArcOverlay({
+  heading,
+  palette,
+}: {
+  heading: number;
+  palette: ToolPalette;
+}) {
   const d = arcPath(heading);
   const endRad = (heading - 90) * (Math.PI / 180);
   const tipX = CX + ARC_R * Math.cos(endRad);
@@ -292,6 +302,8 @@ export default function CompassTool() {
   const theme = useThemeStore((state) => state.effectiveTheme);
   const palette = NAV_COLORS[theme];
   const setStoreHeading = useSensorStore((state) => state.setHeading);
+  const reduceModeEnabled = useBatteryReduceMode();
+  const motionEnabled = useMotionEnabled();
 
   const rotateAnim = useRef(new Animated.Value(0)).current;
   const lastHeading = useRef(0);
@@ -306,10 +318,13 @@ export default function CompassTool() {
       if (!mounted) return;
       setAvailable(ok);
       if (ok) {
-        stop = CompassService.startReading((next) => {
-          setHeading(next.heading);
-          setStoreHeading(next.heading);
-        });
+        stop = CompassService.startReading(
+          (next) => {
+            setHeading(next.heading);
+            setStoreHeading(next.heading);
+          },
+          { reduceModeEnabled }
+        );
       }
     });
     return () => {
@@ -317,7 +332,7 @@ export default function CompassTool() {
       stop?.();
       setStoreHeading(null);
     };
-  }, [setStoreHeading]);
+  }, [reduceModeEnabled, setStoreHeading]);
 
   useEffect(() => {
     if (heading === null) return;
@@ -331,11 +346,11 @@ export default function CompassTool() {
 
     Animated.timing(rotateAnim, {
       toValue: -next,
-      duration: 80,
+      duration: motionEnabled ? 80 : 0,
       easing: Easing.out(Easing.quad),
       useNativeDriver: true,
     }).start();
-  }, [heading]);
+  }, [heading, motionEnabled, rotateAnim]);
 
   const rotate = useMemo(
     () =>

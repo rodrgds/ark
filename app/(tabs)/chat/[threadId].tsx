@@ -7,6 +7,8 @@ import { MarkdownText } from '@/components/ui/markdown-text';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
 import { useAppHeaderActions } from '@/components/layout/app-header-actions';
+import { BATTERY_POLL_INTERVALS_MS } from '@/constants/battery';
+import { useBatteryReduceMode } from '@/hooks/use-battery-reduce-mode';
 import { NAV_THEME } from '@/lib/theme';
 import { AIService, isAiRequestCancelledError } from '@/services/ai/ai.service';
 import { ModelManagerService } from '@/services/ai/model-manager.service';
@@ -409,7 +411,7 @@ function StreamingBubble({
         </View>
         <ProcessPanel actions={actions} reasoning={reasoning} defaultOpen streaming />
         {content ? (
-          <MarkdownText>{content}</MarkdownText>
+          <MarkdownText streaming>{content}</MarkdownText>
         ) : (
           <Text variant="muted">{progressEvents.at(-1)?.label || 'Starting...'}</Text>
         )}
@@ -838,6 +840,7 @@ function FloatingComposer({
 export default function ChatScreen() {
   const { threadId: routeThreadId } = useLocalSearchParams<{ threadId?: string }>();
   const navigation = useNavigation();
+  const reduceModeEnabled = useBatteryReduceMode();
   const initialThreadId = routeThreadId && routeThreadId !== 'new' ? routeThreadId : undefined;
   const [threadId, setThreadId] = React.useState<string | undefined>(initialThreadId);
   const [messages, setMessages] = React.useState<AiMessage[]>([]);
@@ -976,9 +979,12 @@ export default function ChatScreen() {
   useFocusEffect(
     React.useCallback(() => {
       refreshModelsQuietly();
-      const interval = setInterval(refreshModelsQuietly, 8000);
+      const interval = setInterval(
+        refreshModelsQuietly,
+        BATTERY_POLL_INTERVALS_MS.chatModelRefresh[reduceModeEnabled ? 'reduced' : 'normal']
+      );
       return () => clearInterval(interval);
-    }, [refreshModelsQuietly])
+    }, [reduceModeEnabled, refreshModelsQuietly])
   );
 
   React.useEffect(() => {

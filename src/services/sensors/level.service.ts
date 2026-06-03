@@ -1,4 +1,6 @@
 import { Accelerometer } from 'expo-sensors';
+import { reducedInterval } from '@/constants/battery';
+import type { SensorStartOptions } from '@/types/sensors';
 
 export type LevelReading = {
   pitch: number;
@@ -30,8 +32,8 @@ export class LevelService {
     return Accelerometer.isAvailableAsync().catch(() => false);
   }
 
-  static start(listener: (value: LevelReading) => void) {
-    Accelerometer.setUpdateInterval(60);
+  static start(listener: (value: LevelReading) => void, options?: SensorStartOptions) {
+    Accelerometer.setUpdateInterval(reducedInterval('level', options?.reduceModeEnabled));
     let smoothX = 0;
     let smoothY = 0;
     let smoothZ = 0;

@@ -5,6 +5,8 @@ import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { showSheetAlert } from '@/components/ui/sheet-alert';
 import { Text } from '@/components/ui/text';
+import { BATTERY_POLL_INTERVALS_MS } from '@/constants/battery';
+import { useBatteryReduceMode } from '@/hooks/use-battery-reduce-mode';
 import { RssService } from '@/services/rss/rss.service';
 import { formatDistanceToNow } from 'date-fns';
 import { router } from 'expo-router';
@@ -32,6 +34,7 @@ export default function NewsScreen() {
   const [error, setError] = React.useState<string | null>(null);
   const [feedTitle, setFeedTitle] = React.useState('');
   const [feedUrl, setFeedUrl] = React.useState('');
+  const reduceModeEnabled = useBatteryReduceMode();
   const inputHintProp = 'place' + 'holder';
   const visibleItems = React.useMemo(() => {
     const items = overview?.recentItems ?? [];
@@ -63,13 +66,13 @@ export default function NewsScreen() {
           if (result.errors.length) setError(result.errors.join('\n'));
         });
       },
-      30 * 60 * 1000
+      BATTERY_POLL_INTERVALS_MS.newsRefresh[reduceModeEnabled ? 'reduced' : 'normal']
     );
     return () => {
       active = false;
       clearInterval(interval);
     };
-  }, []);
+  }, [reduceModeEnabled]);
 
   async function refreshFeeds() {
     setBusy('refresh');

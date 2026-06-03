@@ -1,4 +1,6 @@
 import { Magnetometer } from 'expo-sensors';
+import { reducedInterval } from '@/constants/battery';
+import type { SensorStartOptions } from '@/types/sensors';
 
 export type CompassReading = {
   heading: number;
@@ -28,12 +30,12 @@ export class CompassService {
     return Magnetometer.isAvailableAsync().catch(() => false);
   }
 
-  static start(listener: (heading: number) => void) {
-    return this.startReading((reading) => listener(reading.heading));
+  static start(listener: (heading: number) => void, options?: SensorStartOptions) {
+    return this.startReading((reading) => listener(reading.heading), options);
   }
 
-  static startReading(listener: (reading: CompassReading) => void) {
-    Magnetometer.setUpdateInterval(100);
+  static startReading(listener: (reading: CompassReading) => void, options?: SensorStartOptions) {
+    Magnetometer.setUpdateInterval(reducedInterval('compass', options?.reduceModeEnabled));
     const subscription = Magnetometer.addListener((reading) =>
       listener(calculateCompassReading(reading))
     );

@@ -7,6 +7,10 @@ export type SensorAvailability = {
   location: boolean;
 };
 
+export type SensorStartOptions = {
+  reduceModeEnabled?: boolean;
+};
+
 export type DiagnosticReport = {
   sensors: SensorAvailability;
   network: string;

@@ -1,5 +1,7 @@
 import { Pedometer } from 'expo-sensors';
 import { Platform } from 'react-native';
+import { reducedInterval } from '@/constants/battery';
+import type { SensorStartOptions } from '@/types/sensors';
 
 export class PedometerService {
   static async requestPermission(): Promise<boolean> {
@@ -17,7 +19,7 @@ export class PedometerService {
     return Pedometer.getStepCountAsync(start, new Date()).catch(() => ({ steps: 0 }));
   }
 
-  static start(onUpdate: (sessionSteps: number) => void): () => void {
+  static start(onUpdate: (sessionSteps: number) => void, options?: SensorStartOptions): () => void {
     let baseline: number | null = null;
     let lastEmitted = 0;
     let pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -38,19 +40,22 @@ export class PedometerService {
     if (Platform.OS === 'android') {
       const sessionStart = new Date();
 
-      pollTimer = setInterval(async () => {
-        try {
-          const now = new Date();
-          const result = await Pedometer.getStepCountAsync(sessionStart, now);
-          const delta = result.steps;
-          if (delta !== lastEmitted) {
-            lastEmitted = delta;
-            onUpdate(delta);
+      pollTimer = setInterval(
+        async () => {
+          try {
+            const now = new Date();
+            const result = await Pedometer.getStepCountAsync(sessionStart, now);
+            const delta = result.steps;
+            if (delta !== lastEmitted) {
+              lastEmitted = delta;
+              onUpdate(delta);
+            }
+          } catch {
+            // sensor not ready yet, ignore
           }
-        } catch {
-          // sensor not ready yet, ignore
-        }
-      }, 2000);
+        },
+        reducedInterval('pedometerPoll', options?.reduceModeEnabled)
+      );
     }
 
     return () => {

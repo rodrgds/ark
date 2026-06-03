@@ -1,23 +1,35 @@
 import { SettingsRepository } from '@/services/db/repositories/settings.repo';
+import { BATTERY_REDUCE_MODE_KEY, LEGACY_MOTION_ENABLED_KEY } from '@/constants/battery';
 
-const MOTION_ENABLED_KEY = 'motion.enabled';
 const CHECKLIST_STATE_KEY = 'tools.readiness-checklist';
 const AI_MODEL_PICKER_ENABLED_KEY = 'ai.modelPickerEnabled';
 const AI_SELECTED_MODEL_ID_KEY = 'ai.selectedModelId';
 const AI_SELECTED_EMBEDDING_MODEL_ID_KEY = 'ai.selectedEmbeddingModelId';
 const AI_SELECTED_VOICE_MODEL_ID_KEY = 'ai.selectedVoiceModelId';
 const AI_CHAT_MODEL_DISABLED_KEY = 'ai.chatModelDisabled';
+const DOWNLOADS_WIFI_ONLY_KEY = 'downloads.wifiOnly';
 
 export type ReadinessChecklistState = Record<string, boolean>;
 
 export class PreferencesService {
+  static async getBatteryReduceModeEnabled() {
+    const value = await SettingsRepository.get(BATTERY_REDUCE_MODE_KEY);
+    if (value !== null) return value === 'true';
+
+    const legacyMotionEnabled = await SettingsRepository.get(LEGACY_MOTION_ENABLED_KEY);
+    return legacyMotionEnabled === 'false';
+  }
+
+  static async setBatteryReduceModeEnabled(enabled: boolean) {
+    await SettingsRepository.set(BATTERY_REDUCE_MODE_KEY, enabled ? 'true' : 'false');
+  }
+
   static async getMotionEnabled() {
-    const value = await SettingsRepository.get(MOTION_ENABLED_KEY);
-    return value !== 'false';
+    return !(await this.getBatteryReduceModeEnabled());
   }
 
   static async setMotionEnabled(enabled: boolean) {
-    await SettingsRepository.set(MOTION_ENABLED_KEY, enabled ? 'true' : 'false');
+    await this.setBatteryReduceModeEnabled(!enabled);
   }
 
   static async getAiModelPickerEnabled() {
@@ -63,6 +75,15 @@ export class PreferencesService {
 
   static async setAiChatModelDisabled(disabled: boolean) {
     await SettingsRepository.set(AI_CHAT_MODEL_DISABLED_KEY, disabled ? 'true' : 'false');
+  }
+
+  static async getWifiOnlyDownloadsEnabled() {
+    const value = await SettingsRepository.get(DOWNLOADS_WIFI_ONLY_KEY);
+    return value === 'true';
+  }
+
+  static async setWifiOnlyDownloadsEnabled(enabled: boolean) {
+    await SettingsRepository.set(DOWNLOADS_WIFI_ONLY_KEY, enabled ? 'true' : 'false');
   }
 
   static async getReadinessChecklist(): Promise<ReadinessChecklistState> {

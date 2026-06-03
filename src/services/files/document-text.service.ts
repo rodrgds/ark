@@ -3,6 +3,7 @@ import { DocumentsRepository } from '@/services/db/repositories/documents.repo';
 import { DocumentPagesRepository } from '@/services/db/repositories/document-pages.repo';
 import { RagService } from '@/services/ai/rag.service';
 import { OcrService } from '@/services/ocr/ocr.service';
+import { PreferencesService } from '@/services/preferences/preferences.service';
 import type { ArkDocument } from '@/types/db';
 
 const MAX_INLINE_TEXT_BYTES = 2 * 1024 * 1024;
@@ -11,9 +12,11 @@ const PDF_AUTO_OCR_MAX_PAGES = 20;
 const PDF_OCR_RENDER_DPI = 180;
 
 export class DocumentTextService {
-  static async processDocument(documentId: string) {
+  static async processDocument(documentId: string, options: { manual?: boolean } = {}) {
     const document = await DocumentsRepository.get(documentId);
     if (!document) return null;
+    const reduceModeEnabled = await PreferencesService.getBatteryReduceModeEnabled();
+    const deferAutomaticWork = reduceModeEnabled && !options.manual;
 
     if (!document.localUri) {
       const updated = await DocumentsRepository.updateText(document.id, {
@@ -21,7 +24,7 @@ export class DocumentTextService {
         ocrError: 'No local file is available to inspect.',
         indexedAt: null,
       });
-      await RagService.indexDocument(document.id);
+      await indexDocumentIfAllowed(document.id, options);
       return updated;
     }
 
@@ -37,15 +40,23 @@ export class DocumentTextService {
         ocrError: null,
         indexedAt: null,
       });
-      await RagService.indexDocument(document.id);
+      await indexDocumentIfAllowed(document.id, options);
       return updated;
     }
 
     if (isPdfDocument(document)) {
-      return this.processPdfDocument(document);
+      return this.processPdfDocument(document, options);
     }
 
     if (isImageDocument(document)) {
+      if (deferAutomaticWork) {
+        return DocumentsRepository.updateText(document.id, {
+          ocrStatus: 'pending',
+          ocrError:
+            'Battery Reduce Mode is on. Run OCR from the document screen when power is available.',
+          indexedAt: null,
+        });
+      }
       await DocumentsRepository.updateText(document.id, {
         ocrStatus: 'processing',
         ocrError: null,
@@ -58,7 +69,7 @@ export class DocumentTextService {
         ocrError: 'error' in result ? result.error : null,
         indexedAt: null,
       });
-      await RagService.indexDocument(document.id);
+      await indexDocumentIfAllowed(document.id, options);
       return updated;
     }
 
@@ -67,7 +78,7 @@ export class DocumentTextService {
       ocrError: null,
       indexedAt: null,
     });
-    await RagService.indexDocument(document.id);
+    await indexDocumentIfAllowed(document.id, options);
     return updated;
   }
 
@@ -79,7 +90,7 @@ export class DocumentTextService {
       ocrError: null,
       indexedAt: null,
     });
-    return this.processDocument(documentId);
+    return this.processDocument(documentId, { manual: true });
   }
 
   static async deleteDocumentIndex(documentId: string) {
@@ -128,8 +139,13 @@ export class DocumentTextService {
     return updated;
   }
 
-  private static async processPdfDocument(document: ArkDocument) {
+  private static async processPdfDocument(
+    document: ArkDocument,
+    options: { manual?: boolean } = {}
+  ) {
     if (!document.localUri) return null;
+    const deferAutomaticWork =
+      (await PreferencesService.getBatteryReduceModeEnabled()) && !options.manual;
     await DocumentsRepository.updateText(document.id, {
       ocrStatus: 'extracting_text',
       ocrError: null,
@@ -143,7 +159,7 @@ export class DocumentTextService {
         ocrError: 'error' in textLayer ? textLayer.error : null,
         indexedAt: null,
       });
-      await RagService.indexDocument(document.id);
+      await indexDocumentIfAllowed(document.id, options);
       return updated;
     }
 
@@ -168,7 +184,7 @@ export class DocumentTextService {
           : null,
         indexedAt: null,
       });
-      await RagService.indexDocument(document.id);
+      await indexDocumentIfAllowed(document.id, options);
       return updated;
     }
 
@@ -190,7 +206,29 @@ export class DocumentTextService {
         ocrError: `This looks like a scanned PDF. OCR is available from the document screen; automatic OCR is capped at ${PDF_AUTO_OCR_MAX_PAGES} pages.`,
         indexedAt: null,
       });
-      await RagService.indexDocument(document.id);
+      await indexDocumentIfAllowed(document.id, options);
+      return updated;
+    }
+
+    if (deferAutomaticWork) {
+      await DocumentPagesRepository.replaceForDocument(
+        document.id,
+        document.title,
+        textLayer.pages.map((page) => ({
+          pageNumber: page.pageNumber,
+          text: page.text,
+          extractionMethod: 'text_layer',
+          confidence: page.confidence,
+        }))
+      );
+      const updated = await DocumentsRepository.updateText(document.id, {
+        extractedText: searchableText || null,
+        ocrText: null,
+        ocrStatus: 'ocr_needed',
+        ocrError:
+          'Battery Reduce Mode is on. Run OCR from the document screen when power is available.',
+        indexedAt: null,
+      });
       return updated;
     }
 
@@ -211,7 +249,7 @@ export class DocumentTextService {
         ocrError: 'error' in ocr ? ocr.error : null,
         indexedAt: null,
       });
-      await RagService.indexDocument(document.id);
+      await indexDocumentIfAllowed(document.id, options);
       return updated;
     }
 
@@ -235,9 +273,14 @@ export class DocumentTextService {
         : null,
       indexedAt: null,
     });
-    await RagService.indexDocument(document.id);
+    await indexDocumentIfAllowed(document.id, options);
     return updated;
   }
+}
+
+async function indexDocumentIfAllowed(documentId: string, options: { manual?: boolean } = {}) {
+  if (!options.manual && (await PreferencesService.getBatteryReduceModeEnabled())) return;
+  await RagService.indexDocument(documentId);
 }
 
 export function isImageDocument(document: Pick<ArkDocument, 'mimeType' | 'title'>) {

@@ -13,14 +13,12 @@ import {
   HandPlatter,
   House,
   HousePlug,
-  Languages,
   Library,
   Map,
   MessageSquareText,
   PackageOpen,
   PillBottle,
   Plane,
-  ScanSearch,
   ShieldAlert,
   SoapDispenserDroplet,
   Stethoscope,
@@ -43,8 +41,6 @@ const PACK_ICONS: Record<string, LucideIcon> = {
   'wikipedia-simple-en-mini': BookMarked,
   'medical-wikipedia-en-nopic': PillBottle,
   'wikivoyage-en-nopic': Plane,
-  'embedding-nomic-v15-q4-k-m': ScanSearch,
-  'embedding-qwen3-06b-q8': Languages,
   'model-qwen25-15b-q4-0': MessageSquareText,
   'model-smollm2-17b-q4-0': BrainCircuit,
   'disaster-power-outage': HousePlug,
@@ -97,6 +93,8 @@ export function getPackModelRoleLabel(pack: Pick<ContentPackManifest, 'category'
   if (pack.category !== 'AI Models') return null;
   if (pack.modelRole === 'embedding') return 'Search';
   if (pack.modelRole === 'chat') return 'Chat';
+  if (pack.modelRole === 'voice') return 'Voice';
+  if (pack.modelRole === 'voiceProjector') return 'Voice projector';
   return 'AI';
 }
 

@@ -11,4 +11,8 @@
 -keep class com.swmansion.reanimated.** { *; }
 -keep class com.facebook.react.turbomodule.** { *; }
 
+# PDFBox can reference the optional Gemalto JPEG2000 decoder when parsing PDFs.
+# Ark does not bundle that decoder; OCR/text extraction paths handle failures.
+-dontwarn com.gemalto.jp2.JP2Decoder
+
 # Add any project specific keep options here:

@@ -1,16 +1,19 @@
 import { NAV_COLORS } from '@/constants/theme';
 import { useThemeStore } from '@/stores/theme-store';
-import BottomSheet, {
-  BottomSheetBackdrop,
-  BottomSheetModal,
-  BottomSheetScrollView,
-  BottomSheetView,
-  type BottomSheetBackdropProps,
-} from '@gorhom/bottom-sheet';
+import {
+  BottomSheet,
+  ModalBottomSheet,
+  type Detent,
+} from '@swmansion/react-native-bottom-sheet';
 import * as React from 'react';
-import { Keyboard, useWindowDimensions, View } from 'react-native';
+import { Keyboard, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '@/components/ui/text';
+
+export type ArkBottomSheetRef = {
+  close: () => void;
+  expand: () => void;
+};
 
 export type ArkBottomSheetProps = {
   visible: boolean;
@@ -18,7 +21,7 @@ export type ArkBottomSheetProps = {
   description?: string;
   children: React.ReactNode;
   onDismiss: () => void;
-  sheetRef?: React.RefObject<BottomSheetModal | null>;
+  sheetRef?: React.RefObject<ArkBottomSheetRef | null>;
   snapPoints?: Array<string | number>;
   scrollable?: boolean;
   contentClassName?: string;
@@ -37,47 +40,82 @@ export function ArkBottomSheet({
   contentClassName,
   maxDynamicContentSize,
 }: ArkBottomSheetProps) {
-  const internalRef = React.useRef<BottomSheetModal>(null);
-  const ref = sheetRef ?? internalRef;
   const [mounted, setMounted] = React.useState(visible);
+  const [index, setIndex] = React.useState(0);
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const effectiveTheme = useThemeStore((state) => state.effectiveTheme);
   const colors = NAV_COLORS[effectiveTheme];
+  const visibleRef = React.useRef(visible);
+  const hasOpenedRef = React.useRef(false);
+  const dismissingRef = React.useRef(false);
+
   const contentSized = !scrollable && !snapPoints;
-  const resolvedSnapPoints = React.useMemo<Array<string | number>>(
-    () => snapPoints ?? ['82%'],
-    [snapPoints]
-  );
   const effectiveMaxDynamicContentSize = maxDynamicContentSize ?? Math.round(height * 0.82);
+  const detents = React.useMemo<Detent[]>(() => {
+    if (contentSized) return [0, 'content'];
+    return [0, ...(snapPoints ?? ['82%']).map((point) => resolveSnapPoint(point, height))];
+  }, [contentSized, height, snapPoints]);
+  const initialOpenIndex = Math.min(1, detents.length - 1);
+
+  React.useEffect(() => {
+    visibleRef.current = visible;
+  }, [visible]);
 
   React.useEffect(() => {
     if (visible) {
       setMounted(true);
-    } else {
-      ref.current?.dismiss();
+      dismissingRef.current = false;
+      const frame = requestAnimationFrame(() => {
+        hasOpenedRef.current = true;
+        setIndex(initialOpenIndex);
+      });
+      return () => cancelAnimationFrame(frame);
     }
-  }, [visible]);
 
-  React.useEffect(() => {
-    if (!mounted || !visible) return;
-    const frame = requestAnimationFrame(() => {
-      ref.current?.present();
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [mounted, visible]);
+    dismissingRef.current = true;
+    setIndex(0);
+    return undefined;
+  }, [initialOpenIndex, visible]);
 
-  const renderBackdrop = React.useCallback(
-    (props: BottomSheetBackdropProps) => (
-      <BottomSheetBackdrop
-        {...props}
-        appearsOnIndex={0}
-        disappearsOnIndex={-1}
-        opacity={0.64}
-        pressBehavior="close"
-      />
-    ),
+  React.useImperativeHandle(
+    sheetRef,
+    () => ({
+      close: () => setIndex(0),
+      expand: () => setIndex(detents.length - 1),
+    }),
+    [detents.length]
+  );
+
+  const handleIndexChange = React.useCallback(
+    (nextIndex: number) => {
+      setIndex((currentIndex) => (currentIndex === nextIndex ? currentIndex : nextIndex));
+      if (nextIndex > 0) {
+        hasOpenedRef.current = true;
+      }
+    },
     []
+  );
+
+  const handleSettle = React.useCallback(
+    (nextIndex: number) => {
+      if (nextIndex !== 0) return;
+
+      const shouldDismiss = visibleRef.current && hasOpenedRef.current && !dismissingRef.current;
+      const opening = visibleRef.current && !hasOpenedRef.current && !dismissingRef.current;
+      hasOpenedRef.current = false;
+
+      if (opening) return;
+
+      if (shouldDismiss) {
+        dismissingRef.current = true;
+        Keyboard.dismiss();
+        onDismiss();
+      }
+
+      setMounted(false);
+    },
+    [onDismiss]
   );
 
   const header =
@@ -92,62 +130,109 @@ export function ArkBottomSheet({
       </View>
     ) : null;
 
-  const handleDismiss = React.useCallback(() => {
-    Keyboard.dismiss();
-    setMounted(false);
-    onDismiss();
-  }, [onDismiss]);
-
   if (!mounted) return null;
 
-  return (
-    <BottomSheetModal
-      ref={ref}
-      index={0}
-      snapPoints={contentSized ? undefined : resolvedSnapPoints}
-      enableDynamicSizing={contentSized}
-      maxDynamicContentSize={contentSized ? effectiveMaxDynamicContentSize : maxDynamicContentSize}
-      backdropComponent={renderBackdrop}
-      backgroundStyle={{
-        backgroundColor: colors.card,
-        borderColor: colors.border,
-        borderWidth: 1,
-      }}
-      handleIndicatorStyle={{ backgroundColor: colors.mutedForeground }}
-      onDismiss={handleDismiss}
-      enablePanDownToClose
-      enableBlurKeyboardOnGesture
-      keyboardBehavior="interactive"
-      keyboardBlurBehavior="none"
-      android_keyboardInputMode="adjustResize">
+  const bottomPadding = Math.max(insets.bottom, 12) + 12;
+  const body = (
+    <View
+      style={[
+        styles.content,
+        !contentSized ? styles.flexContent : { maxHeight: effectiveMaxDynamicContentSize },
+      ]}>
+      <View style={styles.handleContainer}>
+        <View style={[styles.handle, { backgroundColor: colors.mutedForeground }]} />
+      </View>
       {scrollable ? (
-        <BottomSheetScrollView
+        <ScrollView
+          style={styles.scrollView}
           contentContainerStyle={{
             paddingHorizontal: 16,
             paddingTop: 4,
-            paddingBottom: Math.max(insets.bottom, 12) + 12,
+            paddingBottom: bottomPadding,
           }}
           keyboardShouldPersistTaps="handled">
           <View className={contentClassName} style={{ gap: 16, width: '100%' }}>
             {header}
             {children}
           </View>
-        </BottomSheetScrollView>
+        </ScrollView>
       ) : (
-        <BottomSheetView
+        <View
           style={{
             paddingHorizontal: 16,
             paddingTop: 4,
-            paddingBottom: Math.max(insets.bottom, 12) + 12,
+            paddingBottom: bottomPadding,
           }}>
           <View className={contentClassName} style={{ gap: 16, width: '100%' }}>
             {header}
             {children}
           </View>
-        </BottomSheetView>
+        </View>
       )}
-    </BottomSheetModal>
+    </View>
+  );
+
+  return (
+    <ModalBottomSheet
+      index={index}
+      detents={detents}
+      onIndexChange={handleIndexChange}
+      onSettle={handleSettle}
+      scrimColor="rgba(0, 0, 0, 0.64)"
+      surface={
+        <View
+          style={[
+            StyleSheet.absoluteFill,
+            styles.surface,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+            },
+          ]}
+        />
+      }>
+      {body}
+    </ModalBottomSheet>
   );
 }
 
-export { BottomSheet, BottomSheetScrollView, BottomSheetView };
+function resolveSnapPoint(point: string | number, height: number): Detent {
+  if (typeof point === 'number') return Math.max(0, point);
+
+  const percent = point.match(/^(\d+(?:\.\d+)?)%$/);
+  if (percent) {
+    return Math.round(height * (Number(percent[1]) / 100));
+  }
+
+  if (point === 'content') return 'content';
+  return Math.max(0, Number(point) || 0);
+}
+
+const styles = StyleSheet.create({
+  content: {
+    width: '100%',
+  },
+  flexContent: {
+    flex: 1,
+  },
+  handle: {
+    borderRadius: 999,
+    height: 4,
+    width: 40,
+  },
+  handleContainer: {
+    alignItems: 'center',
+    paddingBottom: 8,
+    paddingTop: 10,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  surface: {
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    borderWidth: 1,
+  },
+});
+
+export { BottomSheet, ModalBottomSheet };

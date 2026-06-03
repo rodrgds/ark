@@ -1,16 +1,15 @@
 import { RAG_HASH_EMBEDDING_DIMENSIONS } from '@/services/ai/rag-embedding';
-import { EMBEDDING_MODEL_CONFIGS } from '@/services/ai/embedding-models';
+import {
+  EXECUTORCH_TEXT_EMBEDDING_DIMENSIONS,
+  EXECUTORCH_TEXT_EMBEDDING_MODEL_ID,
+} from '@/services/ai/embedding-models';
 
 const HASH_VECTOR_TABLE = 'rag_chunk_vectors_v2';
 const VECTOR_TABLES: Record<string, { table: string; dimensions: number }> = {
   'ark-hash-v2': { table: HASH_VECTOR_TABLE, dimensions: RAG_HASH_EMBEDDING_DIMENSIONS },
-  'embedding-nomic-v15-q4-k-m': {
-    table: 'rag_chunk_vectors_nomic_v15_256',
-    dimensions: EMBEDDING_MODEL_CONFIGS['embedding-nomic-v15-q4-k-m'].dimension,
-  },
-  'embedding-qwen3-06b-q8': {
-    table: 'rag_chunk_vectors_qwen3_06b_1024',
-    dimensions: EMBEDDING_MODEL_CONFIGS['embedding-qwen3-06b-q8'].dimension,
+  [EXECUTORCH_TEXT_EMBEDDING_MODEL_ID]: {
+    table: 'rag_chunk_vectors_executorch_multi_qa_minilm_384',
+    dimensions: EXECUTORCH_TEXT_EMBEDDING_DIMENSIONS,
   },
 };
 

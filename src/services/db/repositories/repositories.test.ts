@@ -89,6 +89,7 @@ let WeatherRepository: typeof import('@/services/db/repositories/weather.repo').
 let DocumentsRepository: typeof import('@/services/db/repositories/documents.repo').DocumentsRepository;
 let DocumentPagesRepository: typeof import('@/services/db/repositories/document-pages.repo').DocumentPagesRepository;
 let SensorsRepository: typeof import('@/services/db/repositories/sensors.repo').SensorsRepository;
+let PreferencesService: typeof import('@/services/preferences/preferences.service').PreferencesService;
 
 let testDb: TestSQLiteDatabase;
 
@@ -105,6 +106,7 @@ beforeAll(async () => {
   ({ DocumentsRepository } = await import('@/services/db/repositories/documents.repo'));
   ({ DocumentPagesRepository } = await import('@/services/db/repositories/document-pages.repo'));
   ({ SensorsRepository } = await import('@/services/db/repositories/sensors.repo'));
+  ({ PreferencesService } = await import('@/services/preferences/preferences.service'));
 });
 
 beforeEach(async () => {
@@ -118,8 +120,14 @@ beforeEach(async () => {
 describe('database migrations', () => {
   test('creates the current schema with FTS and resumable download columns', async () => {
     const version = await testDb.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
-    expect(version?.user_version).toBe(14);
+    expect(version?.user_version).toBe(17);
 
+    const noteColumns = await testDb.getAllAsync<{ name: string }>('PRAGMA table_info(notes)');
+    expect(noteColumns.map((column) => column.name)).toContain('theme_id');
+    expect(noteColumns.map((column) => column.name)).toContain('sort_order');
+    expect(noteColumns.map((column) => column.name)).toContain('content_html');
+    expect(noteColumns.map((column) => column.name)).toContain('content_json');
+    expect(noteColumns.map((column) => column.name)).toContain('content_format');
     const downloadColumns = await testDb.getAllAsync<{ name: string }>(
       'PRAGMA table_info(downloads)'
     );
@@ -199,6 +207,137 @@ describe('database migrations', () => {
     );
     expect(rows[0]?.note_id).toBe('note-1');
   });
+
+  test('adds semantic note metadata to existing v14 databases', async () => {
+    const oldDb = new TestSQLiteDatabase();
+    try {
+      await oldDb.execAsync(`
+        CREATE TABLE notes (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          body TEXT NOT NULL,
+          tags_json TEXT,
+          is_favorite INTEGER DEFAULT 0,
+          created_at INTEGER,
+          updated_at INTEGER,
+          deleted_at INTEGER
+        );
+        PRAGMA user_version = 14;
+      `);
+
+      await migrateDbIfNeeded(oldDb as never);
+
+      const version = await oldDb.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
+      const noteColumns = await oldDb.getAllAsync<{
+        name: string;
+        notnull: number;
+        dflt_value: string | null;
+      }>('PRAGMA table_info(notes)');
+      const themeColumn = noteColumns.find((column) => column.name === 'theme_id');
+      const sortColumn = noteColumns.find((column) => column.name === 'sort_order');
+
+      expect(version?.user_version).toBe(17);
+      expect(themeColumn?.notnull).toBe(1);
+      expect(themeColumn?.dflt_value).toBe("'default'");
+      expect(sortColumn?.name).toBe('sort_order');
+      expect(noteColumns.map((column) => column.name)).toContain('content_html');
+      expect(noteColumns.map((column) => column.name)).toContain('content_json');
+      expect(noteColumns.map((column) => column.name)).toContain('content_format');
+    } finally {
+      oldDb.close();
+    }
+  });
+
+  test('backfills manual note order for existing v15 databases', async () => {
+    const oldDb = new TestSQLiteDatabase();
+    try {
+      await oldDb.execAsync(`
+        CREATE TABLE notes (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          body TEXT NOT NULL,
+          tags_json TEXT,
+          theme_id TEXT NOT NULL DEFAULT 'default',
+          is_favorite INTEGER DEFAULT 0,
+          created_at INTEGER,
+          updated_at INTEGER,
+          deleted_at INTEGER
+        );
+        INSERT INTO notes
+          (id, title, body, tags_json, theme_id, is_favorite, created_at, updated_at, deleted_at)
+        VALUES
+          ('oldest', 'Oldest', 'Body', '[]', 'default', 0, 100, 100, NULL),
+          ('favorite', 'Favorite', 'Body', '[]', 'default', 1, 200, 200, NULL),
+          ('newest', 'Newest', 'Body', '[]', 'default', 0, 300, 300, NULL);
+        PRAGMA user_version = 15;
+      `);
+
+      await migrateDbIfNeeded(oldDb as never);
+
+      const version = await oldDb.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
+      const rows = await oldDb.getAllAsync<{ id: string; sort_order: number }>(
+        'SELECT id, sort_order FROM notes ORDER BY sort_order ASC'
+      );
+
+      expect(version?.user_version).toBe(17);
+      expect(rows).toEqual([
+        { id: 'favorite', sort_order: 1000 },
+        { id: 'newest', sort_order: 2000 },
+        { id: 'oldest', sort_order: 3000 },
+      ]);
+    } finally {
+      oldDb.close();
+    }
+  });
+
+  test('adds rich note content columns to existing v16 databases', async () => {
+    const oldDb = new TestSQLiteDatabase();
+    try {
+      await oldDb.execAsync(`
+        CREATE TABLE notes (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          body TEXT NOT NULL,
+          tags_json TEXT,
+          theme_id TEXT NOT NULL DEFAULT 'default',
+          sort_order REAL,
+          is_favorite INTEGER DEFAULT 0,
+          created_at INTEGER,
+          updated_at INTEGER,
+          deleted_at INTEGER
+        );
+        INSERT INTO notes
+          (id, title, body, tags_json, theme_id, sort_order, is_favorite, created_at, updated_at, deleted_at)
+        VALUES
+          ('plain-note', 'Plain', 'Body', '[]', 'default', 1000, 0, 100, 100, NULL);
+        PRAGMA user_version = 16;
+      `);
+
+      await migrateDbIfNeeded(oldDb as never);
+
+      const version = await oldDb.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
+      const noteColumns = await oldDb.getAllAsync<{ name: string }>('PRAGMA table_info(notes)');
+      const row = await oldDb.getFirstAsync<{
+        content_html: string | null;
+        content_json: string | null;
+        content_format: string;
+      }>('SELECT content_html, content_json, content_format FROM notes WHERE id = ?', [
+        'plain-note',
+      ]);
+
+      expect(version?.user_version).toBe(17);
+      expect(noteColumns.map((column) => column.name)).toContain('content_html');
+      expect(noteColumns.map((column) => column.name)).toContain('content_json');
+      expect(noteColumns.map((column) => column.name)).toContain('content_format');
+      expect(row).toEqual({
+        content_html: null,
+        content_json: null,
+        content_format: 'plain-text',
+      });
+    } finally {
+      oldDb.close();
+    }
+  });
 });
 
 describe('repositories', () => {
@@ -221,6 +360,27 @@ describe('repositories', () => {
     const vault = await SettingsRepository.getVaultState();
     expect(vault.autoLockMinutes).toBe(15);
     expect(vault.passwordHint).toBe('hint');
+  });
+
+  test('preferences persist battery reduce mode and map legacy motion state', async () => {
+    expect(await PreferencesService.getBatteryReduceModeEnabled()).toBe(false);
+    expect(await PreferencesService.getMotionEnabled()).toBe(true);
+
+    await SettingsRepository.set('motion.enabled', 'false');
+    expect(await PreferencesService.getBatteryReduceModeEnabled()).toBe(true);
+    expect(await PreferencesService.getMotionEnabled()).toBe(false);
+
+    await PreferencesService.setBatteryReduceModeEnabled(false);
+    expect(await PreferencesService.getBatteryReduceModeEnabled()).toBe(false);
+    expect(await PreferencesService.getMotionEnabled()).toBe(true);
+
+    await PreferencesService.setMotionEnabled(false);
+    expect(await SettingsRepository.get('battery.reduceModeEnabled')).toBe('true');
+
+    expect(await PreferencesService.getWifiOnlyDownloadsEnabled()).toBe(false);
+    await PreferencesService.setWifiOnlyDownloadsEnabled(true);
+    expect(await PreferencesService.getWifiOnlyDownloadsEnabled()).toBe(true);
+    expect(await SettingsRepository.get('downloads.wifiOnly')).toBe('true');
   });
 
   test('content packs seed real packs and support install state changes', async () => {
@@ -314,6 +474,9 @@ describe('repositories', () => {
     expect(row?.checksumMd5).toBe('abc123');
     expect(row?.checksumSha256).toBe('a'.repeat(64));
     expect(row?.progress).toBe(1);
+
+    await DownloadsRepository.delete(id);
+    expect(await DownloadsRepository.get(id)).toBeNull();
   });
 
   test('notes CRUD keeps FTS in sync and soft delete hides notes', async () => {
@@ -323,6 +486,11 @@ describe('repositories', () => {
       tags: ['water', 'field'],
     });
 
+    expect(note.themeId).toBe('default');
+    expect(note.contentFormat).toBe('plain-text');
+    expect(note.contentHtml).toBeNull();
+    expect(note.contentJson).toBeNull();
+    expect(note.sortOrder).toBeNumber();
     expect((await NotesRepository.list('boil'))[0]?.id).toBe(note.id);
     expect((await NotesRepository.list('water-plan'))[0]?.id).toBe(note.id);
     expect(await NotesRepository.list("what's water-plan?")).toEqual([]);
@@ -338,9 +506,152 @@ describe('repositories', () => {
     expect(labeled?.body).toBe('Boil and cool water.');
     expect(labeled?.tags).toEqual(['water', 'storage']);
 
+    await NotesRepository.update(note.id, { themeId: 'yellow' });
+    const themed = await NotesRepository.get(note.id);
+    expect(themed?.themeId).toBe('yellow');
+    expect((await NotesRepository.list('cool'))[0]?.id).toBe(note.id);
+
     await NotesRepository.softDelete(note.id);
     expect(await NotesRepository.get(note.id)).toBeNull();
     expect(await NotesRepository.list('cool')).toHaveLength(0);
+  });
+
+  test('notes preserve rich editor content while FTS tracks plain body', async () => {
+    const contentJson = JSON.stringify({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', marks: [{ type: 'bold' }], text: 'Radio antenna' }],
+        },
+      ],
+    });
+    const note = await NotesRepository.create({
+      title: 'Radio setup',
+      body: 'Raise the antenna before transmitting.',
+      contentHtml: '<p><strong>Radio antenna</strong></p>',
+      contentJson,
+      contentFormat: 'tiptap-json-v1',
+      tags: ['comms'],
+    });
+
+    expect(note.contentFormat).toBe('tiptap-json-v1');
+    expect(note.contentHtml).toBe('<p><strong>Radio antenna</strong></p>');
+    expect(note.contentJson).toBe(contentJson);
+    expect((await NotesRepository.list('antenna'))[0]?.id).toBe(note.id);
+    expect(await NotesRepository.list('strong')).toEqual([]);
+
+    const updatedJson = JSON.stringify({
+      type: 'doc',
+      content: [
+        {
+          type: 'bulletList',
+          content: [
+            {
+              type: 'listItem',
+              content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Coil cable' }] }],
+            },
+          ],
+        },
+      ],
+    });
+    await NotesRepository.update(note.id, {
+      body: 'Coil cable before storage.',
+      contentHtml: '<ul><li><p>Coil cable</p></li></ul>',
+      contentJson: updatedJson,
+      contentFormat: 'tiptap-json-v1',
+    });
+
+    const updated = await NotesRepository.get(note.id);
+    expect(updated?.body).toBe('Coil cable before storage.');
+    expect(updated?.contentHtml).toBe('<ul><li><p>Coil cable</p></li></ul>');
+    expect(updated?.contentJson).toBe(updatedJson);
+    expect(updated?.contentFormat).toBe('tiptap-json-v1');
+    expect((await NotesRepository.list('coil'))[0]?.id).toBe(note.id);
+    expect(await NotesRepository.list('antenna')).toEqual([]);
+  });
+
+  test('notes recover plain body from rich content when editor text is an artifact', async () => {
+    const contentJson = JSON.stringify({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: 'Keep iodine tablets with the water kit.' }],
+        },
+      ],
+    });
+    const note = await NotesRepository.create({
+      title: 'Water kit',
+      body: '...',
+      contentHtml: '<p>Keep iodine tablets with the water kit.</p>',
+      contentJson,
+      contentFormat: 'tiptap-json-v1',
+    });
+
+    expect(note.body).toBe('Keep iodine tablets with the water kit.');
+    expect((await NotesRepository.list('iodine'))[0]?.id).toBe(note.id);
+  });
+
+  test('notes bulk actions update metadata, labels, and soft deletes safely', async () => {
+    const first = await NotesRepository.create({
+      title: 'Radio cache',
+      body: 'Charge the crank radio monthly.',
+      tags: ['comms'],
+    });
+    const second = await NotesRepository.create({
+      title: 'Food cache',
+      body: 'Rotate tins before expiry.',
+      tags: ['food'],
+    });
+    const third = await NotesRepository.create({
+      title: 'Private route',
+      body: 'Trailhead behind the ridge.',
+      tags: ['map'],
+    });
+    expect((await NotesRepository.list(undefined, 'manual')).map((note) => note.id)).toEqual([
+      third.id,
+      second.id,
+      first.id,
+    ]);
+
+    await NotesRepository.updateMany([first.id, second.id], {
+      isFavorite: true,
+      themeId: 'teal',
+    });
+    const [updatedFirst, updatedSecond, untouchedThird] = await NotesRepository.getMany([
+      first.id,
+      second.id,
+      third.id,
+    ]);
+    expect(updatedFirst?.isFavorite).toBe(true);
+    expect(updatedFirst?.themeId).toBe('teal');
+    expect(updatedSecond?.isFavorite).toBe(true);
+    expect(updatedSecond?.themeId).toBe('teal');
+    expect(untouchedThird?.isFavorite).toBe(false);
+    expect(untouchedThird?.themeId).toBe('default');
+    expect((await NotesRepository.list('monthly'))[0]?.id).toBe(first.id);
+
+    await NotesRepository.reorder([first.id, third.id, second.id]);
+    expect((await NotesRepository.list(undefined, 'manual')).map((note) => note.id)).toEqual([
+      first.id,
+      third.id,
+      second.id,
+    ]);
+
+    await NotesRepository.applyLabels([first.id, second.id], ['offline', ' food ']);
+    const labeled = await NotesRepository.getMany([first.id, second.id]);
+    expect(labeled[0]?.tags).toEqual(['comms', 'food', 'offline']);
+    expect(labeled[1]?.tags).toEqual(['food', 'offline']);
+    expect((await NotesRepository.list('offline')).map((note) => note.id).sort()).toEqual(
+      [first.id, second.id].sort()
+    );
+
+    await NotesRepository.softDeleteMany([first.id, second.id]);
+    expect(await NotesRepository.get(first.id)).toBeNull();
+    expect(await NotesRepository.get(second.id)).toBeNull();
+    expect((await NotesRepository.list('offline')).map((note) => note.id)).toEqual([]);
+    expect(await NotesRepository.get(third.id)).toMatchObject({ id: third.id });
   });
 
   test('maps repository manages regions, markers, and routes', async () => {

@@ -1,5 +1,6 @@
 import { Text } from '@/components/ui/text';
 import { APP_NAME, APP_SLOGAN } from '@/constants/app';
+import { useBatteryReduceMode } from '@/hooks/use-battery-reduce-mode';
 import { cn } from '@/lib/utils';
 import { Image } from 'expo-image';
 import { View } from 'react-native';
@@ -78,8 +79,13 @@ export function Arky({
   size?: number;
   className?: string;
 }) {
+  const reduceModeEnabled = useBatteryReduceMode();
+  if (reduceModeEnabled) return null;
+
   return (
-    <View className={cn('items-center justify-center', className)} style={{ width: size, height: size }}>
+    <View
+      className={cn('items-center justify-center', className)}
+      style={{ width: size, height: size }}>
       <Image
         source={ARKY_POSES[pose]}
         style={{ width: '100%', height: '100%' }}

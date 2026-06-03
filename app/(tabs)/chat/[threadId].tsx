@@ -7,6 +7,9 @@ import { MarkdownText } from '@/components/ui/markdown-text';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
 import { useAppHeaderActions } from '@/components/layout/app-header-actions';
+import { BATTERY_POLL_INTERVALS_MS } from '@/constants/battery';
+import { useBatteryReduceMode } from '@/hooks/use-battery-reduce-mode';
+import { useArkTextToSpeech } from '@/hooks/use-ark-text-to-speech';
 import { NAV_THEME } from '@/lib/theme';
 import { AIService, isAiRequestCancelledError } from '@/services/ai/ai.service';
 import { ModelManagerService } from '@/services/ai/model-manager.service';
@@ -14,19 +17,36 @@ import { normalizeReasoningOutput } from '@/services/ai/reasoning-normalizer';
 import { useThemeStore } from '@/stores/theme-store';
 import type { AiCitation, AiMessage, AiProgressEvent } from '@/types/ai';
 import type { ContentPack } from '@/types/content';
+import { AudioContext } from 'react-native-audio-api';
+import {
+  AudioQuality,
+  IOSOutputFormat,
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder,
+  useAudioRecorderState,
+  type RecordingOptions,
+} from 'expo-audio';
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
+import { FSMN_VAD, useSpeechToText, useVAD, WHISPER_TINY } from 'react-native-executorch';
 import {
   Brain,
+  BookOpen,
   Bot,
   ChevronDown,
   Check,
   ExternalLink,
   Mic,
+  NotebookPen,
   Plus,
   Search,
   Send,
+  Square,
   StopCircle,
   Trash2,
+  Volume2,
+  VolumeX,
 } from 'lucide-react-native';
 import * as React from 'react';
 import {
@@ -52,10 +72,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const PAGE_SIZE = 60;
 const COMPOSER_HEIGHT = 56;
+const COMPOSER_MAX_INPUT_HEIGHT = 132;
+const DETACHED_PLUS_SIZE = 48;
 const COMPOSER_SIDE_PADDING = 12;
 const COMPOSER_OPEN_GAP = 10;
 const COMPOSER_BOTTOM_GAP = 14;
-const COMPOSER_BOTTOM_GAP_FOCUSED = 10;
+const COMPOSER_BOTTOM_GAP_FOCUSED = 4;
 const MESSAGE_LIST_BOTTOM_PADDING = 168;
 const EMPTY_THREAD_PROMPTS = [
   'Create a survival checklist for tonight',
@@ -63,6 +85,28 @@ const EMPTY_THREAD_PROMPTS = [
   'Look up water purification guidance',
 ];
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+const VOICE_RECORDING_OPTIONS: RecordingOptions = Platform.select({
+  ios: {
+    extension: '.wav',
+    sampleRate: 16000,
+    numberOfChannels: 1,
+    bitRate: 256000,
+    android: RecordingPresets.HIGH_QUALITY.android,
+    ios: {
+      outputFormat: IOSOutputFormat.LINEARPCM,
+      audioQuality: AudioQuality.MAX,
+      linearPCMBitDepth: 16,
+      linearPCMIsBigEndian: false,
+      linearPCMIsFloat: false,
+    },
+    web: {
+      mimeType: 'audio/wav',
+      bitsPerSecond: 256000,
+    },
+  },
+  default: RecordingPresets.HIGH_QUALITY,
+});
 
 function CitationItem({ citation, index }: { citation: AiCitation; index: number }) {
   const location = [
@@ -163,14 +207,14 @@ function ProcessPanel({
   if (!visibleActions.length && !hasReasoning && !hasCitations) return null;
 
   return (
-    <View className="border-border rounded-md border mt-1">
+    <View className="border-border mt-1 rounded-md border">
       <Button
         variant="ghost"
         className="h-10 justify-between px-3"
         onPress={() => setOpen((current) => !current)}>
         <View className="min-w-0 flex-1 flex-row items-center gap-2">
           <Icon as={Brain} className="text-primary size-4" />
-          <Text variant="small" className="text-muted-foreground uppercase font-semibold">
+          <Text variant="small" className="text-muted-foreground font-semibold uppercase">
             Process & Sources
           </Text>
           {streaming ? <ActivityIndicator size="small" className="ml-1" /> : null}
@@ -183,14 +227,16 @@ function ProcessPanel({
             <View className="gap-2">
               <View className="flex-row items-center gap-2">
                 <Icon as={Search} className="text-primary size-4" />
-                <Text variant="small" className="text-muted-foreground uppercase font-semibold">
+                <Text variant="small" className="text-muted-foreground font-semibold uppercase">
                   Activity
                 </Text>
               </View>
               <View className="gap-1.5 pl-6">
                 {visibleActions.map((action, index) => (
                   <View key={`${action.summary}-${index}`} className="flex-row items-start gap-2">
-                    <Text variant="small" className="text-primary mt-0.5">•</Text>
+                    <Text variant="small" className="text-primary mt-0.5">
+                      •
+                    </Text>
                     <Text variant="small" className="text-muted-foreground flex-1 leading-5">
                       {action.summary}
                     </Text>
@@ -204,14 +250,18 @@ function ProcessPanel({
             <View className="gap-2">
               <View className="flex-row items-center gap-2">
                 <Icon as={ExternalLink} className="text-primary size-4" />
-                <Text variant="small" className="text-muted-foreground uppercase font-semibold">
+                <Text variant="small" className="text-muted-foreground font-semibold uppercase">
                   Checked Sources ({citations.length})
                 </Text>
               </View>
               <View className="gap-3 pl-6">
                 {citations.map((citation, index) => (
                   <CitationItem
-                    key={messageId ? `${messageId}-${citation.sourceId}-${index}` : `${citation.sourceId}-${index}`}
+                    key={
+                      messageId
+                        ? `${messageId}-${citation.sourceId}-${index}`
+                        : `${citation.sourceId}-${index}`
+                    }
                     citation={citation}
                     index={index}
                   />
@@ -224,7 +274,7 @@ function ProcessPanel({
             <View className="gap-2">
               <View className="flex-row items-center gap-2">
                 <Icon as={Brain} className="text-primary size-4" />
-                <Text variant="small" className="text-muted-foreground uppercase font-semibold">
+                <Text variant="small" className="text-muted-foreground font-semibold uppercase">
                   Thinking Process
                 </Text>
               </View>
@@ -278,10 +328,14 @@ function MessageBubble({
   message,
   activityMessages = [],
   onDeleteUserMessage,
+  onSpeakAssistant,
+  speaking,
 }: {
   message: AiMessage;
   activityMessages?: AiMessage[];
   onDeleteUserMessage: (message: AiMessage) => void;
+  onSpeakAssistant?: (message: AiMessage) => void;
+  speaking?: boolean;
 }) {
   if (message.role === 'tool') {
     return null;
@@ -300,11 +354,22 @@ function MessageBubble({
           ? 'max-w-[92%] gap-2 rounded-lg'
           : 'bg-primary max-w-[92%] gap-2 rounded-lg border-transparent'
       }>
-      <Text
-        variant="small"
-        className={assistant ? 'text-primary uppercase' : 'text-primary-foreground uppercase'}>
-        {assistant ? 'Arky' : 'You'}
-      </Text>
+      <View className="flex-row items-center justify-between gap-3">
+        <Text
+          variant="small"
+          className={assistant ? 'text-primary uppercase' : 'text-primary-foreground uppercase'}>
+          {assistant ? 'Arky' : 'You'}
+        </Text>
+        {assistant && onSpeakAssistant ? (
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7"
+            onPress={() => onSpeakAssistant(message)}>
+            <Icon as={speaking ? VolumeX : Volume2} className="size-4" />
+          </Button>
+        ) : null}
+      </View>
       {assistant ? (
         <>
           <MarkdownText>{displayContent}</MarkdownText>
@@ -367,7 +432,7 @@ function StreamingBubble({
         </View>
         <ProcessPanel actions={actions} reasoning={reasoning} defaultOpen streaming />
         {content ? (
-          <MarkdownText>{content}</MarkdownText>
+          <MarkdownText streaming>{content}</MarkdownText>
         ) : (
           <Text variant="muted">{progressEvents.at(-1)?.label || 'Starting...'}</Text>
         )}
@@ -425,33 +490,68 @@ function appendProgressEvent(events: AiProgressEvent[], next: AiProgressEvent) {
 function FloatingComposer({
   value,
   disabled,
+  errorMessage,
   keyboardVisible,
   showPrompts,
   onChangeText,
+  onDismissError,
+  onVoiceError,
   onKeyboardVisibleChange,
+  onAddContextPress,
   onPromptPress,
   onSubmit,
 }: {
   value: string;
   disabled: boolean;
+  errorMessage?: string | null;
   keyboardVisible: boolean;
   showPrompts: boolean;
   onChangeText: (text: string) => void;
+  onDismissError: () => void;
+  onVoiceError: (message: string) => void;
   onKeyboardVisibleChange: (visible: boolean) => void;
+  onAddContextPress: () => void;
   onPromptPress: (prompt: string) => void;
   onSubmit: () => void;
 }) {
   const inputRef = React.useRef<TextInput>(null);
+  const recorder = useAudioRecorder(VOICE_RECORDING_OPTIONS);
+  const recorderState = useAudioRecorderState(recorder, 250);
+  const speechToText = useSpeechToText({ model: WHISPER_TINY });
+  const voiceActivity = useVAD({ model: FSMN_VAD });
+  const speechAudioContextRef = React.useRef<AudioContext | null>(null);
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
   const theme = useThemeStore((state) => state.effectiveTheme);
   const colors = NAV_THEME[theme].colors;
   const [isFocused, setIsFocused] = React.useState(false);
+  const [voiceState, setVoiceState] = React.useState<'idle' | 'recording' | 'transcribing'>('idle');
+  const [inputHeight, setInputHeight] = React.useState(COMPOSER_HEIGHT);
   const keyboardProgress = useSharedValue(0);
   const keyboardOffset = useSharedValue(0);
+  const hasText = value.length > 0;
+  const expanded = inputHeight > COMPOSER_HEIGHT + 8;
+
+  React.useEffect(
+    () => () => {
+      void speechAudioContextRef.current?.close().catch(() => undefined);
+      speechAudioContextRef.current = null;
+    },
+    []
+  );
+
+  const getSpeechAudioContext = React.useCallback(() => {
+    if (!speechAudioContextRef.current) {
+      speechAudioContextRef.current = new AudioContext({ sampleRate: 16000 });
+    }
+    return speechAudioContextRef.current;
+  }, []);
 
   const calculateKeyboardOffset = React.useCallback(
-    (event: { endCoordinates?: { height?: number; screenY?: number } } | undefined, fallbackOffset: number) => {
+    (
+      event: { endCoordinates?: { height?: number; screenY?: number } } | undefined,
+      fallbackOffset: number
+    ) => {
       const input = inputRef.current;
       if (!input || !event?.endCoordinates) {
         keyboardOffset.value = withTiming(fallbackOffset, {
@@ -479,7 +579,10 @@ function FloatingComposer({
   );
 
   const animateKeyboard = React.useCallback(
-    (visible: boolean, event?: { duration?: number; endCoordinates?: { height?: number; screenY?: number } }) => {
+    (
+      visible: boolean,
+      event?: { duration?: number; endCoordinates?: { height?: number; screenY?: number } }
+    ) => {
       const duration = Math.min(Math.max(event?.duration ?? 220, 160), 280);
       const screenY = event?.endCoordinates?.screenY;
       const eventHeight = event?.endCoordinates?.height ?? 0;
@@ -501,14 +604,24 @@ function FloatingComposer({
       }
       onKeyboardVisibleChange(visible);
     },
-    [calculateKeyboardOffset, keyboardOffset, keyboardProgress, onKeyboardVisibleChange, windowHeight]
+    [
+      calculateKeyboardOffset,
+      keyboardOffset,
+      keyboardProgress,
+      onKeyboardVisibleChange,
+      windowHeight,
+    ]
   );
 
   React.useEffect(() => {
-    const handleShow = (event: { duration?: number; endCoordinates?: { height?: number; screenY?: number } }) =>
-      animateKeyboard(true, event);
-    const handleHide = (event: { duration?: number; endCoordinates?: { height?: number; screenY?: number } }) =>
-      animateKeyboard(false, event);
+    const handleShow = (event: {
+      duration?: number;
+      endCoordinates?: { height?: number; screenY?: number };
+    }) => animateKeyboard(true, event);
+    const handleHide = (event: {
+      duration?: number;
+      endCoordinates?: { height?: number; screenY?: number };
+    }) => animateKeyboard(false, event);
     const willShow = Keyboard.addListener('keyboardWillShow', handleShow);
     const didShow = Keyboard.addListener('keyboardDidShow', handleShow);
     const willChange = Keyboard.addListener('keyboardWillChangeFrame', handleShow);
@@ -546,7 +659,7 @@ function FloatingComposer({
     return {
       opacity: interpolate(progress, [0, 0.5, 1], [0, 0.72, 1], Extrapolation.CLAMP),
       transform: [{ scale: interpolate(progress, [0, 1], [0.8, 1], Extrapolation.CLAMP) }],
-      width: interpolate(progress, [0, 1], [0, COMPOSER_HEIGHT], Extrapolation.CLAMP),
+      width: interpolate(progress, [0, 1], [0, DETACHED_PLUS_SIZE], Extrapolation.CLAMP),
       marginRight: interpolate(progress, [0, 1], [0, COMPOSER_OPEN_GAP], Extrapolation.CLAMP),
     };
   });
@@ -560,10 +673,78 @@ function FloatingComposer({
     };
   });
 
-  const bottomPadding = Math.max(
-    insets.bottom + (keyboardVisible ? COMPOSER_BOTTOM_GAP_FOCUSED : COMPOSER_BOTTOM_GAP),
-    keyboardVisible ? COMPOSER_BOTTOM_GAP_FOCUSED : 24
-  );
+  const bottomPadding = keyboardVisible
+    ? COMPOSER_BOTTOM_GAP_FOCUSED
+    : Math.max(insets.bottom + COMPOSER_BOTTOM_GAP, 24);
+
+  async function startVoiceRecording() {
+    if (disabled || voiceState !== 'idle' || hasText) return;
+    try {
+      const permission = await requestRecordingPermissionsAsync();
+      if (!permission.granted) {
+        onVoiceError('Microphone permission is required for voice input.');
+        return;
+      }
+      if (!speechToText.isReady) {
+        onVoiceError(
+          speechToText.error?.message ??
+            `Voice transcription model is loading${speechToText.downloadProgress > 0 ? ` (${Math.round(speechToText.downloadProgress * 100)}%)` : ''}.`
+        );
+        return;
+      }
+      if (!voiceActivity.isReady) {
+        onVoiceError(
+          voiceActivity.error?.message ??
+            `Voice activity model is loading${voiceActivity.downloadProgress > 0 ? ` (${Math.round(voiceActivity.downloadProgress * 100)}%)` : ''}.`
+        );
+        return;
+      }
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+      });
+      await recorder.prepareToRecordAsync(VOICE_RECORDING_OPTIONS);
+      recorder.record({ forDuration: 45 });
+      setVoiceState('recording');
+    } catch (voiceError) {
+      setVoiceState('idle');
+      onVoiceError(
+        voiceError instanceof Error ? voiceError.message : 'Unable to start voice input.'
+      );
+    }
+  }
+
+  async function stopVoiceRecording() {
+    if (voiceState !== 'recording') return;
+    setVoiceState('transcribing');
+    try {
+      await recorder.stop();
+      await setAudioModeAsync({ allowsRecording: false });
+      const uri = recorder.uri ?? recorderState.url;
+      if (!uri) throw new Error('No voice recording was saved.');
+      const audioContext = getSpeechAudioContext();
+      const decodedAudio = await audioContext.decodeAudioData(uri);
+      const waveform = decodedAudio.getChannelData(0);
+      const speechSegments = await voiceActivity.forward(waveform);
+      const speechWaveform = sliceVoiceActivity(waveform, speechSegments);
+      if (!speechWaveform) throw new Error('No speech was detected in the recording.');
+      const transcript = await speechToText.transcribe(speechWaveform);
+      onChangeText(transcript.text.trim());
+      requestAnimationFrame(() => inputRef.current?.focus());
+    } catch (voiceError) {
+      onVoiceError(
+        voiceError instanceof Error ? voiceError.message : 'Unable to transcribe voice input.'
+      );
+    } finally {
+      setVoiceState('idle');
+    }
+  }
+
+  React.useEffect(() => {
+    if (voiceState === 'recording' && !recorderState.isRecording && recorderState.url) {
+      void stopVoiceRecording();
+    }
+  }, [recorderState.isRecording, recorderState.url, voiceState]);
 
   return (
     <Animated.View
@@ -578,55 +759,122 @@ function FloatingComposer({
                 onPromptPress(prompt);
                 requestAnimationFrame(() => inputRef.current?.focus());
               }}
-              style={[styles.promptChip, { borderColor: colors.border, backgroundColor: colors.card }]}>
+              style={[
+                styles.promptChip,
+                { borderColor: colors.border, backgroundColor: colors.card },
+              ]}>
               <Text variant="small">{prompt}</Text>
             </Pressable>
           ))}
         </View>
       ) : null}
 
+      {errorMessage ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={onDismissError}
+          style={[
+            styles.composerError,
+            { borderColor: colors.notification, backgroundColor: colors.card },
+          ]}>
+          <Text className="text-destructive text-sm" numberOfLines={3}>
+            {errorMessage}
+          </Text>
+        </Pressable>
+      ) : null}
+
       <View style={styles.composerRow}>
         <AnimatedPressable
           accessibilityRole="button"
           disabled={!keyboardVisible}
-          onPress={() => undefined}
+          onPress={onAddContextPress}
           style={[styles.detachedPlusButton, detachedPlusStyle]}>
           <Icon as={Plus} className="text-foreground size-5" />
         </AnimatedPressable>
 
-        <Animated.View style={styles.inputPill}>
-          <Animated.View style={[styles.embeddedPlus, embeddedPlusStyle]}>
+        <Animated.View
+          style={[
+            styles.inputPill,
+            {
+              alignItems: expanded ? 'flex-end' : 'center',
+              borderRadius: expanded ? 28 : COMPOSER_HEIGHT / 2,
+              minHeight: inputHeight,
+            },
+          ]}>
+          <AnimatedPressable
+            accessibilityRole="button"
+            onPress={onAddContextPress}
+            style={[styles.embeddedPlus, embeddedPlusStyle]}>
             <Icon as={Plus} className="text-foreground size-5" />
-          </Animated.View>
+          </AnimatedPressable>
           <TextInput
             ref={inputRef}
             value={value}
             onChangeText={onChangeText}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
-            onSubmitEditing={onSubmit}
+            onContentSizeChange={(event) => {
+              const nextHeight = Math.min(
+                COMPOSER_MAX_INPUT_HEIGHT,
+                Math.max(COMPOSER_HEIGHT, event.nativeEvent.contentSize.height + 16)
+              );
+              setInputHeight(nextHeight);
+            }}
             placeholder="Ask Arky"
             placeholderTextColor="#9CA3AF"
-            returnKeyType="send"
+            returnKeyType="default"
             editable={true}
-            multiline={false}
-            style={[styles.composerInput, { color: colors.text }]}
+            multiline
+            blurOnSubmit={false}
+            scrollEnabled={inputHeight >= COMPOSER_MAX_INPUT_HEIGHT}
+            style={[
+              styles.composerInput,
+              {
+                color: colors.text,
+                height: inputHeight,
+                paddingBottom: expanded ? 14 : 0,
+                paddingTop: expanded ? 14 : 0,
+              },
+            ]}
+            textAlignVertical={expanded ? 'top' : 'center'}
           />
-          <View style={styles.micButton}>
-            <Icon as={Mic} className="text-muted-foreground size-5" />
-          </View>
+          {!hasText ? (
+            <Pressable
+              accessibilityRole="button"
+              disabled={disabled || voiceState === 'transcribing'}
+              onPress={() =>
+                voiceState === 'recording' ? void stopVoiceRecording() : void startVoiceRecording()
+              }
+              style={[styles.micButton, { marginBottom: expanded ? 7 : 0 }]}>
+              {voiceState === 'transcribing' ? (
+                <ActivityIndicator size="small" />
+              ) : voiceState === 'recording' ? (
+                <Icon as={Square} className="text-primary size-5" />
+              ) : (
+                <Icon as={Mic} className="text-muted-foreground size-5" />
+              )}
+            </Pressable>
+          ) : null}
           <Pressable
             accessibilityRole="button"
             disabled={disabled || !value.trim()}
             onPress={onSubmit}
             style={[
               styles.voiceButton,
-              { backgroundColor: colors.primary, opacity: disabled || !value.trim() ? 0.54 : 1 },
+              {
+                backgroundColor: colors.primary,
+                marginBottom: expanded ? 6 : 0,
+                opacity: disabled || !value.trim() ? 0.54 : 1,
+              },
             ]}>
             {disabled ? (
               <ActivityIndicator color={colors.primary === '#F2B84B' ? '#0A0A0A' : '#FFFFFF'} />
             ) : (
-              <Icon as={Send} color={colors.primary === '#F2B84B' ? '#0A0A0A' : '#FFFFFF'} size={19} />
+              <Icon
+                as={Send}
+                color={colors.primary === '#F2B84B' ? '#0A0A0A' : '#FFFFFF'}
+                size={19}
+              />
             )}
           </Pressable>
         </Animated.View>
@@ -635,9 +883,26 @@ function FloatingComposer({
   );
 }
 
+function sliceVoiceActivity(
+  waveform: Float32Array,
+  segments: Array<{ start: number; end: number }>
+) {
+  const usableSegments = segments.filter((segment) => segment.end - segment.start >= 0.18);
+  if (!usableSegments.length) return null;
+  const first = usableSegments[0];
+  const last = usableSegments[usableSegments.length - 1];
+  const sampleRate = 16000;
+  const start = Math.max(0, Math.floor((first.start - 0.2) * sampleRate));
+  const end = Math.min(waveform.length, Math.ceil((last.end + 0.35) * sampleRate));
+  if (end <= start) return null;
+  return waveform.slice(start, end);
+}
+
 export default function ChatScreen() {
   const { threadId: routeThreadId } = useLocalSearchParams<{ threadId?: string }>();
   const navigation = useNavigation();
+  const reduceModeEnabled = useBatteryReduceMode();
+  const speechPlayback = useArkTextToSpeech();
   const initialThreadId = routeThreadId && routeThreadId !== 'new' ? routeThreadId : undefined;
   const [threadId, setThreadId] = React.useState<string | undefined>(initialThreadId);
   const [messages, setMessages] = React.useState<AiMessage[]>([]);
@@ -645,8 +910,8 @@ export default function ChatScreen() {
   const [installedModels, setInstalledModels] = React.useState<ContentPack[]>([]);
   const [activeModel, setActiveModel] = React.useState<ContentPack | null>(null);
   const [modelDisabled, setModelDisabled] = React.useState(false);
-  const [activeEmbeddingModel, setActiveEmbeddingModel] = React.useState<ContentPack | null>(null);
   const [modelInfoOpen, setModelInfoOpen] = React.useState(false);
+  const [contextSheetOpen, setContextSheetOpen] = React.useState(false);
   const [clearConfirmOpen, setClearConfirmOpen] = React.useState(false);
   const [deleteConfirmMessage, setDeleteConfirmMessage] = React.useState<AiMessage | null>(null);
   const [sending, setSending] = React.useState(false);
@@ -658,6 +923,7 @@ export default function ChatScreen() {
   const [olderLoading, setOlderLoading] = React.useState(false);
   const [hasOlderMessages, setHasOlderMessages] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [speakingMessageId, setSpeakingMessageId] = React.useState<string | null>(null);
   const [keyboardVisible, setKeyboardVisible] = React.useState(false);
   const sendRunIdRef = React.useRef(0);
   const flatListRef = React.useRef<FlatList>(null);
@@ -697,10 +963,9 @@ export default function ChatScreen() {
   }, [keyboardVisible, scrollToBottom]);
 
   const refreshModels = React.useCallback(async () => {
-    const [models, globalModel, embeddingModel, preferences] = await Promise.all([
+    const [models, globalModel, preferences] = await Promise.all([
       ModelManagerService.listInstalledChatModels(),
       ModelManagerService.getActiveModel(),
-      ModelManagerService.getActiveEmbeddingModel(),
       ModelManagerService.getPreferences(),
     ]);
     let nextModel = globalModel;
@@ -716,25 +981,33 @@ export default function ChatScreen() {
     }
     setInstalledModels(models);
     setActiveModel(nextModel);
-    setActiveEmbeddingModel(embeddingModel);
     setModelDisabled(nextDisabled);
   }, [threadId]);
+
+  const refreshModelsQuietly = React.useCallback(() => {
+    void refreshModels().catch((modelError) => {
+      setError(modelError instanceof Error ? modelError.message : 'Unable to refresh AI models.');
+    });
+  }, [refreshModels]);
 
   async function load() {
     setLoading(true);
     const id = routeThreadId && routeThreadId !== 'new' ? routeThreadId : null;
-    if (id) {
-      setThreadId(id);
-      const page = await loadMessagePage(id);
-      setMessages(page.messages);
-      setHasOlderMessages(page.hasOlder);
-    } else {
-      setThreadId(undefined);
-      setMessages([]);
-      setHasOlderMessages(false);
+    try {
+      if (id) {
+        setThreadId(id);
+        const page = await loadMessagePage(id);
+        setMessages(page.messages);
+        setHasOlderMessages(page.hasOlder);
+      } else {
+        setThreadId(undefined);
+        setMessages([]);
+        setHasOlderMessages(false);
+      }
+    } finally {
+      setLoading(false);
     }
-    await refreshModels();
-    setLoading(false);
+    refreshModelsQuietly();
   }
 
   React.useEffect(() => {
@@ -743,10 +1016,13 @@ export default function ChatScreen() {
 
   useFocusEffect(
     React.useCallback(() => {
-      void refreshModels();
-      const interval = setInterval(() => void refreshModels(), 2000);
+      refreshModelsQuietly();
+      const interval = setInterval(
+        refreshModelsQuietly,
+        BATTERY_POLL_INTERVALS_MS.chatModelRefresh[reduceModeEnabled ? 'reduced' : 'normal']
+      );
       return () => clearInterval(interval);
-    }, [refreshModels])
+    }, [reduceModeEnabled, refreshModelsQuietly])
   );
 
   React.useEffect(() => {
@@ -898,12 +1174,34 @@ export default function ChatScreen() {
     setModelDisabled(true);
   }
 
-  function confirmClear() {
+  const speakAssistantMessage = React.useCallback(
+    async (message: AiMessage) => {
+      if (speakingMessageId === message.id) {
+        speechPlayback.stop();
+        setSpeakingMessageId(null);
+        return;
+      }
+      setError(null);
+      setSpeakingMessageId(message.id);
+      try {
+        await speechPlayback.speak(normalizeReasoningOutput(message.content).content);
+      } catch (speechError) {
+        setError(
+          speechError instanceof Error ? speechError.message : 'Unable to play this response.'
+        );
+      } finally {
+        setSpeakingMessageId(null);
+      }
+    },
+    [speakingMessageId, speechPlayback]
+  );
+
+  const confirmClear = React.useCallback(() => {
     if (!threadId) return;
     Keyboard.dismiss();
     setKeyboardVisible(false);
     setClearConfirmOpen(true);
-  }
+  }, [threadId]);
 
   React.useEffect(() => {
     navigation.setOptions({
@@ -998,6 +1296,8 @@ export default function ChatScreen() {
                 message={item.item.message}
                 activityMessages={item.item.activityMessages}
                 onDeleteUserMessage={setDeleteConfirmMessage}
+                onSpeakAssistant={speakAssistantMessage}
+                speaking={speakingMessageId === item.item.message.id}
               />
             )
           }
@@ -1021,29 +1321,50 @@ export default function ChatScreen() {
         />
       )}
 
-      {error ? (
-        <View className="border-destructive/40 bg-background/95 border-t px-4 py-2">
-          <Text className="text-destructive text-sm">{error}</Text>
-        </View>
-      ) : null}
-
       {keyboardVisible ? (
-        <Pressable
-          style={StyleSheet.absoluteFill}
-          onPress={() => Keyboard.dismiss()}
-        />
+        <Pressable style={StyleSheet.absoluteFill} onPress={() => Keyboard.dismiss()} />
       ) : null}
 
       <FloatingComposer
         value={content}
         disabled={sending}
+        errorMessage={error}
         keyboardVisible={keyboardVisible}
         showPrompts={emptyThread && !keyboardVisible}
         onChangeText={setContent}
+        onDismissError={() => setError(null)}
+        onVoiceError={setError}
         onKeyboardVisibleChange={setKeyboardVisible}
+        onAddContextPress={() => setContextSheetOpen(true)}
         onPromptPress={setContent}
         onSubmit={() => void send()}
       />
+
+      <ArkBottomSheet
+        visible={contextSheetOpen}
+        title="Add context"
+        onDismiss={() => setContextSheetOpen(false)}>
+        <Button
+          variant="ghost"
+          className="h-11 justify-start px-2"
+          onPress={() => {
+            setContextSheetOpen(false);
+            router.push('/(tabs)/library' as never);
+          }}>
+          <Icon as={BookOpen} className="size-4" />
+          <Text>Library</Text>
+        </Button>
+        <Button
+          variant="ghost"
+          className="h-11 justify-start px-2"
+          onPress={() => {
+            setContextSheetOpen(false);
+            router.push('/(tabs)/notes' as never);
+          }}>
+          <Icon as={NotebookPen} className="size-4" />
+          <Text>Notes</Text>
+        </Button>
+      </ArkBottomSheet>
 
       <ConfirmModal
         visible={clearConfirmOpen}
@@ -1068,8 +1389,8 @@ export default function ChatScreen() {
 
       <ArkBottomSheet
         visible={modelInfoOpen}
-        title="Chat AI model"
-        description="Choose the answer model for this chat."
+        title="AI model settings"
+        description="Choose an answer model. Source search uses built-in ExecuTorch embeddings."
         onDismiss={() => setModelInfoOpen(false)}
         scrollable
         maxDynamicContentSize={620}>
@@ -1102,9 +1423,15 @@ export default function ChatScreen() {
           ) : null}
         </View>
 
-        <Text variant="muted" className="px-1">
-          Source search uses {activeEmbeddingModel?.title ?? 'Ark hash fallback'} from AI settings.
-        </Text>
+        <View className="mt-4 gap-2">
+          <View className="flex-row items-center gap-2">
+            <Icon as={Search} className="text-primary size-5" />
+            <Text variant="large">Source search</Text>
+          </View>
+          <Text variant="muted" className="px-1 py-2">
+            Ark uses the built-in ExecuTorch multi-qa MiniLM embedding model for local retrieval.
+          </Text>
+        </View>
       </ArkBottomSheet>
     </View>
   );
@@ -1130,12 +1457,15 @@ const styles = StyleSheet.create({
   composerInput: {
     flex: 1,
     fontSize: 16,
-    height: COMPOSER_HEIGHT,
     lineHeight: 20,
+    maxHeight: COMPOSER_MAX_INPUT_HEIGHT,
+    minHeight: COMPOSER_HEIGHT,
+    paddingBottom: 0,
     paddingHorizontal: 2,
+    paddingTop: 0,
   },
   composerRow: {
-    alignItems: 'center',
+    alignItems: 'flex-end',
     flexDirection: 'row',
     width: '100%',
   },
@@ -1143,9 +1473,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#1F1F1F',
     borderColor: '#303030',
-    borderRadius: COMPOSER_HEIGHT / 2,
+    borderRadius: DETACHED_PLUS_SIZE / 2,
     borderWidth: StyleSheet.hairlineWidth,
-    height: COMPOSER_HEIGHT,
+    height: DETACHED_PLUS_SIZE,
     justifyContent: 'center',
     overflow: 'hidden',
   },
@@ -1156,15 +1486,15 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   inputPill: {
-    alignItems: 'center',
     backgroundColor: '#1F1F1F',
     borderColor: '#303030',
     borderRadius: COMPOSER_HEIGHT / 2,
     borderWidth: StyleSheet.hairlineWidth,
     flex: 1,
     flexDirection: 'row',
-    height: COMPOSER_HEIGHT,
+    maxHeight: COMPOSER_MAX_INPUT_HEIGHT,
     minWidth: 0,
+    minHeight: COMPOSER_HEIGHT,
     overflow: 'hidden',
     paddingLeft: 10,
     paddingRight: 6,
@@ -1174,6 +1504,13 @@ const styles = StyleSheet.create({
     height: 42,
     justifyContent: 'center',
     width: 36,
+  },
+  composerError: {
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   promptChip: {
     borderRadius: 999,

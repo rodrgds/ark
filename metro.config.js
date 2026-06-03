@@ -3,6 +3,8 @@ const { withUniwindConfig } = require('uniwind/metro');
 
 const config = getDefaultConfig(__dirname);
 config.resolver.assetExts.push('wasm');
+config.resolver.assetExts.push('pte');
+config.resolver.assetExts.push('bin');
 
 const defaultBlockList = Array.isArray(config.resolver.blockList)
   ? config.resolver.blockList

@@ -2,7 +2,9 @@ import { Screen } from '@/components/layout/screen';
 import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
+import { BATTERY_POLL_INTERVALS_MS } from '@/constants/battery';
 import { NAV_COLORS } from '@/constants/theme';
+import { useBatteryReduceMode } from '@/hooks/use-battery-reduce-mode';
 import {
   type CachedForecastDay,
   type CachedForecastHour,
@@ -58,6 +60,7 @@ export default function WeatherTool() {
   const [busy, setBusy] = React.useState(false);
   const [message, setMessage] = React.useState<string | null>(null);
   const theme = useThemeStore((state) => state.effectiveTheme);
+  const reduceModeEnabled = useBatteryReduceMode();
   const palette = NAV_COLORS[theme];
 
   React.useEffect(() => {
@@ -71,13 +74,13 @@ export default function WeatherTool() {
           if (active && result.forecast) setWeather(result.forecast);
         });
       },
-      30 * 60 * 1000
+      BATTERY_POLL_INTERVALS_MS.weatherRefresh[reduceModeEnabled ? 'reduced' : 'normal']
     );
     return () => {
       active = false;
       clearInterval(interval);
     };
-  }, []);
+  }, [reduceModeEnabled]);
 
   async function refresh() {
     setBusy(true);

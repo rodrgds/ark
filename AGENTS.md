@@ -182,6 +182,9 @@ Defined in `global.css`. Three themes as CSS variables:
 | Token                  | OLED (default)    | Dark      | Light     |
 | ---------------------- | ----------------- | --------- | --------- |
 | `--background`         | `#000000`         | `#09090B` | `#FFFFFF` |
+| `--card`               | `#000000`         | `#18181B` | `#FFFFFF` |
+| `--popover`            | `#000000`         | `#18181B` | `#FFFFFF` |
+| `--sidebar`            | `#000000`         | `#1A1A1A` | `#F2F2F2` |
 | `--foreground`         | `#FAFAFA`         | `#FAFAFA` | `#0A0A0A` |
 | `--card`               | `#0A0A0A`         | `#18181B` | `#FFFFFF` |
 | `--card-foreground`    | `#FAFAFA`         | `#FAFAFA` | `#0A0A0A` |

@@ -1,4 +1,3 @@
-import { Arky } from '@/components/brand/ark-logo';
 import { Screen } from '@/components/layout/screen';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -178,16 +177,6 @@ export default function LibraryScreen() {
           }}
         />
       }>
-      <View className="flex-row items-center justify-between">
-        <View className="min-w-0 flex-1 gap-2 pr-4">
-          <Text variant="h1">Library</Text>
-          <Text variant="muted">
-            Offline references grouped by mission area. Open a category to manage its material.
-          </Text>
-        </View>
-        <Arky pose="download" size={80} />
-      </View>
-
       <Card className="gap-3">
         <View className="flex-row items-center gap-3">
           <View className="border-border bg-background min-w-0 flex-1 flex-row items-center rounded-md border px-3">

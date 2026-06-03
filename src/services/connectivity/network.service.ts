@@ -20,6 +20,10 @@ export class NetworkService {
     return false;
   }
 
+  static isWifi(state: NetInfoState | null) {
+    return String(state?.type ?? '').toLowerCase() === 'wifi' && this.isOnline(state) === true;
+  }
+
   static label(state: NetInfoState | null) {
     if (!state) return 'Checking';
     return this.isOnline(state) ? 'Online' : 'Offline';

@@ -1,6 +1,8 @@
 import { DownloadsRepository } from '@/services/db/repositories/downloads.repo';
 import { ContentRepository } from '@/services/db/repositories/content.repo';
 import { FileSystemService } from '@/services/files/filesystem.service';
+import { NetworkService } from '@/services/connectivity/network.service';
+import { PreferencesService } from '@/services/preferences/preferences.service';
 import { RagService } from '@/services/ai/rag.service';
 import { FileDigestService } from '@/services/files/file-digest.service';
 import { ZimHeaderParser } from '@/services/content/zim-header';
@@ -41,6 +43,8 @@ const DOWNLOAD_HEADERS = {
 const MAX_ACTIVE_DOWNLOADS = 1;
 const MIN_EXPECTED_SIZE_RATIO = 0.98;
 const SNAPSHOT_ACCEPT_HEADER = 'text/html,application/xhtml+xml,*/*';
+const WIFI_ONLY_PAUSE_REASON =
+  'Wi-Fi-only downloads are on. Connect to Wi-Fi or turn it off in Settings.';
 const SNAPSHOT_THEME_CSS = `
   :root {
     --bg: #000000;
@@ -408,15 +412,27 @@ export class DownloadManagerService {
     this.drainingQueue = true;
     try {
       if (this.activeDownloads.size >= MAX_ACTIVE_DOWNLOADS) return;
-      const queued = (await DownloadsRepository.listByStatuses(['queued'])).find(
+      const queuedRows = (await DownloadsRepository.listByStatuses(['queued'])).filter(
         (row) => row.sourceUrl && row.localUri && !this.activeDownloads.has(row.id)
       );
+      const queued = queuedRows[0];
       if (!queued?.sourceUrl || !queued.localUri) return;
 
       const packId = await this.resolvePackIdForDownload(queued);
       const latest = await DownloadsRepository.get(queued.id);
       if (latest?.status !== 'queued') return;
       this.downloadPackIds.set(queued.id, packId);
+
+      const gate = await this.getDownloadGate();
+      if (!gate.allowed) {
+        await Promise.all(
+          queuedRows.map(async (row) => {
+            const rowPackId = await this.resolvePackIdForDownload(row);
+            await this.pauseQueuedForNetwork(row, rowPackId, gate.reason);
+          })
+        );
+        return;
+      }
 
       if (queued.kind === 'guide' && isHtmlSnapshotUri(queued.localUri)) {
         void this.runHtmlSnapshot({
@@ -443,6 +459,31 @@ export class DownloadManagerService {
       }
     } finally {
       this.drainingQueue = false;
+    }
+  }
+
+  private static async getDownloadGate() {
+    if (!(await PreferencesService.getWifiOnlyDownloadsEnabled())) {
+      return { allowed: true as const };
+    }
+    const state = await NetworkService.getState().catch(() => null);
+    if (NetworkService.isWifi(state)) return { allowed: true as const };
+    return { allowed: false as const, reason: WIFI_ONLY_PAUSE_REASON };
+  }
+
+  private static async pauseQueuedForNetwork(
+    row: DownloadRow,
+    packId: string | null | undefined,
+    reason: string
+  ) {
+    await DownloadsRepository.updateStatus(row.id, 'paused', row.progress ?? 0, reason);
+    if (packId && row.localUri) {
+      await ContentRepository.updateInstallStatus({
+        id: packId,
+        status: 'paused',
+        progress: row.progress ?? 0,
+        localUri: row.localUri,
+      });
     }
   }
 
@@ -710,6 +751,19 @@ export class DownloadManagerService {
         resolvedSizeBytes: totalBytes,
       });
     } catch (error) {
+      if (active?.stopReason === 'paused') {
+        await DownloadsRepository.updateStatus(input.id, 'paused', active.progress, null);
+        if (input.packId) {
+          await ContentRepository.updateInstallStatus({
+            id: input.packId,
+            status: 'paused',
+            progress: active.progress,
+            localUri: input.localUri,
+          });
+        }
+        return;
+      }
+
       if (controller.signal.aborted || active?.stopReason === 'canceled') {
         await DownloadsRepository.updateStatus(input.id, 'canceled', active?.progress ?? 0, null);
         if (input.packId) {
@@ -753,11 +807,36 @@ export class DownloadManagerService {
     if (!row) throw new Error('Download not found.');
     if (!active) {
       await DownloadsRepository.updateStatus(id, 'paused', row.progress, null);
+      const packId = await this.resolvePackIdForDownload(row);
+      if (packId && row.localUri) {
+        await ContentRepository.updateInstallStatus({
+          id: packId,
+          status: 'paused',
+          progress: row.progress,
+          localUri: row.localUri,
+        });
+      }
       this.drainQueueSoon();
       return;
     }
     if (!active.download) {
-      throw new Error('This download is short and cannot be paused. Cancel it and restart later.');
+      active.stopReason = 'paused';
+      if (active.cancel) await withTimeout(active.cancel(), 2500).catch(() => undefined);
+      await DownloadsRepository.pause({
+        id,
+        progress: active.progress || row.progress,
+        resumeData: null,
+      });
+      if (active.packId) {
+        await ContentRepository.updateInstallStatus({
+          id: active.packId,
+          status: 'paused',
+          progress: active.progress || row.progress,
+          localUri: active.localUri,
+        });
+      }
+      this.drainQueueSoon();
+      return;
     }
     active.stopReason = 'paused';
     const pauseState = await withTimeout(active.download.pauseAsync(), 2500).catch(() =>
@@ -782,7 +861,8 @@ export class DownloadManagerService {
   static async resumeDownload(id: string, packId?: string | null) {
     const row = await DownloadsRepository.get(id);
     if (!row?.sourceUrl || !row.localUri) throw new Error('Download cannot be resumed.');
-    this.downloadPackIds.set(id, packId);
+    if (packId === undefined) this.downloadPackIds.delete(id);
+    else this.downloadPackIds.set(id, packId);
     await DownloadsRepository.markQueued({
       id,
       progress: row.progress,
@@ -811,6 +891,77 @@ export class DownloadManagerService {
     await DownloadsRepository.updateStatus(id, 'canceled', 0, null);
     this.downloadPackIds.delete(id);
     this.drainQueueSoon();
+  }
+
+  static async pauseAll() {
+    const rows = await DownloadsRepository.listByStatuses(['queued', 'downloading', 'verifying']);
+    let paused = 0;
+    for (const row of rows) {
+      try {
+        await this.pauseDownload(row.id);
+      } catch {
+        await DownloadsRepository.updateStatus(row.id, 'paused', row.progress ?? 0, null);
+      }
+      paused += 1;
+    }
+    return { paused };
+  }
+
+  static async resumeAll() {
+    const rows = (await DownloadsRepository.listByStatuses(['paused'])).filter(
+      (row) => row.sourceUrl && row.localUri
+    );
+    for (const row of rows) {
+      await this.resumeDownload(row.id, await this.resolvePackIdForDownload(row));
+    }
+    return { resumed: rows.length };
+  }
+
+  static async retryFailed() {
+    const rows = (await DownloadsRepository.listByStatuses(['failed'])).filter(
+      (row) => row.sourceUrl && row.localUri
+    );
+    for (const row of rows) {
+      await this.resumeDownload(row.id, await this.resolvePackIdForDownload(row));
+    }
+    return { retried: rows.length };
+  }
+
+  static async deleteCompletedWhereSafe() {
+    const rows = await DownloadsRepository.listByStatuses(['completed']);
+    let deleted = 0;
+    let skipped = 0;
+    for (const row of rows) {
+      if (await this.isProtectedCompletedDownload(row)) {
+        skipped += 1;
+        continue;
+      }
+      if (row.localUri) {
+        const targetUri =
+          row.kind === 'guide' && isHtmlSnapshotUri(row.localUri)
+            ? parentDirectory(row.localUri)
+            : row.localUri;
+        await FileSystem.deleteAsync(targetUri, { idempotent: true }).catch(() => undefined);
+      }
+      await DownloadsRepository.delete(row.id);
+      this.downloadPackIds.delete(row.id);
+      deleted += 1;
+    }
+    return { deleted, skipped };
+  }
+
+  private static async isProtectedCompletedDownload(row: DownloadRow) {
+    if (row.kind === 'document' || row.kind === 'map') return true;
+    if (!row.localUri) return false;
+    const packs = await ContentRepository.list({ includeTestOnly: true });
+    return packs.some(
+      (pack) =>
+        pack.localUri === row.localUri &&
+        (pack.installed ||
+          ['queued', 'downloading', 'verifying', 'paused', 'installed'].includes(
+            pack.installStatus
+          ))
+    );
   }
 
   private static async canFinalizeExistingFile(

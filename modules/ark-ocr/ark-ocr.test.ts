@@ -10,19 +10,25 @@ function readJson<T>(path: string): T {
 }
 
 describe('ark-ocr native module packaging', () => {
-  test('is registered as an Android-only local Expo module', () => {
+  test('is registered as a cross-platform local Expo module', () => {
     const appPackage = readJson<{ dependencies: Record<string, string> }>(
       join(repoRoot, 'package.json')
     );
     const modulePackage = readJson<{ name: string }>(join(moduleRoot, 'package.json'));
-    const config = readJson<{ platforms: string[]; android: { modules: string[] } }>(
+    const config = readJson<{
+      platforms: string[];
+      android: { modules: string[] };
+      apple: { modules: string[] };
+    }>(
       join(moduleRoot, 'expo-module.config.json')
     );
 
     expect(appPackage.dependencies['ark-ocr']).toBe('./modules/ark-ocr');
     expect(modulePackage.name).toBe('ark-ocr');
-    expect(config.platforms).toEqual(['android']);
+    expect(config.platforms).toContain('android');
+    expect(config.platforms).toContain('apple');
     expect(config.android.modules).toEqual(['expo.modules.arkocr.ArkOcrModule']);
+    expect(config.apple.modules).toEqual(['ArkOcrModule']);
   });
 
   test('bundles ML Kit text recognition for offline OCR', () => {
@@ -48,5 +54,17 @@ describe('ark-ocr native module packaging', () => {
     expect(kotlin).toContain('InputImage.fromFilePath');
     expect(kotlin).toContain('AsyncFunction("extractPdfText")');
     expect(kotlin).toContain('AsyncFunction("recognizePdf")');
+  });
+
+  test('bundles iOS Vision and PDFKit text extraction', () => {
+    const podspec = readFileSync(join(moduleRoot, 'ios', 'ArkOcr.podspec'), 'utf8');
+    const swift = readFileSync(join(moduleRoot, 'ios', 'ArkOcrModule.swift'), 'utf8');
+
+    expect(podspec).toContain("s.frameworks     = 'Vision', 'PDFKit', 'UIKit', 'CoreGraphics'");
+    expect(swift).toContain('import Vision');
+    expect(swift).toContain('import PDFKit');
+    expect(swift).toContain('VNRecognizeTextRequest');
+    expect(swift).toContain('AsyncFunction("extractPdfText")');
+    expect(swift).toContain('AsyncFunction("recognizePdf")');
   });
 });

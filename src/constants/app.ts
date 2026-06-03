@@ -12,6 +12,13 @@ export const SAFETY_COPY = {
   food: 'Follow local food-safety regulations. When in doubt, discard questionable food.',
 };
 
-export const APP_DIRECTORIES = ['content', 'maps', 'models', 'imports', 'cache'] as const;
+export const APP_DIRECTORIES = [
+  'content',
+  'maps',
+  'models',
+  'imports',
+  'backups',
+  'cache',
+] as const;
 
 export type AppDirectory = (typeof APP_DIRECTORIES)[number];

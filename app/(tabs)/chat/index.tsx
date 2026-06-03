@@ -1,17 +1,21 @@
+import { ArkBottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { AIService } from '@/services/ai/ai.service';
 import type { AiThread } from '@/types/ai';
 import { router, useFocusEffect } from 'expo-router';
-import { Bot, MessageSquare, Plus } from 'lucide-react-native';
+import { Bot, MessageSquare, Plus, Trash2 } from 'lucide-react-native';
 import * as React from 'react';
 import { ActivityIndicator, FlatList, Pressable, View } from 'react-native';
 
 export default function ChatIndexScreen() {
   const [threads, setThreads] = React.useState<AiThread[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [actionThread, setActionThread] = React.useState<AiThread | null>(null);
+  const [confirmDeleteThread, setConfirmDeleteThread] = React.useState<AiThread | null>(null);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -35,6 +39,13 @@ export default function ChatIndexScreen() {
 
   function newThread() {
     router.push('/(tabs)/chat/new' as never);
+  }
+
+  async function deleteThread(thread: AiThread) {
+    await AIService.clearThread(thread.id);
+    setConfirmDeleteThread(null);
+    setActionThread(null);
+    await load();
   }
 
   return (
@@ -62,7 +73,10 @@ export default function ChatIndexScreen() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ gap: 10, padding: 16 }}
           renderItem={({ item }) => (
-            <Pressable onPress={() => openThread(item.id)}>
+            <Pressable
+              onPress={() => openThread(item.id)}
+              onLongPress={() => setActionThread(item)}
+              delayLongPress={220}>
               <Card className="gap-2 rounded-lg">
                 <View className="flex-row items-center gap-3">
                   <View className="bg-primary/12 size-10 items-center justify-center rounded-md">
@@ -96,6 +110,31 @@ export default function ChatIndexScreen() {
           </Button>
         </View>
       )}
+
+      <ArkBottomSheet visible={!!actionThread} onDismiss={() => setActionThread(null)}>
+        <Button
+          variant="ghost"
+          className="h-10 justify-start px-2"
+          onPress={() => {
+            setConfirmDeleteThread(actionThread);
+            setActionThread(null);
+          }}>
+          <Icon as={Trash2} className="text-destructive size-4" />
+          <Text className="text-destructive">Delete</Text>
+        </Button>
+      </ArkBottomSheet>
+
+      <ConfirmModal
+        visible={!!confirmDeleteThread}
+        title="Delete chat?"
+        description="This removes this local chat and its messages from this device."
+        confirmVariant="destructive"
+        confirmLabel="Delete"
+        onCancel={() => setConfirmDeleteThread(null)}
+        onConfirm={() => {
+          if (confirmDeleteThread) void deleteThread(confirmDeleteThread);
+        }}
+      />
     </View>
   );
 }

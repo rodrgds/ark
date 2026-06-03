@@ -151,6 +151,38 @@ describe('map and chat UI contracts', () => {
     expect(source).not.toContain('<Modal');
     expect(source).not.toContain('KeyboardAvoidingView');
   });
+
+  test('shared bottom sheets use the Software Mansion native sheet', () => {
+    const rootLayout = readFileSync(join(appDir, '_layout.tsx'), 'utf8');
+    const bottomSheet = readFileSync(
+      join(process.cwd(), 'src/components/ui/bottom-sheet.tsx'),
+      'utf8'
+    );
+    const packageJson = readFileSync(join(process.cwd(), 'package.json'), 'utf8');
+
+    expect(rootLayout).toContain("from '@swmansion/react-native-bottom-sheet'");
+    expect(rootLayout).toContain('<BottomSheetProvider>');
+    expect(bottomSheet).toContain('ModalBottomSheet');
+    expect(bottomSheet).toContain("from '@swmansion/react-native-bottom-sheet'");
+    expect(packageJson).toContain('"@swmansion/react-native-bottom-sheet"');
+    expect(packageJson).not.toContain('"@gorhom/bottom-sheet"');
+  });
+
+  test('chat markdown renders static and streaming messages with native markdown', () => {
+    const markdownText = readFileSync(
+      join(process.cwd(), 'src/components/ui/markdown-text.tsx'),
+      'utf8'
+    );
+    const chatThread = readFileSync(join(appDir, '(tabs)/chat/[threadId].tsx'), 'utf8');
+    const packageJson = readFileSync(join(process.cwd(), 'package.json'), 'utf8');
+
+    expect(markdownText).toContain('react-native-enriched-markdown');
+    expect(markdownText).toContain('streamingAnimation={streaming}');
+    expect(chatThread).toContain('<MarkdownText streaming>');
+    expect(packageJson).toContain('"react-native-enriched-markdown"');
+    expect(packageJson).not.toContain('"react-native-markdown-display"');
+    expect(packageJson).not.toContain('"react-native-streamdown"');
+  });
 });
 
 function countMapRegionsByCountry(regions: Array<{ id: string; tags?: string[] }>) {

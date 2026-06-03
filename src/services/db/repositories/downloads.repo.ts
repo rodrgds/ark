@@ -203,4 +203,9 @@ export class DownloadsRepository {
       ]
     );
   }
+
+  static async delete(id: string) {
+    const db = await DatabaseClient.getDb();
+    await db.runAsync('DELETE FROM downloads WHERE id = ?', [id]);
+  }
 }

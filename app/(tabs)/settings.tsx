@@ -1,4 +1,3 @@
-import { Arky } from '@/components/brand/ark-logo';
 import { Screen } from '@/components/layout/screen';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -8,9 +7,11 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { showSheetAlert } from '@/components/ui/sheet-alert';
 import { Text } from '@/components/ui/text';
+import { BATTERY_POLL_INTERVALS_MS } from '@/constants/battery';
 import { getPackIcon, getPackModelRoleLabel } from '@/constants/pack-presentation';
 import type { MapPreset } from '@/constants/map-presets';
 import { THEME_OPTIONS } from '@/constants/theme';
+import { BackupService } from '@/services/backup/backup.service';
 import { ContentPackService } from '@/services/content/content-pack.service';
 import { ModelManagerService } from '@/services/ai/model-manager.service';
 import { SettingsRepository } from '@/services/db/repositories/settings.repo';
@@ -25,12 +26,13 @@ import { PreferencesService } from '@/services/preferences/preferences.service';
 import { DiagnosticsService } from '@/services/sensors/diagnostics.service';
 import { VaultService } from '@/services/security/vault.service';
 import { useThemeStore } from '@/stores/theme-store';
-import type { ContentModelRole, ContentPack } from '@/types/content';
+import type { ContentPack } from '@/types/content';
 import type { DownloadRow } from '@/types/downloads';
 import type { MapRegion } from '@/types/maps';
 import type { DiagnosticReport } from '@/types/sensors';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
+  BatteryCharging,
   Bot,
   CheckCircle2,
   ChevronLeft,
@@ -46,12 +48,14 @@ import {
   Smartphone,
   Trash2,
   Upload,
+  Wifi,
   X,
 } from 'lucide-react-native';
 import * as React from 'react';
 import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
 
-type SettingsTab = 'appearance' | 'security' | 'ai' | 'downloads' | 'maps' | 'internals';
+type SettingsTab = 'appearance' | 'security' | 'ai' | 'downloads' | 'maps' | 'advanced';
+type DownloadBatchAction = 'pause-all' | 'resume-all' | 'retry-failed' | 'clean-completed';
 
 const SETTINGS_TABS: Array<{ value: SettingsTab; label: string }> = [
   { value: 'appearance', label: 'Appearance' },
@@ -59,11 +63,11 @@ const SETTINGS_TABS: Array<{ value: SettingsTab; label: string }> = [
   { value: 'ai', label: 'AI' },
   { value: 'downloads', label: 'Downloads' },
   { value: 'maps', label: 'Offline Maps' },
-  { value: 'internals', label: 'Internals' },
+  { value: 'advanced', label: 'Advanced' },
 ];
 
 export default function SettingsScreen() {
-  const { tab } = useLocalSearchParams<{ tab?: SettingsTab | 'storage' }>();
+  const { tab } = useLocalSearchParams<{ tab?: SettingsTab | 'storage' | 'internals' }>();
   const preference = useThemeStore((state) => state.preference);
   const effectiveTheme = useThemeStore((state) => state.effectiveTheme);
   const setPreference = useThemeStore((state) => state.setPreference);
@@ -73,11 +77,11 @@ export default function SettingsScreen() {
   const [nextPassword, setNextPassword] = React.useState('');
   const [passwordHint, setPasswordHint] = React.useState('');
   const [biometricsEnabled, setBiometricsEnabled] = React.useState(false);
-  const [motionEnabled, setMotionEnabled] = React.useState(true);
+  const [batteryReduceModeEnabled, setBatteryReduceModeEnabled] = React.useState(false);
+  const [wifiOnlyDownloadsEnabled, setWifiOnlyDownloadsEnabled] = React.useState(false);
   const [availableModels, setAvailableModels] = React.useState<ContentPack[]>([]);
   const [installedModels, setInstalledModels] = React.useState<ContentPack[]>([]);
   const [activeModel, setActiveModel] = React.useState<ContentPack | null>(null);
-  const [activeEmbeddingModel, setActiveEmbeddingModel] = React.useState<ContentPack | null>(null);
   const [embeddingIndexStatus, setEmbeddingIndexStatus] = React.useState<Awaited<
     ReturnType<typeof ModelManagerService.getEmbeddingIndexStatus>
   > | null>(null);
@@ -93,18 +97,15 @@ export default function SettingsScreen() {
   const [busy, setBusy] = React.useState<string | null>(null);
   const [securityMessage, setSecurityMessage] = React.useState<string | null>(null);
   const [aiMessage, setAiMessage] = React.useState<string | null>(null);
+  const [backupPassphrase, setBackupPassphrase] = React.useState('');
+  const [backupMessage, setBackupMessage] = React.useState<string | null>(null);
   const [modelTitle, setModelTitle] = React.useState('');
   const [modelUrl, setModelUrl] = React.useState('');
   const [modelChecksum, setModelChecksum] = React.useState('');
-  const [customModelRole, setCustomModelRole] = React.useState<ContentModelRole>('chat');
   const buildTapTimesRef = React.useRef<number[]>([]);
 
   const chatModels = React.useMemo(
     () => availableModels.filter((model) => model.modelRole === 'chat'),
-    [availableModels]
-  );
-  const embeddingModels = React.useMemo(
-    () => availableModels.filter((model) => model.modelRole === 'embedding'),
     [availableModels]
   );
   async function load() {
@@ -112,7 +113,8 @@ export default function SettingsScreen() {
     const [
       vault,
       biometricState,
-      motionState,
+      reduceModeState,
+      wifiOnlyDownloadsState,
       storageState,
       downloadRows,
       regions,
@@ -121,12 +123,12 @@ export default function SettingsScreen() {
       nextAvailableModels,
       nextInstalledModels,
       nextActiveModel,
-      nextActiveEmbeddingModel,
       nextEmbeddingIndexStatus,
     ] = await Promise.all([
       SettingsRepository.getVaultState(),
       VaultService.getBiometricsEnabled(),
-      PreferencesService.getMotionEnabled(),
+      PreferencesService.getBatteryReduceModeEnabled(),
+      PreferencesService.getWifiOnlyDownloadsEnabled(),
       FileSystemService.getStorageSummary(),
       DownloadManagerService.listDownloads(),
       OfflineMapService.listRegions(),
@@ -135,13 +137,13 @@ export default function SettingsScreen() {
       ModelManagerService.listAvailableModels(),
       ModelManagerService.listInstalledChatModels(),
       ModelManagerService.getActiveModel(),
-      ModelManagerService.getActiveEmbeddingModel(),
       ModelManagerService.getEmbeddingIndexStatus(),
     ]);
     setAutoLock(vault.autoLockMinutes);
     setPasswordHint(vault.passwordHint ?? '');
     setBiometricsEnabled(biometricState);
-    setMotionEnabled(motionState);
+    setBatteryReduceModeEnabled(reduceModeState);
+    setWifiOnlyDownloadsEnabled(wifiOnlyDownloadsState);
     setStorage(storageState);
     setDownloads(downloadRows);
     setMapRegions(regions);
@@ -150,7 +152,6 @@ export default function SettingsScreen() {
     setAvailableModels(nextAvailableModels);
     setInstalledModels(nextInstalledModels);
     setActiveModel(nextActiveModel);
-    setActiveEmbeddingModel(nextActiveEmbeddingModel);
     setEmbeddingIndexStatus(nextEmbeddingIndexStatus);
   }
 
@@ -159,7 +160,7 @@ export default function SettingsScreen() {
   }, []);
 
   React.useEffect(() => {
-    const requestedTab = tab === 'storage' ? 'internals' : tab;
+    const requestedTab = tab === 'storage' || tab === 'internals' ? 'advanced' : tab;
     if (requestedTab && SETTINGS_TABS.some((item) => item.value === requestedTab)) {
       setActiveTab(requestedTab);
     }
@@ -179,15 +180,18 @@ export default function SettingsScreen() {
       !hasActiveModelDownload &&
       !hasActiveDownload &&
       !hasActiveMapDownload &&
-      activeTab !== 'internals' &&
+      activeTab !== 'advanced' &&
       activeTab !== 'downloads'
     )
       return;
-    const interval = setInterval(() => {
-      void load();
-    }, 1000);
+    const interval = setInterval(
+      () => {
+        void load();
+      },
+      BATTERY_POLL_INTERVALS_MS.settingsRefresh[batteryReduceModeEnabled ? 'reduced' : 'normal']
+    );
     return () => clearInterval(interval);
-  }, [activeTab, availableModels, downloads, mapRegions]);
+  }, [activeTab, availableModels, batteryReduceModeEnabled, downloads, mapRegions]);
 
   async function setLockMinutes(minutes: number) {
     await SettingsRepository.updateVaultState({ autoLockMinutes: minutes });
@@ -230,10 +234,19 @@ export default function SettingsScreen() {
     }
   }
 
-  async function toggleMotion() {
-    const next = !motionEnabled;
-    setMotionEnabled(next);
-    await PreferencesService.setMotionEnabled(next);
+  async function toggleBatteryReduceMode() {
+    const next = !batteryReduceModeEnabled;
+    setBatteryReduceModeEnabled(next);
+    await PreferencesService.setBatteryReduceModeEnabled(next);
+    if (next && preference !== 'oled') {
+      await setPreference('oled');
+    }
+  }
+
+  async function toggleWifiOnlyDownloads() {
+    const next = !wifiOnlyDownloadsEnabled;
+    setWifiOnlyDownloadsEnabled(next);
+    await PreferencesService.setWifiOnlyDownloadsEnabled(next);
   }
 
   async function selectModel(model: ContentPack) {
@@ -242,17 +255,11 @@ export default function SettingsScreen() {
     setModelStatus(await ModelManagerService.getStatus());
   }
 
-  async function selectEmbeddingModel(model: ContentPack) {
-    await ModelManagerService.setSelectedEmbeddingModel(model.id);
-    setActiveEmbeddingModel(model);
-    setEmbeddingIndexStatus(await ModelManagerService.getEmbeddingIndexStatus());
-  }
-
   async function importLocalModel() {
     setBusy('model-import');
     setAiMessage(null);
     try {
-      await ContentPackService.importLocalModel(customModelRole);
+      await ContentPackService.importLocalModel('chat');
       await load();
     } catch (modelError) {
       setAiMessage(modelError instanceof Error ? modelError.message : 'Unable to import model.');
@@ -268,7 +275,7 @@ export default function SettingsScreen() {
       await ContentPackService.addModelUrl({
         title: modelTitle,
         sourceUrl: modelUrl,
-        modelRole: customModelRole,
+        modelRole: 'chat',
         checksum: modelChecksum,
       });
       setModelTitle('');
@@ -299,7 +306,7 @@ export default function SettingsScreen() {
           await selectModel(model);
         }
       } else {
-        await ContentPackService.installPack(model.id);
+        await ContentPackService.installPackWithCompanions(model.id);
       }
       await load();
     } catch (modelError) {
@@ -320,6 +327,50 @@ export default function SettingsScreen() {
       showSheetAlert(
         'Retry failed',
         error instanceof Error ? error.message : 'Unable to retry this download.'
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function runDownloadBatchAction(action: DownloadBatchAction) {
+    setBusy(`downloads-${action}`);
+    try {
+      if (action === 'pause-all') {
+        await DownloadManagerService.pauseAll();
+        await Promise.all(
+          mapRegions
+            .filter((region) => region.status === 'queued' || region.status === 'downloading')
+            .map((region) => OfflineMapService.pauseRegion(region.id).catch(() => null))
+        );
+      } else if (action === 'resume-all') {
+        await DownloadManagerService.resumeAll();
+        await Promise.all(
+          mapRegions
+            .filter((region) => region.status === 'paused')
+            .map((region) => OfflineMapService.refreshRegion(region.id).catch(() => null))
+        );
+      } else if (action === 'retry-failed') {
+        await DownloadManagerService.retryFailed();
+        await Promise.all(
+          mapRegions
+            .filter((region) => region.status === 'failed')
+            .map((region) => OfflineMapService.refreshRegion(region.id).catch(() => null))
+        );
+      } else {
+        const result = await DownloadManagerService.deleteCompletedWhereSafe();
+        showSheetAlert(
+          'Download cleanup complete',
+          `${result.deleted} completed row${result.deleted === 1 ? '' : 's'} removed. ${
+            result.skipped
+          } protected row${result.skipped === 1 ? '' : 's'} kept.`
+        );
+      }
+      await load();
+    } catch (error) {
+      showSheetAlert(
+        'Download action failed',
+        error instanceof Error ? error.message : 'Unable to update downloads.'
       );
     } finally {
       setBusy(null);
@@ -396,6 +447,62 @@ export default function SettingsScreen() {
     }
   }
 
+  async function exportBackup() {
+    setBusy('backup-export');
+    setBackupMessage(null);
+    try {
+      const backup = await BackupService.exportToFile(backupPassphrase);
+      setBackupMessage(
+        `Backup saved: ${backup.manifest.notes.length} notes, ${backup.manifest.documents.length} documents.`
+      );
+      try {
+        await BackupService.shareBackup(backup.uri);
+      } catch (shareError) {
+        showSheetAlert(
+          'Backup saved',
+          shareError instanceof Error
+            ? shareError.message
+            : 'The encrypted backup was saved locally.'
+        );
+      }
+    } catch (error) {
+      setBackupMessage(error instanceof Error ? error.message : 'Unable to export backup.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function importBackup() {
+    setBusy('backup-import');
+    setBackupMessage(null);
+    try {
+      const result = await BackupService.importFromPicker(backupPassphrase);
+      if (!result) {
+        setBackupMessage('Backup import canceled.');
+        return;
+      }
+      setBackupMessage(
+        `Backup imported: ${result.restored.notes} notes, ${result.restored.documents} documents.`
+      );
+      await load();
+    } catch (error) {
+      setBackupMessage(error instanceof Error ? error.message : 'Unable to import backup.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function confirmImportBackup() {
+    showSheetAlert(
+      'Import encrypted backup?',
+      'Ark will merge durable records and overwrite matching notes, documents, routes, saved spots, feeds, and selected settings.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Import', style: 'destructive', onPress: () => void importBackup() },
+      ]
+    );
+  }
+
   const currentTheme = THEME_OPTIONS.find((option) => option.value === preference);
   const nativeMapStorageBytes = mapRegions.reduce(
     (sum, region) => sum + Math.max(0, region.sizeBytes ?? 0),
@@ -415,14 +522,6 @@ export default function SettingsScreen() {
 
   return (
     <Screen>
-      <View className="flex-row items-center justify-between gap-3">
-        <View className="min-w-0 flex-1 gap-1">
-          <Text variant="h1">Settings</Text>
-          <Text variant="muted">Device, vault, and offline runtime controls.</Text>
-        </View>
-        <Arky pose="signal" size={52} />
-      </View>
-
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -464,14 +563,20 @@ export default function SettingsScreen() {
           <Card className="gap-3">
             <View className="flex-row items-center justify-between gap-3">
               <View className="min-w-0 flex-1 gap-1">
-                <Text variant="large">Motion</Text>
-                <Text variant="muted">Small transitions and interface feedback.</Text>
+                <View className="flex-row items-center gap-2">
+                  <Icon as={BatteryCharging} className="text-primary size-5" />
+                  <Text variant="large">Battery Reduce Mode</Text>
+                </View>
+                <Text variant="muted">
+                  Limits motion and haptics, slows live polling, pauses automatic OCR/index
+                  catch-up, and prefers OLED.
+                </Text>
               </View>
               <Button
                 size="sm"
-                variant={motionEnabled ? 'default' : 'outline'}
-                onPress={toggleMotion}>
-                <Text>{motionEnabled ? 'On' : 'Off'}</Text>
+                variant={batteryReduceModeEnabled ? 'default' : 'outline'}
+                onPress={toggleBatteryReduceMode}>
+                <Text>{batteryReduceModeEnabled ? 'On' : 'Off'}</Text>
               </Button>
             </View>
           </Card>
@@ -573,8 +678,7 @@ export default function SettingsScreen() {
             <View className="bg-muted/40 gap-1 rounded-md px-3 py-3">
               <Text variant="small">Answer models installed: {installedModels.length}</Text>
               <Text variant="small">
-                Source search models installed:{' '}
-                {embeddingModels.filter((model) => model.installed).length}
+                Source search: ExecuTorch multi-qa MiniLM
               </Text>
               <Text variant="muted">
                 Current answer model:{' '}
@@ -584,9 +688,7 @@ export default function SettingsScreen() {
                     ? 'Source search only'
                     : 'None installed'}
               </Text>
-              <Text variant="muted">
-                Current source search model: {activeEmbeddingModel?.title ?? 'Ark hash fallback'}
-              </Text>
+              <Text variant="muted">Current source search model: built-in mobile embeddings</Text>
             </View>
           </Card>
 
@@ -594,7 +696,8 @@ export default function SettingsScreen() {
             <View className="gap-1">
               <Text variant="large">Add your own model</Text>
               <Text variant="muted">
-                Import a GGUF file you already have, or save a custom download URL for later.
+                Import a GGUF answer model you already have, or save a custom download URL for
+                later.
               </Text>
             </View>
             <Button
@@ -609,18 +712,6 @@ export default function SettingsScreen() {
               <Text>Import GGUF file</Text>
             </Button>
             <View className="gap-2">
-              <View className="border-border bg-muted/20 flex-row rounded-md border p-1">
-                {(['chat', 'embedding'] as const).map((role) => (
-                  <Button
-                    key={role}
-                    className="flex-1"
-                    size="sm"
-                    variant={customModelRole === role ? 'default' : 'ghost'}
-                    onPress={() => setCustomModelRole(role)}>
-                    <Text>{role === 'chat' ? 'Answer' : 'Search'}</Text>
-                  </Button>
-                ))}
-              </View>
               <Input value={modelTitle} onChangeText={setModelTitle} placeholder="Model name" />
               <Input
                 value={modelUrl}
@@ -645,12 +736,12 @@ export default function SettingsScreen() {
                 ) : (
                   <Icon as={Bot} className="size-4" />
                 )}
-                <Text>{customModelRole === 'chat' ? 'Add answer URL' : 'Add search URL'}</Text>
+                <Text>Add answer URL</Text>
               </Button>
             </View>
             <Text variant="small" className="text-muted-foreground">
-              Choose Answer for Ask Arky replies or Search for local source matching before
-              importing a file or adding a URL.
+              Source search uses built-in Ark ExecuTorch embeddings; custom GGUF imports are for
+              Ask Arky answer-writing models.
             </Text>
           </Card>
 
@@ -661,19 +752,6 @@ export default function SettingsScreen() {
             activeModelId={activeModel?.id ?? null}
             busy={busy}
             onPrimaryAction={runModelAction}
-            onRemove={removeModel}
-          />
-
-          <ModelSection
-            title="Source search models"
-            description="These help Ark find relevant notes, documents, guides, and Wikipedia articles."
-            models={embeddingModels}
-            activeModelId={activeEmbeddingModel?.id ?? null}
-            busy={busy}
-            onPrimaryAction={async (model) => {
-              if (model.installed) await selectEmbeddingModel(model);
-              else await runModelAction(model);
-            }}
             onRemove={removeModel}
           />
 
@@ -714,8 +792,53 @@ export default function SettingsScreen() {
         />
       ) : null}
 
-      {activeTab === 'internals' ? (
+      {activeTab === 'advanced' ? (
         <>
+          <Card className="gap-3">
+            <View className="gap-1">
+              <Text variant="large">Encrypted Backup</Text>
+              <Text variant="muted">
+                Exports notes, imported documents, saved spots, routes, feeds, checklist state, and
+                selected settings. Models, maps, guide packs, indexes, caches, and download queues
+                stay out.
+              </Text>
+            </View>
+            <Input
+              value={backupPassphrase}
+              onChangeText={setBackupPassphrase}
+              placeholder="Backup passphrase"
+              secureTextEntry
+              autoCapitalize="none"
+            />
+            <View className="flex-row flex-wrap gap-2">
+              <Button
+                className="min-w-36 flex-1"
+                variant="outline"
+                disabled={busy === 'backup-export' || backupPassphrase.trim().length < 8}
+                onPress={() => void exportBackup()}>
+                {busy === 'backup-export' ? (
+                  <ActivityIndicator />
+                ) : (
+                  <Icon as={Download} className="size-4" />
+                )}
+                <Text>Export .arkbackup</Text>
+              </Button>
+              <Button
+                className="min-w-36 flex-1"
+                variant="outline"
+                disabled={busy === 'backup-import' || backupPassphrase.trim().length < 8}
+                onPress={confirmImportBackup}>
+                {busy === 'backup-import' ? (
+                  <ActivityIndicator />
+                ) : (
+                  <Icon as={Upload} className="size-4" />
+                )}
+                <Text>Import .arkbackup</Text>
+              </Button>
+            </View>
+            {backupMessage ? <Text variant="muted">{backupMessage}</Text> : null}
+          </Card>
+
           <Card className="gap-3">
             <View className="flex-row items-center gap-3">
               <View className="bg-primary/12 size-11 items-center justify-center rounded-xl">
@@ -752,7 +875,11 @@ export default function SettingsScreen() {
           <DownloadsCard
             downloads={downloads}
             mapRegions={mapRegions}
+            storage={storage}
+            wifiOnlyDownloadsEnabled={wifiOnlyDownloadsEnabled}
             busy={busy}
+            onToggleWifiOnlyDownloads={toggleWifiOnlyDownloads}
+            onBatchAction={runDownloadBatchAction}
             onRetryDownload={retryDownload}
             onDeleteMapRegion={confirmDeleteMapRegion}
             onMapRegionAction={runMapRegionAction}
@@ -776,7 +903,11 @@ export default function SettingsScreen() {
         <DownloadsCard
           downloads={downloads}
           mapRegions={mapRegions}
+          storage={storage}
+          wifiOnlyDownloadsEnabled={wifiOnlyDownloadsEnabled}
           busy={busy}
+          onToggleWifiOnlyDownloads={toggleWifiOnlyDownloads}
+          onBatchAction={runDownloadBatchAction}
           onRetryDownload={retryDownload}
           onDeleteMapRegion={confirmDeleteMapRegion}
           onMapRegionAction={runMapRegionAction}
@@ -789,26 +920,51 @@ export default function SettingsScreen() {
 function DownloadsCard({
   downloads,
   mapRegions,
+  storage,
+  wifiOnlyDownloadsEnabled,
   busy,
+  onToggleWifiOnlyDownloads,
+  onBatchAction,
   onRetryDownload,
   onDeleteMapRegion,
   onMapRegionAction,
 }: {
   downloads: DownloadRow[];
   mapRegions: MapRegion[];
+  storage: Awaited<ReturnType<typeof FileSystemService.getStorageSummary>> | null;
+  wifiOnlyDownloadsEnabled: boolean;
   busy: string | null;
+  onToggleWifiOnlyDownloads: () => Promise<void>;
+  onBatchAction: (action: DownloadBatchAction) => Promise<void>;
   onRetryDownload: (download: DownloadRow) => Promise<void>;
   onDeleteMapRegion: (region: MapRegion) => void;
   onMapRegionAction: (region: MapRegion, action: 'pause' | 'retry') => Promise<void>;
 }) {
   const activeRows = downloads.filter((download) => download.status !== 'canceled');
+  const activeDownloadRows = activeRows.filter((download) =>
+    ['queued', 'downloading', 'verifying'].includes(download.status)
+  );
+  const pausedRows = activeRows.filter((download) => download.status === 'paused');
+  const failedRows = activeRows.filter((download) => download.status === 'failed');
+  const completedRows = activeRows.filter((download) => download.status === 'completed');
   const mapBytes = mapRegions.reduce((total, region) => total + (region.sizeBytes ?? 0), 0);
   const totalBytes =
     activeRows.reduce((sum, download) => sum + Math.max(0, download.totalBytes ?? 0), 0) + mapBytes;
   const activeMapRegions = mapRegions.filter((region) =>
     ['queued', 'downloading', 'paused', 'failed', 'downloaded'].includes(region.status)
   );
+  const activeMapDownloadRows = mapRegions.filter((region) =>
+    ['queued', 'downloading'].includes(region.status)
+  );
+  const pausedMapRows = mapRegions.filter((region) => region.status === 'paused');
+  const failedMapRows = mapRegions.filter((region) => region.status === 'failed');
   const mapStorageLabel = summarizeMapRegionStorage(activeMapRegions);
+  const lowStorageWarning = storage ? FileSystemService.getLowStorageWarning(storage) : null;
+  const batchBusy = busy?.startsWith('downloads-') ?? false;
+  const canPauseAll = activeDownloadRows.length > 0 || activeMapDownloadRows.length > 0;
+  const canResumeAll = pausedRows.length > 0 || pausedMapRows.length > 0;
+  const canRetryFailed = failedRows.length > 0 || failedMapRows.length > 0;
+  const canCleanCompleted = completedRows.length > 0;
   return (
     <Card className="gap-3">
       <View className="flex-row items-start justify-between gap-3">
@@ -835,6 +991,84 @@ function DownloadsCard({
             {FileSystemService.formatBytes(totalBytes)}
           </Text>
         ) : null}
+      </View>
+      <View className="border-border bg-muted/20 flex-row items-center justify-between gap-3 rounded-md border px-3 py-3">
+        <View className="min-w-0 flex-1 flex-row items-center gap-2">
+          <Icon as={Wifi} className="text-primary size-4" />
+          <View className="min-w-0 flex-1">
+            <Text>Wi-Fi only</Text>
+            <Text variant="small" className="text-muted-foreground">
+              Hold queued downloads until Wi-Fi is available.
+            </Text>
+          </View>
+        </View>
+        <Button
+          size="sm"
+          variant={wifiOnlyDownloadsEnabled ? 'default' : 'outline'}
+          onPress={() => void onToggleWifiOnlyDownloads()}>
+          <Text>{wifiOnlyDownloadsEnabled ? 'On' : 'Off'}</Text>
+        </Button>
+      </View>
+      {lowStorageWarning ? (
+        <View className="border-destructive/40 bg-destructive/10 rounded-md border px-3 py-2">
+          <Text variant="small" className="text-destructive">
+            {lowStorageWarning}
+          </Text>
+        </View>
+      ) : null}
+      <View className="flex-row flex-wrap gap-2">
+        <Button
+          className="min-w-28 flex-1"
+          size="sm"
+          variant="outline"
+          disabled={batchBusy || !canPauseAll}
+          onPress={() => void onBatchAction('pause-all')}>
+          {busy === 'downloads-pause-all' ? (
+            <ActivityIndicator />
+          ) : (
+            <Icon as={Pause} className="size-4" />
+          )}
+          <Text>Pause all</Text>
+        </Button>
+        <Button
+          className="min-w-28 flex-1"
+          size="sm"
+          variant="outline"
+          disabled={batchBusy || !canResumeAll}
+          onPress={() => void onBatchAction('resume-all')}>
+          {busy === 'downloads-resume-all' ? (
+            <ActivityIndicator />
+          ) : (
+            <Icon as={Download} className="size-4" />
+          )}
+          <Text>Resume all</Text>
+        </Button>
+        <Button
+          className="min-w-28 flex-1"
+          size="sm"
+          variant="outline"
+          disabled={batchBusy || !canRetryFailed}
+          onPress={() => void onBatchAction('retry-failed')}>
+          {busy === 'downloads-retry-failed' ? (
+            <ActivityIndicator />
+          ) : (
+            <Icon as={RefreshCw} className="size-4" />
+          )}
+          <Text>Retry failed</Text>
+        </Button>
+        <Button
+          className="min-w-28 flex-1"
+          size="sm"
+          variant="outline"
+          disabled={batchBusy || !canCleanCompleted}
+          onPress={() => void onBatchAction('clean-completed')}>
+          {busy === 'downloads-clean-completed' ? (
+            <ActivityIndicator />
+          ) : (
+            <Icon as={Trash2} className="size-4" />
+          )}
+          <Text>Clean completed</Text>
+        </Button>
       </View>
       {activeRows.length || mapRegions.length ? (
         <View className="gap-3">
@@ -1193,6 +1427,7 @@ function primaryLabel(model: ContentPack, isActive: boolean) {
   if (model.installed && model.modelRole === 'embedding') {
     return isActive ? 'In use' : 'Use for search';
   }
+  if (model.installed && model.modelRole === 'voice') return isActive ? 'In use' : 'Use for voice';
   if (model.installed) return 'Installed';
   return 'Download';
 }

@@ -1,6 +1,7 @@
 import { Screen } from '@/components/layout/screen';
 import { Text } from '@/components/ui/text';
 import { NAV_COLORS } from '@/constants/theme';
+import { useMotionEnabled } from '@/hooks/use-motion-enabled';
 import { useSensorSubscription } from '@/hooks/use-sensor-subscription';
 import { hexToRgba } from '@/lib/colors';
 import { LightMeterService } from '@/services/sensors/light.service';
@@ -11,24 +12,24 @@ import { Animated, Dimensions, Easing, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const DISC_SIZE    = SCREEN_WIDTH - 64;
-const DISC_R       = DISC_SIZE / 2;
+const DISC_SIZE = SCREEN_WIDTH - 64;
+const DISC_R = DISC_SIZE / 2;
 
 // Lux reference points for labelling
 const LUX_ZONES = [
-  { max: 1,     label: 'Pitch dark',    color: '#1a1a2e' },
-  { max: 10,    label: 'Candlelight',   color: '#2d1b00' },
-  { max: 50,    label: 'Dim room',      color: '#3d2800' },
-  { max: 200,   label: 'Room light',    color: '#5c3d00' },
-  { max: 500,   label: 'Office light',  color: '#7a5200' },
-  { max: 1000,  label: 'Overcast day',  color: '#8B6914' },
-  { max: 5000,  label: 'Daylight',      color: '#B8860B' },
-  { max: 20000, label: 'Bright sun',    color: '#DAA520' },
+  { max: 1, label: 'Pitch dark', color: '#1a1a2e' },
+  { max: 10, label: 'Candlelight', color: '#2d1b00' },
+  { max: 50, label: 'Dim room', color: '#3d2800' },
+  { max: 200, label: 'Room light', color: '#5c3d00' },
+  { max: 500, label: 'Office light', color: '#7a5200' },
+  { max: 1000, label: 'Overcast day', color: '#8B6914' },
+  { max: 5000, label: 'Daylight', color: '#B8860B' },
+  { max: 20000, label: 'Bright sun', color: '#DAA520' },
   { max: Infinity, label: 'Direct sun', color: '#FFD700' },
 ];
 
 function getZone(lux: number) {
-  return LUX_ZONES.find(z => lux <= z.max) ?? LUX_ZONES[LUX_ZONES.length - 1];
+  return LUX_ZONES.find((z) => lux <= z.max) ?? LUX_ZONES[LUX_ZONES.length - 1];
 }
 
 // Map lux to 0–1 on a log scale so low values are readable
@@ -40,25 +41,31 @@ function luxToProgress(lux: number): number {
 }
 
 // Ray count and sizing
-const RAY_COUNT  = 16;
+const RAY_COUNT = 16;
 const RAY_ANGLES = Array.from({ length: RAY_COUNT }, (_, i) => (i * 360) / RAY_COUNT);
 
 export default function LightTool() {
   const theme = useThemeStore((state) => state.effectiveTheme);
   const palette = NAV_COLORS[theme];
+  const motionEnabled = useMotionEnabled();
   const setStoreLux = useSensorStore((state) => state.setLux);
   const { available, value: lux } = useSensorSubscription(LightMeterService, setStoreLux);
 
-  const safeLux    = lux ?? 0;
-  const progress   = luxToProgress(safeLux);
-  const zone       = getZone(safeLux);
+  const safeLux = lux ?? 0;
+  const progress = luxToProgress(safeLux);
+  const zone = getZone(safeLux);
 
   // ── Animated values ───────────────────────────────────────────────────────
   const animProgress = React.useRef(new Animated.Value(0)).current;
   const animRayScale = React.useRef(new Animated.Value(0)).current;
-  const animRotate   = React.useRef(new Animated.Value(0)).current;
+  const animRotate = React.useRef(new Animated.Value(0)).current;
 
   React.useEffect(() => {
+    if (!motionEnabled) {
+      animProgress.setValue(progress);
+      animRayScale.setValue(progress);
+      return;
+    }
     Animated.parallel([
       Animated.timing(animProgress, {
         toValue: progress,
@@ -73,19 +80,26 @@ export default function LightTool() {
         useNativeDriver: true,
       }),
     ]).start();
-  }, [progress]);
+  }, [animProgress, animRayScale, motionEnabled, progress]);
 
   // Slowly rotate the rays — purely decorative
   React.useEffect(() => {
-    Animated.loop(
+    if (!motionEnabled) {
+      animRotate.stopAnimation();
+      animRotate.setValue(0);
+      return;
+    }
+    const loop = Animated.loop(
       Animated.timing(animRotate, {
         toValue: 1,
         duration: 20000,
         easing: Easing.linear,
         useNativeDriver: true,
       })
-    ).start();
-  }, []);
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [animRotate, motionEnabled]);
 
   const rotateDeg = animRotate.interpolate({
     inputRange: [0, 1],
@@ -108,10 +122,8 @@ export default function LightTool() {
 
   return (
     <Screen style={[styles.screen, { backgroundColor: palette.background }]}>
-
       {/* ── Sun / glow disc ── */}
       <View style={[styles.discWrap, { width: DISC_SIZE, height: DISC_SIZE }]}>
-
         {/* Ambient glow background */}
         <Animated.View
           style={[
@@ -126,16 +138,12 @@ export default function LightTool() {
 
         {/* Rotating rays */}
         <Animated.View
-          style={[
-            StyleSheet.absoluteFillObject,
-            { transform: [{ rotate: rotateDeg }] },
-          ]}
-        >
+          style={[StyleSheet.absoluteFillObject, { transform: [{ rotate: rotateDeg }] }]}>
           {RAY_ANGLES.map((angle, i) => {
             const rayLength = DISC_R * (0.18 + (i % 2 === 0 ? 0.08 : 0)) * (0.3 + progress * 0.7);
-            const rad       = (angle * Math.PI) / 180;
-            const x  = DISC_R + (DISC_R * 0.82) * Math.cos(rad) - 1;
-            const y  = DISC_R + (DISC_R * 0.82) * Math.sin(rad) - rayLength / 2;
+            const rad = (angle * Math.PI) / 180;
+            const x = DISC_R + DISC_R * 0.82 * Math.cos(rad) - 1;
+            const y = DISC_R + DISC_R * 0.82 * Math.sin(rad) - rayLength / 2;
             return (
               <Animated.View
                 key={i}
@@ -147,7 +155,7 @@ export default function LightTool() {
                     backgroundColor: zone.color,
                     opacity: 0.15 + progress * 0.65,
                     left: x,
-                    top:  y,
+                    top: y,
                     transform: [
                       { translateX: 0 },
                       { translateY: 0 },
@@ -161,27 +169,24 @@ export default function LightTool() {
         </Animated.View>
 
         {/* SVG glow core */}
-        <Svg
-          width={DISC_SIZE}
-          height={DISC_SIZE}
-          style={StyleSheet.absoluteFillObject}
-        >
+        <Svg width={DISC_SIZE} height={DISC_SIZE} style={StyleSheet.absoluteFillObject}>
           <Defs>
             <RadialGradient id="glow" cx="50%" cy="50%" r="50%">
-              <Stop offset="0%"   stopColor={zone.color} stopOpacity="1"   />
-              <Stop offset="40%"  stopColor={zone.color} stopOpacity="0.6" />
-              <Stop offset="100%" stopColor={zone.color} stopOpacity="0"   />
+              <Stop offset="0%" stopColor={zone.color} stopOpacity="1" />
+              <Stop offset="40%" stopColor={zone.color} stopOpacity="0.6" />
+              <Stop offset="100%" stopColor={zone.color} stopOpacity="0" />
             </RadialGradient>
             <RadialGradient id="core" cx="50%" cy="50%" r="50%">
-              <Stop offset="0%"   stopColor="#FAFAFA" stopOpacity="0.95" />
-              <Stop offset="60%"  stopColor={zone.color} stopOpacity="0.8" />
-              <Stop offset="100%" stopColor={zone.color} stopOpacity="0"   />
+              <Stop offset="0%" stopColor="#FAFAFA" stopOpacity="0.95" />
+              <Stop offset="60%" stopColor={zone.color} stopOpacity="0.8" />
+              <Stop offset="100%" stopColor={zone.color} stopOpacity="0" />
             </RadialGradient>
           </Defs>
 
           {/* Outer glow */}
           <Circle
-            cx={DISC_R} cy={DISC_R}
+            cx={DISC_R}
+            cy={DISC_R}
             r={DISC_R * 0.75}
             fill="url(#glow)"
             opacity={0.12 + progress * 0.55}
@@ -189,7 +194,8 @@ export default function LightTool() {
 
           {/* Inner hot core — shrinks/grows with lux */}
           <Circle
-            cx={DISC_R} cy={DISC_R}
+            cx={DISC_R}
+            cy={DISC_R}
             r={DISC_R * (0.08 + progress * 0.38)}
             fill="url(#core)"
             opacity={0.4 + progress * 0.6}
@@ -198,14 +204,9 @@ export default function LightTool() {
 
         {/* Lux number overlay */}
         <View style={styles.overlay} pointerEvents="none">
-          <Text style={[styles.luxNum, { color: palette.foreground }]}>
-            {displayLux}
-          </Text>
-          <Text style={[styles.luxUnit, { color: palette.mutedForeground }]}>
-            lux
-          </Text>
+          <Text style={[styles.luxNum, { color: palette.foreground }]}>{displayLux}</Text>
+          <Text style={[styles.luxUnit, { color: palette.mutedForeground }]}>lux</Text>
         </View>
-
       </View>
 
       {/* ── Zone label ── */}
@@ -217,7 +218,8 @@ export default function LightTool() {
             borderColor: hexToRgba(zone.color, 0.4),
           },
         ]}>
-        <Text style={[styles.zoneText, { color: zone.color === '#1a1a2e' ? '#aaaacc' : zone.color }]}>
+        <Text
+          style={[styles.zoneText, { color: zone.color === '#1a1a2e' ? '#aaaacc' : zone.color }]}>
           {zone.label}
         </Text>
       </View>
@@ -251,7 +253,6 @@ export default function LightTool() {
           Light sensor is not available on this device.
         </Text>
       )}
-
     </Screen>
   );
 }

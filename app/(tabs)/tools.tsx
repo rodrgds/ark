@@ -1,12 +1,12 @@
-import { Arky } from '@/components/brand/ark-logo';
 import { Screen } from '@/components/layout/screen';
 import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
+import { BATTERY_POLL_INTERVALS_MS } from '@/constants/battery';
 import { NAV_COLORS } from '@/constants/theme';
+import { useBatteryReduceMode } from '@/hooks/use-battery-reduce-mode';
 import { hexToRgba } from '@/lib/colors';
 import { RssService } from '@/services/rss/rss.service';
-import { useSensorStore } from '@/stores/sensor-store';
 import { useThemeStore } from '@/stores/theme-store';
 import { Link, type Href, useFocusEffect } from 'expo-router';
 import {
@@ -59,8 +59,8 @@ const TOOL_ROUTES = {
 };
 
 export default function ToolsScreen() {
-  const { heading, pressure, pitch, roll, steps, lux } = useSensorStore();
   const [rssUnreadCount, setRssUnreadCount] = React.useState(0);
+  const reduceModeEnabled = useBatteryReduceMode();
 
   useFocusEffect(
     React.useCallback(() => {
@@ -70,12 +70,15 @@ export default function ToolsScreen() {
         if (active) setRssUnreadCount(overview.unreadCount);
       };
       void load();
-      const interval = setInterval(() => void load(), 10_000);
+      const interval = setInterval(
+        () => void load(),
+        BATTERY_POLL_INTERVALS_MS.toolsOverview[reduceModeEnabled ? 'reduced' : 'normal']
+      );
       return () => {
         active = false;
         clearInterval(interval);
       };
-    }, [])
+    }, [reduceModeEnabled])
   );
 
   const tools = [
@@ -147,13 +150,6 @@ export default function ToolsScreen() {
 
   return (
     <Screen>
-      <View className="flex-row items-center justify-between gap-3">
-        <View className="flex-1 gap-2">
-          <Text variant="h1">Tools</Text>
-        </View>
-        <Arky pose="resourceful" size={80} />
-      </View>
-
       <View className="flex-row flex-wrap gap-3">
         {tools.map((tool) => (
           <ToolTile key={tool.title} {...tool} />

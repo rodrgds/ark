@@ -145,40 +145,6 @@ export const STARTER_PACKS: ContentPackManifest[] = [
     testOnly: true,
   },
   {
-    id: 'embedding-nomic-v15-q4-k-m',
-    title: 'Nomic Embed Text v1.5 Q4_K_M',
-    description:
-      'Small source-search download. Good default for finding relevant notes, guides, documents, and wiki articles.',
-    category: 'AI Models',
-    format: 'gguf',
-    modelRole: 'embedding',
-    estimatedSize: '84 MB',
-    sizeBytes: Math.round(84.1 * 1024 * 1024),
-    sourceUrl:
-      'https://huggingface.co/nomic-ai/nomic-embed-text-v1.5-GGUF/resolve/main/nomic-embed-text-v1.5.Q4_K_M.gguf',
-    sourceLabel: 'Hugging Face: Nomic AI',
-    fileName: 'nomic-embed-text-v1.5.Q4_K_M.gguf',
-    installed: false,
-    disclaimer: SAFETY_COPY.ai,
-  },
-  {
-    id: 'embedding-qwen3-06b-q8',
-    title: 'Qwen3 Embedding 0.6B Q8_0',
-    description:
-      'Larger source-search download. Better when your offline library mixes English and Portuguese.',
-    category: 'AI Models',
-    format: 'gguf',
-    modelRole: 'embedding',
-    estimatedSize: '639 MB',
-    sizeBytes: 639 * 1024 * 1024,
-    sourceUrl:
-      'https://huggingface.co/Qwen/Qwen3-Embedding-0.6B-GGUF/resolve/main/Qwen3-Embedding-0.6B-Q8_0.gguf',
-    sourceLabel: 'Hugging Face: Qwen',
-    fileName: 'Qwen3-Embedding-0.6B-Q8_0.gguf',
-    installed: false,
-    disclaimer: SAFETY_COPY.ai,
-  },
-  {
     id: 'model-qwen25-15b-q4-0',
     title: 'Qwen2.5 1.5B Instruct Q4_0',
     description:
@@ -235,8 +201,7 @@ export const STARTER_PACKS: ContentPackManifest[] = [
   {
     id: 'model-smollm2-17b-q4-0',
     title: 'SmolLM2 1.7B Instruct Q4_0',
-    description:
-      'Light answer model for short offline replies on phones with limited space.',
+    description: 'Light answer model for short offline replies on phones with limited space.',
     category: 'AI Models',
     format: 'gguf',
     modelRole: 'chat',

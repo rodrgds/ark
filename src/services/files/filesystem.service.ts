@@ -2,6 +2,8 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { APP_DIRECTORIES, type AppDirectory } from '@/constants/app';
 
 export class FileSystemService {
+  private static readonly LOW_STORAGE_MINIMUM_BYTES = 1024 * 1024 * 1024;
+
   static baseDir() {
     return `${FileSystem.documentDirectory ?? ''}ark/`;
   }
@@ -69,9 +71,24 @@ export class FileSystemService {
       throw new Error(
         `Not enough free storage. This download needs about ${this.formatBytes(
           sizeBytes
-        )}, with room left for Ark to finish safely.`
+        )}, with at least ${this.formatBytes(reserveBytes)} left for Ark to finish safely.`
       );
     }
+  }
+
+  static getLowStorageWarning(summary: {
+    freeBytes?: number | null;
+    totalDiskBytes?: number | null;
+  }) {
+    if (summary.freeBytes == null) return null;
+    const reserveBytes = Math.max(
+      this.LOW_STORAGE_MINIMUM_BYTES,
+      summary.totalDiskBytes ? Math.round(summary.totalDiskBytes * 0.05) : 0
+    );
+    if (summary.freeBytes >= reserveBytes) return null;
+    return `Low storage: ${this.formatBytes(
+      summary.freeBytes
+    )} free. Keep at least ${this.formatBytes(reserveBytes)} free before large downloads.`;
   }
 
   static async getDiskCapacity() {

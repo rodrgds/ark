@@ -38,10 +38,10 @@
       "computedHash": "34e59a34b9705187e87039faa5d9585aebe0056ef657f761b905afef276a3362"
     },
     "react-native-best-practices": {
-      "source": "callstackincubator/agent-skills",
+      "source": "software-mansion-labs/skills",
       "sourceType": "github",
       "skillPath": "skills/react-native-best-practices/SKILL.md",
-      "computedHash": "15bd57b18d9ad0dcd003bd2c7ec6ed17d813cc671dd4d423e1d904d2a7b9d2bb"
+      "computedHash": "37bd8599a1d4a8ee8bd0e3a6f416f32c7a1f26491a8142d7acab0a9e995e4f1a"
     },
     "react-native-design": {
       "source": "wshobson/agents",

@@ -1,5 +1,8 @@
 import { Arky } from '@/components/brand/ark-logo';
 import { Screen } from '@/components/layout/screen';
+import { NotesList } from '@/components/notes/notes-list';
+import { NotesMosaicGrid } from '@/components/notes/notes-mosaic-grid';
+import { NotesOrganizeList } from '@/components/notes/notes-organize-list';
 import { ArkBottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -9,47 +12,107 @@ import { Input } from '@/components/ui/input';
 import { showSheetAlert } from '@/components/ui/sheet-alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
+import {
+  NOTE_SORT_OPTIONS,
+  getNoteSortLabel,
+  normalizeNoteSortMode,
+  type NoteSortMode,
+} from '@/constants/note-sort';
+import { NOTE_THEME_OPTIONS, getNoteTheme, type NoteThemeId } from '@/constants/note-themes';
 import { getLabelColor, getLabelForegroundColor } from '@/lib/label-colors';
 import { NotesRepository } from '@/services/db/repositories/notes.repo';
 import { SettingsRepository } from '@/services/db/repositories/settings.repo';
 import { NotePdfService } from '@/services/notes/note-pdf.service';
 import { VaultService } from '@/services/security/vault.service';
 import { useAuthStore } from '@/stores/auth-store';
+import { useThemeStore } from '@/stores/theme-store';
 import type { Note } from '@/types/db';
 import { router, useFocusEffect } from 'expo-router';
 import * as Sharing from 'expo-sharing';
-import { Plus, Printer, Star, Tag, Trash2 } from 'lucide-react-native';
+import {
+  Check,
+  GripVertical,
+  LayoutGrid,
+  ListFilter,
+  Palette,
+  Plus,
+  Printer,
+  Rows3,
+  Star,
+  StarOff,
+  Tag,
+  Trash2,
+  X,
+} from 'lucide-react-native';
 import * as React from 'react';
-import { Linking, Pressable, RefreshControl, View } from 'react-native';
+import { BackHandler, Linking, RefreshControl, View } from 'react-native';
+
+type NotesMode = 'normal' | 'selection' | 'organize';
+type NotesViewMode = 'mosaic' | 'list';
+type ThemeTarget = { type: 'single'; note: Note } | { type: 'selection' };
+
+function collectLabels(notes: Note[], savedLabels: string[]) {
+  return Array.from(new Set([...notes.flatMap((note) => note.tags), ...savedLabels])).sort((a, b) =>
+    a.localeCompare(b)
+  );
+}
 
 export default function NotesScreen() {
   const unlocked = useAuthStore((state) => state.unlocked);
+  const effectiveTheme = useThemeStore((state) => state.effectiveTheme);
   const [password, setPassword] = React.useState('');
   const [unlockError, setUnlockError] = React.useState<string | null>(null);
   const [notes, setNotes] = React.useState<Note[]>([]);
   const [query, setQuery] = React.useState('');
   const [refreshing, setRefreshing] = React.useState(false);
   const [initialLoading, setInitialLoading] = React.useState(true);
+  const [sortMode, setSortMode] = React.useState<NoteSortMode>('updated_desc');
+  const [viewMode, setViewMode] = React.useState<NotesViewMode>('mosaic');
+  const notesRef = React.useRef<Note[]>([]);
 
+  const [mode, setMode] = React.useState<NotesMode>('normal');
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(() => new Set());
   const [actionNote, setActionNote] = React.useState<Note | null>(null);
   const [confirmDeleteNote, setConfirmDeleteNote] = React.useState<Note | null>(null);
+  const [confirmDeleteSelection, setConfirmDeleteSelection] = React.useState(false);
+  const [themeTarget, setThemeTarget] = React.useState<ThemeTarget | null>(null);
+  const [sortSheetOpen, setSortSheetOpen] = React.useState(false);
+  const [labelSheetOpen, setLabelSheetOpen] = React.useState(false);
+  const [bulkLabelDraft, setBulkLabelDraft] = React.useState('');
+  const [availableLabels, setAvailableLabels] = React.useState<string[]>([]);
   const [labelColors, setLabelColors] = React.useState<Record<string, string>>({});
   const [printingNoteId, setPrintingNoteId] = React.useState<string | null>(null);
-  const leftColumn = notes.filter((_, index) => index % 2 === 0);
-  const rightColumn = notes.filter((_, index) => index % 2 === 1);
+  const [movingNoteId, setMovingNoteId] = React.useState<string | null>(null);
+  const selectedNotes = React.useMemo(
+    () => notes.filter((note) => selectedIds.has(note.id)),
+    [notes, selectedIds]
+  );
+  const selectedNoteIds = React.useMemo(() => Array.from(selectedIds), [selectedIds]);
+  const selectedCount = selectedIds.size;
 
-  async function load(search = query) {
+  React.useEffect(() => {
+    notesRef.current = notes;
+  }, [notes]);
+
+  const exitSelection = React.useCallback(() => {
+    setMode('normal');
+    setSelectedIds(new Set());
+    setConfirmDeleteSelection(false);
+    setLabelSheetOpen(false);
+    setBulkLabelDraft('');
+  }, []);
+
+  async function load(search = query, nextSortMode = sortMode) {
     if (!unlocked) return;
-    const [list, colors] = await Promise.all([
-      NotesRepository.list(search),
+    const [list, colors, savedLabels, allNotes] = await Promise.all([
+      NotesRepository.list(search, nextSortMode),
       SettingsRepository.getLabelColors(),
+      SettingsRepository.getLabels(),
+      search ? NotesRepository.list(undefined, nextSortMode) : Promise.resolve(null),
     ]);
-    list.sort((a, b) => {
-      if (a.isFavorite !== b.isFavorite) return a.isFavorite ? -1 : 1;
-      return b.updatedAt - a.updatedAt;
-    });
     setNotes(list);
     setLabelColors(colors);
+    setAvailableLabels(collectLabels(allNotes ?? list, savedLabels));
     setInitialLoading(false);
   }
 
@@ -57,10 +120,34 @@ export default function NotesScreen() {
     void load();
   }, [unlocked]);
 
+  React.useEffect(() => {
+    if (!unlocked) return;
+    Promise.all([
+      SettingsRepository.get('notes.sortMode'),
+      SettingsRepository.get('notes.viewMode'),
+    ]).then(([storedSortMode, storedViewMode]) => {
+      const nextSortMode = normalizeNoteSortMode(storedSortMode);
+      setViewMode(storedViewMode === 'list' ? 'list' : 'mosaic');
+      setSortMode(nextSortMode);
+      void load(query, nextSortMode);
+    });
+  }, [unlocked]);
+
   useFocusEffect(
     React.useCallback(() => {
-      void load();
-    }, [unlocked, query])
+      void load(query, sortMode);
+    }, [unlocked, query, sortMode])
+  );
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (mode !== 'selection') return undefined;
+      const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+        exitSelection();
+        return true;
+      });
+      return () => subscription.remove();
+    }, [exitSelection, mode])
   );
 
   async function unlock() {
@@ -73,6 +160,101 @@ export default function NotesScreen() {
     setUnlockError(result.ok ? null : (result.reason ?? 'Unable to unlock with biometrics.'));
   }
 
+  function openNote(note: Note) {
+    router.push({
+      pathname: '/notes/editor' as never,
+      params: { id: note.id } as never,
+    });
+  }
+
+  function enterSelection(note: Note) {
+    setMode('selection');
+    setSelectedIds(new Set([note.id]));
+  }
+
+  async function setSortModePreference(nextSortMode: NoteSortMode) {
+    setSortMode(nextSortMode);
+    setSortSheetOpen(false);
+    await SettingsRepository.set('notes.sortMode', nextSortMode);
+    await load(query, nextSortMode);
+  }
+
+  async function enterOrganizeMode() {
+    setMode('organize');
+    setActionNote(null);
+    setSelectedIds(new Set());
+    setQuery('');
+    if (sortMode !== 'manual') {
+      setSortMode('manual');
+      await SettingsRepository.set('notes.sortMode', 'manual');
+    }
+    await load('', 'manual');
+  }
+
+  function exitOrganizeMode() {
+    setMode('normal');
+    setMovingNoteId(null);
+  }
+
+  async function setViewModePreference(nextViewMode: NotesViewMode) {
+    setViewMode(nextViewMode);
+    await SettingsRepository.set('notes.viewMode', nextViewMode);
+  }
+
+  async function moveNoteToIndex(noteId: string, targetIndex: number) {
+    const previousNotes = notesRef.current;
+    const index = previousNotes.findIndex((note) => note.id === noteId);
+    if (index < 0 || targetIndex < 0 || targetIndex >= previousNotes.length || targetIndex === index) {
+      return;
+    }
+
+    const nextNotes = [...previousNotes];
+    const [movedNote] = nextNotes.splice(index, 1);
+    if (!movedNote) return;
+    nextNotes.splice(targetIndex, 0, movedNote);
+
+    setMovingNoteId(noteId);
+    setNotes(nextNotes);
+    try {
+      await NotesRepository.reorder(nextNotes.map((note) => note.id));
+    } catch (error) {
+      setNotes(previousNotes);
+      showSheetAlert(
+        'Reorder failed',
+        error instanceof Error ? error.message : 'Unable to save manual order.'
+      );
+    } finally {
+      setMovingNoteId(null);
+    }
+  }
+
+  function toggleSelection(note: Note) {
+    const next = new Set(selectedIds);
+    if (next.has(note.id)) {
+      next.delete(note.id);
+    } else {
+      next.add(note.id);
+    }
+    setSelectedIds(next);
+    if (!next.size) setMode('normal');
+  }
+
+  function handleNotePress(note: Note) {
+    if (mode === 'selection') {
+      toggleSelection(note);
+      return;
+    }
+    openNote(note);
+  }
+
+  function handleNoteLongPress(note: Note) {
+    if (mode === 'normal') {
+      enterSelection(note);
+      return;
+    }
+    toggleSelection(note);
+  }
+
   async function toggleStar(note: Note) {
     await NotesRepository.update(note.id, { isFavorite: !note.isFavorite });
     setActionNote(null);
@@ -83,6 +265,45 @@ export default function NotesScreen() {
     await NotesRepository.softDelete(note.id);
     setActionNote(null);
     setConfirmDeleteNote(null);
+    await load(query);
+  }
+
+  async function setTheme(themeId: NoteThemeId) {
+    const target = themeTarget;
+    if (!target) return;
+
+    if (target.type === 'single') {
+      await NotesRepository.update(target.note.id, { themeId });
+    } else {
+      await NotesRepository.updateMany(selectedNoteIds, { themeId });
+      exitSelection();
+    }
+
+    setThemeTarget(null);
+    await load(query);
+  }
+
+  async function setSelectedFavorite(isFavorite: boolean) {
+    if (!selectedNoteIds.length) return;
+    await NotesRepository.updateMany(selectedNoteIds, { isFavorite });
+    exitSelection();
+    await load(query);
+  }
+
+  async function deleteSelectedNotes() {
+    if (!selectedNoteIds.length) return;
+    await NotesRepository.softDeleteMany(selectedNoteIds);
+    exitSelection();
+    await load(query);
+  }
+
+  async function applyBulkLabel(label: string) {
+    const normalized = label.trim();
+    if (!normalized || !selectedNoteIds.length) return;
+
+    await SettingsRepository.addLabel(normalized);
+    await NotesRepository.applyLabels(selectedNoteIds, [normalized]);
+    exitSelection();
     await load(query);
   }
 
@@ -111,6 +332,13 @@ export default function NotesScreen() {
     } finally {
       setPrintingNoteId(null);
     }
+  }
+
+  async function printSelectedNote() {
+    const note = selectedNotes[0];
+    if (!note) return;
+    await printNote(note);
+    exitSelection();
   }
 
   if (!unlocked) {
@@ -160,14 +388,110 @@ export default function NotesScreen() {
             }}
           />
         }>
-        <Input
-          value={query}
-          onChangeText={(value) => {
-            setQuery(value);
-            void load(value);
-          }}
-          placeholder="Search notes"
-        />
+        {mode === 'selection' ? (
+          <View className="border-border bg-card gap-2 rounded-lg border p-2">
+            <View className="flex-row items-center justify-between gap-2">
+              <Text variant="large">
+                {selectedCount === 1 ? '1 selected' : `${selectedCount} selected`}
+              </Text>
+              <Button size="icon" variant="ghost" className="h-9 w-9" onPress={exitSelection}>
+                <Icon as={X} className="size-5" />
+              </Button>
+            </View>
+            <View className="flex-row flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!selectedCount}
+                onPress={() => void setSelectedFavorite(true)}>
+                <Icon as={Star} className="size-4" />
+                <Text>Star</Text>
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!selectedCount}
+                onPress={() => void setSelectedFavorite(false)}>
+                <Icon as={StarOff} className="size-4" />
+                <Text>Unstar</Text>
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!selectedCount}
+                onPress={() => setLabelSheetOpen(true)}>
+                <Icon as={Tag} className="size-4" />
+                <Text>Labels</Text>
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!selectedCount}
+                onPress={() => setThemeTarget({ type: 'selection' })}>
+                <Icon as={Palette} className="size-4" />
+                <Text>Theme</Text>
+              </Button>
+              {selectedCount === 1 ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={printingNoteId === selectedNotes[0]?.id}
+                  onPress={() => void printSelectedNote()}>
+                  <Icon as={Printer} className="size-4" />
+                  <Text>{printingNoteId === selectedNotes[0]?.id ? 'Preparing' : 'Print'}</Text>
+                </Button>
+              ) : null}
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!selectedCount}
+                onPress={() => setConfirmDeleteSelection(true)}>
+                <Icon as={Trash2} className="text-destructive size-4" />
+                <Text className="text-destructive">Delete</Text>
+              </Button>
+            </View>
+          </View>
+        ) : mode === 'organize' ? (
+          <View className="border-border bg-card flex-row items-center justify-between gap-2 rounded-lg border p-2">
+            <View className="min-w-0 flex-1">
+              <Text variant="large">Manual order</Text>
+              <Text variant="muted">Sort: {getNoteSortLabel(sortMode)}</Text>
+            </View>
+            <Button variant="outline" size="sm" onPress={exitOrganizeMode}>
+              <Text>Done</Text>
+            </Button>
+          </View>
+        ) : (
+          <View className="gap-2">
+            <Input
+              value={query}
+              onChangeText={(value) => {
+                setQuery(value);
+                void load(value, sortMode);
+              }}
+              placeholder="Search notes"
+            />
+            <View className="flex-row flex-wrap gap-2">
+              <Button size="sm" variant="outline" onPress={() => setSortSheetOpen(true)}>
+                <Icon as={ListFilter} className="size-4" />
+                <Text>{getNoteSortLabel(sortMode)}</Text>
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onPress={() =>
+                  void setViewModePreference(viewMode === 'mosaic' ? 'list' : 'mosaic')
+                }>
+                <Icon as={viewMode === 'mosaic' ? Rows3 : LayoutGrid} className="size-4" />
+                <Text>{viewMode === 'mosaic' ? 'List' : 'Mosaic'}</Text>
+              </Button>
+              <Button size="sm" variant="outline" onPress={() => void enterOrganizeMode()}>
+                <Icon as={GripVertical} className="size-4" />
+                <Text>Organize</Text>
+              </Button>
+            </View>
+          </View>
+        )}
 
         {initialLoading ? (
           <View className="gap-3">
@@ -183,110 +507,46 @@ export default function NotesScreen() {
               Create your first secure note.
             </Text>
           </Card>
+        ) : mode === 'organize' ? (
+          <NotesOrganizeList
+            notes={notes}
+            effectiveTheme={effectiveTheme}
+            movingNoteId={movingNoteId}
+            onMoveToIndex={(noteId, targetIndex) => void moveNoteToIndex(noteId, targetIndex)}
+          />
+        ) : viewMode === 'list' ? (
+          <NotesList
+            notes={notes}
+            labelColors={labelColors}
+            effectiveTheme={effectiveTheme}
+            mode={mode}
+            selectedIds={selectedIds}
+            onNotePress={handleNotePress}
+            onNoteLongPress={handleNoteLongPress}
+            onNoteMenuPress={setActionNote}
+          />
         ) : (
-          <View className="flex-row items-start gap-3">
-            <View className="flex-1 gap-3">
-              {leftColumn.map((note) => (
-                <Pressable
-                  key={note.id}
-                  onPress={() =>
-                    router.push({
-                      pathname: '/notes/editor' as never,
-                      params: { id: note.id } as never,
-                    })
-                  }
-                  onLongPress={() => setActionNote(note)}
-                  delayLongPress={220}>
-                  <Card className="gap-2">
-                    <View className="flex-row items-start justify-between gap-2">
-                      <Text variant="large" className="min-w-0 flex-1">
-                        {note.title}
-                      </Text>
-                      {note.isFavorite ? (
-                        <Icon as={Star} className="text-muted-foreground size-3.5" />
-                      ) : null}
-                    </View>
-                    <Text numberOfLines={3} variant="muted">
-                      {note.body || 'No content'}
-                    </Text>
-                    {note.tags.length ? (
-                      <View className="mt-1 flex-row flex-wrap gap-1.5">
-                        {note.tags.map((label) => (
-                          <View
-                            key={`${note.id}-${label}`}
-                            className="rounded-full px-2 py-0.5"
-                            style={{ backgroundColor: getLabelColor(label, labelColors) }}>
-                            <Text
-                              className="text-xs"
-                              style={{
-                                color: getLabelForegroundColor(getLabelColor(label, labelColors)),
-                              }}>
-                              {label}
-                            </Text>
-                          </View>
-                        ))}
-                      </View>
-                    ) : null}
-                  </Card>
-                </Pressable>
-              ))}
-            </View>
-            <View className="flex-1 gap-3">
-              {rightColumn.map((note) => (
-                <Pressable
-                  key={note.id}
-                  onPress={() =>
-                    router.push({
-                      pathname: '/notes/editor' as never,
-                      params: { id: note.id } as never,
-                    })
-                  }
-                  onLongPress={() => setActionNote(note)}
-                  delayLongPress={220}>
-                  <Card className="gap-2">
-                    <View className="flex-row items-start justify-between gap-2">
-                      <Text variant="large" className="min-w-0 flex-1">
-                        {note.title}
-                      </Text>
-                      {note.isFavorite ? (
-                        <Icon as={Star} className="text-muted-foreground size-3.5" />
-                      ) : null}
-                    </View>
-                    <Text numberOfLines={3} variant="muted">
-                      {note.body || 'No content'}
-                    </Text>
-                    {note.tags.length ? (
-                      <View className="mt-1 flex-row flex-wrap gap-1.5">
-                        {note.tags.map((label) => (
-                          <View
-                            key={`${note.id}-${label}`}
-                            className="rounded-full px-2 py-0.5"
-                            style={{ backgroundColor: getLabelColor(label, labelColors) }}>
-                            <Text
-                              className="text-xs"
-                              style={{
-                                color: getLabelForegroundColor(getLabelColor(label, labelColors)),
-                              }}>
-                              {label}
-                            </Text>
-                          </View>
-                        ))}
-                      </View>
-                    ) : null}
-                  </Card>
-                </Pressable>
-              ))}
-            </View>
-          </View>
+          <NotesMosaicGrid
+            notes={notes}
+            labelColors={labelColors}
+            effectiveTheme={effectiveTheme}
+            mode={mode}
+            selectedIds={selectedIds}
+            onNotePress={handleNotePress}
+            onNoteLongPress={handleNoteLongPress}
+            onNoteMenuPress={setActionNote}
+          />
         )}
       </Screen>
 
-      <Button
-        size="icon"
-        className="absolute right-6 bottom-6 h-14 w-14 rounded-full"
-        onPress={() => router.push('/notes/editor' as never)}>
-        <Icon as={Plus} className="size-6" />
-      </Button>
+      {mode === 'normal' ? (
+        <Button
+          size="icon"
+          className="absolute right-6 bottom-6 h-14 w-14 rounded-full"
+          onPress={() => router.push('/notes/editor' as never)}>
+          <Icon as={Plus} className="size-6" />
+        </Button>
+      ) : null}
 
       <ArkBottomSheet visible={!!actionNote} onDismiss={() => setActionNote(null)}>
         <Button
@@ -307,6 +567,17 @@ export default function NotesScreen() {
           }}>
           <Icon as={Star} className="size-4" />
           <Text>{actionNote?.isFavorite ? 'Unstar' : 'Star'}</Text>
+        </Button>
+        <Button
+          variant="ghost"
+          className="h-10 justify-start px-2"
+          onPress={() => {
+            if (!actionNote) return;
+            setThemeTarget({ type: 'single', note: actionNote });
+            setActionNote(null);
+          }}>
+          <Icon as={Palette} className="size-4" />
+          <Text>Theme</Text>
         </Button>
         <Button
           variant="ghost"
@@ -335,6 +606,124 @@ export default function NotesScreen() {
         </Button>
       </ArkBottomSheet>
 
+      <ArkBottomSheet visible={!!themeTarget} onDismiss={() => setThemeTarget(null)}>
+        <View className="gap-1">
+          {NOTE_THEME_OPTIONS.map((option) => {
+            const optionTheme = getNoteTheme(option.id, effectiveTheme);
+            const selected =
+              themeTarget?.type === 'single'
+                ? themeTarget.note.themeId === option.id
+                : selectedNotes.length > 0 &&
+                  selectedNotes.every((note) => note.themeId === option.id);
+            return (
+              <Button
+                key={option.id}
+                variant="ghost"
+                className="h-11 justify-start px-2"
+                onPress={() => {
+                  void setTheme(option.id);
+                }}>
+                <View
+                  className="h-5 w-5 rounded-full border"
+                  style={{
+                    backgroundColor: optionTheme.background,
+                    borderColor: optionTheme.border,
+                  }}
+                />
+                <Text>{option.label}</Text>
+                {selected ? <Icon as={Check} className="text-primary ml-auto size-4" /> : null}
+              </Button>
+            );
+          })}
+        </View>
+      </ArkBottomSheet>
+
+      <ArkBottomSheet visible={sortSheetOpen} onDismiss={() => setSortSheetOpen(false)}>
+        <View className="gap-1">
+          {NOTE_SORT_OPTIONS.map((option) => {
+            const selected = sortMode === option.value;
+            return (
+              <Button
+                key={option.value}
+                variant="ghost"
+                className="h-11 justify-start px-2"
+                onPress={() => {
+                  void setSortModePreference(option.value);
+                }}>
+                <Icon
+                  as={option.value === 'manual' ? GripVertical : ListFilter}
+                  className="size-4"
+                />
+                <Text>{option.label}</Text>
+                {selected ? <Icon as={Check} className="text-primary ml-auto size-4" /> : null}
+              </Button>
+            );
+          })}
+        </View>
+      </ArkBottomSheet>
+
+      <ArkBottomSheet
+        visible={labelSheetOpen}
+        title="Labels"
+        description={
+          selectedCount === 1
+            ? 'Add a label to the selected note.'
+            : `Add a label to ${selectedCount} selected notes.`
+        }
+        onDismiss={() => setLabelSheetOpen(false)}>
+        <View className="gap-3">
+          <View className="flex-row items-center gap-2">
+            <Input
+              value={bulkLabelDraft}
+              onChangeText={setBulkLabelDraft}
+              onSubmitEditing={() => void applyBulkLabel(bulkLabelDraft)}
+              placeholder="New label"
+              returnKeyType="done"
+              className="flex-1"
+            />
+            <Button
+              size="icon"
+              variant="outline"
+              disabled={!bulkLabelDraft.trim()}
+              onPress={() => void applyBulkLabel(bulkLabelDraft)}>
+              <Icon as={Plus} className="size-5" />
+            </Button>
+          </View>
+
+          {availableLabels.length ? (
+            <View className="gap-1">
+              {availableLabels.map((label) => {
+                const labelColor = getLabelColor(label, labelColors);
+                const labelForeground = getLabelForegroundColor(labelColor);
+                const appliedToAll =
+                  selectedNotes.length > 0 &&
+                  selectedNotes.every((note) => note.tags.includes(label));
+                return (
+                  <Button
+                    key={label}
+                    variant="ghost"
+                    className="h-11 justify-start px-2"
+                    onPress={() => void applyBulkLabel(label)}>
+                    <View
+                      className="rounded-full px-2.5 py-1"
+                      style={{ backgroundColor: labelColor }}>
+                      <Text className="text-xs font-medium" style={{ color: labelForeground }}>
+                        {label}
+                      </Text>
+                    </View>
+                    {appliedToAll ? (
+                      <Icon as={Check} className="text-primary ml-auto size-4" />
+                    ) : null}
+                  </Button>
+                );
+              })}
+            </View>
+          ) : (
+            <Text variant="muted">No saved labels yet.</Text>
+          )}
+        </View>
+      </ArkBottomSheet>
+
       <ConfirmModal
         visible={!!confirmDeleteNote}
         title="Delete note?"
@@ -343,6 +732,18 @@ export default function NotesScreen() {
         onCancel={() => setConfirmDeleteNote(null)}
         onConfirm={() => {
           if (confirmDeleteNote) void deleteNote(confirmDeleteNote);
+        }}
+      />
+
+      <ConfirmModal
+        visible={confirmDeleteSelection}
+        title="Delete selected notes?"
+        description="This removes the selected notes from active use and keeps them out of vault views."
+        confirmVariant="destructive"
+        confirmLabel="Delete"
+        onCancel={() => setConfirmDeleteSelection(false)}
+        onConfirm={() => {
+          void deleteSelectedNotes();
         }}
       />
     </View>

@@ -21,8 +21,14 @@ export class MapPresetsService {
   static getCatalogMeta() {
     return {
       version: activeCatalog.version,
+      schemaVersion: activeCatalog.schemaVersion,
       updatedAt: activeCatalog.updatedAt,
+      generatedAt: activeCatalog.generatedAt,
+      expiresAt: activeCatalog.expiresAt,
       source: activeCatalog.source,
+      sourceUrl: activeCatalog.sourceUrl,
+      fetchedAt: activeCatalog.fetchedAt,
+      verifiedSha256: activeCatalog.verifiedSha256,
       count: activeCatalog.regions.length,
     };
   }

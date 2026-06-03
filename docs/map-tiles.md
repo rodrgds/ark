@@ -20,15 +20,58 @@ demo source and should not be used as Ark's built-in default.
 
 ## Region Catalog
 
-Ark loads a bundled fallback catalog from `assets/map-catalog.json`. Set
-`EXPO_PUBLIC_ARK_MAP_CATALOG_URL` to fetch an updated catalog from an Ark-controlled server/CDN;
-the last valid remote catalog is cached in SQLite so the map manager can still list regions
-offline. Region rows persist manifest IDs, catalog version, data version, pack format, pack URL,
-checksums, and estimated sizes so downloaded packs can later be refreshed when map data changes.
-Remote catalogs can use the compact manifest shape from `src/types/maps.ts` (`id`, `name`,
-`bbox`, `center`, `minZoom`, `maxZoom`, optional pack/checksum/version fields). Ark normalizes that
-into the richer UI catalog shape locally, so server manifests do not need app-specific
-`description`, `estimatedSize`, or `tags` fields.
+Ark treats `assets/map-catalog.json` as a bundled seed/fallback only. The source of truth should be
+an Ark-controlled generated manifest hosted on a static CDN or object store. Set
+`EXPO_PUBLIC_ARK_MAP_CATALOG_URL` to the manifest URL; Ark fetches it as raw JSON, optionally
+verifies `EXPO_PUBLIC_ARK_MAP_CATALOG_SHA256`, normalizes compact generated rows, caches the last
+valid catalog in SQLite, and falls back to cache or the bundled seed when offline or invalid.
+Relative `packUrl` and `checksumSha256Url` values are resolved against the manifest URL or the
+manifest `baseUrl`.
+
+Generate a catalog from curated region boundaries or pack metadata with:
+
+```sh
+bun run maps:catalog:build -- --source regions.json --out public/map-catalog.json --base-url https://cdn.example.test/maps/ --source-name ark-pmtiles-openstreetmap --version 20260601
+```
+
+Publish both `map-catalog.json` and `map-catalog.json.sha256`. Configure the app with the catalog
+URL and the SHA-256 value printed by the generator. This mirrors the MAPS.ME/Organic Maps model at
+the architecture level: build map packs from OpenStreetMap-derived data, publish a region tree and
+pack metadata, and let the app download from that controlled catalog rather than discovering maps
+from an arbitrary public API at runtime.
+
+Remote catalogs can use this compact shape:
+
+```json
+{
+  "schemaVersion": 1,
+  "version": 20260601,
+  "generatedAt": "2026-06-01T00:00:00Z",
+  "updatedAt": "2026-06-01",
+  "source": "ark-pmtiles-openstreetmap",
+  "baseUrl": "https://cdn.example.test/maps/",
+  "regions": [
+    {
+      "id": "pt-lisbon-south",
+      "name": "Lisbon and South Portugal",
+      "countryCode": "PT",
+      "level": "region",
+      "bbox": [-9.55, 36.85, -6.95, 39.45],
+      "center": [-8.25, 38.15],
+      "minZoom": 7,
+      "maxZoom": 14,
+      "estimatedSizeMb": 560,
+      "packFormat": "pmtiles",
+      "packUrl": "pt-lisbon-south.pmtiles",
+      "checksumSha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "dataVersion": "2026-06"
+    }
+  ]
+}
+```
+
+Region rows persist manifest IDs, catalog version, data version, pack format, pack URL, checksums,
+and estimated sizes so downloaded packs can later be refreshed when map data changes.
 
 ## Offline Path
 

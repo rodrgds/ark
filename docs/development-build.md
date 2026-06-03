@@ -68,5 +68,7 @@ native toolchain is available. llama.rn builds CPU-only unless the Hexagon SDK i
 - `EXPO_PUBLIC_ARK_MAP_CATALOG_URL`: optional remote region manifest. Ark caches the last valid
   catalog in SQLite and falls back to `assets/map-catalog.json` when offline or when the remote
   manifest is invalid.
+- `EXPO_PUBLIC_ARK_MAP_CATALOG_SHA256`: optional SHA-256 for the exact remote catalog JSON body.
+  Use this when the manifest is published from the generated CDN pipeline.
 
 Do not present SQLCipher, MapLibre downloads, or local LLM inference as production-ready until the dev build path has been exercised on-device.

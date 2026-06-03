@@ -163,6 +163,11 @@ export class MapService {
     return modulePromise;
   }
 
+  static useMapLibreForTests(maplibre: MapLibreModule | null) {
+    modulePromise = Promise.resolve(maplibre);
+    loggingConfigured = false;
+  }
+
   static configureLogging(maplibre: MapLibreModule | null) {
     if (!maplibre || loggingConfigured) return;
     const manager = maplibre.LogManager;

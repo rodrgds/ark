@@ -32,7 +32,13 @@ export type MapPreset = {
 
 export type MapCatalog = {
   version: number;
+  schemaVersion?: number;
   updatedAt: string;
+  generatedAt?: string;
+  expiresAt?: string;
   source: string;
+  sourceUrl?: string;
+  fetchedAt?: string;
+  verifiedSha256?: string;
   regions: MapPreset[];
 };

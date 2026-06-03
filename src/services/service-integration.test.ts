@@ -532,6 +532,7 @@ beforeEach(async () => {
   mockCurrentLocation = null;
   mockCurrentLocationError = null;
   delete process.env.EXPO_PUBLIC_ARK_MAP_CATALOG_URL;
+  delete process.env.EXPO_PUBLIC_ARK_MAP_CATALOG_SHA256;
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = typeof input === 'string' ? input : input.toString();
     if (url.includes('.sha256')) {
@@ -966,6 +967,75 @@ describe('service integration', () => {
     expect(region?.offlinePackId).toBeNull();
   });
 
+  test('preset map downloads queue without native MapLibre and start when the native manager exists', async () => {
+    const [{ startPresetRegionDownload }, { MapService }] = await Promise.all([
+      import('@/services/maps/map-region-downloads'),
+      import('@/services/maps/map.service'),
+    ]);
+    const preset = MapCatalogRepository.getBundledCatalog().regions.find(
+      (region) => region.id === 'pt-portugal-overview'
+    );
+    if (!preset) throw new Error('Portugal overview preset missing.');
+
+    MapService.useMapLibreForTests(null);
+    const queuedResult = await startPresetRegionDownload(preset, { theme: 'oled' });
+    const queuedRegion = (await OfflineMapService.listRegions()).find(
+      (region) => region.id === queuedResult.regionId
+    );
+
+    expect(queuedResult.ok).toBe(false);
+    expect(queuedResult.queued).toBe(true);
+    expect(queuedRegion?.status).toBe('queued');
+
+    let createPackOptions: unknown = null;
+    MapService.useMapLibreForTests({
+      OfflineManager: {
+        getPacks: async () => [],
+        deletePack: async () => undefined,
+        addListener: async () => undefined,
+        createPack: async (options) => {
+          createPackOptions = options;
+          return {
+            id: 'native-pack-pt-overview',
+            metadata: options.metadata,
+            pause: async () => undefined,
+            resume: async () => undefined,
+            status: async () => ({
+              state: 'complete',
+              percentage: 100,
+              completedResourceCount: 1,
+              completedResourceSize: 2048,
+              requiredResourceCount: 1,
+            }),
+          };
+        },
+      },
+    } as never);
+
+    const nativeResult = await startPresetRegionDownload(preset, { theme: 'oled' });
+    const downloadedRegion = (await OfflineMapService.listRegions()).find(
+      (region) => region.id === nativeResult.regionId
+    );
+
+    expect(nativeResult.ok).toBe(true);
+    expect(nativeResult.queued).toBe(false);
+    expect(downloadedRegion?.status).toBe('downloaded');
+    expect(downloadedRegion?.offlinePackId).toBe('native-pack-pt-overview');
+    expect(createPackOptions).toMatchObject({
+      bounds: [
+        preset.bounds.west,
+        preset.bounds.south,
+        preset.bounds.east,
+        preset.bounds.north,
+      ],
+      metadata: {
+        manifestRegionId: preset.id,
+        name: preset.name,
+      },
+    });
+    MapService.useMapLibreForTests(null);
+  });
+
   test('map catalog caches remote manifests for offline fallback', async () => {
     process.env.EXPO_PUBLIC_ARK_MAP_CATALOG_URL = 'https://maps.example.test/catalog.json';
     mockFetchText = JSON.stringify({
@@ -1039,6 +1109,87 @@ describe('service integration', () => {
     expect(region?.packFormat).toBe('pmtiles');
     expect(region?.packUrl).toBe('https://maps.example.test/pt-compact-lisbon.pmtiles');
     expect(region?.checksumSha256).toBe('c'.repeat(64));
+  });
+
+  test('map catalog verifies generated manifests and resolves CDN-relative pack URLs', async () => {
+    const manifestUrl = 'https://maps.example.test/catalogs/latest.json';
+    const remoteManifest = JSON.stringify({
+      version: 44,
+      schemaVersion: 1,
+      generatedAt: '2026-05-27T00:00:00Z',
+      updatedAt: '2026-05-27',
+      source: 'ark-generated-pmtiles-test',
+      regions: [
+        {
+          id: 'pt-generated-lisbon',
+          name: 'Generated Lisbon pack',
+          countryCode: 'PT',
+          level: 'city',
+          bbox: [-9.55, 38.42, -8.72, 39.05],
+          center: [-9.14, 38.72],
+          minZoom: 8,
+          maxZoom: 15,
+          estimatedSizeMb: 420,
+          packUrl: '../packs/pt-generated-lisbon.pmtiles',
+          checksumSha256: 'D'.repeat(64),
+          checksumSha256Url: '../packs/pt-generated-lisbon.pmtiles.sha256',
+          dataVersion: '2026-05',
+        },
+      ],
+    });
+    const expectedDigest = await crypto.subtle.digest(
+      'SHA-256',
+      new TextEncoder().encode(remoteManifest)
+    );
+    process.env.EXPO_PUBLIC_ARK_MAP_CATALOG_URL = manifestUrl;
+    process.env.EXPO_PUBLIC_ARK_MAP_CATALOG_SHA256 = Array.from(
+      new Uint8Array(expectedDigest),
+      (byte) => byte.toString(16).padStart(2, '0')
+    ).join('');
+    mockFetchText = remoteManifest;
+
+    const catalog = await MapCatalogRepository.fetchCatalog();
+    const cachedValue = await SettingsRepository.get('maps.catalog.cached');
+    const region = catalog.regions[0];
+
+    expect(catalog.version).toBe(44);
+    expect(catalog.schemaVersion).toBe(1);
+    expect(catalog.sourceUrl).toBe(manifestUrl);
+    expect(catalog.generatedAt).toBe('2026-05-27T00:00:00Z');
+    expect(catalog.verifiedSha256).toBe(process.env.EXPO_PUBLIC_ARK_MAP_CATALOG_SHA256);
+    expect(region?.packUrl).toBe('https://maps.example.test/packs/pt-generated-lisbon.pmtiles');
+    expect(region?.checksumSha256).toBe('d'.repeat(64));
+    expect(region?.checksumSha256Url).toBe(
+      'https://maps.example.test/packs/pt-generated-lisbon.pmtiles.sha256'
+    );
+    expect(cachedValue).toContain('ark-generated-pmtiles-test');
+    expect(cachedValue).toContain('https://maps.example.test/packs/pt-generated-lisbon.pmtiles');
+  });
+
+  test('map catalog rejects remote manifests when the configured checksum does not match', async () => {
+    process.env.EXPO_PUBLIC_ARK_MAP_CATALOG_URL = 'https://maps.example.test/catalog.json';
+    process.env.EXPO_PUBLIC_ARK_MAP_CATALOG_SHA256 = 'e'.repeat(64);
+    mockFetchText = JSON.stringify({
+      version: 45,
+      updatedAt: '2026-05-28',
+      source: 'tampered-map-catalog',
+      regions: [
+        {
+          id: 'pt-tampered',
+          name: 'Tampered manifest',
+          bbox: [-9.55, 38.42, -8.72, 39.05],
+          minZoom: 8,
+          maxZoom: 15,
+        },
+      ],
+    });
+
+    const catalog = await MapCatalogRepository.fetchCatalog();
+    const cachedValue = await SettingsRepository.get('maps.catalog.cached');
+
+    expect(catalog.source).toBe('ark-bundled-openfreemap-bounds');
+    expect(catalog.regions.some((region) => region.id === 'pt-tampered')).toBe(false);
+    expect(cachedValue).toBeNull();
   });
 
   test('map catalog falls back to bundled regions when remote manifest is corrupt', async () => {

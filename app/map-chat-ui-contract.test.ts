@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const appDir = join(process.cwd(), 'app');
+const assetsDir = join(process.cwd(), 'assets');
 
 describe('map and chat UI contracts', () => {
   test('map defaults to a local low-detail world overview without online style upgrades', () => {
@@ -102,9 +103,9 @@ describe('map and chat UI contracts', () => {
 
     expect(source).toContain('MapPresetsService.refreshCatalog');
     expect(source).toContain('MapLocationService.getGrantedLocation');
-    expect(source).toContain('ensurePresetRegionDownload');
+    expect(source).toContain('startPresetRegionDownload');
     expect(source).toContain('getUnsupportedMapPackReason');
-    expect(source).toContain('if (!result.ok)');
+    expect(source).toContain('if (!result.ok && !result.queued)');
     expect(source).not.toContain("from 'expo-location'");
     expect(source).not.toContain("new Set(['portugal-overview'])");
   });
@@ -126,6 +127,22 @@ describe('map and chat UI contracts', () => {
     expect(source).toContain('disabled={(downloaded && !updateAvailable) || busy || unsupported}');
   });
 
+  test('bundled map catalog keeps small countries compact and large countries regional', () => {
+    const catalog = JSON.parse(readFileSync(join(assetsDir, 'map-catalog.json'), 'utf8')) as {
+      regions: Array<{ id: string; tags?: string[] }>;
+    };
+    const counts = countMapRegionsByCountry(catalog.regions);
+
+    expect(counts.Portugal).toBe(5);
+    expect(counts.Spain).toBeGreaterThanOrEqual(6);
+    expect(counts.France).toBeGreaterThanOrEqual(6);
+    expect(counts['United States']).toBeGreaterThanOrEqual(10);
+    expect(counts.Canada).toBeGreaterThanOrEqual(5);
+    expect(counts.Brazil).toBeGreaterThanOrEqual(5);
+    expect(counts.Australia).toBeGreaterThanOrEqual(5);
+    expect(counts.India).toBeGreaterThanOrEqual(6);
+  });
+
   test('map overlays use shared bottom sheets instead of native modals', () => {
     const source = readFileSync(join(appDir, '(tabs)/map.tsx'), 'utf8');
 
@@ -135,3 +152,37 @@ describe('map and chat UI contracts', () => {
     expect(source).not.toContain('KeyboardAvoidingView');
   });
 });
+
+function countMapRegionsByCountry(regions: Array<{ id: string; tags?: string[] }>) {
+  const countryByPrefix: Record<string, string> = {
+    ar: 'Argentina',
+    au: 'Australia',
+    br: 'Brazil',
+    ca: 'Canada',
+    de: 'Germany',
+    es: 'Spain',
+    fr: 'France',
+    gb: 'United Kingdom',
+    gr: 'Greece',
+    ie: 'Ireland',
+    in: 'India',
+    it: 'Italy',
+    jp: 'Japan',
+    ma: 'Morocco',
+    mx: 'Mexico',
+    nz: 'New Zealand',
+    pt: 'Portugal',
+    tr: 'Turkey',
+    uk: 'United Kingdom',
+    us: 'United States',
+  };
+  return regions.reduce<Record<string, number>>((counts, region) => {
+    if (region.id.includes('base') || region.id.includes('low-detail')) return counts;
+    const prefix = region.id.split('-')[0] ?? '';
+    const country =
+      countryByPrefix[prefix] ??
+      region.tags?.find((tag) => Object.values(countryByPrefix).includes(tag));
+    if (country) counts[country] = (counts[country] ?? 0) + 1;
+    return counts;
+  }, {});
+}

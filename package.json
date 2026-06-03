@@ -8,6 +8,7 @@
     "ios": "expo start -c --ios",
     "web": "expo start -c --web",
     "test": "bun test",
+    "maps:catalog:build": "node scripts/build-map-catalog.mjs",
     "clean": "rm -rf .expo node_modules",
     "android:build:dev": "expo prebuild --platform android --no-install && cd android && ./gradlew assembleDebug",
     "android:build:prod": "expo prebuild --platform android --no-install && cd android && ./gradlew assembleRelease",

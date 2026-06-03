@@ -13,21 +13,17 @@ import { FileSystemService } from '@/services/files/filesystem.service';
 import { MapService, type MapLibreModule } from '@/services/maps/map.service';
 import { MapLocationService, type MapLocationIssue } from '@/services/maps/map-location.service';
 import { getMapPackFormatLabel, getUnsupportedMapPackReason } from '@/services/maps/map-pack-format';
-import { ensurePresetRegionDownload } from '@/services/maps/map-region-downloads';
+import { startPresetRegionDownload } from '@/services/maps/map-region-downloads';
 import { MapPresetsService } from '@/services/maps/map-presets.service';
 import { formatMapRegionStorage } from '@/services/maps/map-storage';
-import {
-  createMissingRegionPromptState,
-  dismissMissingRegionPrompt,
-  getMissingRegionPrompt,
-  markMissingRegionPromptShown,
-} from '@/services/maps/missing-region-prompt';
+import { getMissingRegionPrompt } from '@/services/maps/missing-region-prompt';
 import { OfflineMapService } from '@/services/maps/offline-map.service';
 import { isPresetDownloaded } from '@/services/maps/map-region-utils';
 import { useThemeStore } from '@/stores/theme-store';
 import { useSensorStore } from '@/stores/sensor-store';
 import type { MapMarker, MapRegion, OfflineMapSearchResult, SavedRoute } from '@/types/maps';
 import type { LocationObject } from 'expo-location';
+import { useNetInfo } from '@react-native-community/netinfo';
 import { useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
 import {
   AlertTriangle,
@@ -69,6 +65,7 @@ import {
   Image,
   Keyboard,
   Linking,
+  Modal,
   Pressable,
   type TextInput,
   View,
@@ -172,7 +169,6 @@ export default function MapScreen() {
   const cameraRef = React.useRef<any>(null);
   const pendingCameraActionRef = React.useRef<CameraAction | null>(null);
   const autoFocusedRegionIdRef = React.useRef<string | null>(null);
-  const missingPromptStateRef = React.useRef(createMissingRegionPromptState());
   const [regions, setRegions] = React.useState<MapRegion[]>([]);
   const [markers, setMarkers] = React.useState<MapMarker[]>([]);
   const [routes, setRoutes] = React.useState<SavedRoute[]>([]);
@@ -200,6 +196,8 @@ export default function MapScreen() {
   const [editEmergency, setEditEmergency] = React.useState(false);
   const [center, setCenter] = React.useState<LngLat>(DEFAULT_CENTER);
   const [viewedBounds, setViewedBounds] = React.useState<MapViewBounds | null>(null);
+  const [zoom, setZoom] = React.useState<number>(WORLD_OVERVIEW_ZOOM);
+  const mapZoomRef = React.useRef(WORLD_OVERVIEW_ZOOM);
   const [fullscreen, setFullscreen] = React.useState(false);
   const [mapReady, setMapReady] = React.useState(false);
   const [showEmergencyPinsOnly, setShowEmergencyPinsOnly] = React.useState(false);
@@ -215,8 +213,7 @@ export default function MapScreen() {
   const [recommendedPresets, setRecommendedPresets] = React.useState<MapPreset[]>(() =>
     MapPresetsService.recommendedForLocation(null)
   );
-  const [missingRegionPrompt, setMissingRegionPrompt] = React.useState<MapPreset | null>(null);
-  const [missingPromptModalVisible, setMissingPromptModalVisible] = React.useState(false);
+  const netInfo = useNetInfo();
   const [isPlacing, setIsPlacing] = React.useState(false);
   const [searchFocused, setSearchFocused] = React.useState(false);
   const [mapBearing, setMapBearing] = React.useState(0);
@@ -294,21 +291,21 @@ export default function MapScreen() {
     () => MapPresetsService.search(presetSearch),
     [presetSearch, catalogVersion]
   );
+  // Reactive suggestion: computed on every center/zoom/regions change — no timers.
   const visibleMissingRegionPrompt = React.useMemo(() => {
-    if (!missingRegionPrompt) return null;
-    const stillViewingRegion =
-      MapPresetsService.isCoordinateInsideRegion(center[1], center[0], missingRegionPrompt) ||
-      (viewedBounds
-        ? MapPresetsService.getRegionsForBoundingBox(viewedBounds).some(
-            (region) => region.id === missingRegionPrompt.id
-          )
-        : false);
-    if (!stillViewingRegion) {
-      return null;
-    }
-    if (isPresetDownloaded(missingRegionPrompt, regions)) return null;
-    return missingRegionPrompt;
-  }, [center, missingRegionPrompt, regions, viewedBounds]);
+    if (activePanel || isPlacing) return null;
+    const regionsInView = viewedBounds
+      ? MapPresetsService.getRegionsForBoundingBox(viewedBounds)
+      : MapPresetsService.listPresets();
+    return getMissingRegionPrompt({
+      latitude: center[1],
+      longitude: center[0],
+      viewedBounds,
+      regions: regionsInView.length ? regionsInView : MapPresetsService.listPresets(),
+      downloadedRegions: regions,
+      zoom,
+    });
+  }, [activePanel, center, isPlacing, regions, viewedBounds, zoom, catalogVersion]);
 
   async function load(options: { syncNative?: boolean } = {}) {
     if (options.syncNative) await OfflineMapService.syncNativePacks();
@@ -422,23 +419,7 @@ export default function MapScreen() {
     setRecommendedPresets(MapPresetsService.recommendedForLocation(userLocation));
   }, [catalogVersion, userLocation]);
 
-  React.useEffect(() => {
-    if (activePanel || isPlacing) return;
-    const prompt = getMissingRegionPrompt({
-      latitude: center[1],
-      longitude: center[0],
-      viewedBounds,
-      regions: MapPresetsService.listPresets(),
-      downloadedRegions: regions,
-      state: missingPromptStateRef.current,
-    });
-    if (!prompt) return;
-    missingPromptStateRef.current = markMissingRegionPromptShown(
-      missingPromptStateRef.current,
-      prompt.id
-    );
-    setMissingRegionPrompt((current) => (current?.id === prompt.id ? current : prompt));
-  }, [activePanel, center, catalogVersion, isPlacing, regions, viewedBounds]);
+  // (suggestion is now computed via useMemo — no debounced effect needed)
 
   const closeSearchKeyboard = React.useCallback(() => {
     searchGestureSuppressUntilRef.current = Date.now() + SEARCH_GESTURE_SUPPRESS_MS;
@@ -703,13 +684,20 @@ export default function MapScreen() {
   }
 
   async function downloadPreset(preset: MapPreset) {
-    const regionId = await ensurePresetRegionDownload(preset, {
-      catalogVersion: catalogMeta.version,
-      regions,
-      theme,
-    });
-    await load();
-    await startDownload(regionId);
+    setBusy(`download:${preset.id}`);
+    setError(null);
+    try {
+      MapService.setNetworkConnected(maplibre, true);
+      const result = await startPresetRegionDownload(preset, {
+        catalogVersion: catalogMeta.version,
+        regions,
+        theme,
+      });
+      if (!result.ok) setError(result.reason ?? 'Unable to download this map region.');
+    } finally {
+      await load({ syncNative: true });
+      setBusy(null);
+    }
   }
 
   async function startDownload(regionId: string) {
@@ -774,16 +762,7 @@ export default function MapScreen() {
     ]);
   }
 
-  function dismissMissingPrompt(regionId: string) {
-    missingPromptStateRef.current = dismissMissingRegionPrompt(
-      missingPromptStateRef.current,
-      regionId
-    );
-    setMissingRegionPrompt(null);
-  }
-
   async function downloadMissingRegion(preset: MapPreset) {
-    setMissingRegionPrompt(null);
     await downloadPreset(preset);
   }
 
@@ -890,9 +869,20 @@ export default function MapScreen() {
     setCenter(nextCenter);
   }, []);
 
+  const handleZoomChange = React.useCallback((nextZoom: number) => {
+    if (!Number.isFinite(nextZoom)) return;
+    if (Math.abs(mapZoomRef.current - nextZoom) < 0.05) return;
+    mapZoomRef.current = nextZoom;
+    setZoom(nextZoom);
+  }, []);
+
   const mapStatus = nativeMapAvailable
     ? 'Low-detail world overview is available without network tiles.'
     : status.reason;
+
+  const activeDownloadingRegion = React.useMemo(() => {
+    return regions.find((r) => r.status === 'downloading' || r.status === 'queued') || null;
+  }, [regions]);
 
   return (
     <View className="bg-background flex-1">
@@ -917,6 +907,7 @@ export default function MapScreen() {
         onBearingChange={handleBearingChange}
         onBoundsChange={setViewedBounds}
         onCenterChange={handleCenterChange}
+        onZoomChange={handleZoomChange}
         onCloseMarkerPopup={() => setSelectedMarkerId(null)}
         onDismissSearch={closeSearchKeyboard}
         onLongPress={openSpotDialog}
@@ -971,13 +962,6 @@ export default function MapScreen() {
         <View
           className="absolute right-3 gap-2"
           style={{ bottom: fullscreen ? Math.max(insets.bottom + 12, 32) : 12 }}>
-          {visibleMissingRegionPrompt ? (
-            <MapFab
-              icon={Download}
-              label="Map missing"
-              onPress={() => setMissingPromptModalVisible(true)}
-            />
-          ) : null}
           <MapFab label="Locate me" loading={busy === 'locate'} onPress={locateMe} text="Me" />
           <MapFab
             icon={MapPin}
@@ -985,14 +969,6 @@ export default function MapScreen() {
             onPress={() => {
               setSelectedMarkerId(null);
               setIsPlacing(true);
-            }}
-          />
-          <MapFab
-            icon={MapIcon}
-            label="Offline maps"
-            onPress={() => {
-              setManagerTab(downloadedRegions.length ? 'downloaded' : 'browse');
-              setActivePanel('offline');
             }}
           />
           <MapFab icon={List} label="Saved data" onPress={() => setActivePanel('saved')} />
@@ -1051,25 +1027,6 @@ export default function MapScreen() {
           </View>
         </View>
       ) : null}
-
-      <OfflineManagerPanel
-        busy={busy}
-        downloadedRegions={downloadedRegions}
-        catalogMeta={catalogMeta}
-        managerTab={managerTab}
-        presetResults={presetResults}
-        presetSearch={presetSearch}
-        recommendedPresets={recommendedPresets}
-        regions={regions}
-        visible={activePanel === 'offline'}
-        onChangePresetSearch={setPresetSearch}
-        onChangeTab={setManagerTab}
-        onClose={() => setActivePanel(null)}
-        onDeleteRegion={deleteRegion}
-        onDownloadPreset={downloadPreset}
-        onPauseRegion={pauseRegion}
-        onResumeRegion={(region) => startDownload(region.id)}
-      />
 
       <SavedDataPanel
         markers={filteredMarkers}
@@ -1133,16 +1090,20 @@ export default function MapScreen() {
       />
 
       <MissingRegionPromptModal
-        visible={missingPromptModalVisible}
+        visible={Boolean(visibleMissingRegionPrompt && netInfo.isConnected)}
         busy={Boolean(visibleMissingRegionPrompt && busy === `download:${visibleMissingRegionPrompt.id}`)}
         region={visibleMissingRegionPrompt}
-        onDismiss={() => {
-          setMissingPromptModalVisible(false);
-          if (visibleMissingRegionPrompt) dismissMissingPrompt(visibleMissingRegionPrompt.id);
-        }}
-        onDownload={() => {
-          if (visibleMissingRegionPrompt) downloadMissingRegion(visibleMissingRegionPrompt);
-          setMissingPromptModalVisible(false);
+        downloadingRegion={
+          activeDownloadingRegion &&
+          visibleMissingRegionPrompt &&
+          (activeDownloadingRegion.manifestRegionId === visibleMissingRegionPrompt.id ||
+           activeDownloadingRegion.name === visibleMissingRegionPrompt.name)
+            ? activeDownloadingRegion
+            : null
+        }
+        onDownload={(updatedPreset) => {
+          if (updatedPreset) downloadMissingRegion(updatedPreset);
+          else if (visibleMissingRegionPrompt) downloadMissingRegion(visibleMissingRegionPrompt);
         }}
       />
     </View>
@@ -1170,6 +1131,7 @@ function MapCanvas({
   onBearingChange,
   onBoundsChange,
   onCenterChange,
+  onZoomChange,
   onCloseMarkerPopup,
   onDismissSearch,
   onLongPress,
@@ -1198,6 +1160,7 @@ function MapCanvas({
   onBearingChange: (bearing: number) => void;
   onBoundsChange: (bounds: MapViewBounds | null) => void;
   onCenterChange: (center: LngLat) => void;
+  onZoomChange?: (zoom: number) => void;
   onCloseMarkerPopup: () => void;
   onDismissSearch: () => void;
   onLongPress: (center: LngLat) => void;
@@ -1250,6 +1213,10 @@ function MapCanvas({
         onCenterChange(event.nativeEvent.center);
         onBoundsChange(normalizeMapEventBounds(event.nativeEvent.bounds));
         onBearingChange(event.nativeEvent.bearing ?? 0);
+        const nextZoom = event.nativeEvent.zoom ?? event.nativeEvent.zoomLevel ?? event.nativeEvent.properties?.zoomLevel;
+        if (nextZoom != null) {
+          onZoomChange?.(nextZoom);
+        }
       }}>
       <Camera
         ref={cameraRef}
@@ -1405,51 +1372,96 @@ function MissingRegionPromptModal({
   visible,
   busy,
   region,
-  onDismiss,
+  downloadingRegion,
   onDownload,
 }: {
   visible: boolean;
   busy: boolean;
   region: MapPreset | null;
-  onDismiss: () => void;
-  onDownload: () => void;
+  downloadingRegion?: MapRegion | null;
+  onDownload: (updatedPreset?: MapPreset) => void;
 }) {
+  const [dynamicPreset, setDynamicPreset] = React.useState<MapPreset | null>(null);
+
+  React.useEffect(() => {
+    if (visible && region?.id.startsWith('dynamic-')) {
+      const { center } = region;
+      if (center) {
+        import('@/services/maps/geocoding.service').then(({ GeocodingService }) => {
+          GeocodingService.reverseGeocode(center[1], center[0]).then((result) => {
+             if (result.bounds) {
+               setDynamicPreset({
+                 ...region,
+                 name: result.name,
+                 bounds: result.bounds,
+                 bbox: [result.bounds.west, result.bounds.south, result.bounds.east, result.bounds.north],
+                 estimatedSizeMb: 450,
+                 estimatedSize: '450 MB',
+               });
+             } else {
+               setDynamicPreset({ ...region, name: result.name });
+             }
+          });
+        });
+      }
+    } else {
+      setDynamicPreset(null);
+    }
+  }, [visible, region]);
+
   if (!visible || !region) return null;
 
-  const size = region.estimatedSizeMb
-    ? `About ${Math.round(region.estimatedSizeMb)} MB`
-    : region.estimatedSize;
+  const activeRegion = dynamicPreset || region;
+  const size = activeRegion?.estimatedSizeMb
+    ? `About ${Math.round(activeRegion.estimatedSizeMb)} MB`
+    : activeRegion?.estimatedSize;
+  const name = activeRegion?.name || downloadingRegion?.name;
+  const preset = activeRegion;
+  const unsupportedReason = preset ? getUnsupportedMapPackReason(preset) : null;
+  const unsupported = Boolean(unsupportedReason);
+  const downloaded = downloadingRegion?.status === 'downloaded';
+  const updateAvailable = false;
 
   return (
-    <ArkBottomSheet
-      visible={visible}
-      title="Offline map missing"
-      description={`You are viewing ${region.name}. Download this region for offline use?`}
-      onDismiss={onDismiss}
-      maxDynamicContentSize={360}>
-      <View className="gap-4">
-        <View className="flex-row items-start gap-3">
-          <View className="bg-primary/20 rounded-full p-2">
-            <Icon as={Download} className="text-primary size-6" />
+    <Animated.View
+      entering={FadeIn.duration(200)}
+      exiting={FadeOut.duration(200)}
+      className="absolute inset-0 items-center justify-center p-4"
+      pointerEvents="box-none">
+      <View className="w-full max-w-xs" pointerEvents="box-none">
+        <Card className="border-primary/35 bg-background/95 gap-4 p-5 shadow-2xl" pointerEvents="auto">
+          <View className="items-center gap-1">
+            <Text variant="h3" className="text-center">{name}</Text>
+            {downloadingRegion ? (
+              <Text className="text-muted-foreground font-medium text-sm">
+                Downloading... {Math.round((downloadingRegion.progress || 0) * 100)}%
+              </Text>
+            ) : (
+              <Text className="text-muted-foreground font-medium text-sm">{size}</Text>
+            )}
           </View>
-          <View className="min-w-0 flex-1 gap-1.5">
-            <Text className="text-muted-foreground text-sm leading-5">
-              Save this region so the map remains available without connectivity.
+          {downloadingRegion ? (
+            <View className="mt-2">
+              <Progress value={downloadingRegion.progress || 0} />
+            </View>
+          ) : (
+            <Button
+              disabled={(downloaded && !updateAvailable) || busy || unsupported}
+              size="default"
+              onPress={() => onDownload(activeRegion || undefined)}
+              className="mt-2">
+              {busy ? <ActivityIndicator size="small" /> : <Icon as={Download} className="size-4" />}
+              <Text>{unsupported ? 'Planned' : 'Download Map'}</Text>
+            </Button>
+          )}
+          {unsupportedReason ? (
+            <Text variant="small" className="text-muted-foreground text-center">
+              {unsupportedReason}
             </Text>
-            <Text className="text-muted-foreground font-medium text-sm">{size}</Text>
-          </View>
-        </View>
-        <View className="flex-row justify-end gap-2 pt-2">
-          <Button size="sm" variant="outline" onPress={onDismiss}>
-            <Text>Later</Text>
-          </Button>
-          <Button disabled={busy} size="sm" onPress={onDownload}>
-            {busy ? <ActivityIndicator size="small" /> : null}
-            <Text>Download</Text>
-          </Button>
-        </View>
+          ) : null}
+        </Card>
       </View>
-    </ArkBottomSheet>
+    </Animated.View>
   );
 }
 
@@ -1732,496 +1744,6 @@ function TopMapControls({
   );
 }
 
-function OfflineManagerPanel({
-  busy,
-  catalogMeta,
-  downloadedRegions,
-  managerTab,
-  presetResults,
-  presetSearch,
-  recommendedPresets,
-  regions,
-  visible,
-  onChangePresetSearch,
-  onChangeTab,
-  onClose,
-  onDeleteRegion,
-  onDownloadPreset,
-  onPauseRegion,
-  onResumeRegion,
-}: {
-  busy: string | null;
-  catalogMeta: ReturnType<typeof MapPresetsService.getCatalogMeta>;
-  downloadedRegions: MapRegion[];
-  managerTab: ManagerTab;
-  presetResults: MapPreset[];
-  presetSearch: string;
-  recommendedPresets: MapPreset[];
-  regions: MapRegion[];
-  visible: boolean;
-  onChangePresetSearch: (value: string) => void;
-  onChangeTab: (tab: ManagerTab) => void;
-  onClose: () => void;
-  onDeleteRegion: (region: MapRegion) => void;
-  onDownloadPreset: (preset: MapPreset) => void;
-  onPauseRegion: (region: MapRegion) => void;
-  onResumeRegion: (region: MapRegion) => void;
-}) {
-  const searching = Boolean(presetSearch.trim());
-  const recommendedIds = new Set(recommendedPresets.map((preset) => preset.id));
-  const catalogPresets = presetResults.filter((preset) => !recommendedIds.has(preset.id));
-
-  return (
-    <Panel title="Offline maps" visible={visible} onClose={onClose}>
-      {({ expand }) => (
-        <>
-          <MapManagerTabSwitcher value={managerTab} onChange={onChangeTab} />
-
-          {managerTab === 'downloaded' ? (
-            <View className="gap-3">
-              <View className="gap-1">
-                <Text variant="large">Available maps</Text>
-                <Text variant="muted">
-                  These offline maps will render seamlessly when panning the map.
-                </Text>
-              </View>
-              {downloadedRegions.length ? (
-                downloadedRegions.map((region) => {
-                  const updateState = MapPresetsService.getRegionUpdateState(region);
-                  return (
-                    <RegionCard
-                      key={region.id}
-                      busy={busy === `download:${region.id}`}
-                      region={region}
-                      updateAvailable={updateState.available}
-                      onDelete={() => onDeleteRegion(region)}
-                      onDownload={() => undefined}
-                      onPause={() => onPauseRegion(region)}
-                      onResume={() => onResumeRegion(region)}
-                    />
-                  );
-                })
-              ) : (
-                <Card className="gap-1">
-                  <Text>No downloaded maps yet.</Text>
-                  <Text variant="muted">Open Download more and choose a preset region.</Text>
-                </Card>
-              )}
-            </View>
-          ) : (
-            <View className="gap-3">
-              <View className="relative">
-                <View
-                  pointerEvents="none"
-                  style={{ position: 'absolute', left: 16, top: 14, zIndex: 1 }}>
-                  <Icon as={Search} className="text-muted-foreground size-5" />
-                </View>
-                <Input
-                  value={presetSearch}
-                  onChangeText={onChangePresetSearch}
-                  placeholder="Search map catalog"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  className="pl-12"
-                  style={{ paddingLeft: 48 }}
-                  onFocus={expand}
-                />
-              </View>
-              <Text variant="small" className="text-muted-foreground">
-                {catalogMeta.count} regions from {catalogMeta.source}
-              </Text>
-              {searching ? (
-                <PresetList
-                  busy={busy}
-                  presets={presetResults}
-                  regions={regions}
-                  title="Search results"
-                  onDownloadPreset={onDownloadPreset}
-                  onPauseRegion={onPauseRegion}
-                />
-              ) : (
-                <>
-                  <PresetList
-                    busy={busy}
-                    presets={recommendedPresets}
-                    regions={regions}
-                    title="Recommended near you"
-                    onDownloadPreset={onDownloadPreset}
-                    onPauseRegion={onPauseRegion}
-                  />
-                  <PresetList
-                    busy={busy}
-                    presets={catalogPresets}
-                    regions={regions}
-                    title="Map catalog"
-                    onDownloadPreset={onDownloadPreset}
-                    onPauseRegion={onPauseRegion}
-                  />
-                </>
-              )}
-            </View>
-          )}
-        </>
-      )}
-    </Panel>
-  );
-}
-
-function PresetList({
-  busy,
-  presets,
-  regions,
-  title,
-  onDownloadPreset,
-  onPauseRegion,
-}: {
-  busy: string | null;
-  presets: MapPreset[];
-  regions: MapRegion[];
-  title: string;
-  onDownloadPreset: (preset: MapPreset) => void;
-  onPauseRegion: (region: MapRegion) => void;
-}) {
-  return (
-    <View className="gap-2">
-      <Text variant="large">{title}</Text>
-      {presets.length ? (
-        presets.map((preset) => {
-          const matchingRegion = regions.find(
-            (region) => region.manifestRegionId === preset.id || region.name === preset.name
-          );
-          const unsupportedReason = getUnsupportedMapPackReason(preset);
-          const downloaded = matchingRegion?.status === 'downloaded';
-          const downloading = matchingRegion?.status === 'downloading';
-          const paused = matchingRegion?.status === 'paused';
-          const updateAvailable = matchingRegion
-            ? MapPresetsService.getRegionUpdateState(matchingRegion).available
-            : false;
-          return (
-            <PresetCard
-              key={preset.id}
-              busy={matchingRegion ? busy === `download:${matchingRegion.id}` : false}
-              downloaded={downloaded}
-              downloading={downloading}
-              paused={paused ?? false}
-              preset={preset}
-              progress={matchingRegion?.progress ?? 0}
-              unsupportedReason={unsupportedReason}
-              updateAvailable={updateAvailable}
-              onDownload={() => onDownloadPreset(preset)}
-              onPause={() => matchingRegion && onPauseRegion(matchingRegion)}
-            />
-          );
-        })
-      ) : (
-        <Text variant="muted">No matching regions.</Text>
-      )}
-    </View>
-  );
-}
-
-function MapManagerTabSwitcher({
-  value,
-  onChange,
-}: {
-  value: ManagerTab;
-  onChange: (tab: ManagerTab) => void;
-}) {
-  const [width, setWidth] = React.useState(0);
-  const [selectedValue, setSelectedValue] = React.useState(value);
-  const pendingValueRef = React.useRef<ManagerTab | null>(null);
-  const changeFrameRef = React.useRef<number | null>(null);
-  const progress = useSharedValue(value === 'downloaded' ? 0 : 1);
-  const segmentWidth = Math.max(0, (width - 4) / 2);
-
-  React.useEffect(() => {
-    if (pendingValueRef.current === value) {
-      pendingValueRef.current = null;
-      return;
-    }
-    if (pendingValueRef.current || selectedValue === value) {
-      return;
-    }
-    setSelectedValue(value);
-    progress.value = withTiming(value === 'downloaded' ? 0 : 1, {
-      duration: 240,
-      easing: Easing.inOut(Easing.cubic),
-    });
-  }, [progress, selectedValue, value]);
-
-  React.useEffect(
-    () => () => {
-      if (changeFrameRef.current !== null) {
-        cancelAnimationFrame(changeFrameRef.current);
-      }
-    },
-    []
-  );
-
-  const highlightStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: progress.value * segmentWidth }],
-  }));
-
-  const selectTab = React.useCallback(
-    (tab: ManagerTab) => {
-      if (changeFrameRef.current !== null) {
-        cancelAnimationFrame(changeFrameRef.current);
-      }
-      pendingValueRef.current = tab;
-      setSelectedValue(tab);
-      progress.value = withTiming(tab === 'downloaded' ? 0 : 1, {
-        duration: 240,
-        easing: Easing.inOut(Easing.cubic),
-      });
-      changeFrameRef.current = requestAnimationFrame(() => {
-        changeFrameRef.current = null;
-        onChange(tab);
-      });
-    },
-    [onChange, progress]
-  );
-
-  return (
-    <View
-      className="border-border bg-muted/50 relative h-11 overflow-hidden rounded-lg border p-0.5"
-      onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
-      {segmentWidth > 0 ? (
-        <Animated.View
-          className="bg-primary absolute top-0.5 bottom-0.5 left-0.5 rounded-md"
-          style={[{ width: segmentWidth }, highlightStyle]}
-        />
-      ) : null}
-      <View className="relative flex-1 flex-row">
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ selected: selectedValue === 'downloaded' }}
-          className="flex-1 items-center justify-center"
-          onPress={() => selectTab('downloaded')}>
-          <Text
-            className={
-              selectedValue === 'downloaded'
-                ? 'text-primary-foreground font-medium'
-                : 'text-foreground'
-            }>
-            Downloaded
-          </Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ selected: selectedValue === 'browse' }}
-          className="flex-1 items-center justify-center"
-          onPress={() => selectTab('browse')}>
-          <Text
-            className={
-              selectedValue === 'browse' ? 'text-primary-foreground font-medium' : 'text-foreground'
-            }>
-            Download more
-          </Text>
-        </Pressable>
-      </View>
-    </View>
-  );
-}
-
-function RegionCard({
-  busy,
-  region,
-  updateAvailable,
-  onDelete,
-  onDownload,
-  onPause,
-  onResume,
-}: {
-  busy: boolean;
-  region: MapRegion;
-  updateAvailable: boolean;
-  onDelete: () => void;
-  onDownload: () => void;
-  onPause: () => void;
-  onResume: () => void;
-}) {
-  const downloaded = region.status === 'downloaded';
-  const downloading = region.status === 'downloading';
-  const paused = region.status === 'paused';
-  const unsupportedReason = getUnsupportedMapPackReason(region);
-  return (
-    <Card className="gap-3">
-      <View className="flex-row items-start justify-between gap-3">
-        <View className="min-w-0 flex-1 gap-1">
-          <View className="flex-row items-center gap-2">
-            <Text variant="large" numberOfLines={1}>
-              {region.name}
-            </Text>
-          </View>
-          <Text variant="muted">
-            Zoom {region.minZoom ?? '-'} - {region.maxZoom ?? '-'}
-          </Text>
-          {updateAvailable ? (
-            <Text className="text-primary text-xs font-medium">Update available</Text>
-          ) : null}
-          {unsupportedReason ? (
-            <Text variant="small" className="text-muted-foreground">
-              {unsupportedReason}
-            </Text>
-          ) : null}
-        </View>
-        <StatusBadge region={region} />
-      </View>
-
-      {downloading || paused || region.progress > 0 ? (
-        <View className="gap-2">
-          <Progress value={region.progress} />
-          <Text variant="small">{Math.round(region.progress * 100)}% downloaded</Text>
-        </View>
-      ) : null}
-
-      <View className="flex-row items-center justify-between gap-3">
-        <Text variant="muted">{formatMapRegionStorage(region)}</Text>
-        <View className="flex-row gap-2">
-          {downloaded && updateAvailable ? (
-            <Button size="sm" disabled={busy} onPress={onResume}>
-              {busy ? <ActivityIndicator /> : <Icon as={RefreshCw} className="size-4" />}
-              <Text>Update</Text>
-            </Button>
-          ) : !downloaded ? (
-            downloading ? (
-              <Button size="sm" variant="secondary" disabled={busy} onPress={onPause}>
-                {busy ? <ActivityIndicator /> : <Icon as={Pause} className="size-4" />}
-                <Text>Pause</Text>
-              </Button>
-            ) : (
-              <Button size="sm" disabled={busy || !!unsupportedReason} onPress={onResume}>
-                {busy ? (
-                  <ActivityIndicator />
-                ) : (
-                  <Icon as={region.progress > 0 ? Play : Download} className="size-4" />
-                )}
-                <Text>
-                  {region.status === 'failed'
-                    ? 'Retry'
-                    : region.progress > 0
-                      ? 'Resume'
-                      : 'Download'}
-                </Text>
-              </Button>
-            )
-          ) : null}
-          <Button size="sm" variant="outline" onPress={onDelete}>
-            <Icon as={Trash2} className="size-4" />
-          </Button>
-        </View>
-      </View>
-    </Card>
-  );
-}
-
-function PresetCard({
-  busy,
-  downloaded,
-  downloading,
-  paused,
-  preset,
-  progress,
-  unsupportedReason,
-  updateAvailable,
-  onDownload,
-  onPause,
-}: {
-  busy: boolean;
-  downloaded: boolean;
-  downloading: boolean;
-  paused: boolean;
-  preset: MapPreset;
-  progress: number;
-  unsupportedReason: string | null;
-  updateAvailable: boolean;
-  onDownload: () => void;
-  onPause: () => void;
-}) {
-  const unsupported = !!unsupportedReason;
-  return (
-    <Card className="gap-3">
-      <View className="flex-row items-start justify-between gap-3">
-        <View className="min-w-0 flex-1 gap-1">
-          <Text variant="large">{preset.name}</Text>
-          <Text variant="muted" numberOfLines={2}>
-            {preset.description}
-          </Text>
-        </View>
-        {downloaded ? (
-          <View className="bg-primary/15 flex-row items-center gap-1 rounded-full px-2 py-1">
-            <Icon
-              as={updateAvailable ? RefreshCw : CheckCircle2}
-              className="text-primary size-3.5"
-            />
-            <Text variant="small">{updateAvailable ? 'Update' : 'Downloaded'}</Text>
-          </View>
-        ) : unsupported ? (
-          <View className="border-border bg-muted/40 flex-row items-center gap-1 rounded-full border px-2 py-1">
-            <Icon as={Clock3} className="text-muted-foreground size-3.5" />
-            <Text variant="small">{getMapPackFormatLabel(preset.packFormat)}</Text>
-          </View>
-        ) : null}
-      </View>
-      {unsupportedReason ? (
-        <Text variant="small" className="text-muted-foreground">
-          {unsupportedReason}
-        </Text>
-      ) : null}
-      {downloading || paused || progress > 0 ? (
-        <View className="gap-2">
-          <Progress value={progress} />
-          <Text variant="small">{Math.round(progress * 100)}% downloaded</Text>
-        </View>
-      ) : null}
-      <View className="flex-row items-center justify-between gap-3">
-        <Text variant="muted">
-          Zoom {preset.minZoom} - {preset.maxZoom}
-        </Text>
-        {downloading ? (
-          <Button size="sm" variant="secondary" disabled={busy} onPress={onPause}>
-            {busy ? <ActivityIndicator /> : <Icon as={Pause} className="size-4" />}
-            <Text>Pause</Text>
-          </Button>
-        ) : (
-          <Button
-            size="sm"
-            disabled={(downloaded && !updateAvailable) || busy || unsupported}
-            onPress={onDownload}>
-            {busy ? (
-              <ActivityIndicator />
-            ) : (
-              <Icon
-                as={
-                  unsupported
-                    ? Clock3
-                    : updateAvailable
-                      ? RefreshCw
-                      : progress > 0
-                        ? Play
-                        : Download
-                }
-                className="size-4"
-              />
-            )}
-            <Text>
-              {unsupported
-                ? 'Planned'
-                : downloaded && updateAvailable
-                  ? 'Update'
-                  : downloaded
-                    ? 'Ready'
-                  : progress > 0
-                    ? 'Resume'
-                    : 'Download'}
-            </Text>
-          </Button>
-        )}
-      </View>
-    </Card>
-  );
-}
-
 function SavedDataPanel({
   markers,
   routes,
@@ -2249,36 +1771,41 @@ function SavedDataPanel({
 }) {
   return (
     <Panel title="Saved spots and routes" visible={visible} onClose={onClose}>
-      <Input
-        value={search}
-        onChangeText={onChangeSearch}
-        placeholder="Filter saved spots"
-        autoCapitalize="none"
-      />
+      {({ expand }) => (
+        <>
+          <Input
+            value={search}
+            onChangeText={onChangeSearch}
+            placeholder="Filter saved spots"
+            autoCapitalize="none"
+            onFocus={expand}
+          />
 
-      <View className="gap-2">
-        <Text variant="large">Spots</Text>
-        {markers.length ? (
-          markers.map((marker) => (
-            <SavedRow
-              key={marker.id}
-              color={marker.color || getMapPinMeta(marker.pinType).color}
-              emergency={marker.isEmergencyPin}
-              icon={iconForPinType(marker.pinType)}
-              photoUri={marker.photoUri}
-              title={marker.title}
-              subtitle={`${getMapPinMeta(marker.pinType).label}${
-                marker.isEmergencyPin ? ' · Emergency' : ''
-              } · ${marker.description ?? formatPoint(marker.latitude, marker.longitude)}`}
-              onPress={() => onFocusMarker(marker)}
-              onEdit={() => onEditMarker(marker)}
-              onDelete={() => onDeleteMarker(marker)}
-            />
-          ))
-        ) : (
-          <Text variant="muted">No saved spots match this filter.</Text>
-        )}
-      </View>
+          <View className="gap-2">
+            <Text variant="large">Spots</Text>
+            {markers.length ? (
+              markers.map((marker) => (
+                <SavedRow
+                  key={marker.id}
+                  color={marker.color || getMapPinMeta(marker.pinType).color}
+                  emergency={marker.isEmergencyPin}
+                  icon={iconForPinType(marker.pinType)}
+                  photoUri={marker.photoUri}
+                  title={marker.title}
+                  subtitle={`${getMapPinMeta(marker.pinType).label}${
+                    marker.isEmergencyPin ? ' · Emergency' : ''
+                  } · ${marker.description ?? formatPoint(marker.latitude, marker.longitude)}`}
+                  onPress={() => onFocusMarker(marker)}
+                  onEdit={() => onEditMarker(marker)}
+                  onDelete={() => onDeleteMarker(marker)}
+                />
+              ))
+            ) : (
+              <Text variant="muted">No saved spots match this filter.</Text>
+            )}
+          </View>
+        </>
+      )}
     </Panel>
   );
 }

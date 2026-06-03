@@ -9,13 +9,22 @@ type RawMapPreset = Partial<Omit<MapPreset, 'bounds' | 'bbox' | 'center' | 'tags
 };
 
 type RawMapCatalog = Partial<Omit<MapCatalog, 'regions'>> & {
+  baseUrl?: unknown;
   regions?: RawMapPreset[];
+};
+
+type CatalogNormalizeContext = {
+  sourceUrl?: string;
+  fetchedAt?: string;
+  verifiedSha256?: string;
 };
 
 const bundledCatalog = require('../../../assets/map-catalog.json') as RawMapCatalog;
 const CATALOG_TIMEOUT_MS = 5000;
 const CACHED_CATALOG_KEY = 'maps.catalog.cached';
 const COUNTRY_NAMES: Record<string, string> = {
+  AR: 'Argentina',
+  AU: 'Australia',
   BR: 'Brazil',
   CA: 'Canada',
   DE: 'Germany',
@@ -29,6 +38,7 @@ const COUNTRY_NAMES: Record<string, string> = {
   JP: 'Japan',
   MA: 'Morocco',
   MX: 'Mexico',
+  NZ: 'New Zealand',
   PT: 'Portugal',
   TR: 'Turkey',
   US: 'United States',
@@ -49,8 +59,18 @@ export class MapCatalogRepository {
     try {
       const response = await fetch(url, { signal: controller.signal });
       if (!response.ok) return cachedCatalog ?? this.getBundledCatalog();
-      const catalog = normalizeCatalog((await response.json()) as RawMapCatalog);
-      if (!isUsableCatalog(catalog)) return cachedCatalog ?? this.getBundledCatalog();
+      const body = await response.text();
+      const verifiedSha256 = await verifyCatalogIntegrity(body);
+      if (verifiedSha256 === false) return cachedCatalog ?? this.getBundledCatalog();
+      const catalog = normalizeCatalog(JSON.parse(body) as RawMapCatalog, {
+        sourceUrl: url,
+        fetchedAt: new Date().toISOString(),
+        verifiedSha256,
+      });
+      if (!isUsableCatalog(catalog) || isExpiredCatalog(catalog)) {
+        return cachedCatalog ?? this.getBundledCatalog();
+      }
+      if (cachedCatalog && cachedCatalog.version > catalog.version) return cachedCatalog;
       await cacheCatalog(catalog);
       return catalog;
     } catch {
@@ -72,15 +92,27 @@ export class MapCatalogRepository {
   }
 }
 
-function normalizeCatalog(catalog: RawMapCatalog | null | undefined): MapCatalog {
+function normalizeCatalog(
+  catalog: RawMapCatalog | null | undefined,
+  context: CatalogNormalizeContext = {}
+): MapCatalog {
   const source = catalog && typeof catalog === 'object' ? catalog : {};
+  const sourceUrl =
+    typeof source.sourceUrl === 'string' ? source.sourceUrl : context.sourceUrl;
+  const baseUrl = getCatalogBaseUrl(source, sourceUrl);
   const regions = Array.isArray(source.regions)
-    ? source.regions.filter(isValidPreset).map((preset) => normalizePreset(preset, source))
+    ? source.regions.filter(isValidPreset).map((preset) => normalizePreset(preset, source, baseUrl))
     : [];
   return {
     version: Number.isFinite(source.version) ? source.version! : 1,
+    schemaVersion: normalizePositiveInteger(source.schemaVersion),
     updatedAt: typeof source.updatedAt === 'string' ? source.updatedAt : '',
+    generatedAt: normalizeDateString(source.generatedAt),
+    expiresAt: normalizeDateString(source.expiresAt),
     source: typeof source.source === 'string' ? source.source : 'unknown',
+    sourceUrl,
+    fetchedAt: normalizeDateString(source.fetchedAt) ?? context.fetchedAt,
+    verifiedSha256: normalizeSha256(source.verifiedSha256) ?? context.verifiedSha256,
     regions: dedupeById(regions),
   };
 }
@@ -96,7 +128,11 @@ function isValidPreset(preset: RawMapPreset) {
   );
 }
 
-function normalizePreset(preset: RawMapPreset, catalog: RawMapCatalog): MapPreset {
+function normalizePreset(
+  preset: RawMapPreset,
+  catalog: RawMapCatalog,
+  baseUrl?: string
+): MapPreset {
   const bbox = getPresetBbox(preset) ?? [0, 0, 0, 0];
   const bounds = bboxToBounds(bbox);
   const center = getPresetCenter(preset.center, bbox);
@@ -108,6 +144,7 @@ function normalizePreset(preset: RawMapPreset, catalog: RawMapCatalog): MapPrese
     normalizePositiveNumber(preset.estimatedSizeMb) ?? parseEstimatedSizeMb(preset.estimatedSize);
   const level =
     normalizeLevel(preset.level) ?? inferLevel({ bounds, minZoom: preset.minZoom!, tags });
+  const packUrl = normalizeUrl(preset.packUrl, baseUrl);
 
   return {
     ...preset,
@@ -123,7 +160,10 @@ function normalizePreset(preset: RawMapPreset, catalog: RawMapCatalog): MapPrese
     maxZoom: preset.maxZoom!,
     estimatedSizeMb,
     estimatedSize: normalizeEstimatedSize(preset.estimatedSize, estimatedSizeMb),
-    packFormat: normalizePackFormat(preset.packFormat, preset.packUrl),
+    packUrl,
+    checksumSha256: normalizeSha256(preset.checksumSha256),
+    checksumSha256Url: normalizeUrl(preset.checksumSha256Url, baseUrl),
+    packFormat: normalizePackFormat(preset.packFormat, packUrl),
     dataVersion: preset.dataVersion ?? preset.updatedAt ?? catalog.updatedAt,
     tags,
   };
@@ -139,6 +179,12 @@ async function cacheCatalog(catalog: MapCatalog) {
 
 function isUsableCatalog(catalog: MapCatalog) {
   return catalog.regions.length > 0;
+}
+
+function isExpiredCatalog(catalog: MapCatalog) {
+  if (!catalog.expiresAt) return false;
+  const expiresAt = Date.parse(catalog.expiresAt);
+  return Number.isFinite(expiresAt) && expiresAt <= Date.now();
 }
 
 function isFiniteBounds(bounds: RawMapPreset['bounds']) {
@@ -241,6 +287,11 @@ function normalizePositiveNumber(value: unknown) {
   return Number.isFinite(value) && Number(value) > 0 ? Number(value) : undefined;
 }
 
+function normalizePositiveInteger(value: unknown) {
+  const numberValue = Number(value);
+  return Number.isInteger(numberValue) && numberValue > 0 ? numberValue : undefined;
+}
+
 function normalizeEstimatedSize(estimatedSize: unknown, estimatedSizeMb?: number) {
   if (typeof estimatedSize === 'string' && estimatedSize.trim()) return estimatedSize.trim();
   return estimatedSizeMb ? `${Math.round(estimatedSizeMb)} MB` : 'Size unavailable';
@@ -267,6 +318,46 @@ function normalizeCountryCode(countryCode: unknown) {
   if (typeof countryCode !== 'string') return undefined;
   const normalized = countryCode.trim().toUpperCase();
   return /^[A-Z]{2}$/.test(normalized) ? normalized : undefined;
+}
+
+function normalizeDateString(value: unknown) {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function normalizeSha256(value: unknown) {
+  if (typeof value !== 'string') return undefined;
+  const normalized = value.trim().toLowerCase();
+  return /^[a-f0-9]{64}$/.test(normalized) ? normalized : undefined;
+}
+
+function getCatalogBaseUrl(source: RawMapCatalog, sourceUrl?: string) {
+  const rawBaseUrl = typeof source.baseUrl === 'string' ? source.baseUrl.trim() : '';
+  if (!rawBaseUrl) return sourceUrl;
+  return normalizeUrl(rawBaseUrl, sourceUrl) ?? sourceUrl;
+}
+
+function normalizeUrl(value: unknown, baseUrl?: string) {
+  if (typeof value !== 'string' || !value.trim()) return undefined;
+  try {
+    const url = new URL(value.trim(), baseUrl);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function verifyCatalogIntegrity(body: string) {
+  const expectedSha256 = normalizeSha256(process.env.EXPO_PUBLIC_ARK_MAP_CATALOG_SHA256);
+  if (!expectedSha256) return undefined;
+  const actualSha256 = await sha256Text(body);
+  return actualSha256 === expectedSha256 ? actualSha256 : false;
+}
+
+async function sha256Text(value: string) {
+  const Crypto = await import('expo-crypto');
+  return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, value);
 }
 
 function normalizeLevel(level: unknown): MapPreset['level'] | undefined {

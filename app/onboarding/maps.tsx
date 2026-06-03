@@ -5,10 +5,9 @@ import { Text } from '@/components/ui/text';
 import { OnboardingFrame } from '@/components/onboarding/onboarding-frame';
 import type { MapPreset } from '@/constants/map-presets';
 import { getUnsupportedMapPackReason } from '@/services/maps/map-pack-format';
-import { ensurePresetRegionDownload } from '@/services/maps/map-region-downloads';
+import { startPresetRegionDownload } from '@/services/maps/map-region-downloads';
 import { MapLocationService } from '@/services/maps/map-location.service';
 import { MapPresetsService } from '@/services/maps/map-presets.service';
-import { OfflineMapService } from '@/services/maps/offline-map.service';
 import { useThemeStore } from '@/stores/theme-store';
 import { Check, Map } from 'lucide-react-native';
 import * as React from 'react';
@@ -64,9 +63,8 @@ export default function MapsOnboardingScreen() {
       for (const preset of presets.filter((item) => selected.has(item.id))) {
         const unsupportedReason = getUnsupportedMapPackReason(preset);
         if (unsupportedReason) throw new Error(unsupportedReason);
-        const id = await ensurePresetRegionDownload(preset, { theme });
-        const result = await OfflineMapService.refreshRegion(id);
-        if (!result.ok) {
+        const result = await startPresetRegionDownload(preset, { theme });
+        if (!result.ok && !result.queued) {
           throw new Error(result.reason ?? 'Unable to start this map download.');
         }
       }

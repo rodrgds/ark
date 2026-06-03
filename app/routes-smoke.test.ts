@@ -33,7 +33,7 @@ describe('app route contracts', () => {
     expect(source).toContain('name="chat/[threadId]"');
     expect(source).toContain("tabBarStyle: { display: 'none' }");
     expect(source).toContain("'chat/index': 'Arky'");
-    expect(source).toContain("visibleTabRoutes.has(route.name)");
+    expect(source).toContain('visibleTabRoutes.has(route.name)');
     expect(source).toContain("chat: 'Arky'");
     expect(source).toContain("require('@/assets/images/arky/normal.png')");
   });
@@ -59,15 +59,129 @@ describe('app route contracts', () => {
     expect(finish).toContain('completeOnboarding');
   });
 
-  test('settings exposes downloads outside internals', () => {
+  test('settings exposes downloads outside advanced diagnostics', () => {
     const settings = readFileSync(join(appDir, '(tabs)/settings.tsx'), 'utf8');
 
     expect(settings).toContain("{ value: 'downloads', label: 'Downloads' }");
     expect(settings).toContain("activeTab === 'downloads'");
     expect(settings).toContain('onRetryDownload');
+    expect(settings).toContain('Wi-Fi only');
+    expect(settings).toContain('Pause all');
+    expect(settings).toContain('Resume all');
+    expect(settings).toContain('Retry failed');
+    expect(settings).toContain('Clean completed');
+    expect(settings).toContain('PreferencesService.getWifiOnlyDownloadsEnabled');
+    expect(settings).toContain('DownloadManagerService.deleteCompletedWhereSafe');
+    expect(settings).toContain("{ value: 'advanced', label: 'Advanced' }");
+    expect(settings).toContain("activeTab === 'advanced'");
+    expect(settings).not.toContain("label: 'Internals'");
     expect(settings).not.toContain(
       '<DownloadsCard downloads={downloads} mapRegions={mapRegions} />'
     );
+  });
+
+  test('library tools and settings skip decorative header blocks', () => {
+    const library = readFileSync(join(appDir, '(tabs)/library.tsx'), 'utf8');
+    const tools = readFileSync(join(appDir, '(tabs)/tools.tsx'), 'utf8');
+    const settings = readFileSync(join(appDir, '(tabs)/settings.tsx'), 'utf8');
+    const diagnostics = readFileSync(join(appDir, 'tools/diagnostics.tsx'), 'utf8');
+    const functionSearch = readFileSync(
+      join(process.cwd(), 'src/components/layout/function-search.tsx'),
+      'utf8'
+    );
+
+    expect(library).not.toContain("from '@/components/brand/ark-logo'");
+    expect(library).not.toContain('variant="h1">Library');
+    expect(library.indexOf('placeholder="Search library"')).toBeLessThan(
+      library.indexOf('{initialLoading ? (')
+    );
+    expect(library.indexOf('<Text>Import</Text>')).toBeLessThan(
+      library.indexOf('{initialLoading ? (')
+    );
+
+    expect(tools).not.toContain("from '@/components/brand/ark-logo'");
+    expect(tools).not.toContain('variant="h1">Tools');
+
+    expect(settings).not.toContain("from '@/components/brand/ark-logo'");
+    expect(settings).not.toContain('variant="h1">Settings');
+    expect(settings).not.toContain('Device, vault, and offline runtime controls.');
+    expect(diagnostics).toContain("tab: 'advanced'");
+    expect(functionSearch).toContain("title: 'Advanced'");
+    expect(functionSearch).toContain("tab: 'advanced'");
+  });
+
+  test('settings exposes encrypted backup import and export from advanced', () => {
+    const settings = readFileSync(join(appDir, '(tabs)/settings.tsx'), 'utf8');
+    const backupService = readFileSync(
+      join(process.cwd(), 'src/services/backup/backup.service.ts'),
+      'utf8'
+    );
+
+    expect(settings).toContain('BackupService.exportToFile');
+    expect(settings).toContain('BackupService.importFromPicker');
+    expect(settings).toContain('Export .arkbackup');
+    expect(settings).toContain('Import .arkbackup');
+    expect(settings.indexOf('Encrypted Backup')).toBeGreaterThan(
+      settings.indexOf("activeTab === 'advanced'")
+    );
+    expect(backupService).toContain("'models'");
+    expect(backupService).toContain("'offline maps'");
+    expect(backupService).toContain("'embeddings'");
+    expect(backupService).toContain("'download queues'");
+  });
+
+  test('settings replaces motion with battery reduce mode', () => {
+    const settings = readFileSync(join(appDir, '(tabs)/settings.tsx'), 'utf8');
+    const preferences = readFileSync(
+      join(process.cwd(), 'src/services/preferences/preferences.service.ts'),
+      'utf8'
+    );
+
+    expect(settings).toContain('Battery Reduce Mode');
+    expect(settings).toContain('setBatteryReduceModeEnabled');
+    expect(settings).toContain("setPreference('oled')");
+    expect(settings).not.toContain('toggleMotion');
+    expect(preferences).toContain('BATTERY_REDUCE_MODE_KEY');
+    expect(preferences).toContain('LEGACY_MOTION_ENABLED_KEY');
+  });
+
+  test('notes screen exposes selection and bulk action contracts', () => {
+    const notes = readFileSync(join(appDir, '(tabs)/notes.tsx'), 'utf8');
+    const grid = readFileSync(
+      join(process.cwd(), 'src/components/notes/notes-mosaic-grid.tsx'),
+      'utf8'
+    );
+
+    expect(notes).toContain("type NotesMode = 'normal' | 'selection' | 'organize'");
+    expect(notes).toContain('BackHandler.addEventListener');
+    expect(notes).toContain('NotesRepository.updateMany');
+    expect(notes).toContain('NotesRepository.softDeleteMany');
+    expect(notes).toContain('NotesRepository.applyLabels');
+    expect(notes).toContain('NotesRepository.reorder');
+    expect(notes).toContain('enterOrganizeMode');
+    expect(grid).toContain('selectedIds: ReadonlySet<string>');
+  });
+
+  test('note editor persists rich content through the repository contract', () => {
+    const editor = readFileSync(join(appDir, 'notes/editor.tsx'), 'utf8');
+    const richEditor = readFileSync(
+      join(process.cwd(), 'src/components/notes/rich-note-editor.tsx'),
+      'utf8'
+    );
+
+    expect(editor).toContain('RichNoteEditor');
+    expect(editor).toContain('contentHtml');
+    expect(editor).toContain('contentJson');
+    expect(editor).toContain('contentFormat');
+    expect(editor).toContain('NotesRepository.update');
+    expect(editor).toContain('NotesRepository.create');
+    expect(richEditor).toContain('useEditorBridge');
+    expect(richEditor).toContain('toggleBold');
+    expect(richEditor).toContain('toggleItalic');
+    expect(richEditor).toContain('toggleBulletList');
+    expect(richEditor).toContain('toggleOrderedList');
+    expect(richEditor).toContain('toggleTaskList');
+    expect(richEditor).toContain('RICH_NOTE_CONTENT_FORMAT');
   });
 
   test('screens do not ship obvious placeholder copy', () => {

@@ -19,7 +19,11 @@ describe('validation schemas', () => {
     expect(parsed).toEqual({
       title: 'Field note',
       body: 'Water source north of camp.',
+      contentHtml: null,
+      contentJson: null,
+      contentFormat: 'plain-text',
       tags: ['water', 'camp'],
+      themeId: 'default',
     });
   });
 
@@ -29,6 +33,17 @@ describe('validation schemas', () => {
     });
     expect(parseOrThrow(notePatchSchema, { body: 'Keep body' })).toEqual({
       body: 'Keep body',
+    });
+    expect(
+      parseOrThrow(notePatchSchema, {
+        contentHtml: '<p><strong>Keep body</strong></p>',
+        contentJson: '{"type":"doc"}',
+        contentFormat: 'tiptap-json-v1',
+      })
+    ).toEqual({
+      contentHtml: '<p><strong>Keep body</strong></p>',
+      contentJson: '{"type":"doc"}',
+      contentFormat: 'tiptap-json-v1',
     });
   });
 

@@ -38,6 +38,7 @@ let mockLocationPermission = { granted: true, status: 'granted', canAskAgain: tr
 let mockLastKnownLocation: MockLocationObject | null = null;
 let mockCurrentLocation: MockLocationObject | null = null;
 let mockCurrentLocationError: Error | null = null;
+let mockNetworkState = { type: 'wifi', isConnected: true, isInternetReachable: true };
 
 type MockLocationObject = {
   coords: {
@@ -110,9 +111,16 @@ mock.module('expo-sensors', () => ({
 
 mock.module('@react-native-community/netinfo', () => ({
   default: {
-    fetch: async () => ({ isConnected: true, isInternetReachable: true }),
+    fetch: async () => mockNetworkState,
     addEventListener: () => () => undefined,
   },
+}));
+
+mock.module('uniwind', () => ({
+  Uniwind: {
+    setTheme: () => undefined,
+  },
+  withUniwind: (component: unknown) => component,
 }));
 
 mock.module('expo-haptics', () => ({
@@ -465,6 +473,7 @@ let RagService: typeof import('@/services/ai/rag.service').RagService;
 let AIService: typeof import('@/services/ai/ai.service').AIService;
 let ModelManagerService: typeof import('@/services/ai/model-manager.service').ModelManagerService;
 let ImportService: typeof import('@/services/files/import.service').ImportService;
+let DownloadManagerService: typeof import('@/services/files/download-manager.service').DownloadManagerService;
 let OcrService: typeof import('@/services/ocr/ocr.service').OcrService;
 let resetLlamaAdapterForTests: typeof import('@/services/ai/llama-adapter').resetLlamaAdapterForTests;
 let resetEmbeddingServiceForTests: typeof import('@/services/ai/embedding.service').resetEmbeddingServiceForTests;
@@ -477,6 +486,7 @@ let NotesRepository: typeof import('@/services/db/repositories/notes.repo').Note
 let DownloadsRepository: typeof import('@/services/db/repositories/downloads.repo').DownloadsRepository;
 let RssRepository: typeof import('@/services/db/repositories/rss.repo').RssRepository;
 let WeatherRepository: typeof import('@/services/db/repositories/weather.repo').WeatherRepository;
+let PreferencesService: typeof import('@/services/preferences/preferences.service').PreferencesService;
 
 let testDb: TestSQLiteDatabase;
 
@@ -495,6 +505,7 @@ beforeAll(async () => {
   ({ AIService } = await import('@/services/ai/ai.service'));
   ({ ModelManagerService } = await import('@/services/ai/model-manager.service'));
   ({ ImportService } = await import('@/services/files/import.service'));
+  ({ DownloadManagerService } = await import('@/services/files/download-manager.service'));
   ({ OcrService } = await import('@/services/ocr/ocr.service'));
   ({ resetLlamaAdapterForTests } = await import('@/services/ai/llama-adapter'));
   ({ resetEmbeddingServiceForTests } = await import('@/services/ai/embedding.service'));
@@ -507,6 +518,7 @@ beforeAll(async () => {
   ({ DownloadsRepository } = await import('@/services/db/repositories/downloads.repo'));
   ({ RssRepository } = await import('@/services/db/repositories/rss.repo'));
   ({ WeatherRepository } = await import('@/services/db/repositories/weather.repo'));
+  ({ PreferencesService } = await import('@/services/preferences/preferences.service'));
 });
 
 beforeEach(async () => {
@@ -531,6 +543,7 @@ beforeEach(async () => {
   mockLastKnownLocation = null;
   mockCurrentLocation = null;
   mockCurrentLocationError = null;
+  mockNetworkState = { type: 'wifi', isConnected: true, isInternetReachable: true };
   delete process.env.EXPO_PUBLIC_ARK_MAP_CATALOG_URL;
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = typeof input === 'string' ? input : input.toString();
@@ -573,6 +586,26 @@ describe('service integration', () => {
     expect(persisted.hasSeenIntro).toBe(true);
     expect(persisted.hasCreatedVault).toBe(true);
     expect(useAppStore.getState().onboarding?.completedAt).toBe(persisted.completedAt);
+  });
+
+  test('app boot completes without network access', async () => {
+    const previousFetch = globalThis.fetch;
+    let fetchCalls = 0;
+    globalThis.fetch = (async () => {
+      fetchCalls += 1;
+      throw new Error('Network disabled for offline launch test.');
+    }) as typeof fetch;
+
+    try {
+      await useAppStore.getState().boot();
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+
+    const state = useAppStore.getState();
+    expect(state.booted).toBe(true);
+    expect(state.error).toBeNull();
+    expect(fetchCalls).toBe(0);
   });
 
   test('database encryption reports key storage and unresolved migration limits', async () => {
@@ -867,6 +900,84 @@ describe('service integration', () => {
     expect(await DownloadsRepository.list()).toHaveLength(0);
   });
 
+  test('Wi-Fi-only downloads pause queued work until Wi-Fi resumes it', async () => {
+    mockNetworkState = { type: 'cellular', isConnected: true, isInternetReachable: true };
+    await PreferencesService.setWifiOnlyDownloadsEnabled(true);
+
+    const id = await DownloadManagerService.queueDownload({
+      kind: 'guide',
+      title: 'Wi-Fi held guide',
+      sourceUrl: 'https://example.test/wifi-held.pdf',
+      expectedSizeBytes: 2048,
+    });
+
+    await waitFor(async () => (await DownloadsRepository.get(id))?.status === 'paused');
+    let row = await DownloadsRepository.get(id);
+    expect(row?.error).toContain('Wi-Fi-only downloads are on');
+    expect(mockFiles.has('file:///ark-test/ark/content/wifi-held.pdf')).toBe(false);
+
+    mockNetworkState = { type: 'wifi', isConnected: true, isInternetReachable: true };
+    await DownloadManagerService.resumeAll();
+
+    await waitFor(async () => (await DownloadsRepository.get(id))?.status === 'completed');
+    row = await DownloadsRepository.get(id);
+    expect(row?.progress).toBe(1);
+    expect(row?.error).toBeNull();
+    expect(mockFiles.has('file:///ark-test/ark/content/wifi-held.pdf')).toBe(true);
+  });
+
+  test('download cleanup deletes only completed files that are not installed packs', async () => {
+    const orphanUri = 'file:///ark-test/ark/content/orphan.pdf';
+    const protectedUri = 'file:///ark-test/ark/content/protected.pdf';
+    mockFiles.set(orphanUri, { isDirectory: false, size: 100, text: '%PDF orphan' });
+    mockFiles.set(protectedUri, { isDirectory: false, size: 100, text: '%PDF protected' });
+
+    const orphanId = await DownloadsRepository.create({
+      kind: 'guide',
+      title: 'Orphan guide',
+      sourceUrl: 'https://example.test/orphan.pdf',
+      localUri: orphanUri,
+    });
+    await DownloadsRepository.complete({
+      id: orphanId,
+      localUri: orphanUri,
+      totalBytes: 100,
+      downloadedBytes: 100,
+    });
+
+    const protectedId = await DownloadsRepository.create({
+      kind: 'guide',
+      title: 'Installed guide',
+      sourceUrl: 'https://example.test/protected.pdf',
+      localUri: protectedUri,
+    });
+    await DownloadsRepository.complete({
+      id: protectedId,
+      localUri: protectedUri,
+      totalBytes: 100,
+      downloadedBytes: 100,
+    });
+    await ContentRepository.createPack({
+      id: 'protected-guide',
+      title: 'Protected guide',
+      description: 'Installed guide that owns its local file.',
+      category: 'Survival',
+      format: 'pdf',
+      localUri: protectedUri,
+      installed: true,
+      installStatus: 'installed',
+      progress: 1,
+    });
+
+    const result = await DownloadManagerService.deleteCompletedWhereSafe();
+
+    expect(result).toEqual({ deleted: 1, skipped: 1 });
+    expect(await DownloadsRepository.get(orphanId)).toBeNull();
+    expect(mockFiles.has(orphanUri)).toBe(false);
+    expect(await DownloadsRepository.get(protectedId)).not.toBeNull();
+    expect(mockFiles.has(protectedUri)).toBe(true);
+  });
+
   test('offline map regions can be planned from saved spots', async () => {
     await OfflineMapService.createMarker({
       title: 'Water',
@@ -1158,6 +1269,48 @@ describe('service integration', () => {
     expect(stored[2].citations[0]?.sourceRef).toBe(note.id);
   });
 
+  test('note theme and favorite changes do not rewrite RAG note chunks', async () => {
+    const note = await NotesRepository.create({
+      title: 'Signal note',
+      body: 'Keep the radio antenna dry and raised.',
+      tags: ['comms'],
+    });
+    await RagService.indexNote(note.id);
+
+    const beforeSource = await testDb.getFirstAsync<{ updated_at: number }>(
+      'SELECT updated_at FROM rag_sources WHERE id = ?',
+      [`note:${note.id}`]
+    );
+    const beforeChunk = await testDb.getFirstAsync<{
+      id: string;
+      created_at: number;
+      embedding_blob: Uint8Array | null;
+    }>('SELECT id, created_at, embedding_blob FROM rag_chunks WHERE source_id = ?', [
+      `note:${note.id}`,
+    ]);
+
+    await new Promise((resolve) => setTimeout(resolve, 2));
+    await NotesRepository.update(note.id, { themeId: 'teal', isFavorite: true });
+    await RagService.indexNote(note.id);
+
+    const afterSource = await testDb.getFirstAsync<{ updated_at: number }>(
+      'SELECT updated_at FROM rag_sources WHERE id = ?',
+      [`note:${note.id}`]
+    );
+    const afterChunk = await testDb.getFirstAsync<{
+      id: string;
+      created_at: number;
+      embedding_blob: Uint8Array | null;
+    }>('SELECT id, created_at, embedding_blob FROM rag_chunks WHERE source_id = ?', [
+      `note:${note.id}`,
+    ]);
+
+    expect(afterSource?.updated_at).toBeGreaterThan(beforeSource?.updated_at ?? 0);
+    expect(afterChunk?.id).toBe(beforeChunk?.id);
+    expect(afterChunk?.created_at).toBe(beforeChunk?.created_at);
+    expect(afterChunk?.embedding_blob).toEqual(beforeChunk?.embedding_blob);
+  });
+
   test('imported text documents are indexed for RAG', async () => {
     mockPickedDocument = {
       name: 'water-plan.txt',
@@ -1412,7 +1565,7 @@ describe('service integration', () => {
     const document = await ImportService.importDocument();
     expect(document?.ocrStatus).toBe('unavailable');
     expect(document?.ocrText).toBe('');
-    expect(document?.ocrError).toContain('Android development build');
+    expect(document?.ocrError).toContain('Ark development build');
   });
 
   test('AI chat can cancel an active llama completion', async () => {

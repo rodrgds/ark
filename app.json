@@ -19,7 +19,10 @@
         "NSFaceIDUsageDescription": "Allow Ark to protect your offline vault with Face ID.",
         "NSMotionUsageDescription": "Allow Ark to use motion sensors for compass, level, and survival tools.",
         "NSLocationWhenInUseUsageDescription": "Allow Ark to save your position and offline map regions.",
-        "NSMicrophoneUsageDescription": "Allow Ark to record short voice prompts for offline transcription."
+        "NSMicrophoneUsageDescription": "Allow Ark to record short voice prompts for offline transcription.",
+        "NSSpeechRecognitionUsageDescription": "Allow Ark to transcribe short voice prompts on device.",
+        "NSCameraUsageDescription": "Allow Ark to attach spot photos from the camera to saved map locations.",
+        "NSPhotoLibraryUsageDescription": "Allow Ark to choose spot photos from your library for saved map locations."
       },
       "bundleIdentifier": "app.ark.offline"
     },
@@ -61,6 +64,14 @@
         }
       ],
       [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Allow Ark to attach spot photos from the camera to saved map locations.",
+          "photosPermission": "Allow Ark to choose spot photos from your library for saved map locations.",
+          "microphonePermission": "Allow Ark to record short voice prompts for offline transcription."
+        }
+      ],
+      [
         "expo-sqlite",
         {
           "enableFTS": true,
@@ -78,6 +89,12 @@
         "expo-location",
         {
           "locationWhenInUsePermission": "Allow Ark to save your position and offline map regions."
+        }
+      ],
+      [
+        "react-native-enriched-markdown",
+        {
+          "enableMath": false
         }
       ],
       "@maplibre/maplibre-react-native",

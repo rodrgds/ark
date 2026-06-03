@@ -31,13 +31,13 @@ describe('starter content packs', () => {
     }
   });
 
-  test('model packs point to GGUF files', () => {
+  test('curated model packs are answer GGUF files', () => {
     const models = STARTER_PACKS.filter((pack) => pack.category === 'AI Models');
     const chatModels = models.filter((model) => model.id.startsWith('model-'));
     const embeddingModels = models.filter((model) => model.id.startsWith('embedding-'));
 
     expect(chatModels.length).toBeGreaterThanOrEqual(2);
-    expect(embeddingModels.length).toBeGreaterThanOrEqual(2);
+    expect(embeddingModels.length).toBe(0);
     for (const model of models) {
       expect(model.format).toBe('gguf');
       expect(model.sourceUrl?.toLowerCase().split('?')[0]).toEndWith('.gguf');
@@ -46,8 +46,6 @@ describe('starter content packs', () => {
       expect(model.sizeBytes ?? 0).toBeGreaterThan(500 * 1024 * 1024);
       expect(model.checksumSha256).toMatch(/^[a-f0-9]{64}$/);
     }
-    expect(embeddingModels.some((model) => model.id.includes('nomic'))).toBe(true);
-    expect(embeddingModels.every((model) => model.modelRole === 'embedding')).toBe(true);
     expect(chatModels.every((model) => model.modelRole === 'chat')).toBe(true);
   });
 

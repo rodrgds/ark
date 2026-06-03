@@ -20,7 +20,6 @@
         "NSMotionUsageDescription": "Allow Ark to use motion sensors for compass, level, and survival tools.",
         "NSLocationWhenInUseUsageDescription": "Allow Ark to save your position and offline map regions.",
         "NSMicrophoneUsageDescription": "Allow Ark to record short voice prompts for offline transcription.",
-        "NSSpeechRecognitionUsageDescription": "Allow Ark to transcribe short voice prompts on device.",
         "NSCameraUsageDescription": "Allow Ark to attach spot photos from the camera to saved map locations.",
         "NSPhotoLibraryUsageDescription": "Allow Ark to choose spot photos from your library for saved map locations."
       },

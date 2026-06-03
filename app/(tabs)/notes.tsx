@@ -35,11 +35,11 @@ import {
   LayoutGrid,
   ListFilter,
   Palette,
+  Pin,
+  PinOff,
   Plus,
   Printer,
   Rows3,
-  Star,
-  StarOff,
   Tag,
   Trash2,
   X,
@@ -72,8 +72,6 @@ export default function NotesScreen() {
 
   const [mode, setMode] = React.useState<NotesMode>('normal');
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(() => new Set());
-  const [actionNote, setActionNote] = React.useState<Note | null>(null);
-  const [confirmDeleteNote, setConfirmDeleteNote] = React.useState<Note | null>(null);
   const [confirmDeleteSelection, setConfirmDeleteSelection] = React.useState(false);
   const [themeTarget, setThemeTarget] = React.useState<ThemeTarget | null>(null);
   const [sortSheetOpen, setSortSheetOpen] = React.useState(false);
@@ -89,6 +87,8 @@ export default function NotesScreen() {
   );
   const selectedNoteIds = React.useMemo(() => Array.from(selectedIds), [selectedIds]);
   const selectedCount = selectedIds.size;
+  const pinnedNotes = React.useMemo(() => notes.filter((note) => note.isFavorite), [notes]);
+  const unpinnedNotes = React.useMemo(() => notes.filter((note) => !note.isFavorite), [notes]);
 
   React.useEffect(() => {
     notesRef.current = notes;
@@ -181,7 +181,6 @@ export default function NotesScreen() {
 
   async function enterOrganizeMode() {
     setMode('organize');
-    setActionNote(null);
     setSelectedIds(new Set());
     setQuery('');
     if (sortMode !== 'manual') {
@@ -255,16 +254,8 @@ export default function NotesScreen() {
     toggleSelection(note);
   }
 
-  async function toggleStar(note: Note) {
+  async function togglePin(note: Note) {
     await NotesRepository.update(note.id, { isFavorite: !note.isFavorite });
-    setActionNote(null);
-    await load(query);
-  }
-
-  async function deleteNote(note: Note) {
-    await NotesRepository.softDelete(note.id);
-    setActionNote(null);
-    setConfirmDeleteNote(null);
     await load(query);
   }
 
@@ -311,7 +302,6 @@ export default function NotesScreen() {
     setPrintingNoteId(note.id);
     try {
       const { uri } = await NotePdfService.export(note);
-      setActionNote(null);
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(uri, {
           dialogTitle: `Print ${note.title || 'Untitled Note'}`,
@@ -404,16 +394,16 @@ export default function NotesScreen() {
                 variant="outline"
                 disabled={!selectedCount}
                 onPress={() => void setSelectedFavorite(true)}>
-                <Icon as={Star} className="size-4" />
-                <Text>Star</Text>
+                <Icon as={Pin} className="size-4" />
+                <Text>Pin</Text>
               </Button>
               <Button
                 size="sm"
                 variant="outline"
                 disabled={!selectedCount}
                 onPress={() => void setSelectedFavorite(false)}>
-                <Icon as={StarOff} className="size-4" />
-                <Text>Unstar</Text>
+                <Icon as={PinOff} className="size-4" />
+                <Text>Unpin</Text>
               </Button>
               <Button
                 size="sm"
@@ -514,6 +504,63 @@ export default function NotesScreen() {
             movingNoteId={movingNoteId}
             onMoveToIndex={(noteId, targetIndex) => void moveNoteToIndex(noteId, targetIndex)}
           />
+        ) : mode === 'normal' && pinnedNotes.length ? (
+          <View className="gap-5">
+            <View className="gap-3">
+              <View className="flex-row items-center gap-2">
+                <Icon as={Pin} className="text-primary size-4" />
+                <Text variant="large">Pinned</Text>
+              </View>
+              {viewMode === 'list' ? (
+                <NotesList
+                  notes={pinnedNotes}
+                  labelColors={labelColors}
+                  effectiveTheme={effectiveTheme}
+                  mode={mode}
+                  selectedIds={selectedIds}
+                  onNotePress={handleNotePress}
+                  onNoteLongPress={handleNoteLongPress}
+                  onNotePinPress={(note) => void togglePin(note)}
+                />
+              ) : (
+                <NotesMosaicGrid
+                  notes={pinnedNotes}
+                  labelColors={labelColors}
+                  effectiveTheme={effectiveTheme}
+                  mode={mode}
+                  selectedIds={selectedIds}
+                  onNotePress={handleNotePress}
+                  onNoteLongPress={handleNoteLongPress}
+                  onNotePinPress={(note) => void togglePin(note)}
+                />
+              )}
+            </View>
+            {unpinnedNotes.length ? (
+              viewMode === 'list' ? (
+                <NotesList
+                  notes={unpinnedNotes}
+                  labelColors={labelColors}
+                  effectiveTheme={effectiveTheme}
+                  mode={mode}
+                  selectedIds={selectedIds}
+                  onNotePress={handleNotePress}
+                  onNoteLongPress={handleNoteLongPress}
+                  onNotePinPress={(note) => void togglePin(note)}
+                />
+              ) : (
+                <NotesMosaicGrid
+                  notes={unpinnedNotes}
+                  labelColors={labelColors}
+                  effectiveTheme={effectiveTheme}
+                  mode={mode}
+                  selectedIds={selectedIds}
+                  onNotePress={handleNotePress}
+                  onNoteLongPress={handleNoteLongPress}
+                  onNotePinPress={(note) => void togglePin(note)}
+                />
+              )
+            ) : null}
+          </View>
         ) : viewMode === 'list' ? (
           <NotesList
             notes={notes}
@@ -523,7 +570,7 @@ export default function NotesScreen() {
             selectedIds={selectedIds}
             onNotePress={handleNotePress}
             onNoteLongPress={handleNoteLongPress}
-            onNoteMenuPress={setActionNote}
+            onNotePinPress={(note) => void togglePin(note)}
           />
         ) : (
           <NotesMosaicGrid
@@ -534,7 +581,7 @@ export default function NotesScreen() {
             selectedIds={selectedIds}
             onNotePress={handleNotePress}
             onNoteLongPress={handleNoteLongPress}
-            onNoteMenuPress={setActionNote}
+            onNotePinPress={(note) => void togglePin(note)}
           />
         )}
       </Screen>
@@ -547,64 +594,6 @@ export default function NotesScreen() {
           <Icon as={Plus} className="size-6" />
         </Button>
       ) : null}
-
-      <ArkBottomSheet visible={!!actionNote} onDismiss={() => setActionNote(null)}>
-        <Button
-          variant="ghost"
-          className="h-10 justify-start px-2"
-          disabled={!actionNote || printingNoteId === actionNote?.id}
-          onPress={() => {
-            if (actionNote) void printNote(actionNote);
-          }}>
-          <Icon as={Printer} className="size-4" />
-          <Text>{printingNoteId === actionNote?.id ? 'Preparing PDF...' : 'Print'}</Text>
-        </Button>
-        <Button
-          variant="ghost"
-          className="h-10 justify-start px-2"
-          onPress={() => {
-            if (actionNote) void toggleStar(actionNote);
-          }}>
-          <Icon as={Star} className="size-4" />
-          <Text>{actionNote?.isFavorite ? 'Unstar' : 'Star'}</Text>
-        </Button>
-        <Button
-          variant="ghost"
-          className="h-10 justify-start px-2"
-          onPress={() => {
-            if (!actionNote) return;
-            setThemeTarget({ type: 'single', note: actionNote });
-            setActionNote(null);
-          }}>
-          <Icon as={Palette} className="size-4" />
-          <Text>Theme</Text>
-        </Button>
-        <Button
-          variant="ghost"
-          className="h-10 justify-start px-2"
-          onPress={() => {
-            if (!actionNote) return;
-            setActionNote(null);
-            router.push({
-              pathname: '/notes/labels' as never,
-              params: { noteId: actionNote.id } as never,
-            });
-          }}>
-          <Icon as={Tag} className="size-4" />
-          <Text>Labels</Text>
-        </Button>
-        <Button
-          variant="ghost"
-          className="h-10 justify-start px-2"
-          onPress={() => {
-            if (!actionNote) return;
-            setConfirmDeleteNote(actionNote);
-            setActionNote(null);
-          }}>
-          <Icon as={Trash2} className="text-destructive size-4" />
-          <Text className="text-destructive">Delete</Text>
-        </Button>
-      </ArkBottomSheet>
 
       <ArkBottomSheet visible={!!themeTarget} onDismiss={() => setThemeTarget(null)}>
         <View className="gap-1">
@@ -723,17 +712,6 @@ export default function NotesScreen() {
           )}
         </View>
       </ArkBottomSheet>
-
-      <ConfirmModal
-        visible={!!confirmDeleteNote}
-        title="Delete note?"
-        description="This removes the note from active use and keeps it out of your vault views."
-        confirmVariant="destructive"
-        onCancel={() => setConfirmDeleteNote(null)}
-        onConfirm={() => {
-          if (confirmDeleteNote) void deleteNote(confirmDeleteNote);
-        }}
-      />
 
       <ConfirmModal
         visible={confirmDeleteSelection}

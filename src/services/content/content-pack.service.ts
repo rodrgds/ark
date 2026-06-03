@@ -166,6 +166,9 @@ export class ContentPackService {
   }
 
   static async importLocalModel(modelRole: ContentModelRole = 'chat') {
+    if (modelRole === 'embedding') {
+      throw new Error('Source search uses Ark built-in ExecuTorch embeddings.');
+    }
     const result = await DocumentPicker.getDocumentAsync({
       copyToCacheDirectory: true,
       multiple: false,
@@ -179,10 +182,9 @@ export class ContentPackService {
     }
 
     await FileSystemService.ensureAppDirectories();
-    const normalizedRole =
-      modelRole === 'embedding' ? 'embedding' : modelRole === 'voice' ? 'voice' : 'chat';
+    const normalizedRole = modelRole === 'voice' ? 'voice' : 'chat';
     const id = `custom-${
-      normalizedRole === 'embedding' ? 'embedding' : normalizedRole === 'voice' ? 'voice' : 'chat'
+      normalizedRole === 'voice' ? 'voice' : 'chat'
     }-model-${randomUUID()}`;
     const localUri = `${FileSystemService.dir('models')}${id}-${FileSystemService.safeFileName(asset.name)}`;
     await FileSystem.copyAsync({ from: asset.uri, to: localUri });
@@ -193,9 +195,7 @@ export class ContentPackService {
       id,
       title: asset.name.replace(/\.gguf$/i, ''),
       description:
-        normalizedRole === 'embedding'
-          ? 'User-imported GGUF search model for local source matching.'
-          : normalizedRole === 'voice'
+        normalizedRole === 'voice'
             ? 'User-imported GGUF voice model for on-device transcription.'
             : 'User-imported GGUF chat model for on-device AI.',
       category: 'AI Models',
@@ -237,17 +237,16 @@ export class ContentPackService {
       throw new Error('SHA-256 checksum must be 64 hexadecimal characters.');
     }
     const modelRole = input.modelRole ?? 'chat';
-    const id = `custom-${
-      modelRole === 'embedding' ? 'embedding' : modelRole === 'voice' ? 'voice' : 'chat'
-    }-model-${randomUUID()}`;
+    if (modelRole === 'embedding') {
+      throw new Error('Source search uses Ark built-in ExecuTorch embeddings.');
+    }
+    const id = `custom-${modelRole === 'voice' ? 'voice' : 'chat'}-model-${randomUUID()}`;
     const fileName = sourceUrl.split('/').pop()?.split('?')[0] ?? `${id}.gguf`;
     await ContentRepository.createPack({
       id,
       title: input.title.trim() || fileName.replace(/\.gguf$/i, ''),
       description:
-        modelRole === 'embedding'
-          ? 'Custom GGUF search model URL. Download before using it for local source matching.'
-          : modelRole === 'voice'
+        modelRole === 'voice'
             ? 'Custom GGUF voice model URL. Download before using local transcription.'
             : 'Custom GGUF chat model URL. Download before using local AI.',
       category: 'AI Models',

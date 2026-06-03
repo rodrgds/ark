@@ -4,6 +4,8 @@ import '@/global.css';
 import { NAV_THEME } from '@/lib/theme';
 import { BottomSheetProvider } from '@swmansion/react-native-bottom-sheet';
 import { ThemeProvider } from '@react-navigation/native';
+import { initExecutorch } from 'react-native-executorch';
+import { ExpoResourceFetcher } from 'react-native-executorch-expo-resource-fetcher';
 import { PortalHost } from '@rn-primitives/portal';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -28,6 +30,8 @@ import { Text } from '@/components/ui/text';
 import { AutoLockService } from '@/services/security/autolock.service';
 import { useAppStore } from '@/stores/app-store';
 import { useThemeStore } from '@/stores/theme-store';
+
+initExecutorch({ resourceFetcher: ExpoResourceFetcher });
 
 export {
   // Catch any errors thrown by the Layout component.

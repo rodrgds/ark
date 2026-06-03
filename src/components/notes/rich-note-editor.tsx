@@ -199,7 +199,6 @@ export function RichNoteEditor({
   const contentUpdateIdRef = React.useRef(0);
   const skipInitialUpdateRef = React.useRef(true);
   const userFormatIntentRef = React.useRef(false);
-  const [editorCssReady, setEditorCssReady] = React.useState(false);
 
   React.useEffect(() => {
     latestValueRef.current = { body, contentHtml, contentJson, contentFormat };
@@ -247,18 +246,28 @@ export function RichNoteEditor({
     };
     const wasUserFormatIntent = userFormatIntentRef.current;
     userFormatIntentRef.current = false;
+    const latestValue = latestValueRef.current;
 
     if (
       skipInitialUpdateRef.current &&
       !wasUserFormatIntent &&
-      normalizeEditorText(nextValue.body) === normalizeEditorText(latestValueRef.current.body)
+      emptyPayload &&
+      (!!latestValue.body.trim() || !!latestValue.contentHtml?.trim() || !!latestValue.contentJson)
+    ) {
+      skipInitialUpdateRef.current = false;
+      return;
+    }
+
+    if (
+      skipInitialUpdateRef.current &&
+      !wasUserFormatIntent &&
+      normalizeEditorText(nextValue.body) === normalizeEditorText(latestValue.body)
     ) {
       skipInitialUpdateRef.current = false;
       return;
     }
     skipInitialUpdateRef.current = false;
 
-    const latestValue = latestValueRef.current;
     if (
       nextValue.body === latestValue.body &&
       nextValue.contentHtml === latestValue.contentHtml &&
@@ -286,11 +295,8 @@ export function RichNoteEditor({
 
   React.useEffect(() => {
     if (!editorState.isReady) return;
-    setEditorCssReady(false);
     editor.injectCSS(getEditorCss(noteTheme, minHeight), 'ark-note-editor');
     editor.setPlaceholder('Write your note...');
-    const frame = requestAnimationFrame(() => setEditorCssReady(true));
-    return () => cancelAnimationFrame(frame);
   }, [editor, editorState.isReady, minHeight, noteTheme]);
 
   function runFormatCommand(command: () => void) {
@@ -378,7 +384,7 @@ export function RichNoteEditor({
       <View className="flex-1 py-4" style={{ minHeight: Math.max(180, minHeight - 52) }}>
         <RichText
           editor={editor}
-          style={{ backgroundColor: noteTheme.background, opacity: editorCssReady ? 1 : 0 }}
+          style={{ backgroundColor: noteTheme.background }}
           containerStyle={{
             backgroundColor: noteTheme.background,
             minHeight: Math.max(180, minHeight - 84),

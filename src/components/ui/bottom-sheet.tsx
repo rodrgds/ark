@@ -48,6 +48,7 @@ export function ArkBottomSheet({
   const colors = NAV_COLORS[effectiveTheme];
   const visibleRef = React.useRef(visible);
   const hasOpenedRef = React.useRef(false);
+  const dismissingRef = React.useRef(false);
 
   const contentSized = !scrollable && !snapPoints;
   const effectiveMaxDynamicContentSize = maxDynamicContentSize ?? Math.round(height * 0.82);
@@ -64,11 +65,15 @@ export function ArkBottomSheet({
   React.useEffect(() => {
     if (visible) {
       setMounted(true);
-      hasOpenedRef.current = false;
-      const frame = requestAnimationFrame(() => setIndex(initialOpenIndex));
+      dismissingRef.current = false;
+      const frame = requestAnimationFrame(() => {
+        hasOpenedRef.current = true;
+        setIndex(initialOpenIndex);
+      });
       return () => cancelAnimationFrame(frame);
     }
 
+    dismissingRef.current = true;
     setIndex(0);
     return undefined;
   }, [initialOpenIndex, visible]);
@@ -87,24 +92,31 @@ export function ArkBottomSheet({
       setIndex((currentIndex) => (currentIndex === nextIndex ? currentIndex : nextIndex));
       if (nextIndex > 0) {
         hasOpenedRef.current = true;
-        return;
       }
-      if (nextIndex === 0 && visibleRef.current && hasOpenedRef.current) {
-        hasOpenedRef.current = false;
+    },
+    []
+  );
+
+  const handleSettle = React.useCallback(
+    (nextIndex: number) => {
+      if (nextIndex !== 0) return;
+
+      const shouldDismiss = visibleRef.current && hasOpenedRef.current && !dismissingRef.current;
+      const opening = visibleRef.current && !hasOpenedRef.current && !dismissingRef.current;
+      hasOpenedRef.current = false;
+
+      if (opening) return;
+
+      if (shouldDismiss) {
+        dismissingRef.current = true;
         Keyboard.dismiss();
         onDismiss();
       }
+
+      setMounted(false);
     },
     [onDismiss]
   );
-
-  const handleSettle = React.useCallback((nextIndex: number) => {
-    if (nextIndex === 0) {
-      const shouldUnmount = !visibleRef.current || hasOpenedRef.current;
-      hasOpenedRef.current = false;
-      if (shouldUnmount) setMounted(false);
-    }
-  }, []);
 
   const header =
     title || description ? (

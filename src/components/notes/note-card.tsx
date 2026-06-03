@@ -6,9 +6,10 @@ import { NAV_COLORS, type ThemePreference } from '@/constants/theme';
 import { getLabelColor, type LabelColorMap } from '@/lib/label-colors';
 import { getNotePreviewText } from '@/lib/note-text';
 import type { Note } from '@/types/db';
-import { CheckCircle2, Circle, MoreVertical, Star } from 'lucide-react-native';
+import { CheckCircle2, Circle, Pin } from 'lucide-react-native';
 import * as React from 'react';
 import { Pressable, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 type NoteCardProps = {
   note: Note;
@@ -18,7 +19,7 @@ type NoteCardProps = {
   selected?: boolean;
   onPress: (note: Note) => void;
   onLongPress: (note: Note) => void;
-  onMenuPress?: (note: Note) => void;
+  onPinPress?: (note: Note) => void;
 };
 
 function NoteCardImpl({
@@ -29,7 +30,7 @@ function NoteCardImpl({
   selected = false,
   onPress,
   onLongPress,
-  onMenuPress,
+  onPinPress,
 }: NoteCardProps) {
   const noteTheme = getNoteTheme(note.themeId, effectiveTheme);
   const selectedColor = NAV_COLORS[effectiveTheme].primary;
@@ -49,36 +50,43 @@ function NoteCardImpl({
           borderColor: selected ? selectedColor : noteTheme.border,
         }}>
         <View className="flex-row items-start justify-between gap-2">
-          <Text variant="large" className="min-w-0 flex-1" style={{ color: noteTheme.foreground }}>
-            {note.title}
-          </Text>
+          <Animated.View
+            className="min-w-0 flex-1"
+            sharedTransitionTag={`note-title-${note.id}`}>
+            <Text variant="large" style={{ color: noteTheme.foreground }}>
+              {note.title}
+            </Text>
+          </Animated.View>
           <View className="flex-row items-center gap-1.5">
-            {note.isFavorite ? (
-              <Icon as={Star} className="size-3.5" color={noteTheme.mutedForeground} />
-            ) : null}
             {selectionMode ? (
               <Icon
                 as={selected ? CheckCircle2 : Circle}
                 className="size-5"
                 color={selected ? selectedColor : noteTheme.mutedForeground}
               />
-            ) : onMenuPress ? (
+            ) : onPinPress ? (
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`Open actions for ${note.title || 'note'}`}
+                accessibilityLabel={`${note.isFavorite ? 'Unpin' : 'Pin'} ${note.title || 'note'}`}
                 hitSlop={8}
                 onPress={(event) => {
                   event.stopPropagation();
-                  onMenuPress(note);
+                  onPinPress(note);
                 }}>
-                <Icon as={MoreVertical} className="size-4" color={noteTheme.mutedForeground} />
+                <Icon
+                  as={Pin}
+                  className="size-4"
+                  color={note.isFavorite ? selectedColor : noteTheme.mutedForeground}
+                />
               </Pressable>
             ) : null}
           </View>
         </View>
-        <Text numberOfLines={3} variant="muted" style={{ color: noteTheme.mutedForeground }}>
-          {preview}
-        </Text>
+        <Animated.View sharedTransitionTag={`note-body-${note.id}`}>
+          <Text numberOfLines={3} variant="muted" style={{ color: noteTheme.mutedForeground }}>
+            {preview}
+          </Text>
+        </Animated.View>
         {note.tags.length ? (
           <View className="mt-1 flex-row flex-wrap gap-1.5">
             {note.tags.map((label) => {

@@ -13,7 +13,7 @@ type NotesMosaicGridProps = {
   selectedIds: ReadonlySet<string>;
   onNotePress: (note: Note) => void;
   onNoteLongPress: (note: Note) => void;
-  onNoteMenuPress: (note: Note) => void;
+  onNotePinPress: (note: Note) => void;
 };
 
 export function NotesMosaicGrid({
@@ -24,7 +24,7 @@ export function NotesMosaicGrid({
   selectedIds,
   onNotePress,
   onNoteLongPress,
-  onNoteMenuPress,
+  onNotePinPress,
 }: NotesMosaicGridProps) {
   const leftColumn = React.useMemo(() => notes.filter((_, index) => index % 2 === 0), [notes]);
   const rightColumn = React.useMemo(() => notes.filter((_, index) => index % 2 === 1), [notes]);
@@ -42,7 +42,7 @@ export function NotesMosaicGrid({
             selected={selectedIds.has(note.id)}
             onPress={onNotePress}
             onLongPress={onNoteLongPress}
-            onMenuPress={onNoteMenuPress}
+            onPinPress={onNotePinPress}
           />
         ))}
       </View>
@@ -57,7 +57,7 @@ export function NotesMosaicGrid({
             selected={selectedIds.has(note.id)}
             onPress={onNotePress}
             onLongPress={onNoteLongPress}
-            onMenuPress={onNoteMenuPress}
+            onPinPress={onNotePinPress}
           />
         ))}
       </View>

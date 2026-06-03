@@ -14,6 +14,7 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { Keyboard, Platform, Pressable, TextInput, useWindowDimensions, View } from 'react-native';
 import { PenLine, Plus } from 'lucide-react-native';
 import * as React from 'react';
+import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function NoteEditorScreen() {
@@ -232,13 +233,15 @@ export default function NoteEditorScreen() {
         extraKeyboardSpace={Platform.OS === 'android' ? Math.max(insets.bottom, 12) : 0}
         keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         keyboardShouldPersistTaps="handled">
-        <TextInput
-          value={title}
-          onChangeText={setTitle}
-          {...{ [inputHintProp]: 'Untitled', [inputHintColorProp]: noteTheme.mutedForeground }}
-          className="text-foreground px-0 py-0 text-3xl font-bold"
-          style={{ color: noteTheme.foreground }}
-        />
+        <Animated.View sharedTransitionTag={noteId ? `note-title-${noteId}` : undefined}>
+          <TextInput
+            value={title}
+            onChangeText={setTitle}
+            {...{ [inputHintProp]: 'Untitled', [inputHintColorProp]: noteTheme.mutedForeground }}
+            className="text-foreground px-0 py-0 text-3xl font-bold"
+            style={{ color: noteTheme.foreground }}
+          />
+        </Animated.View>
 
         {error ? <Text className="text-destructive mt-2">{error}</Text> : null}
 
@@ -247,16 +250,18 @@ export default function NoteEditorScreen() {
             Loading note...
           </Text>
         ) : (
-          <RichNoteEditor
-            key={noteId ?? 'new-note'}
-            body={body}
-            contentHtml={contentHtml}
-            contentJson={contentJson}
-            contentFormat={contentFormat}
-            noteTheme={noteTheme}
-            minHeight={bodyMinHeight}
-            onChange={updateRichContent}
-          />
+          <Animated.View sharedTransitionTag={noteId ? `note-body-${noteId}` : undefined}>
+            <RichNoteEditor
+              key={noteId ?? 'new-note'}
+              body={body}
+              contentHtml={contentHtml}
+              contentJson={contentJson}
+              contentFormat={contentFormat}
+              noteTheme={noteTheme}
+              minHeight={bodyMinHeight}
+              onChange={updateRichContent}
+            />
+          </Animated.View>
         )}
       </ArkKeyboardAwareScrollView>
     </>

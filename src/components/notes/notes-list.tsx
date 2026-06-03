@@ -5,9 +5,10 @@ import { getNoteTheme } from '@/constants/note-themes';
 import { NAV_COLORS, type ThemePreference } from '@/constants/theme';
 import type { LabelColorMap } from '@/lib/label-colors';
 import type { Note } from '@/types/db';
-import { CheckCircle2, Circle, MoreVertical, Star } from 'lucide-react-native';
+import { CheckCircle2, Circle, Pin } from 'lucide-react-native';
 import * as React from 'react';
 import { Pressable, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 type NotesListProps = {
   notes: Note[];
@@ -17,7 +18,7 @@ type NotesListProps = {
   selectedIds: ReadonlySet<string>;
   onNotePress: (note: Note) => void;
   onNoteLongPress: (note: Note) => void;
-  onNoteMenuPress: (note: Note) => void;
+  onNotePinPress: (note: Note) => void;
 };
 
 export function NotesList({
@@ -28,7 +29,7 @@ export function NotesList({
   selectedIds,
   onNotePress,
   onNoteLongPress,
-  onNoteMenuPress,
+  onNotePinPress,
 }: NotesListProps) {
   return (
     <View className="gap-2">
@@ -58,26 +59,27 @@ export function NotesList({
                   color={selected ? selectedColor : noteTheme.mutedForeground}
                 />
               ) : null}
-              <Text
-                numberOfLines={1}
-                variant="small"
+              <Animated.View
                 className="min-w-0 flex-1"
-                style={{ color: noteTheme.foreground }}>
-                {note.title}
-              </Text>
-              {note.isFavorite ? (
-                <Icon as={Star} className="size-3.5" color={noteTheme.mutedForeground} />
-              ) : null}
+                sharedTransitionTag={`note-title-${note.id}`}>
+                <Text numberOfLines={1} variant="small" style={{ color: noteTheme.foreground }}>
+                  {note.title}
+                </Text>
+              </Animated.View>
               {mode === 'normal' ? (
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={`Open actions for ${note.title || 'note'}`}
+                  accessibilityLabel={`${note.isFavorite ? 'Unpin' : 'Pin'} ${note.title || 'note'}`}
                   hitSlop={8}
                   onPress={(event) => {
                     event.stopPropagation();
-                    onNoteMenuPress(note);
+                    onNotePinPress(note);
                   }}>
-                  <Icon as={MoreVertical} className="size-4" color={noteTheme.mutedForeground} />
+                  <Icon
+                    as={Pin}
+                    className="size-4"
+                    color={note.isFavorite ? selectedColor : noteTheme.mutedForeground}
+                  />
                 </Pressable>
               ) : null}
             </Card>

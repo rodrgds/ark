@@ -9,14 +9,15 @@ import { Text } from '@/components/ui/text';
 import { useAppHeaderActions } from '@/components/layout/app-header-actions';
 import { BATTERY_POLL_INTERVALS_MS } from '@/constants/battery';
 import { useBatteryReduceMode } from '@/hooks/use-battery-reduce-mode';
+import { useArkTextToSpeech } from '@/hooks/use-ark-text-to-speech';
 import { NAV_THEME } from '@/lib/theme';
 import { AIService, isAiRequestCancelledError } from '@/services/ai/ai.service';
 import { ModelManagerService } from '@/services/ai/model-manager.service';
 import { normalizeReasoningOutput } from '@/services/ai/reasoning-normalizer';
-import { VoiceTranscriptionService } from '@/services/ai/voice-transcription.service';
 import { useThemeStore } from '@/stores/theme-store';
 import type { AiCitation, AiMessage, AiProgressEvent } from '@/types/ai';
 import type { ContentPack } from '@/types/content';
+import { AudioContext } from 'react-native-audio-api';
 import {
   AudioQuality,
   IOSOutputFormat,
@@ -28,19 +29,24 @@ import {
   type RecordingOptions,
 } from 'expo-audio';
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
+import { FSMN_VAD, useSpeechToText, useVAD, WHISPER_TINY } from 'react-native-executorch';
 import {
   Brain,
+  BookOpen,
   Bot,
   ChevronDown,
   Check,
   ExternalLink,
   Mic,
+  NotebookPen,
   Plus,
   Search,
   Send,
   Square,
   StopCircle,
   Trash2,
+  Volume2,
+  VolumeX,
 } from 'lucide-react-native';
 import * as React from 'react';
 import {
@@ -322,10 +328,14 @@ function MessageBubble({
   message,
   activityMessages = [],
   onDeleteUserMessage,
+  onSpeakAssistant,
+  speaking,
 }: {
   message: AiMessage;
   activityMessages?: AiMessage[];
   onDeleteUserMessage: (message: AiMessage) => void;
+  onSpeakAssistant?: (message: AiMessage) => void;
+  speaking?: boolean;
 }) {
   if (message.role === 'tool') {
     return null;
@@ -344,11 +354,22 @@ function MessageBubble({
           ? 'max-w-[92%] gap-2 rounded-lg'
           : 'bg-primary max-w-[92%] gap-2 rounded-lg border-transparent'
       }>
-      <Text
-        variant="small"
-        className={assistant ? 'text-primary uppercase' : 'text-primary-foreground uppercase'}>
-        {assistant ? 'Arky' : 'You'}
-      </Text>
+      <View className="flex-row items-center justify-between gap-3">
+        <Text
+          variant="small"
+          className={assistant ? 'text-primary uppercase' : 'text-primary-foreground uppercase'}>
+          {assistant ? 'Arky' : 'You'}
+        </Text>
+        {assistant && onSpeakAssistant ? (
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7"
+            onPress={() => onSpeakAssistant(message)}>
+            <Icon as={speaking ? VolumeX : Volume2} className="size-4" />
+          </Button>
+        ) : null}
+      </View>
       {assistant ? (
         <>
           <MarkdownText>{displayContent}</MarkdownText>
@@ -470,34 +491,35 @@ function FloatingComposer({
   value,
   disabled,
   errorMessage,
-  voiceReady,
-  voiceStatusMessage,
   keyboardVisible,
   showPrompts,
   onChangeText,
   onDismissError,
   onVoiceError,
   onKeyboardVisibleChange,
+  onAddContextPress,
   onPromptPress,
   onSubmit,
 }: {
   value: string;
   disabled: boolean;
   errorMessage?: string | null;
-  voiceReady: boolean;
-  voiceStatusMessage?: string;
   keyboardVisible: boolean;
   showPrompts: boolean;
   onChangeText: (text: string) => void;
   onDismissError: () => void;
   onVoiceError: (message: string) => void;
   onKeyboardVisibleChange: (visible: boolean) => void;
+  onAddContextPress: () => void;
   onPromptPress: (prompt: string) => void;
   onSubmit: () => void;
 }) {
   const inputRef = React.useRef<TextInput>(null);
   const recorder = useAudioRecorder(VOICE_RECORDING_OPTIONS);
   const recorderState = useAudioRecorderState(recorder, 250);
+  const speechToText = useSpeechToText({ model: WHISPER_TINY });
+  const voiceActivity = useVAD({ model: FSMN_VAD });
+  const speechAudioContextRef = React.useRef<AudioContext | null>(null);
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
   const theme = useThemeStore((state) => state.effectiveTheme);
@@ -509,6 +531,21 @@ function FloatingComposer({
   const keyboardOffset = useSharedValue(0);
   const hasText = value.length > 0;
   const expanded = inputHeight > COMPOSER_HEIGHT + 8;
+
+  React.useEffect(
+    () => () => {
+      void speechAudioContextRef.current?.close().catch(() => undefined);
+      speechAudioContextRef.current = null;
+    },
+    []
+  );
+
+  const getSpeechAudioContext = React.useCallback(() => {
+    if (!speechAudioContextRef.current) {
+      speechAudioContextRef.current = new AudioContext({ sampleRate: 16000 });
+    }
+    return speechAudioContextRef.current;
+  }, []);
 
   const calculateKeyboardOffset = React.useCallback(
     (
@@ -648,17 +685,17 @@ function FloatingComposer({
         onVoiceError('Microphone permission is required for voice input.');
         return;
       }
-      if (Platform.OS === 'android') {
-        setVoiceState('transcribing');
-        const transcript = await VoiceTranscriptionService.transcribeWithAndroidSpeech();
-        onChangeText(transcript);
-        requestAnimationFrame(() => inputRef.current?.focus());
-        setVoiceState('idle');
+      if (!speechToText.isReady) {
+        onVoiceError(
+          speechToText.error?.message ??
+            `Voice transcription model is loading${speechToText.downloadProgress > 0 ? ` (${Math.round(speechToText.downloadProgress * 100)}%)` : ''}.`
+        );
         return;
       }
-      if (!voiceReady) {
+      if (!voiceActivity.isReady) {
         onVoiceError(
-          voiceStatusMessage ?? 'Download a voice model in Settings > AI before using voice input.'
+          voiceActivity.error?.message ??
+            `Voice activity model is loading${voiceActivity.downloadProgress > 0 ? ` (${Math.round(voiceActivity.downloadProgress * 100)}%)` : ''}.`
         );
         return;
       }
@@ -685,8 +722,14 @@ function FloatingComposer({
       await setAudioModeAsync({ allowsRecording: false });
       const uri = recorder.uri ?? recorderState.url;
       if (!uri) throw new Error('No voice recording was saved.');
-      const transcript = await VoiceTranscriptionService.transcribeAudio(uri);
-      onChangeText(transcript);
+      const audioContext = getSpeechAudioContext();
+      const decodedAudio = await audioContext.decodeAudioData(uri);
+      const waveform = decodedAudio.getChannelData(0);
+      const speechSegments = await voiceActivity.forward(waveform);
+      const speechWaveform = sliceVoiceActivity(waveform, speechSegments);
+      if (!speechWaveform) throw new Error('No speech was detected in the recording.');
+      const transcript = await speechToText.transcribe(speechWaveform);
+      onChangeText(transcript.text.trim());
       requestAnimationFrame(() => inputRef.current?.focus());
     } catch (voiceError) {
       onVoiceError(
@@ -744,7 +787,7 @@ function FloatingComposer({
         <AnimatedPressable
           accessibilityRole="button"
           disabled={!keyboardVisible}
-          onPress={() => undefined}
+          onPress={onAddContextPress}
           style={[styles.detachedPlusButton, detachedPlusStyle]}>
           <Icon as={Plus} className="text-foreground size-5" />
         </AnimatedPressable>
@@ -758,9 +801,12 @@ function FloatingComposer({
               minHeight: inputHeight,
             },
           ]}>
-          <Animated.View style={[styles.embeddedPlus, embeddedPlusStyle]}>
+          <AnimatedPressable
+            accessibilityRole="button"
+            onPress={onAddContextPress}
+            style={[styles.embeddedPlus, embeddedPlusStyle]}>
             <Icon as={Plus} className="text-foreground size-5" />
-          </Animated.View>
+          </AnimatedPressable>
           <TextInput
             ref={inputRef}
             value={value}
@@ -837,25 +883,35 @@ function FloatingComposer({
   );
 }
 
+function sliceVoiceActivity(
+  waveform: Float32Array,
+  segments: Array<{ start: number; end: number }>
+) {
+  const usableSegments = segments.filter((segment) => segment.end - segment.start >= 0.18);
+  if (!usableSegments.length) return null;
+  const first = usableSegments[0];
+  const last = usableSegments[usableSegments.length - 1];
+  const sampleRate = 16000;
+  const start = Math.max(0, Math.floor((first.start - 0.2) * sampleRate));
+  const end = Math.min(waveform.length, Math.ceil((last.end + 0.35) * sampleRate));
+  if (end <= start) return null;
+  return waveform.slice(start, end);
+}
+
 export default function ChatScreen() {
   const { threadId: routeThreadId } = useLocalSearchParams<{ threadId?: string }>();
   const navigation = useNavigation();
   const reduceModeEnabled = useBatteryReduceMode();
+  const speechPlayback = useArkTextToSpeech();
   const initialThreadId = routeThreadId && routeThreadId !== 'new' ? routeThreadId : undefined;
   const [threadId, setThreadId] = React.useState<string | undefined>(initialThreadId);
   const [messages, setMessages] = React.useState<AiMessage[]>([]);
   const [content, setContent] = React.useState('');
   const [installedModels, setInstalledModels] = React.useState<ContentPack[]>([]);
-  const [installedEmbeddingModels, setInstalledEmbeddingModels] = React.useState<ContentPack[]>([]);
-  const [installedVoiceModels, setInstalledVoiceModels] = React.useState<ContentPack[]>([]);
   const [activeModel, setActiveModel] = React.useState<ContentPack | null>(null);
   const [modelDisabled, setModelDisabled] = React.useState(false);
-  const [activeEmbeddingModel, setActiveEmbeddingModel] = React.useState<ContentPack | null>(null);
-  const [activeVoiceModel, setActiveVoiceModel] = React.useState<ContentPack | null>(null);
-  const [voiceStatus, setVoiceStatus] = React.useState<Awaited<
-    ReturnType<typeof ModelManagerService.getVoiceStatus>
-  > | null>(null);
   const [modelInfoOpen, setModelInfoOpen] = React.useState(false);
+  const [contextSheetOpen, setContextSheetOpen] = React.useState(false);
   const [clearConfirmOpen, setClearConfirmOpen] = React.useState(false);
   const [deleteConfirmMessage, setDeleteConfirmMessage] = React.useState<AiMessage | null>(null);
   const [sending, setSending] = React.useState(false);
@@ -867,6 +923,7 @@ export default function ChatScreen() {
   const [olderLoading, setOlderLoading] = React.useState(false);
   const [hasOlderMessages, setHasOlderMessages] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [speakingMessageId, setSpeakingMessageId] = React.useState<string | null>(null);
   const [keyboardVisible, setKeyboardVisible] = React.useState(false);
   const sendRunIdRef = React.useRef(0);
   const flatListRef = React.useRef<FlatList>(null);
@@ -906,23 +963,9 @@ export default function ChatScreen() {
   }, [keyboardVisible, scrollToBottom]);
 
   const refreshModels = React.useCallback(async () => {
-    const [
-      models,
-      embeddingModels,
-      voiceModels,
-      globalModel,
-      embeddingModel,
-      voiceModel,
-      nextVoiceStatus,
-      preferences,
-    ] = await Promise.all([
+    const [models, globalModel, preferences] = await Promise.all([
       ModelManagerService.listInstalledChatModels(),
-      ModelManagerService.listInstalledEmbeddingModels(),
-      ModelManagerService.listInstalledVoiceModels(),
       ModelManagerService.getActiveModel(),
-      ModelManagerService.getActiveEmbeddingModel(),
-      ModelManagerService.getActiveVoiceModel(),
-      ModelManagerService.getVoiceStatus(),
       ModelManagerService.getPreferences(),
     ]);
     let nextModel = globalModel;
@@ -937,12 +980,7 @@ export default function ChatScreen() {
       }
     }
     setInstalledModels(models);
-    setInstalledEmbeddingModels(embeddingModels);
-    setInstalledVoiceModels(voiceModels);
     setActiveModel(nextModel);
-    setActiveEmbeddingModel(embeddingModel);
-    setActiveVoiceModel(voiceModel);
-    setVoiceStatus(nextVoiceStatus);
     setModelDisabled(nextDisabled);
   }, [threadId]);
 
@@ -1136,23 +1174,34 @@ export default function ChatScreen() {
     setModelDisabled(true);
   }
 
-  async function selectEmbeddingModel(model: ContentPack) {
-    await ModelManagerService.setSelectedEmbeddingModel(model.id);
-    setActiveEmbeddingModel(model);
-  }
+  const speakAssistantMessage = React.useCallback(
+    async (message: AiMessage) => {
+      if (speakingMessageId === message.id) {
+        speechPlayback.stop();
+        setSpeakingMessageId(null);
+        return;
+      }
+      setError(null);
+      setSpeakingMessageId(message.id);
+      try {
+        await speechPlayback.speak(normalizeReasoningOutput(message.content).content);
+      } catch (speechError) {
+        setError(
+          speechError instanceof Error ? speechError.message : 'Unable to play this response.'
+        );
+      } finally {
+        setSpeakingMessageId(null);
+      }
+    },
+    [speakingMessageId, speechPlayback]
+  );
 
-  async function selectVoiceModel(model: ContentPack) {
-    await ModelManagerService.setSelectedVoiceModel(model.id);
-    setActiveVoiceModel(model);
-    setVoiceStatus(await ModelManagerService.getVoiceStatus());
-  }
-
-  function confirmClear() {
+  const confirmClear = React.useCallback(() => {
     if (!threadId) return;
     Keyboard.dismiss();
     setKeyboardVisible(false);
     setClearConfirmOpen(true);
-  }
+  }, [threadId]);
 
   React.useEffect(() => {
     navigation.setOptions({
@@ -1247,6 +1296,8 @@ export default function ChatScreen() {
                 message={item.item.message}
                 activityMessages={item.item.activityMessages}
                 onDeleteUserMessage={setDeleteConfirmMessage}
+                onSpeakAssistant={speakAssistantMessage}
+                speaking={speakingMessageId === item.item.message.id}
               />
             )
           }
@@ -1278,17 +1329,42 @@ export default function ChatScreen() {
         value={content}
         disabled={sending}
         errorMessage={error}
-        voiceReady={!!voiceStatus?.ready}
-        voiceStatusMessage={voiceStatus?.message}
         keyboardVisible={keyboardVisible}
         showPrompts={emptyThread && !keyboardVisible}
         onChangeText={setContent}
         onDismissError={() => setError(null)}
         onVoiceError={setError}
         onKeyboardVisibleChange={setKeyboardVisible}
+        onAddContextPress={() => setContextSheetOpen(true)}
         onPromptPress={setContent}
         onSubmit={() => void send()}
       />
+
+      <ArkBottomSheet
+        visible={contextSheetOpen}
+        title="Add context"
+        onDismiss={() => setContextSheetOpen(false)}>
+        <Button
+          variant="ghost"
+          className="h-11 justify-start px-2"
+          onPress={() => {
+            setContextSheetOpen(false);
+            router.push('/(tabs)/library' as never);
+          }}>
+          <Icon as={BookOpen} className="size-4" />
+          <Text>Library</Text>
+        </Button>
+        <Button
+          variant="ghost"
+          className="h-11 justify-start px-2"
+          onPress={() => {
+            setContextSheetOpen(false);
+            router.push('/(tabs)/notes' as never);
+          }}>
+          <Icon as={NotebookPen} className="size-4" />
+          <Text>Notes</Text>
+        </Button>
+      </ArkBottomSheet>
 
       <ConfirmModal
         visible={clearConfirmOpen}
@@ -1314,7 +1390,7 @@ export default function ChatScreen() {
       <ArkBottomSheet
         visible={modelInfoOpen}
         title="AI model settings"
-        description="Choose answer, source search, and voice models."
+        description="Choose an answer model. Source search uses built-in ExecuTorch embeddings."
         onDismiss={() => setModelInfoOpen(false)}
         scrollable
         maxDynamicContentSize={620}>
@@ -1350,61 +1426,11 @@ export default function ChatScreen() {
         <View className="mt-4 gap-2">
           <View className="flex-row items-center gap-2">
             <Icon as={Search} className="text-primary size-5" />
-            <Text variant="large">Source search model</Text>
+            <Text variant="large">Source search</Text>
           </View>
-          <ModelChoice
-            title="Ark hash fallback"
-            description="Built-in deterministic source matching. No model download required."
-            active={!activeEmbeddingModel}
-            icon={Search}
-            onPress={() =>
-              void ModelManagerService.setSelectedEmbeddingModel(null).then(() =>
-                setActiveEmbeddingModel(null)
-              )
-            }
-          />
-          {installedEmbeddingModels.map((model) => (
-            <ModelChoice
-              key={model.id}
-              title={model.title}
-              description={model.description ?? 'Installed local source-search model.'}
-              active={activeEmbeddingModel?.id === model.id}
-              icon={Search}
-              onPress={() => void selectEmbeddingModel(model)}
-            />
-          ))}
-          {!installedEmbeddingModels.length ? (
-            <Text variant="muted" className="px-1 py-2">
-              Download a source search model in Settings to improve local retrieval.
-            </Text>
-          ) : null}
-        </View>
-
-        <View className="mt-4 gap-2">
-          <View className="flex-row items-center gap-2">
-            <Icon as={Mic} className="text-primary size-5" />
-            <Text variant="large">Voice AI</Text>
-          </View>
-          {installedVoiceModels.map((model) => (
-            <ModelChoice
-              key={model.id}
-              title={model.title}
-              description={model.description ?? 'Installed local voice transcription model.'}
-              active={activeVoiceModel?.id === model.id}
-              icon={Mic}
-              onPress={() => void selectVoiceModel(model)}
-            />
-          ))}
-          {!installedVoiceModels.length ? (
-            <Text variant="muted" className="px-1 py-2">
-              Download a voice model in Settings to dictate Ask Arky prompts offline.
-            </Text>
-          ) : null}
-          {voiceStatus ? (
-            <Text variant="muted" className="px-1">
-              {voiceStatus.message}
-            </Text>
-          ) : null}
+          <Text variant="muted" className="px-1 py-2">
+            Ark uses the built-in ExecuTorch multi-qa MiniLM embedding model for local retrieval.
+          </Text>
         </View>
       </ArkBottomSheet>
     </View>

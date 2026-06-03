@@ -39,6 +39,7 @@ let mockLastKnownLocation: MockLocationObject | null = null;
 let mockCurrentLocation: MockLocationObject | null = null;
 let mockCurrentLocationError: Error | null = null;
 let mockNetworkState = { type: 'wifi', isConnected: true, isInternetReachable: true };
+let mockExecutorchEmbeddingsAvailable = true;
 
 type MockLocationObject = {
   coords: {
@@ -270,6 +271,30 @@ mock.module('@react-native-ai/llama', () => ({
       createMockAiSdkLanguageModel(modelPath, options),
     textEmbeddingModel: (modelPath: string, options?: unknown) =>
       createMockAiSdkEmbeddingModel(modelPath, options),
+  },
+}));
+
+mock.module('react-native-executorch', () => ({
+  MULTI_QA_MINILM_L6_COS_V1: {
+    modelName: 'multi-qa-minilm-l6-cos-v1',
+    modelSource: 'https://example.test/multi-qa-minilm.pte',
+    tokenizerSource: 'https://example.test/tokenizer.json',
+  },
+  TextEmbeddingsModule: class MockTextEmbeddingsModule {
+    static async fromModelName() {
+      if (!mockExecutorchEmbeddingsAvailable) {
+        throw new Error('ExecuTorch unavailable');
+      }
+      return new MockTextEmbeddingsModule();
+    }
+
+    async forward(text: string) {
+      return Float32Array.from({ length: 384 }, (_, index) =>
+        text.toLowerCase().includes('water') && index === 0 ? 1 : index === 1 ? 0.5 : 0
+      );
+    }
+
+    delete() {}
   },
 }));
 
@@ -543,6 +568,7 @@ beforeEach(async () => {
   mockLastKnownLocation = null;
   mockCurrentLocation = null;
   mockCurrentLocationError = null;
+  mockExecutorchEmbeddingsAvailable = true;
   mockNetworkState = { type: 'wifi', isConnected: true, isInternetReachable: true };
   delete process.env.EXPO_PUBLIC_ARK_MAP_CATALOG_URL;
   globalThis.fetch = (async (input: RequestInfo | URL) => {
@@ -704,8 +730,8 @@ describe('service integration', () => {
        WHERE s.source_ref = ? AND c.chunk_index = 2`,
       ['hesperian-first-aid']
     );
-    expect(embeddedChunk?.embedding_model_id).toBe(RAG_HASH_EMBEDDING_MODEL_ID);
-    expect(embeddedChunk?.embedding_blob?.byteLength).toBe(RAG_HASH_EMBEDDING_DIMENSIONS * 4);
+    expect(embeddedChunk?.embedding_model_id).toBe('executorch-multi-qa-minilm-l6-cos-v1');
+    expect(embeddedChunk?.embedding_blob?.byteLength).toBe(384 * 4);
   });
 
   test('installed HTML snapshot packs are indexed from their downloaded body text', async () => {
@@ -1873,65 +1899,39 @@ describe('service integration', () => {
     );
   });
 
-  test('custom model URLs can be registered as search models without entering chat selection', async () => {
-    const customSearchModel = await ContentPackService.addModelUrl({
+  test('custom search model URLs are rejected because ExecuTorch owns source search', async () => {
+    await expect(ContentPackService.addModelUrl({
       title: 'Custom Nomic Search',
       sourceUrl: 'https://example.test/custom-nomic.gguf',
       modelRole: 'embedding',
       checksum: '1111111111111111111111111111111111111111111111111111111111111111',
-    });
+    })).rejects.toThrow('built-in ExecuTorch embeddings');
     const customChatModel = await ContentPackService.addModelUrl({
       title: 'Custom Field Chat',
       sourceUrl: 'https://example.test/custom-chat.gguf',
       modelRole: 'chat',
     });
 
-    expect(customSearchModel?.modelRole).toBe('embedding');
     expect(customChatModel?.modelRole).toBe('chat');
-    expect(
-      (await ModelManagerService.listAvailableEmbeddingModels()).map((model) => model.id)
-    ).toContain(customSearchModel?.id);
+    expect(await ModelManagerService.listAvailableEmbeddingModels()).toEqual([]);
     expect(
       (await ModelManagerService.listAvailableChatModels()).map((model) => model.id)
     ).toContain(customChatModel?.id);
-    expect(
-      (await ModelManagerService.listAvailableChatModels()).map((model) => model.id)
-    ).not.toContain(customSearchModel?.id);
-    await expect(ModelManagerService.setSelectedModel(customSearchModel!.id)).rejects.toThrow(
-      'Choose a chat model'
-    );
   });
 
-  test('imported local search models stay out of chat selection', async () => {
+  test('imported local search models are rejected because source search is built in', async () => {
     mockPickedDocument = {
       name: 'local-nomic.gguf',
       uri: 'file:///picker/local-nomic.gguf',
       size: 1024,
     };
 
-    const imported = await ContentPackService.importLocalModel('embedding');
-
-    expect(imported?.modelRole).toBe('embedding');
-    expect(
-      (await ModelManagerService.listAvailableEmbeddingModels()).map((model) => model.id)
-    ).toContain(imported?.id);
-    expect(
-      (await ModelManagerService.listAvailableChatModels()).map((model) => model.id)
-    ).not.toContain(imported?.id);
+    await expect(ContentPackService.importLocalModel('embedding')).rejects.toThrow(
+      'built-in ExecuTorch embeddings'
+    );
   });
 
-  test('RAG uses installed embedding packs without selecting them for chat', async () => {
-    await ContentRepository.createPack({
-      id: 'embedding-nomic-v15-q4-k-m',
-      title: 'Nomic Embed Text v1.5 Q4_K_M',
-      description: 'Installed embedding model for retrieval.',
-      category: 'AI Models',
-      format: 'gguf',
-      localUri: 'file:///ark/models/nomic.gguf',
-      installed: true,
-      installStatus: 'installed',
-      progress: 1,
-    });
+  test('RAG uses the built-in ExecuTorch text embedding model', async () => {
     resetEmbeddingServiceForTests();
     resetLlamaAdapterForTests();
 
@@ -1952,8 +1952,8 @@ describe('service integration', () => {
        WHERE s.source_ref = ?`,
       [note.id]
     );
-    expect(embeddedChunk?.embedding_model_id).toBe('embedding-nomic-v15-q4-k-m');
-    expect(embeddedChunk?.embedding_blob?.byteLength).toBe(256 * 4);
+    expect(embeddedChunk?.embedding_model_id).toBe('executorch-multi-qa-minilm-l6-cos-v1');
+    expect(embeddedChunk?.embedding_blob?.byteLength).toBe(384 * 4);
 
     const status = await ModelManagerService.getStatus();
     expect(status.adapter).toBe('mock');

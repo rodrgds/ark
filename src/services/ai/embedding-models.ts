@@ -2,31 +2,25 @@ import type { ContentPack } from '@/types/content';
 
 export type EmbeddingModelConfig = {
   id: string;
-  family: 'nomic' | 'qwen3' | 'ark-hash';
-  dimension: 256 | 768 | 1024;
+  family: 'executorch' | 'ark-hash';
+  dimension: 256 | 384;
   distance: 'cosine';
   queryPrefix: string;
   documentPrefix: string;
   normalize: boolean;
 };
 
+export const EXECUTORCH_TEXT_EMBEDDING_MODEL_ID = 'executorch-multi-qa-minilm-l6-cos-v1';
+export const EXECUTORCH_TEXT_EMBEDDING_DIMENSIONS = 384;
+export const EXECUTORCH_TEXT_EMBEDDING_TITLE = 'ExecuTorch multi-qa MiniLM source search';
+
 export const EMBEDDING_MODEL_CONFIGS: Record<string, EmbeddingModelConfig> = {
-  'embedding-nomic-v15-q4-k-m': {
-    id: 'embedding-nomic-v15-q4-k-m',
-    family: 'nomic',
-    dimension: 256,
+  [EXECUTORCH_TEXT_EMBEDDING_MODEL_ID]: {
+    id: EXECUTORCH_TEXT_EMBEDDING_MODEL_ID,
+    family: 'executorch',
+    dimension: EXECUTORCH_TEXT_EMBEDDING_DIMENSIONS,
     distance: 'cosine',
-    queryPrefix: 'search_query: ',
-    documentPrefix: 'search_document: ',
-    normalize: true,
-  },
-  'embedding-qwen3-06b-q8': {
-    id: 'embedding-qwen3-06b-q8',
-    family: 'qwen3',
-    dimension: 1024,
-    distance: 'cosine',
-    queryPrefix:
-      'Instruct: Given a user question, retrieve relevant Ark offline knowledge.\nQuery: ',
+    queryPrefix: '',
     documentPrefix: '',
     normalize: true,
   },
@@ -38,15 +32,8 @@ export function isEmbeddingModelPack(pack: Pick<ContentPack, 'id' | 'title' | 'm
 }
 
 export function getEmbeddingModelConfig(pack?: Pick<ContentPack, 'id' | 'title'> | null) {
-  if (!pack) return null;
+  if (!pack) return EMBEDDING_MODEL_CONFIGS[EXECUTORCH_TEXT_EMBEDDING_MODEL_ID];
   const known = EMBEDDING_MODEL_CONFIGS[pack.id];
   if (known) return known;
-  const title = pack.title.toLowerCase();
-  if (title.includes('qwen')) {
-    return { ...EMBEDDING_MODEL_CONFIGS['embedding-qwen3-06b-q8'], id: pack.id };
-  }
-  if (title.includes('nomic')) {
-    return { ...EMBEDDING_MODEL_CONFIGS['embedding-nomic-v15-q4-k-m'], id: pack.id };
-  }
   return null;
 }

@@ -22,7 +22,7 @@ import { PreferencesService } from '@/services/preferences/preferences.service';
 import { DiagnosticsService } from '@/services/sensors/diagnostics.service';
 import { VaultService } from '@/services/security/vault.service';
 import { useThemeStore } from '@/stores/theme-store';
-import type { ContentModelRole, ContentPack } from '@/types/content';
+import type { ContentPack } from '@/types/content';
 import type { DownloadRow } from '@/types/downloads';
 import type { MapRegion } from '@/types/maps';
 import type { DiagnosticReport } from '@/types/sensors';
@@ -70,11 +70,6 @@ export default function SettingsScreen() {
   const [availableModels, setAvailableModels] = React.useState<ContentPack[]>([]);
   const [installedModels, setInstalledModels] = React.useState<ContentPack[]>([]);
   const [activeModel, setActiveModel] = React.useState<ContentPack | null>(null);
-  const [activeEmbeddingModel, setActiveEmbeddingModel] = React.useState<ContentPack | null>(null);
-  const [activeVoiceModel, setActiveVoiceModel] = React.useState<ContentPack | null>(null);
-  const [voiceStatus, setVoiceStatus] = React.useState<Awaited<
-    ReturnType<typeof ModelManagerService.getVoiceStatus>
-  > | null>(null);
   const [embeddingIndexStatus, setEmbeddingIndexStatus] = React.useState<Awaited<
     ReturnType<typeof ModelManagerService.getEmbeddingIndexStatus>
   > | null>(null);
@@ -95,19 +90,10 @@ export default function SettingsScreen() {
   const [modelTitle, setModelTitle] = React.useState('');
   const [modelUrl, setModelUrl] = React.useState('');
   const [modelChecksum, setModelChecksum] = React.useState('');
-  const [customModelRole, setCustomModelRole] = React.useState<ContentModelRole>('chat');
   const buildTapTimesRef = React.useRef<number[]>([]);
 
   const chatModels = React.useMemo(
     () => availableModels.filter((model) => model.modelRole === 'chat'),
-    [availableModels]
-  );
-  const embeddingModels = React.useMemo(
-    () => availableModels.filter((model) => model.modelRole === 'embedding'),
-    [availableModels]
-  );
-  const voiceModels = React.useMemo(
-    () => availableModels.filter((model) => model.modelRole === 'voice'),
     [availableModels]
   );
   async function load() {
@@ -125,9 +111,6 @@ export default function SettingsScreen() {
       nextAvailableModels,
       nextInstalledModels,
       nextActiveModel,
-      nextActiveEmbeddingModel,
-      nextActiveVoiceModel,
-      nextVoiceStatus,
       nextEmbeddingIndexStatus,
     ] = await Promise.all([
       SettingsRepository.getVaultState(),
@@ -142,9 +125,6 @@ export default function SettingsScreen() {
       ModelManagerService.listAvailableModels(),
       ModelManagerService.listInstalledChatModels(),
       ModelManagerService.getActiveModel(),
-      ModelManagerService.getActiveEmbeddingModel(),
-      ModelManagerService.getActiveVoiceModel(),
-      ModelManagerService.getVoiceStatus(),
       ModelManagerService.getEmbeddingIndexStatus(),
     ]);
     setAutoLock(vault.autoLockMinutes);
@@ -160,9 +140,6 @@ export default function SettingsScreen() {
     setAvailableModels(nextAvailableModels);
     setInstalledModels(nextInstalledModels);
     setActiveModel(nextActiveModel);
-    setActiveEmbeddingModel(nextActiveEmbeddingModel);
-    setActiveVoiceModel(nextActiveVoiceModel);
-    setVoiceStatus(nextVoiceStatus);
     setEmbeddingIndexStatus(nextEmbeddingIndexStatus);
   }
 
@@ -266,23 +243,11 @@ export default function SettingsScreen() {
     setModelStatus(await ModelManagerService.getStatus());
   }
 
-  async function selectEmbeddingModel(model: ContentPack) {
-    await ModelManagerService.setSelectedEmbeddingModel(model.id);
-    setActiveEmbeddingModel(model);
-    setEmbeddingIndexStatus(await ModelManagerService.getEmbeddingIndexStatus());
-  }
-
-  async function selectVoiceModel(model: ContentPack) {
-    await ModelManagerService.setSelectedVoiceModel(model.id);
-    setActiveVoiceModel(model);
-    setVoiceStatus(await ModelManagerService.getVoiceStatus());
-  }
-
   async function importLocalModel() {
     setBusy('model-import');
     setAiMessage(null);
     try {
-      await ContentPackService.importLocalModel(customModelRole);
+      await ContentPackService.importLocalModel('chat');
       await load();
     } catch (modelError) {
       setAiMessage(modelError instanceof Error ? modelError.message : 'Unable to import model.');
@@ -298,7 +263,7 @@ export default function SettingsScreen() {
       await ContentPackService.addModelUrl({
         title: modelTitle,
         sourceUrl: modelUrl,
-        modelRole: customModelRole,
+        modelRole: 'chat',
         checksum: modelChecksum,
       });
       setModelTitle('');
@@ -327,8 +292,6 @@ export default function SettingsScreen() {
       } else if (model.installed) {
         if (model.modelRole === 'chat') {
           await selectModel(model);
-        } else if (model.modelRole === 'voice') {
-          await selectVoiceModel(model);
         }
       } else {
         await ContentPackService.installPackWithCompanions(model.id);
@@ -450,9 +413,6 @@ export default function SettingsScreen() {
       await ContentPackService.removePack(model.id);
       if (activeModel?.id === model.id) {
         await ModelManagerService.setSelectedModel(null);
-      }
-      if (activeVoiceModel?.id === model.id) {
-        await ModelManagerService.setSelectedVoiceModel(null);
       }
       await load();
     } catch (modelError) {
@@ -706,11 +666,7 @@ export default function SettingsScreen() {
             <View className="bg-muted/40 gap-1 rounded-md px-3 py-3">
               <Text variant="small">Answer models installed: {installedModels.length}</Text>
               <Text variant="small">
-                Source search models installed:{' '}
-                {embeddingModels.filter((model) => model.installed).length}
-              </Text>
-              <Text variant="small">
-                Voice models installed: {voiceModels.filter((model) => model.installed).length}
+                Source search: ExecuTorch multi-qa MiniLM
               </Text>
               <Text variant="muted">
                 Current answer model:{' '}
@@ -720,12 +676,7 @@ export default function SettingsScreen() {
                     ? 'Source search only'
                     : 'None installed'}
               </Text>
-              <Text variant="muted">
-                Current source search model: {activeEmbeddingModel?.title ?? 'Ark hash fallback'}
-              </Text>
-              <Text variant="muted">
-                Current voice model: {activeVoiceModel?.title ?? 'None installed'}
-              </Text>
+              <Text variant="muted">Current source search model: built-in mobile embeddings</Text>
             </View>
           </Card>
 
@@ -733,7 +684,8 @@ export default function SettingsScreen() {
             <View className="gap-1">
               <Text variant="large">Add your own model</Text>
               <Text variant="muted">
-                Import a GGUF file you already have, or save a custom download URL for later.
+                Import a GGUF answer model you already have, or save a custom download URL for
+                later.
               </Text>
             </View>
             <Button
@@ -748,18 +700,6 @@ export default function SettingsScreen() {
               <Text>Import GGUF file</Text>
             </Button>
             <View className="gap-2">
-              <View className="border-border bg-muted/20 flex-row rounded-md border p-1">
-                {(['chat', 'embedding'] as const).map((role) => (
-                  <Button
-                    key={role}
-                    className="flex-1"
-                    size="sm"
-                    variant={customModelRole === role ? 'default' : 'ghost'}
-                    onPress={() => setCustomModelRole(role)}>
-                    <Text>{role === 'chat' ? 'Answer' : 'Search'}</Text>
-                  </Button>
-                ))}
-              </View>
               <Input value={modelTitle} onChangeText={setModelTitle} placeholder="Model name" />
               <Input
                 value={modelUrl}
@@ -784,12 +724,12 @@ export default function SettingsScreen() {
                 ) : (
                   <Icon as={Bot} className="size-4" />
                 )}
-                <Text>{customModelRole === 'chat' ? 'Add answer URL' : 'Add search URL'}</Text>
+                <Text>Add answer URL</Text>
               </Button>
             </View>
             <Text variant="small" className="text-muted-foreground">
-              Choose Answer for Ask Arky replies or Search for local source matching before
-              importing a file or adding a URL.
+              Source search uses built-in Ark ExecuTorch embeddings; custom GGUF imports are for
+              Ask Arky answer-writing models.
             </Text>
           </Card>
 
@@ -802,48 +742,6 @@ export default function SettingsScreen() {
             onPrimaryAction={runModelAction}
             onRemove={removeModel}
           />
-
-          <ModelSection
-            title="Source search models"
-            description="These help Ark find relevant notes, documents, guides, and Wikipedia articles."
-            models={embeddingModels}
-            activeModelId={activeEmbeddingModel?.id ?? null}
-            busy={busy}
-            onPrimaryAction={async (model) => {
-              if (model.installed) await selectEmbeddingModel(model);
-              else await runModelAction(model);
-            }}
-            onRemove={removeModel}
-          />
-
-          <ModelSection
-            title="Voice AI models"
-            description="These transcribe microphone prompts locally before Ask Arky sends them."
-            models={voiceModels}
-            activeModelId={activeVoiceModel?.id ?? null}
-            busy={busy}
-            onPrimaryAction={async (model) => {
-              if (model.installed) await selectVoiceModel(model);
-              else await runModelAction(model);
-            }}
-            onRemove={removeModel}
-          />
-
-          {voiceStatus ? (
-            <Card className="gap-2">
-              <View className="flex-row items-center gap-2">
-                <Icon as={Bot} className="text-primary size-4" />
-                <Text variant="large">Voice transcription</Text>
-              </View>
-              <Text variant="muted">{voiceStatus.message}</Text>
-              {voiceStatus.projector ? (
-                <Text variant="small" className="text-muted-foreground">
-                  Projector: {voiceStatus.projector.title}{' '}
-                  {voiceStatus.installedProjector ? 'installed' : 'not installed'}
-                </Text>
-              ) : null}
-            </Card>
-          ) : null}
 
           <EmbeddingIndexCard status={embeddingIndexStatus} />
 

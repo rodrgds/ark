@@ -6,18 +6,13 @@ import { getPackIcon, getPackModelRoleLabel } from '@/constants/pack-presentatio
 import { STARTER_PACKS } from '@/constants/packs';
 import { ContentPackService } from '@/services/content/content-pack.service';
 import { SettingsRepository } from '@/services/db/repositories/settings.repo';
-import { DEFAULT_VOICE_MODEL_ID } from '@/services/ai/voice-models';
 import type { ContentPackManifest } from '@/types/content';
 import type { LucideIcon } from 'lucide-react-native';
-import { Check, MessageSquareText, Mic, ScanSearch } from 'lucide-react-native';
+import { Check, MessageSquareText } from 'lucide-react-native';
 import * as React from 'react';
 import { Pressable, View } from 'react-native';
 
-const RECOMMENDED_MODEL_IDS = [
-  'embedding-nomic-v15-q4-k-m',
-  'model-qwen25-15b-q4-0',
-  DEFAULT_VOICE_MODEL_ID,
-];
+const RECOMMENDED_MODEL_IDS = ['model-qwen25-15b-q4-0'];
 const MODEL_PACKS = STARTER_PACKS.filter(
   (pack) => !pack.testOnly && pack.category === 'AI Models' && pack.modelRole !== 'voiceProjector'
 );
@@ -34,9 +29,7 @@ export default function ModelsScreen() {
     await SettingsRepository.updateOnboardingState({ hasSelectedPacks: true });
   }
 
-  const searchModels = MODEL_PACKS.filter((pack) => pack.modelRole === 'embedding');
   const chatModels = MODEL_PACKS.filter((pack) => pack.modelRole === 'chat');
-  const voiceModels = MODEL_PACKS.filter((pack) => pack.modelRole === 'voice');
 
   return (
     <OnboardingFrame
@@ -50,46 +43,22 @@ export default function ModelsScreen() {
       totalSteps={8}>
       <View className="gap-4">
         <Text className="text-foreground leading-6">
-          Ark will start with one small source-search download and one compact answer model. You can
-          change or add models later in Settings.
+          Ark uses its built-in mobile source-search model for RAG. Choose an optional answer model
+          if you want full local replies after source search.
         </Text>
 
         <View className="gap-4">
-          <ModelCategory
-            icon={ScanSearch}
-            title="Source search"
-            description="Help Ark find relevant passages in guides, notes, and documents."
-            note="Recommended: one"
-          />
           <ModelCategory
             icon={MessageSquareText}
             title="Answer writing"
             description="Write full local replies. Larger, slower, and optional."
             note="Recommended: one"
           />
-          <ModelCategory
-            icon={Mic}
-            title="Voice input"
-            description="Transcribe spoken prompts locally before they are sent to Ask Arky."
-            note="Default: one"
-          />
         </View>
 
         <ModelGroup
-          title="Source search"
-          packs={searchModels}
-          selected={selected}
-          setSelected={setSelected}
-        />
-        <ModelGroup
           title="Answer writing"
           packs={chatModels}
-          selected={selected}
-          setSelected={setSelected}
-        />
-        <ModelGroup
-          title="Voice input"
-          packs={voiceModels}
           selected={selected}
           setSelected={setSelected}
         />
@@ -225,16 +194,6 @@ function ModelPackCard({
 
 function getFriendlyModelPresentation(pack: ContentPackManifest) {
   switch (pack.id) {
-    case 'embedding-nomic-v15-q4-k-m':
-      return {
-        title: 'Recommended source search',
-        description: 'Small download. Helps Arky find matching passages in your offline library.',
-      };
-    case 'embedding-qwen3-06b-q8':
-      return {
-        title: 'Multilingual source search',
-        description: 'Larger download. Better for mixed English and Portuguese libraries.',
-      };
     case 'model-smollm2-17b-q4-0':
       return {
         title: 'Light offline answer writer',
@@ -255,20 +214,12 @@ function getFriendlyModelPresentation(pack: ContentPackManifest) {
         title: 'Highest-capacity offline answer writer',
         description: 'Largest option for newer devices with generous storage and memory.',
       };
-    case DEFAULT_VOICE_MODEL_ID:
-      return {
-        title: 'Default offline voice transcriber',
-        description:
-          'Transcribes spoken prompts locally. Downloads its required audio projector too.',
-      };
     default:
       return {
         title:
           pack.modelRole === 'embedding'
             ? 'Offline source search'
-            : pack.modelRole === 'voice'
-              ? 'Offline voice input'
-              : 'Offline answer writer',
+            : 'Offline answer writer',
         description: pack.description,
       };
   }

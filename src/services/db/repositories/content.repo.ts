@@ -13,7 +13,12 @@ const LEGACY_PLACEHOLDER_PACK_IDS = [
   'mushrooms-safety-placeholder',
 ];
 
-const REMOVED_STARTER_PACK_IDS = [...LEGACY_PLACEHOLDER_PACK_IDS, 'model-gemma3-1b-it-q4-0'];
+const REMOVED_STARTER_PACK_IDS = [
+  ...LEGACY_PLACEHOLDER_PACK_IDS,
+  'model-gemma3-1b-it-q4-0',
+  'embedding-nomic-v15-q4-k-m',
+  'embedding-qwen3-06b-q8',
+];
 
 function now() {
   return Date.now();

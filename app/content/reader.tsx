@@ -5,13 +5,14 @@ import { ArkBottomSheet } from '@/components/ui/bottom-sheet';
 import { showSheetAlert } from '@/components/ui/sheet-alert';
 import { Text } from '@/components/ui/text';
 import { Arky } from '@/components/brand/ark-logo';
+import { useArkTextToSpeech } from '@/hooks/use-ark-text-to-speech';
 import { ContentPackService } from '@/services/content/content-pack.service';
 import { GuidePdfService } from '@/services/content/guide-pdf.service';
 import { GuideReaderService, type ReaderContent } from '@/services/content/guide-reader.service';
 import { GuideService, type GuideSection } from '@/services/content/guide.service';
 import type { ContentPack } from '@/types/content';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { ChevronLeft, ExternalLink, List, Printer, Share2, X } from 'lucide-react-native';
+import { ChevronLeft, ExternalLink, List, Printer, Share2, Volume2, VolumeX, X } from 'lucide-react-native';
 import * as React from 'react';
 import { ActivityIndicator, BackHandler, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -163,6 +164,41 @@ function sectionScrollScript(sectionTitle: string, sectionTargets: string[] = []
   `;
 }
 
+function buildReaderSpeechText(
+  pack: ContentPack | null,
+  content: ReaderContent | null,
+  currentPage: number
+) {
+  if (!content) return '';
+  const parts = [
+    pack?.title,
+    content.sectionTitle,
+    content.format === 'pdf' ? `Page ${content.page ?? currentPage}.` : null,
+    content.html ? htmlToSpeechText(content.html) : null,
+  ];
+  return parts
+    .filter(Boolean)
+    .join('. ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 2800);
+}
+
+function htmlToSpeechText(html: string) {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export default function GuideReaderScreen() {
   const { packId, section, page } = useLocalSearchParams<{
     packId: string;
@@ -170,6 +206,7 @@ export default function GuideReaderScreen() {
     page?: string;
   }>();
   const insets = useSafeAreaInsets();
+  const speechPlayback = useArkTextToSpeech();
   const [pack, setPack] = React.useState<ContentPack | null>(null);
   const [sections, setSections] = React.useState<GuideSection[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -181,6 +218,7 @@ export default function GuideReaderScreen() {
   const [webViewLoadError, setWebViewLoadError] = React.useState<string | null>(null);
   const [webViewLoading, setWebViewLoading] = React.useState(false);
   const [exportingPdf, setExportingPdf] = React.useState(false);
+  const [readerSpeaking, setReaderSpeaking] = React.useState(false);
   const webViewRef = React.useRef<WebView>(null);
   const pdfRef = React.useRef<any>(null);
 
@@ -249,6 +287,24 @@ export default function GuideReaderScreen() {
       }
     } catch {
       showSheetAlert('Error', 'Unable to share document.');
+    }
+  }
+
+  async function handleSpeakContent() {
+    if (readerSpeaking) {
+      speechPlayback.stop();
+      setReaderSpeaking(false);
+      return;
+    }
+    const text = buildReaderSpeechText(pack, content, currentPage);
+    if (!text) return;
+    setReaderSpeaking(true);
+    try {
+      await speechPlayback.speak(text);
+    } catch (err) {
+      showSheetAlert('Error', err instanceof Error ? err.message : 'Unable to read this guide.');
+    } finally {
+      setReaderSpeaking(false);
     }
   }
 
@@ -368,6 +424,17 @@ export default function GuideReaderScreen() {
                   <Icon as={List} className="text-foreground" />
                 </Button>
               )}
+              <Button
+                variant="ghost"
+                size="icon"
+                disabled={!content || speechPlayback.isGenerating}
+                onPress={() => void handleSpeakContent()}>
+                {speechPlayback.isGenerating ? (
+                  <ActivityIndicator size="small" />
+                ) : (
+                  <Icon as={readerSpeaking ? VolumeX : Volume2} className="text-foreground" />
+                )}
+              </Button>
               {canOpenForPrint ? (
                 <Button
                   variant="ghost"

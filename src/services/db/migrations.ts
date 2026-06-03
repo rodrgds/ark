@@ -6,6 +6,18 @@ async function getUserVersion(db: SQLiteDatabase) {
   return row?.user_version ?? 0;
 }
 
+async function backfillNoteSortOrder(db: SQLiteDatabase) {
+  const rows = await db.getAllAsync<{ id: string }>(
+    `SELECT id FROM notes
+     WHERE deleted_at IS NULL
+     ORDER BY is_favorite DESC, updated_at DESC, created_at DESC`
+  );
+
+  for (const [index, row] of rows.entries()) {
+    await db.runAsync('UPDATE notes SET sort_order = ? WHERE id = ?', [(index + 1) * 1000, row.id]);
+  }
+}
+
 export async function migrateDbIfNeeded(db: SQLiteDatabase) {
   await db.execAsync(`
     PRAGMA foreign_keys = ON;
@@ -48,7 +60,12 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
           id TEXT PRIMARY KEY,
           title TEXT NOT NULL,
           body TEXT NOT NULL,
+          content_html TEXT,
+          content_json TEXT,
+          content_format TEXT NOT NULL DEFAULT 'plain-text',
           tags_json TEXT,
+          theme_id TEXT NOT NULL DEFAULT 'default',
+          sort_order REAL,
           is_favorite INTEGER DEFAULT 0,
           created_at INTEGER,
           updated_at INTEGER,
@@ -346,6 +363,7 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
         );
 
         CREATE INDEX IF NOT EXISTS idx_notes_deleted_updated ON notes(deleted_at, updated_at);
+        CREATE INDEX IF NOT EXISTS idx_notes_deleted_sort ON notes(deleted_at, sort_order);
         CREATE INDEX IF NOT EXISTS idx_downloads_status ON downloads(status);
         CREATE INDEX IF NOT EXISTS idx_chat_messages_thread ON chat_messages(thread_id, created_at);
         CREATE INDEX IF NOT EXISTS idx_rag_chunks_source ON rag_chunks(source_id, chunk_index);
@@ -658,6 +676,49 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
         await db.execAsync('ALTER TABLE chat_threads ADD COLUMN chat_model_disabled INTEGER');
       }
       await db.runAsync('PRAGMA user_version = 14');
+    });
+  }
+
+  if (currentVersion < 15) {
+    await db.withTransactionAsync(async () => {
+      const noteColumns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(notes)');
+      if (!noteColumns.some((column) => column.name === 'theme_id')) {
+        await db.execAsync("ALTER TABLE notes ADD COLUMN theme_id TEXT NOT NULL DEFAULT 'default'");
+      }
+      await db.runAsync('PRAGMA user_version = 15');
+    });
+  }
+
+  if (currentVersion < 16) {
+    await db.withTransactionAsync(async () => {
+      const noteColumns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(notes)');
+      if (!noteColumns.some((column) => column.name === 'sort_order')) {
+        await db.execAsync('ALTER TABLE notes ADD COLUMN sort_order REAL');
+      }
+      await backfillNoteSortOrder(db);
+      await db.runAsync(
+        'CREATE INDEX IF NOT EXISTS idx_notes_deleted_sort ON notes(deleted_at, sort_order)'
+      );
+      await db.runAsync('PRAGMA user_version = 16');
+    });
+  }
+
+  if (currentVersion < 17) {
+    await db.withTransactionAsync(async () => {
+      const noteColumns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(notes)');
+      const hasNoteColumn = (name: string) => noteColumns.some((column) => column.name === name);
+      if (!hasNoteColumn('content_html')) {
+        await db.execAsync('ALTER TABLE notes ADD COLUMN content_html TEXT');
+      }
+      if (!hasNoteColumn('content_json')) {
+        await db.execAsync('ALTER TABLE notes ADD COLUMN content_json TEXT');
+      }
+      if (!hasNoteColumn('content_format')) {
+        await db.execAsync(
+          "ALTER TABLE notes ADD COLUMN content_format TEXT NOT NULL DEFAULT 'plain-text'"
+        );
+      }
+      await db.runAsync('PRAGMA user_version = 17');
     });
   }
 }

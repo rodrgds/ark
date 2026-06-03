@@ -1,15 +1,25 @@
 import { z } from 'zod';
+import { NOTE_CONTENT_FORMATS } from '@/constants/note-content';
+import { NOTE_THEME_IDS } from '@/constants/note-themes';
 
 export const noteInputSchema = z.object({
   title: z.string().trim().max(140).default(''),
   body: z.string().max(200_000).default(''),
+  contentHtml: z.string().max(500_000).nullable().default(null),
+  contentJson: z.string().max(1_000_000).nullable().default(null),
+  contentFormat: z.enum(NOTE_CONTENT_FORMATS).default('plain-text'),
   tags: z.array(z.string().trim().min(1).max(32)).max(12).default([]),
+  themeId: z.enum(NOTE_THEME_IDS).default('default'),
 });
 
 export const notePatchSchema = z.object({
   title: z.string().trim().max(140).optional(),
   body: z.string().max(200_000).optional(),
+  contentHtml: z.string().max(500_000).nullable().optional(),
+  contentJson: z.string().max(1_000_000).nullable().optional(),
+  contentFormat: z.enum(NOTE_CONTENT_FORMATS).optional(),
   tags: z.array(z.string().trim().min(1).max(32)).max(12).optional(),
+  themeId: z.enum(NOTE_THEME_IDS).optional(),
   isFavorite: z.boolean().optional(),
 });
 

@@ -1,3 +1,6 @@
+import type { NoteContentFormat } from '@/constants/note-content';
+import type { NoteThemeId } from '@/constants/note-themes';
+
 export type OnboardingState = {
   id: 'main';
   hasSeenIntro: boolean;
@@ -22,7 +25,12 @@ export type Note = {
   id: string;
   title: string;
   body: string;
+  contentHtml: string | null;
+  contentJson: string | null;
+  contentFormat: NoteContentFormat;
   tags: string[];
+  themeId: NoteThemeId;
+  sortOrder: number;
   isFavorite: boolean;
   createdAt: number;
   updatedAt: number;

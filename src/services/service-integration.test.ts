@@ -280,16 +280,27 @@ mock.module('react-native-executorch', () => ({
     modelSource: 'https://example.test/multi-qa-minilm.pte',
     tokenizerSource: 'https://example.test/tokenizer.json',
   },
+  MULTI_QA_MPNET_BASE_DOT_V1: {
+    modelName: 'multi-qa-mpnet-base-dot-v1',
+    modelSource: 'https://example.test/multi-qa-mpnet.pte',
+    tokenizerSource: 'https://example.test/tokenizer.json',
+  },
   TextEmbeddingsModule: class MockTextEmbeddingsModule {
-    static async fromModelName() {
+    private dimensions: number;
+
+    constructor(dimensions = 384) {
+      this.dimensions = dimensions;
+    }
+
+    static async fromModelName(model: { modelName: string }) {
       if (!mockExecutorchEmbeddingsAvailable) {
         throw new Error('ExecuTorch unavailable');
       }
-      return new MockTextEmbeddingsModule();
+      return new MockTextEmbeddingsModule(model.modelName.includes('mpnet') ? 768 : 384);
     }
 
     async forward(text: string) {
-      return Float32Array.from({ length: 384 }, (_, index) =>
+      return Float32Array.from({ length: this.dimensions }, (_, index) =>
         text.toLowerCase().includes('water') && index === 0 ? 1 : index === 1 ? 0.5 : 0
       );
     }
@@ -2064,7 +2075,9 @@ describe('service integration', () => {
     });
 
     expect(customChatModel?.modelRole).toBe('chat');
-    expect(await ModelManagerService.listAvailableEmbeddingModels()).toEqual([]);
+    expect(
+      (await ModelManagerService.listAvailableEmbeddingModels()).map((model) => model.id)
+    ).toEqual(['executorch-multi-qa-minilm-l6-cos-v1', 'executorch-multi-qa-mpnet-base-dot-v1']);
     expect(
       (await ModelManagerService.listAvailableChatModels()).map((model) => model.id)
     ).toContain(customChatModel?.id);
@@ -2108,6 +2121,31 @@ describe('service integration', () => {
 
     const status = await ModelManagerService.getStatus();
     expect(status.adapter).toBe('mock');
+  });
+
+  test('source search can switch to the stronger ExecuTorch embedding model', async () => {
+    resetEmbeddingServiceForTests();
+    const note = await NotesRepository.create({
+      title: 'Water search model note',
+      body: 'Store drinking water in clean sealed containers.',
+      tags: ['water'],
+    });
+    await RagService.indexNote(note.id);
+
+    await ModelManagerService.setSelectedEmbeddingModel('executorch-multi-qa-mpnet-base-dot-v1');
+
+    const embeddedChunk = await testDb.getFirstAsync<{
+      embedding_model_id: string | null;
+      embedding_blob: Uint8Array | null;
+    }>(
+      `SELECT c.embedding_model_id, c.embedding_blob
+       FROM rag_chunks c
+       JOIN rag_sources s ON s.id = c.source_id
+       WHERE s.source_ref = ?`,
+      [note.id]
+    );
+    expect(embeddedChunk?.embedding_model_id).toBe('executorch-multi-qa-mpnet-base-dot-v1');
+    expect(embeddedChunk?.embedding_blob?.byteLength).toBe(768 * 4);
   });
 
   test('diagnostics reports the actual AI runtime status', async () => {

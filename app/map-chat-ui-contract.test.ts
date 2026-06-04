@@ -57,6 +57,10 @@ describe('map and chat UI contracts', () => {
     expect(source).toContain('inputBottom + COMPOSER_BOTTOM_GAP_FOCUSED - keyboardTop');
     expect(source).toContain('translateY: -keyboardOffset.value');
     expect(source).toContain('COMPOSER_BOTTOM_GAP');
+    expect(source).toContain('DETACHED_PLUS_SIZE = COMPOSER_HEIGHT');
+    expect(source).toContain('backgroundColor: colors.card');
+    expect(source).toContain('borderColor: colors.border');
+    expect(source).toContain('placeholderTextColor={themeColors.mutedForeground}');
     expect(source).toContain('EMPTY_THREAD_PROMPTS');
     expect(source).toContain('pendingUserMessage');
     expect(source).not.toContain('.reverse()');
@@ -66,6 +70,20 @@ describe('map and chat UI contracts', () => {
     expect(source).not.toContain('ArkKeyboardAvoidingView');
     expect(source).not.toContain('KeyboardAvoidingView');
     expect(source).not.toContain('keyboardInset');
+  });
+
+  test('chat voice input works around native VAD arguments and streams spoken responses', () => {
+    const chat = readFileSync(join(appDir, '(tabs)/chat/[threadId].tsx'), 'utf8');
+    const vad = readFileSync(join(process.cwd(), 'src/hooks/use-ark-voice-activity.ts'), 'utf8');
+    const tts = readFileSync(join(process.cwd(), 'src/hooks/use-ark-text-to-speech.ts'), 'utf8');
+
+    expect(chat).toContain('useArkVoiceActivity');
+    expect(chat).toContain('speechToText.transcribe(speechWaveform, {})');
+    expect(chat).toContain('0.18 * sampleRate');
+    expect(vad).toContain('nativeModule.generate(waveform, 0)');
+    expect(tts).toContain('moduleInstance.streamInsert');
+    expect(tts).toContain('for await (const waveform of moduleInstance.stream');
+    expect(tts).not.toContain('moduleInstance.forward(normalized');
   });
 
   test('map keeps network enabled while native offline packs are active', () => {

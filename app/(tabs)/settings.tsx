@@ -14,6 +14,7 @@ import { THEME_OPTIONS } from '@/constants/theme';
 import { BackupService } from '@/services/backup/backup.service';
 import { ContentPackService } from '@/services/content/content-pack.service';
 import { ModelManagerService } from '@/services/ai/model-manager.service';
+import type { EmbeddingModelConfig } from '@/services/ai/embedding-models';
 import { SettingsRepository } from '@/services/db/repositories/settings.repo';
 import { DownloadManagerService } from '@/services/files/download-manager.service';
 import { FileSystemService } from '@/services/files/filesystem.service';
@@ -82,6 +83,9 @@ export default function SettingsScreen() {
   const [availableModels, setAvailableModels] = React.useState<ContentPack[]>([]);
   const [installedModels, setInstalledModels] = React.useState<ContentPack[]>([]);
   const [activeModel, setActiveModel] = React.useState<ContentPack | null>(null);
+  const [embeddingModels, setEmbeddingModels] = React.useState<EmbeddingModelConfig[]>([]);
+  const [activeEmbeddingModel, setActiveEmbeddingModel] =
+    React.useState<EmbeddingModelConfig | null>(null);
   const [embeddingIndexStatus, setEmbeddingIndexStatus] = React.useState<Awaited<
     ReturnType<typeof ModelManagerService.getEmbeddingIndexStatus>
   > | null>(null);
@@ -123,6 +127,8 @@ export default function SettingsScreen() {
       nextAvailableModels,
       nextInstalledModels,
       nextActiveModel,
+      nextEmbeddingModels,
+      nextActiveEmbeddingModel,
       nextEmbeddingIndexStatus,
     ] = await Promise.all([
       SettingsRepository.getVaultState(),
@@ -137,6 +143,8 @@ export default function SettingsScreen() {
       ModelManagerService.listAvailableModels(),
       ModelManagerService.listInstalledChatModels(),
       ModelManagerService.getActiveModel(),
+      ModelManagerService.listAvailableEmbeddingModels(),
+      ModelManagerService.getActiveEmbeddingModel(),
       ModelManagerService.getEmbeddingIndexStatus(),
     ]);
     setAutoLock(vault.autoLockMinutes);
@@ -152,6 +160,8 @@ export default function SettingsScreen() {
     setAvailableModels(nextAvailableModels);
     setInstalledModels(nextInstalledModels);
     setActiveModel(nextActiveModel);
+    setEmbeddingModels(nextEmbeddingModels);
+    setActiveEmbeddingModel(nextActiveEmbeddingModel);
     setEmbeddingIndexStatus(nextEmbeddingIndexStatus);
   }
 
@@ -253,6 +263,21 @@ export default function SettingsScreen() {
     await ModelManagerService.setSelectedModel(model.id);
     setActiveModel(model);
     setModelStatus(await ModelManagerService.getStatus());
+  }
+
+  async function selectEmbeddingModel(model: EmbeddingModelConfig) {
+    setBusy(`embedding-${model.id}`);
+    setAiMessage(null);
+    try {
+      await ModelManagerService.setSelectedEmbeddingModel(model.id);
+      await load();
+    } catch (modelError) {
+      setAiMessage(
+        modelError instanceof Error ? modelError.message : 'Unable to update source search.'
+      );
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function importLocalModel() {
@@ -678,7 +703,7 @@ export default function SettingsScreen() {
             <View className="bg-muted/40 gap-1 rounded-md px-3 py-3">
               <Text variant="small">Answer models installed: {installedModels.length}</Text>
               <Text variant="small">
-                Source search: ExecuTorch multi-qa MiniLM
+                Source search: {activeEmbeddingModel?.title ?? 'ExecuTorch mobile embeddings'}
               </Text>
               <Text variant="muted">
                 Current answer model:{' '}
@@ -688,7 +713,10 @@ export default function SettingsScreen() {
                     ? 'Source search only'
                     : 'None installed'}
               </Text>
-              <Text variant="muted">Current source search model: built-in mobile embeddings</Text>
+              <Text variant="muted">
+                Current source search model:{' '}
+                {activeEmbeddingModel?.title ?? 'Built-in mobile embeddings'}
+              </Text>
             </View>
           </Card>
 
@@ -740,8 +768,8 @@ export default function SettingsScreen() {
               </Button>
             </View>
             <Text variant="small" className="text-muted-foreground">
-              Source search uses built-in Ark ExecuTorch embeddings; custom GGUF imports are for
-              Ask Arky answer-writing models.
+              Source search uses built-in Ark ExecuTorch embeddings; custom GGUF imports are for Ask
+              Arky answer-writing models.
             </Text>
           </Card>
 
@@ -754,6 +782,41 @@ export default function SettingsScreen() {
             onPrimaryAction={runModelAction}
             onRemove={removeModel}
           />
+
+          <Card className="gap-3">
+            <View className="gap-1">
+              <Text variant="large">Source search model</Text>
+              <Text variant="muted">
+                These ExecuTorch models retrieve local sources. Changing models downloads the
+                selected model and rebuilds vectors as sources are indexed.
+              </Text>
+            </View>
+            <View className="gap-2">
+              {embeddingModels.map((model) => {
+                const active = activeEmbeddingModel?.id === model.id;
+                const modelBusy = busy === `embedding-${model.id}`;
+                return (
+                  <Button
+                    key={model.id}
+                    className="h-auto min-h-14 justify-start py-3"
+                    variant={active ? 'default' : 'outline'}
+                    disabled={!!busy}
+                    onPress={() => void selectEmbeddingModel(model)}>
+                    {modelBusy ? <ActivityIndicator /> : <Icon as={Search} className="size-4" />}
+                    <View className="min-w-0 flex-1 items-start gap-1">
+                      <Text>{model.title}</Text>
+                      <Text
+                        variant="small"
+                        className={active ? 'text-primary-foreground/80' : 'text-muted-foreground'}>
+                        {model.description} {model.dimension} dimensions.
+                      </Text>
+                    </View>
+                    {active ? <Icon as={CheckCircle2} className="size-4" /> : null}
+                  </Button>
+                );
+              })}
+            </View>
+          </Card>
 
           <EmbeddingIndexCard status={embeddingIndexStatus} />
 

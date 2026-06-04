@@ -1,5 +1,7 @@
 import { RAG_HASH_EMBEDDING_DIMENSIONS } from '@/services/ai/rag-embedding';
 import {
+  EXECUTORCH_MPNET_EMBEDDING_DIMENSIONS,
+  EXECUTORCH_MPNET_EMBEDDING_MODEL_ID,
   EXECUTORCH_TEXT_EMBEDDING_DIMENSIONS,
   EXECUTORCH_TEXT_EMBEDDING_MODEL_ID,
 } from '@/services/ai/embedding-models';
@@ -10,6 +12,10 @@ const VECTOR_TABLES: Record<string, { table: string; dimensions: number }> = {
   [EXECUTORCH_TEXT_EMBEDDING_MODEL_ID]: {
     table: 'rag_chunk_vectors_executorch_multi_qa_minilm_384',
     dimensions: EXECUTORCH_TEXT_EMBEDDING_DIMENSIONS,
+  },
+  [EXECUTORCH_MPNET_EMBEDDING_MODEL_ID]: {
+    table: 'rag_chunk_vectors_executorch_multi_qa_mpnet_768',
+    dimensions: EXECUTORCH_MPNET_EMBEDDING_DIMENSIONS,
   },
 };
 
@@ -62,6 +68,27 @@ export class RagVectorService {
       input.embedding,
       input.chunkId,
     ]);
+  }
+
+  static async searchChunks(
+    db: VectorDb & {
+      getAllAsync: <T>(sql: string, params: any[]) => Promise<T[]>;
+    },
+    input: { embedding: Uint8Array; modelId: string; limit: number }
+  ) {
+    const table = VECTOR_TABLES[input.modelId];
+    if (!table || !(await this.isAvailable(db, input.modelId))) return [];
+    try {
+      return await db.getAllAsync<{ chunk_id: string; distance: number }>(
+        `SELECT chunk_id, distance
+         FROM ${table.table}
+         WHERE embedding MATCH ? AND k = ?
+         ORDER BY distance`,
+        [input.embedding, input.limit]
+      );
+    } catch {
+      return [];
+    }
   }
 
   static resetForTests() {

@@ -499,6 +499,34 @@ export class RagService {
     await db.runAsync('UPDATE rag_sources SET updated_at = 0');
   }
 
+  static async rebuildEmbeddingsForActiveModel() {
+    const db = await DatabaseClient.getDb();
+    const chunks = await db.getAllAsync<{ id: string; text: string }>(
+      'SELECT id, text FROM rag_chunks ORDER BY created_at ASC'
+    );
+    for (const chunk of chunks) {
+      const embeddingResult = await EmbeddingService.embedDocument(chunk.text);
+      const embedding = serializeEmbedding(embeddingResult.vector);
+      await db.withTransactionAsync(async () => {
+        await db.runAsync(
+          'UPDATE rag_chunks SET embedding_model_id = ?, embedding_blob = ? WHERE id = ?',
+          [embeddingResult.modelId, embedding, chunk.id]
+        );
+        await db.runAsync(
+          `INSERT OR REPLACE INTO chunk_embeddings
+            (chunk_id, model_id, dimension, embedding_blob, created_at)
+           VALUES (?, ?, ?, ?, ?)`,
+          [chunk.id, embeddingResult.modelId, embeddingResult.dimensions, embedding, Date.now()]
+        );
+        await RagVectorService.upsertChunk(db, {
+          chunkId: chunk.id,
+          embedding,
+          modelId: embeddingResult.modelId,
+        });
+      });
+    }
+  }
+
   static async seedCoreContent() {
     const db = await DatabaseClient.getDb();
     const exists = await db.getFirstAsync<{ id: string }>(
@@ -555,9 +583,8 @@ export class RagService {
     await this.prepareSearchIndexes(options.refreshIndexes ?? 'all', options.onProgress);
     await this.removeSourceIfExists('weather:latest');
     const ftsQueries = toFtsQueries(query);
-    if (!ftsQueries.length) return [];
     const db = await DatabaseClient.getDb();
-    let rows: Array<{
+    type SearchRow = {
       chunk_id: string;
       text: string;
       source_title: string;
@@ -567,10 +594,11 @@ export class RagService {
       chunk_index: number;
       embedding_blob: unknown;
       embedding_model_id: string | null;
-    }> = [];
+    };
+    let ftsRows: SearchRow[] = [];
     const limit = options.limit ?? 4;
     for (const fts of ftsQueries) {
-      rows = await db.getAllAsync<(typeof rows)[number]>(
+      ftsRows = await db.getAllAsync<SearchRow>(
         `SELECT f.chunk_id,
                 f.text,
                 f.source_title,
@@ -588,13 +616,42 @@ export class RagService {
          LIMIT ?`,
         [fts, Math.max(limit * 4, 12)]
       );
-      if (rows.length) break;
+      if (ftsRows.length) break;
     }
     options.onProgress?.({ stage: 'ranking_sources', label: 'Ranking sources' });
-    const ftsCitations = (await rankRows(query, rows)).slice(0, limit).map((row) => ({
-      ...citationForRow(row),
-      snippet: snippetForRow(row),
-    }));
+    const queryEmbedding = await EmbeddingService.embedQuery(query);
+    const vectorMatches = await RagVectorService.searchChunks(db, {
+      embedding: serializeEmbedding(queryEmbedding.vector),
+      modelId: queryEmbedding.modelId,
+      limit: Math.max(limit * 4, 12),
+    });
+    const semanticChunkIds = vectorMatches
+      .filter((match) => match.distance <= 0.65)
+      .map((match) => match.chunk_id);
+    const semanticRows = semanticChunkIds.length
+      ? await db.getAllAsync<SearchRow>(
+          `SELECT c.id AS chunk_id,
+                  c.text,
+                  s.title AS source_title,
+                  c.source_id,
+                  c.chunk_index,
+                  c.embedding_model_id,
+                  c.embedding_blob,
+                  s.source_ref,
+                  s.kind
+           FROM rag_chunks c
+           JOIN rag_sources s ON s.id = c.source_id
+           WHERE c.id IN (${semanticChunkIds.map(() => '?').join(', ')})`,
+          semanticChunkIds
+        )
+      : [];
+    const rows = dedupeRows([...ftsRows, ...semanticRows]);
+    const ftsCitations = (await rankRows(query, rows, queryEmbedding))
+      .slice(0, limit)
+      .map((row) => ({
+        ...citationForRow(row),
+        snippet: snippetForRow(row),
+      }));
     options.onProgress?.({ stage: 'searching_zim', label: 'Searching ZIM archives' });
     const zimCitations =
       ftsCitations.length < limit
@@ -871,9 +928,10 @@ function dedupeCitations(citations: AiCitation[]) {
 
 async function rankRows<T extends { embedding_blob: unknown; embedding_model_id?: string | null }>(
   query: string,
-  rows: T[]
+  rows: T[],
+  providedQueryEmbedding?: EmbeddingResult
 ) {
-  const queryEmbedding = await EmbeddingService.embedQuery(query);
+  const queryEmbedding = providedQueryEmbedding ?? (await EmbeddingService.embedQuery(query));
   const hashQueryEmbedding =
     queryEmbedding.modelId === RAG_HASH_EMBEDDING_MODEL_ID
       ? queryEmbedding.vector
@@ -895,6 +953,15 @@ async function rankRows<T extends { embedding_blob: unknown; embedding_model_id?
     })
     .sort((left, right) => right.score - left.score || left.index - right.index)
     .map((item) => item.row);
+}
+
+function dedupeRows<T extends { chunk_id: string }>(rows: T[]) {
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    if (seen.has(row.chunk_id)) return false;
+    seen.add(row.chunk_id);
+    return true;
+  });
 }
 
 function citationForRow(row: {

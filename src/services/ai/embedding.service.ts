@@ -1,7 +1,8 @@
 import {
   EMBEDDING_MODEL_CONFIGS,
-  EXECUTORCH_TEXT_EMBEDDING_DIMENSIONS,
+  EXECUTORCH_MPNET_EMBEDDING_MODEL_ID,
   EXECUTORCH_TEXT_EMBEDDING_MODEL_ID,
+  type EmbeddingModelConfig,
 } from '@/services/ai/embedding-models';
 import {
   RAG_HASH_EMBEDDING_DIMENSIONS,
@@ -9,7 +10,11 @@ import {
   embedText,
 } from '@/services/ai/rag-embedding';
 import { PreferencesService } from '@/services/preferences/preferences.service';
-import { MULTI_QA_MINILM_L6_COS_V1, TextEmbeddingsModule } from 'react-native-executorch';
+import {
+  MULTI_QA_MINILM_L6_COS_V1,
+  MULTI_QA_MPNET_BASE_DOT_V1,
+  TextEmbeddingsModule,
+} from 'react-native-executorch';
 
 type ExecuTorchTextEmbeddingModel = TextEmbeddingsModule;
 
@@ -21,6 +26,7 @@ export type EmbeddingResult = {
 };
 
 let embeddingModelPromise: Promise<ExecuTorchTextEmbeddingModel | null> | null = null;
+let embeddingModelId: string | null = null;
 
 export function resetEmbeddingServiceForTests() {
   resetEmbeddingRuntimeContext();
@@ -29,11 +35,18 @@ export function resetEmbeddingServiceForTests() {
 export function resetEmbeddingRuntimeContext() {
   embeddingModelPromise?.then((model) => model?.delete()).catch(() => undefined);
   embeddingModelPromise = null;
+  embeddingModelId = null;
 }
 
 export class EmbeddingService {
   static async getActiveModelConfig() {
-    return EMBEDDING_MODEL_CONFIGS[EXECUTORCH_TEXT_EMBEDDING_MODEL_ID];
+    const selectedId = await PreferencesService.getSelectedEmbeddingModelId();
+    return getConfig(selectedId);
+  }
+
+  static async prepareActiveModel(onDownloadProgress?: (progress: number) => void) {
+    const config = await this.getActiveModelConfig();
+    return getEmbeddingModel(config, onDownloadProgress);
   }
 
   static async embedQuery(text: string): Promise<EmbeddingResult> {
@@ -50,12 +63,18 @@ export class EmbeddingService {
   }
 }
 
-async function getEmbeddingModel() {
+async function getEmbeddingModel(
+  config: EmbeddingModelConfig,
+  onDownloadProgress: (progress: number) => void = () => {}
+) {
   if (await PreferencesService.getBatteryReduceModeEnabled()) return null;
-  if (!embeddingModelPromise) {
-    embeddingModelPromise = TextEmbeddingsModule.fromModelName(MULTI_QA_MINILM_L6_COS_V1).catch(
-      () => null
-    );
+  if (!embeddingModelPromise || embeddingModelId !== config.id) {
+    resetEmbeddingRuntimeContext();
+    embeddingModelId = config.id;
+    embeddingModelPromise = TextEmbeddingsModule.fromModelName(
+      getRuntimeModel(config.id),
+      onDownloadProgress
+    ).catch(() => null);
   }
   return embeddingModelPromise;
 }
@@ -64,17 +83,30 @@ async function execuTorchEmbedding(
   text: string,
   purpose: 'query' | 'document'
 ): Promise<EmbeddingResult | null> {
-  const model = await getEmbeddingModel();
+  const config = await EmbeddingService.getActiveModelConfig();
+  const model = await getEmbeddingModel(config);
   if (!model) return null;
-  const config = EMBEDDING_MODEL_CONFIGS[EXECUTORCH_TEXT_EMBEDDING_MODEL_ID];
   const prefix = purpose === 'query' ? config.queryPrefix : config.documentPrefix;
   const vector = await model.forward(`${prefix}${text}`);
   return {
-    modelId: EXECUTORCH_TEXT_EMBEDDING_MODEL_ID,
-    dimensions: EXECUTORCH_TEXT_EMBEDDING_DIMENSIONS,
-    vector: normalize(sliceVector(Array.from(vector), EXECUTORCH_TEXT_EMBEDDING_DIMENSIONS)),
+    modelId: config.id,
+    dimensions: config.dimension,
+    vector: normalize(sliceVector(Array.from(vector), config.dimension)),
     source: 'executorch',
   };
+}
+
+function getConfig(modelId: string | null) {
+  return (
+    EMBEDDING_MODEL_CONFIGS[modelId ?? ''] ??
+    EMBEDDING_MODEL_CONFIGS[EXECUTORCH_TEXT_EMBEDDING_MODEL_ID]
+  );
+}
+
+function getRuntimeModel(modelId: string) {
+  return modelId === EXECUTORCH_MPNET_EMBEDDING_MODEL_ID
+    ? MULTI_QA_MPNET_BASE_DOT_V1
+    : MULTI_QA_MINILM_L6_COS_V1;
 }
 
 function hashEmbedding(text: string): EmbeddingResult {

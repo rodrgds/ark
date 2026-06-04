@@ -1,11 +1,11 @@
 import { ContentPackService } from '@/services/content/content-pack.service';
 import {
-  EXECUTORCH_TEXT_EMBEDDING_DIMENSIONS,
+  EMBEDDING_MODEL_CONFIGS,
+  EXECUTORCH_EMBEDDING_MODEL_OPTIONS,
   EXECUTORCH_TEXT_EMBEDDING_MODEL_ID,
-  EXECUTORCH_TEXT_EMBEDDING_TITLE,
   isEmbeddingModelPack,
 } from '@/services/ai/embedding-models';
-import { resetEmbeddingRuntimeContext } from '@/services/ai/embedding.service';
+import { EmbeddingService, resetEmbeddingRuntimeContext } from '@/services/ai/embedding.service';
 import {
   getVoiceProjectorId,
   isVoiceModelPack,
@@ -36,7 +36,7 @@ export class ModelManagerService {
   }
 
   static async listAvailableEmbeddingModels() {
-    return (await this.listAvailableModels()).filter(() => false);
+    return EXECUTORCH_EMBEDDING_MODEL_OPTIONS;
   }
 
   static async listAvailableVoiceModels() {
@@ -58,9 +58,8 @@ export class ModelManagerService {
   }
 
   static async listInstalledEmbeddingModels() {
-    return (await this.listAvailableEmbeddingModels()).filter(
-      (model) => model.installed && model.localUri
-    );
+    const active = await this.getActiveEmbeddingModel();
+    return active ? [active] : [];
   }
 
   static async listInstalledVoiceModels() {
@@ -83,7 +82,7 @@ export class ModelManagerService {
   }
 
   static async getActiveEmbeddingModel() {
-    return null;
+    return EmbeddingService.getActiveModelConfig();
   }
 
   static async getActiveVoiceModel() {
@@ -143,13 +142,29 @@ export class ModelManagerService {
     resetLlamaRuntimeContext();
   }
 
-  static async setSelectedEmbeddingModel(modelId: string | null) {
-    if (modelId && modelId !== EXECUTORCH_TEXT_EMBEDDING_MODEL_ID) {
-      throw new Error('Ark now uses the built-in ExecuTorch source-search model.');
+  static async setSelectedEmbeddingModel(
+    modelId: string | null,
+    onDownloadProgress?: (progress: number) => void
+  ) {
+    const nextModelId = modelId ?? EXECUTORCH_TEXT_EMBEDDING_MODEL_ID;
+    if (!EMBEDDING_MODEL_CONFIGS[nextModelId]) {
+      throw new Error('Choose a supported ExecuTorch source-search model.');
     }
-    await PreferencesService.setSelectedEmbeddingModelId(EXECUTORCH_TEXT_EMBEDDING_MODEL_ID);
+    if (await PreferencesService.getBatteryReduceModeEnabled()) {
+      throw new Error('Turn off Battery Reduce Mode before changing the source-search model.');
+    }
+    const previousModelId = await PreferencesService.getSelectedEmbeddingModelId();
+    await PreferencesService.setSelectedEmbeddingModelId(nextModelId);
     resetEmbeddingRuntimeContext();
-    await RagService.markAllSourcesForReindex();
+    const model = await EmbeddingService.prepareActiveModel(onDownloadProgress);
+    if (!model) {
+      await PreferencesService.setSelectedEmbeddingModelId(
+        previousModelId ?? EXECUTORCH_TEXT_EMBEDDING_MODEL_ID
+      );
+      resetEmbeddingRuntimeContext();
+      throw new Error('Unable to download or load the source-search model.');
+    }
+    await RagService.rebuildEmbeddingsForActiveModel();
   }
 
   static async setSelectedVoiceModel(modelId: string | null) {
@@ -193,7 +208,7 @@ export class ModelManagerService {
       installedVoiceModels: installedVoiceModels.length,
       availableModels: models.length,
       availableChatModels: chatModels.length,
-      availableEmbeddingModels: 1,
+      availableEmbeddingModels: EXECUTORCH_EMBEDDING_MODEL_OPTIONS.length,
       availableVoiceModels: voiceModels.length,
       selectedModelId: preferences.selectedModelId,
       selectedEmbeddingModelId: preferences.selectedEmbeddingModelId,
@@ -281,12 +296,13 @@ export class ModelManagerService {
     );
     const domains = ['notes', 'guides', 'documents', 'rss', 'maps', 'zim'] as const;
     const totals = Object.fromEntries(totalRows.map((row) => [row.domain, row.total_count]));
+    const activeEmbeddingModel = await this.getActiveEmbeddingModel();
     const reportModels = [
-      {
-        id: EXECUTORCH_TEXT_EMBEDDING_MODEL_ID,
-        title: `${EXECUTORCH_TEXT_EMBEDDING_TITLE} (${EXECUTORCH_TEXT_EMBEDDING_DIMENSIONS}d)`,
-        installed: true,
-      },
+      ...EXECUTORCH_EMBEDDING_MODEL_OPTIONS.map((model) => ({
+        id: model.id,
+        title: `${model.title} (${model.dimension}d)`,
+        installed: model.id === activeEmbeddingModel.id,
+      })),
       {
         id: RAG_HASH_EMBEDDING_MODEL_ID,
         title: `Ark hash fallback (${RAG_HASH_EMBEDDING_DIMENSIONS}d)`,
@@ -313,7 +329,7 @@ export class ModelManagerService {
         ...model,
         active: reduceModeEnabled
           ? model.id === RAG_HASH_EMBEDDING_MODEL_ID
-          : model.id === EXECUTORCH_TEXT_EMBEDDING_MODEL_ID,
+          : model.id === activeEmbeddingModel.id,
         total,
         embedded,
         complete: total === 0 ? 1 : embedded / total,

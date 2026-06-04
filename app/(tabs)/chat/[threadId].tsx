@@ -8,8 +8,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
 import { useAppHeaderActions } from '@/components/layout/app-header-actions';
 import { BATTERY_POLL_INTERVALS_MS } from '@/constants/battery';
+import { NAV_COLORS } from '@/constants/theme';
 import { useBatteryReduceMode } from '@/hooks/use-battery-reduce-mode';
 import { useArkTextToSpeech } from '@/hooks/use-ark-text-to-speech';
+import { useArkVoiceActivity } from '@/hooks/use-ark-voice-activity';
 import { NAV_THEME } from '@/lib/theme';
 import { AIService, isAiRequestCancelledError } from '@/services/ai/ai.service';
 import { ModelManagerService } from '@/services/ai/model-manager.service';
@@ -29,7 +31,7 @@ import {
   type RecordingOptions,
 } from 'expo-audio';
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
-import { FSMN_VAD, useSpeechToText, useVAD, WHISPER_TINY } from 'react-native-executorch';
+import { useSpeechToText, WHISPER_TINY } from 'react-native-executorch';
 import {
   Brain,
   BookOpen,
@@ -73,7 +75,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 const PAGE_SIZE = 60;
 const COMPOSER_HEIGHT = 56;
 const COMPOSER_MAX_INPUT_HEIGHT = 132;
-const DETACHED_PLUS_SIZE = 48;
+const DETACHED_PLUS_SIZE = COMPOSER_HEIGHT;
 const COMPOSER_SIDE_PADDING = 12;
 const COMPOSER_OPEN_GAP = 10;
 const COMPOSER_BOTTOM_GAP = 14;
@@ -518,12 +520,13 @@ function FloatingComposer({
   const recorder = useAudioRecorder(VOICE_RECORDING_OPTIONS);
   const recorderState = useAudioRecorderState(recorder, 250);
   const speechToText = useSpeechToText({ model: WHISPER_TINY });
-  const voiceActivity = useVAD({ model: FSMN_VAD });
+  const voiceActivity = useArkVoiceActivity();
   const speechAudioContextRef = React.useRef<AudioContext | null>(null);
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
   const theme = useThemeStore((state) => state.effectiveTheme);
   const colors = NAV_THEME[theme].colors;
+  const themeColors = NAV_COLORS[theme];
   const [isFocused, setIsFocused] = React.useState(false);
   const [voiceState, setVoiceState] = React.useState<'idle' | 'recording' | 'transcribing'>('idle');
   const [inputHeight, setInputHeight] = React.useState(COMPOSER_HEIGHT);
@@ -728,7 +731,7 @@ function FloatingComposer({
       const speechSegments = await voiceActivity.forward(waveform);
       const speechWaveform = sliceVoiceActivity(waveform, speechSegments);
       if (!speechWaveform) throw new Error('No speech was detected in the recording.');
-      const transcript = await speechToText.transcribe(speechWaveform);
+      const transcript = await speechToText.transcribe(speechWaveform, {});
       onChangeText(transcript.text.trim());
       requestAnimationFrame(() => inputRef.current?.focus());
     } catch (voiceError) {
@@ -788,7 +791,14 @@ function FloatingComposer({
           accessibilityRole="button"
           disabled={!keyboardVisible}
           onPress={onAddContextPress}
-          style={[styles.detachedPlusButton, detachedPlusStyle]}>
+          style={[
+            styles.detachedPlusButton,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+            },
+            detachedPlusStyle,
+          ]}>
           <Icon as={Plus} className="text-foreground size-5" />
         </AnimatedPressable>
 
@@ -797,6 +807,8 @@ function FloatingComposer({
             styles.inputPill,
             {
               alignItems: expanded ? 'flex-end' : 'center',
+              backgroundColor: colors.card,
+              borderColor: colors.border,
               borderRadius: expanded ? 28 : COMPOSER_HEIGHT / 2,
               minHeight: inputHeight,
             },
@@ -821,7 +833,7 @@ function FloatingComposer({
               setInputHeight(nextHeight);
             }}
             placeholder="Ask Arky"
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={themeColors.mutedForeground}
             returnKeyType="default"
             editable={true}
             multiline
@@ -887,13 +899,15 @@ function sliceVoiceActivity(
   waveform: Float32Array,
   segments: Array<{ start: number; end: number }>
 ) {
-  const usableSegments = segments.filter((segment) => segment.end - segment.start >= 0.18);
+  const sampleRate = 16000;
+  const usableSegments = segments.filter(
+    (segment) => segment.end - segment.start >= 0.18 * sampleRate
+  );
   if (!usableSegments.length) return null;
   const first = usableSegments[0];
   const last = usableSegments[usableSegments.length - 1];
-  const sampleRate = 16000;
-  const start = Math.max(0, Math.floor((first.start - 0.2) * sampleRate));
-  const end = Math.min(waveform.length, Math.ceil((last.end + 0.35) * sampleRate));
+  const start = Math.max(0, Math.floor(first.start - 0.2 * sampleRate));
+  const end = Math.min(waveform.length, Math.ceil(last.end + 0.35 * sampleRate));
   if (end <= start) return null;
   return waveform.slice(start, end);
 }
@@ -1402,7 +1416,7 @@ export default function ChatScreen() {
           <ModelChoice
             title="Source search only"
             description="Retrieve local sources without loading an answer model."
-            active={!activeModel}
+            active={modelDisabled}
             icon={Search}
             onPress={() => void disableModel()}
           />
@@ -1465,14 +1479,12 @@ const styles = StyleSheet.create({
     paddingTop: 0,
   },
   composerRow: {
-    alignItems: 'flex-end',
+    alignItems: 'center',
     flexDirection: 'row',
     width: '100%',
   },
   detachedPlusButton: {
     alignItems: 'center',
-    backgroundColor: '#1F1F1F',
-    borderColor: '#303030',
     borderRadius: DETACHED_PLUS_SIZE / 2,
     borderWidth: StyleSheet.hairlineWidth,
     height: DETACHED_PLUS_SIZE,
@@ -1486,8 +1498,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   inputPill: {
-    backgroundColor: '#1F1F1F',
-    borderColor: '#303030',
     borderRadius: COMPOSER_HEIGHT / 2,
     borderWidth: StyleSheet.hairlineWidth,
     flex: 1,

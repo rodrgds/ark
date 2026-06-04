@@ -1,7 +1,4 @@
-import {
-  models,
-  TextToSpeechModule,
-} from 'react-native-executorch';
+import { models, TextToSpeechModule } from 'react-native-executorch';
 import {
   getSpeechPlaybackContext,
   getSpeechSampleRate,
@@ -9,7 +6,7 @@ import {
 import * as React from 'react';
 
 type PlaybackSource = {
-  stop: () => void;
+  stop: (when?: number) => void;
   onEnded?: () => void;
 };
 
@@ -20,6 +17,8 @@ export function useArkTextToSpeech() {
   const modulePromiseRef = React.useRef<Promise<TextToSpeechModule> | null>(null);
   const sourceRef = React.useRef<PlaybackSource | null>(null);
   const playbackResolveRef = React.useRef<(() => void) | null>(null);
+  const streamActiveRef = React.useRef(false);
+  const runIdRef = React.useRef(0);
   const [error, setError] = React.useState<Error | null>(null);
   const [downloadProgress, setDownloadProgress] = React.useState(0);
   const [isReady, setIsReady] = React.useState(false);
@@ -27,11 +26,19 @@ export function useArkTextToSpeech() {
   const [isPlaying, setIsPlaying] = React.useState(false);
 
   const stop = React.useCallback(() => {
-    sourceRef.current?.stop();
+    runIdRef.current += 1;
+    try {
+      sourceRef.current?.stop(0);
+    } catch {
+      // The source may already have ended between the button press and this call.
+    }
     sourceRef.current = null;
     playbackResolveRef.current?.();
     playbackResolveRef.current = null;
-    moduleRef.current?.streamStop(true);
+    if (streamActiveRef.current) {
+      moduleRef.current?.streamStop(true);
+      streamActiveRef.current = false;
+    }
     setIsPlaying(false);
     setIsGenerating(false);
   }, []);
@@ -64,42 +71,35 @@ export function useArkTextToSpeech() {
       if (!normalized) return;
 
       stop();
+      const runId = runIdRef.current;
       setIsPlaying(true);
       setIsGenerating(true);
       try {
         const moduleInstance = await getModule();
-        const waveform = await moduleInstance.forward(normalized, 1);
-        const sampleRate = getSpeechSampleRate();
-        const context = getSpeechPlaybackContext();
-        await context.resume().catch(() => undefined);
-        const buffer = context.createBuffer(1, waveform.length, sampleRate);
-        buffer.getChannelData(0).set(waveform);
+        if (runIdRef.current !== runId) return;
 
-        const source = context.createBufferSource() as PlaybackSource & {
-          buffer: typeof buffer | null;
-          connect: (destination: unknown) => void;
-          start: () => void;
-        };
-        source.buffer = buffer;
-        source.connect(context.destination);
-        sourceRef.current = source;
-        await new Promise<void>((resolve) => {
-          playbackResolveRef.current = resolve;
-          source.onEnded = () => {
-            sourceRef.current = null;
-            playbackResolveRef.current = null;
-            setIsPlaying(false);
-            setIsGenerating(false);
-            resolve();
-          };
-          source.start();
-        });
+        moduleInstance.streamInsert(
+          normalized + ('.?!;'.includes(normalized.slice(-1)) ? '' : '.')
+        );
+        streamActiveRef.current = true;
+        for await (const waveform of moduleInstance.stream({
+          speed: 1,
+          phonemize: true,
+          stopAutomatically: true,
+        })) {
+          if (runIdRef.current !== runId) break;
+          await playWaveform(waveform, sourceRef, playbackResolveRef);
+        }
       } catch (error) {
         sourceRef.current = null;
-        setIsPlaying(false);
-        setIsGenerating(false);
         setError(error instanceof Error ? error : new Error('Unable to play voice output.'));
         throw error;
+      } finally {
+        streamActiveRef.current = false;
+        if (runIdRef.current === runId) {
+          setIsPlaying(false);
+          setIsGenerating(false);
+        }
       }
     },
     [getModule, stop]
@@ -134,4 +134,35 @@ function normalizeSpeechText(text: string) {
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 2800);
+}
+
+async function playWaveform(
+  waveform: Float32Array,
+  sourceRef: React.MutableRefObject<PlaybackSource | null>,
+  playbackResolveRef: React.MutableRefObject<(() => void) | null>
+) {
+  if (!waveform.length) return;
+  const sampleRate = getSpeechSampleRate();
+  const context = getSpeechPlaybackContext();
+  await context.resume().catch(() => undefined);
+  const buffer = context.createBuffer(1, waveform.length, sampleRate);
+  buffer.getChannelData(0).set(waveform);
+
+  const source = context.createBufferSource() as PlaybackSource & {
+    buffer: typeof buffer | null;
+    connect: (destination: unknown) => void;
+    start: (when?: number) => void;
+  };
+  source.buffer = buffer;
+  source.connect(context.destination);
+  sourceRef.current = source;
+  await new Promise<void>((resolve) => {
+    playbackResolveRef.current = resolve;
+    source.onEnded = () => {
+      if (sourceRef.current === source) sourceRef.current = null;
+      playbackResolveRef.current = null;
+      resolve();
+    };
+    source.start(0);
+  });
 }

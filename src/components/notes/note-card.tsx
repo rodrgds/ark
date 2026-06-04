@@ -50,9 +50,7 @@ function NoteCardImpl({
           borderColor: selected ? selectedColor : noteTheme.border,
         }}>
         <View className="flex-row items-start justify-between gap-2">
-          <Animated.View
-            className="min-w-0 flex-1"
-            sharedTransitionTag={`note-title-${note.id}`}>
+          <Animated.View className="min-w-0 flex-1" sharedTransitionTag={`note-title-${note.id}`}>
             <Text variant="large" style={{ color: noteTheme.foreground }}>
               {note.title}
             </Text>
@@ -77,6 +75,7 @@ function NoteCardImpl({
                   as={Pin}
                   className="size-4"
                   color={note.isFavorite ? selectedColor : noteTheme.mutedForeground}
+                  fill={note.isFavorite ? selectedColor : 'none'}
                 />
               </Pressable>
             ) : null}

@@ -69,6 +69,7 @@ export default function NotesScreen() {
   const [sortMode, setSortMode] = React.useState<NoteSortMode>('updated_desc');
   const [viewMode, setViewMode] = React.useState<NotesViewMode>('mosaic');
   const notesRef = React.useRef<Note[]>([]);
+  const loadRequestIdRef = React.useRef(0);
 
   const [mode, setMode] = React.useState<NotesMode>('normal');
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(() => new Set());
@@ -104,12 +105,15 @@ export default function NotesScreen() {
 
   async function load(search = query, nextSortMode = sortMode) {
     if (!unlocked) return;
+    const requestId = loadRequestIdRef.current + 1;
+    loadRequestIdRef.current = requestId;
     const [list, colors, savedLabels, allNotes] = await Promise.all([
       NotesRepository.list(search, nextSortMode),
       SettingsRepository.getLabelColors(),
       SettingsRepository.getLabels(),
       search ? NotesRepository.list(undefined, nextSortMode) : Promise.resolve(null),
     ]);
+    if (loadRequestIdRef.current !== requestId) return;
     setNotes(list);
     setLabelColors(colors);
     setAvailableLabels(collectLabels(allNotes ?? list, savedLabels));
@@ -203,7 +207,12 @@ export default function NotesScreen() {
   async function moveNoteToIndex(noteId: string, targetIndex: number) {
     const previousNotes = notesRef.current;
     const index = previousNotes.findIndex((note) => note.id === noteId);
-    if (index < 0 || targetIndex < 0 || targetIndex >= previousNotes.length || targetIndex === index) {
+    if (
+      index < 0 ||
+      targetIndex < 0 ||
+      targetIndex >= previousNotes.length ||
+      targetIndex === index
+    ) {
       return;
     }
 
@@ -255,8 +264,22 @@ export default function NotesScreen() {
   }
 
   async function togglePin(note: Note) {
-    await NotesRepository.update(note.id, { isFavorite: !note.isFavorite });
-    await load(query);
+    const nextFavorite = !note.isFavorite;
+    setNotes((current) =>
+      current.map((item) => (item.id === note.id ? { ...item, isFavorite: nextFavorite } : item))
+    );
+    try {
+      const updated = await NotesRepository.update(note.id, { isFavorite: nextFavorite });
+      if (!updated) throw new Error('The note no longer exists.');
+      setNotes((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      await load(query);
+    } catch (error) {
+      setNotes((current) => current.map((item) => (item.id === note.id ? note : item)));
+      showSheetAlert(
+        'Pin failed',
+        error instanceof Error ? error.message : 'Unable to update the pinned state.'
+      );
+    }
   }
 
   async function setTheme(themeId: NoteThemeId) {
@@ -508,7 +531,7 @@ export default function NotesScreen() {
           <View className="gap-5">
             <View className="gap-3">
               <View className="flex-row items-center gap-2">
-                <Icon as={Pin} className="text-primary size-4" />
+                <Icon as={Pin} className="text-primary size-4" fill="currentColor" />
                 <Text variant="large">Pinned</Text>
               </View>
               {viewMode === 'list' ? (

@@ -79,6 +79,7 @@ export function NotesList({
                     as={Pin}
                     className="size-4"
                     color={note.isFavorite ? selectedColor : noteTheme.mutedForeground}
+                    fill={note.isFavorite ? selectedColor : 'none'}
                   />
                 </Pressable>
               ) : null}

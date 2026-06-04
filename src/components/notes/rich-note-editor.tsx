@@ -7,14 +7,16 @@ import {
 import type { NoteThemeVariant } from '@/constants/note-themes';
 import { getNotePlainText } from '@/lib/note-text';
 import {
+  BridgeExtension,
   RichText,
+  TenTapStartKit,
   useBridgeState,
   useEditorBridge,
   type RecursivePartial,
 } from '@10play/tentap-editor';
 import type { EditorTheme } from '@10play/tentap-editor';
 import type { LucideIcon } from 'lucide-react-native';
-import { Bold, Italic, List, ListChecks, ListOrdered, Redo2, Undo2 } from 'lucide-react-native';
+import { Bold, Italic, List, ListOrdered, ListTodo, Redo2, Undo2 } from 'lucide-react-native';
 import * as React from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
@@ -141,6 +143,11 @@ function getEditorCss(noteTheme: NoteThemeVariant, minHeight: number) {
     .ProseMirror ul[data-type='taskList'] li > label {
       margin-top: 2px;
     }
+    .ProseMirror ul[data-type='taskList'] li > label > input {
+      accent-color: ${noteTheme.foreground};
+      background: ${noteTheme.background};
+      border-color: ${noteTheme.mutedForeground};
+    }
     .ProseMirror-focused {
       outline: none;
     }
@@ -219,6 +226,17 @@ export function RichNoteEditor({
     }),
     [noteTheme.background]
   );
+  const editorCss = React.useMemo(() => getEditorCss(noteTheme, minHeight), [minHeight, noteTheme]);
+  const bridgeExtensions = React.useMemo(
+    () => [
+      ...TenTapStartKit,
+      new BridgeExtension({
+        forceName: 'ark-note-editor',
+        extendCSS: editorCss,
+      }),
+    ],
+    [editorCss]
+  );
 
   const flushEditorContent = React.useCallback(async () => {
     const updateId = contentUpdateIdRef.current + 1;
@@ -284,6 +302,7 @@ export function RichNoteEditor({
   const editor = useEditorBridge({
     autofocus: false,
     avoidIosKeyboard: true,
+    bridgeExtensions,
     dynamicHeight: false,
     initialContent,
     onChange: () => {
@@ -295,9 +314,9 @@ export function RichNoteEditor({
 
   React.useEffect(() => {
     if (!editorState.isReady) return;
-    editor.injectCSS(getEditorCss(noteTheme, minHeight), 'ark-note-editor');
+    editor.injectCSS(editorCss, 'ark-note-editor');
     editor.setPlaceholder('Write your note...');
-  }, [editor, editorState.isReady, minHeight, noteTheme]);
+  }, [editor, editorCss, editorState.isReady]);
 
   function runFormatCommand(command: () => void) {
     userFormatIntentRef.current = true;
@@ -342,7 +361,7 @@ export function RichNoteEditor({
     {
       id: 'checklist',
       label: 'Checklist',
-      icon: ListChecks,
+      icon: ListTodo,
       active: !!editorState.isTaskListActive,
       disabled: !editorReady || !editorState.canToggleTaskList,
       onPress: () => runFormatCommand(editor.toggleTaskList),

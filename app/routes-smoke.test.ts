@@ -181,7 +181,28 @@ describe('app route contracts', () => {
     expect(richEditor).toContain('toggleBulletList');
     expect(richEditor).toContain('toggleOrderedList');
     expect(richEditor).toContain('toggleTaskList');
+    expect(richEditor).toContain('new BridgeExtension');
+    expect(richEditor).toContain("forceName: 'ark-note-editor'");
+    expect(richEditor).toContain("ul[data-type='taskList']");
     expect(richEditor).toContain('RICH_NOTE_CONTENT_FORMAT');
+  });
+
+  test('notes list keeps pinned state visible and ignores stale reloads', () => {
+    const notes = readFileSync(join(appDir, '(tabs)/notes.tsx'), 'utf8');
+    const noteCard = readFileSync(
+      join(process.cwd(), 'src/components/notes/note-card.tsx'),
+      'utf8'
+    );
+    const notesList = readFileSync(
+      join(process.cwd(), 'src/components/notes/notes-list.tsx'),
+      'utf8'
+    );
+
+    expect(notes).toContain('loadRequestIdRef');
+    expect(notes).toContain('nextFavorite');
+    expect(notes).toContain('Pin failed');
+    expect(noteCard).toContain("fill={note.isFavorite ? selectedColor : 'none'}");
+    expect(notesList).toContain("fill={note.isFavorite ? selectedColor : 'none'}");
   });
 
   test('screens do not ship obvious placeholder copy', () => {

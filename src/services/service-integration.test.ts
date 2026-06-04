@@ -1457,6 +1457,31 @@ describe('service integration', () => {
     expect(stored[2].citations[0]?.sourceRef).toBe(note.id);
   });
 
+  test('source search only returns linked local results without an answer adapter', async () => {
+    const note = await NotesRepository.create({
+      title: 'North spring',
+      body: 'Filter north spring water before storing it in sealed containers.',
+      tags: ['water'],
+    });
+    await RagService.indexNote(note.id);
+
+    const result = await AIService.sendMessage({
+      content: 'north spring water',
+      useRag: true,
+      selectedModelId: null,
+      chatModelDisabled: true,
+    });
+    const assistant = result.messages[result.messages.length - 1];
+
+    expect(assistant.role).toBe('assistant');
+    expect(assistant.content).toContain('Found 1 relevant local source');
+    expect(assistant.content).toContain('[1] **North spring**');
+    expect(assistant.content).not.toContain('Based on the local sources Ark found');
+    expect(assistant.citations[0]?.sourceRef).toBe(note.id);
+    expect(assistant.citations[0]?.targetHref).toBe(`/notes/editor?id=${note.id}`);
+    expect(lastLlamaInitModel).toBeNull();
+  });
+
   test('note theme and favorite changes do not rewrite RAG note chunks', async () => {
     const note = await NotesRepository.create({
       title: 'Signal note',

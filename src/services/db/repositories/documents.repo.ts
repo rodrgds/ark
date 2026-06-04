@@ -1,4 +1,5 @@
 import { DatabaseClient } from '@/services/db/client';
+import { sqliteBoolean } from '@/services/db/sqlite-values';
 import { RagCleanupService } from '@/services/ai/rag-cleanup.service';
 import type { ArkDocument } from '@/types/db';
 
@@ -32,7 +33,7 @@ function rowToDocument(row: {
     sizeBytes: row.size_bytes,
     sha256: row.sha256,
     source: row.source,
-    isPersonal: !!row.is_personal,
+    isPersonal: sqliteBoolean(row.is_personal),
     encryptionStatus: row.encryption_status,
     extractedText: row.extracted_text,
     ocrText: row.ocr_text,

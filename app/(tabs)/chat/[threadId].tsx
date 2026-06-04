@@ -17,22 +17,12 @@ import { NAV_THEME } from '@/lib/theme';
 import { AIService, isAiRequestCancelledError } from '@/services/ai/ai.service';
 import { ModelManagerService } from '@/services/ai/model-manager.service';
 import { normalizeReasoningOutput } from '@/services/ai/reasoning-normalizer';
+import { SpeechRecordingService } from '@/services/audio/speech-recording.service';
 import { useThemeStore } from '@/stores/theme-store';
 import type { AiCitation, AiMessage, AiProgressEvent } from '@/types/ai';
 import type { ContentPack } from '@/types/content';
-import { AudioContext } from 'react-native-audio-api';
-import {
-  AudioQuality,
-  IOSOutputFormat,
-  RecordingPresets,
-  requestRecordingPermissionsAsync,
-  setAudioModeAsync,
-  useAudioRecorder,
-  useAudioRecorderState,
-  type RecordingOptions,
-} from 'expo-audio';
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
-import { useSpeechToText, WHISPER_TINY } from 'react-native-executorch';
+import { useSpeechToText, WHISPER_TINY_EN } from 'react-native-executorch';
 import {
   Brain,
   BookOpen,
@@ -88,32 +78,6 @@ const EMPTY_THREAD_PROMPTS = [
   'Look up water purification guidance',
 ];
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-
-const VOICE_RECORDING_OPTIONS: RecordingOptions = Platform.select({
-  ios: {
-    extension: '.wav',
-    sampleRate: 16000,
-    numberOfChannels: 1,
-    bitRate: 256000,
-    isMeteringEnabled: true,
-    android: RecordingPresets.HIGH_QUALITY.android,
-    ios: {
-      outputFormat: IOSOutputFormat.LINEARPCM,
-      audioQuality: AudioQuality.MAX,
-      linearPCMBitDepth: 16,
-      linearPCMIsBigEndian: false,
-      linearPCMIsFloat: false,
-    },
-    web: {
-      mimeType: 'audio/wav',
-      bitsPerSecond: 256000,
-    },
-  },
-  default: {
-    ...RecordingPresets.HIGH_QUALITY,
-    isMeteringEnabled: true,
-  },
-});
 
 function CitationItem({ citation, index }: { citation: AiCitation; index: number }) {
   const location = [
@@ -337,12 +301,14 @@ function MessageBubble({
   onDeleteUserMessage,
   onSpeakAssistant,
   speaking,
+  speechStatusLabel,
 }: {
   message: AiMessage;
   activityMessages?: AiMessage[];
   onDeleteUserMessage: (message: AiMessage) => void;
   onSpeakAssistant?: (message: AiMessage) => void;
   speaking?: boolean;
+  speechStatusLabel?: string;
 }) {
   if (message.role === 'tool') {
     return null;
@@ -369,11 +335,13 @@ function MessageBubble({
         </Text>
         {assistant && onSpeakAssistant ? (
           <Button
-            size="icon"
+            size="sm"
             variant="ghost"
-            className="h-7 w-7"
+            className="h-8 px-2"
+            accessibilityLabel={speaking ? 'Stop reading response aloud' : 'Read response aloud'}
             onPress={() => onSpeakAssistant(message)}>
             <Icon as={speaking ? VolumeX : Volume2} className="size-4" />
+            <Text variant="small">{speaking ? speechStatusLabel ?? 'Stop' : 'Read aloud'}</Text>
           </Button>
         ) : null}
       </View>
@@ -522,12 +490,11 @@ function FloatingComposer({
   onSubmit: () => void;
 }) {
   const inputRef = React.useRef<TextInput>(null);
-  const recorder = useAudioRecorder(VOICE_RECORDING_OPTIONS);
-  const recorderState = useAudioRecorderState(recorder, 100);
-  const speechToText = useSpeechToText({ model: WHISPER_TINY });
+  const speechToText = useSpeechToText({ model: WHISPER_TINY_EN });
   const voiceActivity = useArkVoiceActivity();
   const motionEnabled = useMotionEnabled();
-  const speechAudioContextRef = React.useRef<AudioContext | null>(null);
+  const voiceTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const voiceStateRef = React.useRef<'idle' | 'recording' | 'transcribing'>('idle');
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
   const theme = useThemeStore((state) => state.effectiveTheme);
@@ -544,18 +511,11 @@ function FloatingComposer({
 
   React.useEffect(
     () => () => {
-      void speechAudioContextRef.current?.close().catch(() => undefined);
-      speechAudioContextRef.current = null;
+      if (voiceTimeoutRef.current) clearTimeout(voiceTimeoutRef.current);
+      void SpeechRecordingService.cancel();
     },
     []
   );
-
-  const getSpeechAudioContext = React.useCallback(() => {
-    if (!speechAudioContextRef.current) {
-      speechAudioContextRef.current = new AudioContext({ sampleRate: 16000 });
-    }
-    return speechAudioContextRef.current;
-  }, []);
 
   const calculateKeyboardOffset = React.useCallback(
     (
@@ -663,18 +623,8 @@ function FloatingComposer({
   React.useEffect(() => {
     if (voiceState !== 'recording') {
       recordingLevel.value = withTiming(0, { duration: 140 });
-      return;
     }
-
-    const metering = recorderState.metering ?? -48;
-    const level = motionEnabled
-      ? interpolate(metering, [-60, -24, -6], [0.08, 0.5, 1], Extrapolation.CLAMP)
-      : 0.28;
-    recordingLevel.value = withTiming(level, {
-      duration: motionEnabled ? 100 : 0,
-      easing: Easing.out(Easing.quad),
-    });
-  }, [motionEnabled, recorderState.metering, recordingLevel, voiceState]);
+  }, [recordingLevel, voiceState]);
 
   const containerStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: -keyboardOffset.value }],
@@ -715,11 +665,6 @@ function FloatingComposer({
   async function startVoiceRecording() {
     if (disabled || voiceState !== 'idle' || hasText) return;
     try {
-      const permission = await requestRecordingPermissionsAsync();
-      if (!permission.granted) {
-        onVoiceError('Microphone permission is required for voice input.');
-        return;
-      }
       if (!speechToText.isReady) {
         onVoiceError(
           speechToText.error?.message ??
@@ -734,14 +679,20 @@ function FloatingComposer({
         );
         return;
       }
-      await setAudioModeAsync({
-        allowsRecording: true,
-        playsInSilentMode: true,
+      await SpeechRecordingService.start((level) => {
+        recordingLevel.value = withTiming(motionEnabled ? Math.max(0.08, level) : 0.28, {
+          duration: motionEnabled ? 100 : 0,
+          easing: Easing.out(Easing.quad),
+        });
       });
-      await recorder.prepareToRecordAsync(VOICE_RECORDING_OPTIONS);
-      recorder.record({ forDuration: 45 });
+      voiceStateRef.current = 'recording';
       setVoiceState('recording');
+      voiceTimeoutRef.current = setTimeout(() => {
+        void stopVoiceRecording();
+      }, 45000);
     } catch (voiceError) {
+      await SpeechRecordingService.cancel();
+      voiceStateRef.current = 'idle';
       setVoiceState('idle');
       onVoiceError(
         voiceError instanceof Error ? voiceError.message : 'Unable to start voice input.'
@@ -750,16 +701,16 @@ function FloatingComposer({
   }
 
   async function stopVoiceRecording() {
-    if (voiceState !== 'recording') return;
+    if (voiceStateRef.current !== 'recording') return;
+    voiceStateRef.current = 'transcribing';
     setVoiceState('transcribing');
+    if (voiceTimeoutRef.current) {
+      clearTimeout(voiceTimeoutRef.current);
+      voiceTimeoutRef.current = null;
+    }
     try {
-      await recorder.stop();
-      await setAudioModeAsync({ allowsRecording: false });
-      const uri = recorder.uri ?? recorderState.url;
-      if (!uri) throw new Error('No voice recording was saved.');
-      const audioContext = getSpeechAudioContext();
-      const decodedAudio = await audioContext.decodeAudioData(uri);
-      const waveform = decodedAudio.getChannelData(0);
+      const waveform = await SpeechRecordingService.stop();
+      if (!waveform.length) throw new Error('No voice recording was captured.');
       const speechSegments = await voiceActivity.forward(waveform);
       const speechWaveform = sliceVoiceActivity(waveform, speechSegments);
       if (!speechWaveform) throw new Error('No speech was detected in the recording.');
@@ -771,15 +722,10 @@ function FloatingComposer({
         voiceError instanceof Error ? voiceError.message : 'Unable to transcribe voice input.'
       );
     } finally {
+      voiceStateRef.current = 'idle';
       setVoiceState('idle');
     }
   }
-
-  React.useEffect(() => {
-    if (voiceState === 'recording' && !recorderState.isRecording && recorderState.url) {
-      void stopVoiceRecording();
-    }
-  }, [recorderState.isRecording, recorderState.url, voiceState]);
 
   return (
     <Animated.View
@@ -1354,6 +1300,15 @@ export default function ChatScreen() {
                 onDeleteUserMessage={setDeleteConfirmMessage}
                 onSpeakAssistant={speakAssistantMessage}
                 speaking={speakingMessageId === item.item.message.id}
+                speechStatusLabel={
+                  speakingMessageId === item.item.message.id && !speechPlayback.isReady
+                    ? `Loading voice ${Math.round(speechPlayback.downloadProgress * 100)}%`
+                    : speakingMessageId === item.item.message.id &&
+                        speechPlayback.isGenerating &&
+                        !speechPlayback.isPlaying
+                      ? 'Preparing voice'
+                    : undefined
+                }
               />
             )
           }
@@ -1555,6 +1510,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     height: 42,
     justifyContent: 'center',
+    marginRight: 4,
     position: 'relative',
     width: 36,
   },

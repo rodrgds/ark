@@ -1,6 +1,7 @@
 import { randomUUID } from 'expo-crypto';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { DatabaseClient } from '@/services/db/client';
+import { sqliteBoolean } from '@/services/db/sqlite-values';
 import { RagCleanupService } from '@/services/ai/rag-cleanup.service';
 import { toFtsPrefixQuery } from '@/services/db/fts';
 import { HapticsService } from '@/services/device/haptics.service';
@@ -35,7 +36,7 @@ function mapNote(row: {
   tags_json: string | null;
   theme_id: string | null;
   sort_order: number | null;
-  is_favorite: number;
+  is_favorite: number | string | boolean;
   created_at: number;
   updated_at: number;
   deleted_at: number | null;
@@ -50,7 +51,7 @@ function mapNote(row: {
     tags: row.tags_json ? JSON.parse(row.tags_json) : [],
     themeId: normalizeNoteThemeId(row.theme_id),
     sortOrder: row.sort_order ?? row.updated_at,
-    isFavorite: !!row.is_favorite,
+    isFavorite: sqliteBoolean(row.is_favorite),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     deletedAt: row.deleted_at,

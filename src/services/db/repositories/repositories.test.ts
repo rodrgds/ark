@@ -1,5 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { Database } from 'bun:sqlite';
+import { sqliteBoolean } from '@/services/db/sqlite-values';
 
 mock.module('expo-sqlite', () => ({
   openDatabaseAsync: async () => {
@@ -337,6 +338,16 @@ describe('database migrations', () => {
     } finally {
       oldDb.close();
     }
+  });
+});
+
+describe('SQLite value mapping', () => {
+  test('parses numeric and text booleans without treating text zero as true', () => {
+    expect(sqliteBoolean(1)).toBe(true);
+    expect(sqliteBoolean('1')).toBe(true);
+    expect(sqliteBoolean(0)).toBe(false);
+    expect(sqliteBoolean('0')).toBe(false);
+    expect(sqliteBoolean(null)).toBe(false);
   });
 });
 

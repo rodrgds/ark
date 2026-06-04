@@ -184,6 +184,9 @@ describe('app route contracts', () => {
     expect(richEditor).toContain('new BridgeExtension');
     expect(richEditor).toContain("forceName: 'ark-note-editor'");
     expect(richEditor).toContain("ul[data-type='taskList']");
+    expect(richEditor).toContain("label > input:checked");
+    expect(richEditor).toContain('-webkit-appearance: none');
+    expect(richEditor).toContain('Convert to checklist');
     expect(richEditor).toContain('RICH_NOTE_CONTENT_FORMAT');
   });
 
@@ -203,6 +206,16 @@ describe('app route contracts', () => {
     expect(notes).toContain('Pin failed');
     expect(noteCard).toContain("fill={note.isFavorite ? selectedColor : 'none'}");
     expect(notesList).toContain("fill={note.isFavorite ? selectedColor : 'none'}");
+  });
+
+  test('manual note ordering settles without a spring bounce', () => {
+    const organizeList = readFileSync(
+      join(process.cwd(), 'src/components/notes/notes-organize-list.tsx'),
+      'utf8'
+    );
+
+    expect(organizeList).toContain('withTiming(0');
+    expect(organizeList).not.toContain('withSpring');
   });
 
   test('screens do not ship obvious placeholder copy', () => {

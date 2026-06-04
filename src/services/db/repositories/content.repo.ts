@@ -1,5 +1,6 @@
 import { STARTER_PACKS } from '@/constants/packs';
 import { DatabaseClient } from '@/services/db/client';
+import { sqliteBoolean } from '@/services/db/sqlite-values';
 import type { ContentPack } from '@/types/content';
 
 const LEGACY_PLACEHOLDER_PACK_IDS = [
@@ -77,7 +78,7 @@ function rowToPack(row: {
     downloadStrategy: manifest?.downloadStrategy,
     localUri: row.local_uri,
     sizeBytes: row.size_bytes,
-    installed: !!row.installed,
+    installed: sqliteBoolean(row.installed),
     installStatus: row.install_status,
     progress: row.progress,
     createdAt: row.created_at,

@@ -1,11 +1,19 @@
 import { randomUUID } from 'expo-crypto';
 import { DatabaseClient } from '@/services/db/client';
+import { sqliteBoolean } from '@/services/db/sqlite-values';
 import { HapticsService } from '@/services/device/haptics.service';
-import { AiToolService } from '@/services/ai/ai-tools.service';
+import { AiToolService, type AiToolRun } from '@/services/ai/ai-tools.service';
 import { LlamaAdapter } from '@/services/ai/llama-adapter';
 import { MockAIAdapter } from '@/services/ai/mock-ai-adapter';
 import { chatMessageSchema, parseOrThrow } from '@/lib/validation';
-import type { AiMessage, AiSendMessageInput, AiSendMessageOptions, AiThread } from '@/types/ai';
+import type {
+  AiAdapterResponse,
+  AiCitation,
+  AiMessage,
+  AiSendMessageInput,
+  AiSendMessageOptions,
+  AiThread,
+} from '@/types/ai';
 import { PreferencesService } from '@/services/preferences/preferences.service';
 
 const mockAdapter = new MockAIAdapter();
@@ -75,7 +83,7 @@ export class AIService {
       lastMessage: row.last_message ?? undefined,
       selectedModelId: row.selected_model_id,
       chatModelDisabled:
-        row.chat_model_disabled === null ? null : Boolean(row.chat_model_disabled),
+        row.chat_model_disabled === null ? null : sqliteBoolean(row.chat_model_disabled),
     }));
   }
 
@@ -162,7 +170,7 @@ export class AIService {
       chatModelDisabled:
         row?.chat_model_disabled === null || row?.chat_model_disabled === undefined
           ? null
-          : Boolean(row.chat_model_disabled),
+          : sqliteBoolean(row.chat_model_disabled),
     };
   }
 
@@ -248,30 +256,16 @@ export class AIService {
             createdAt: timestamp + 1,
           }
         : null;
-      const adapter =
-        !modelSettings.chatModelDisabled && (await llamaAdapter.isAvailable(modelSettings.selectedModelId))
-          ? llamaAdapter
-          : mockAdapter;
-      options.onProgress?.({
-        stage: 'loading_model',
-        label: adapter === llamaAdapter ? 'Loading local model' : 'Preparing response',
-      });
-      throwIfCancelled(request);
-      options.onProgress?.({ stage: 'generating_response', label: 'Generating response' });
-      const response = await adapter.sendMessage({
-        content: validated.content,
-        selectedModelId: modelSettings.selectedModelId,
-        history,
-        citations: toolRun.citations,
-        sourceContext: toolRun.sourceContext,
-        toolTrace: toolRun.toolTrace,
-        onToken: (token) => {
-          if (!request.cancelled) options.onToken?.(token);
-        },
-        onReasoning: (reasoning) => {
-          if (!request.cancelled) options.onReasoning?.(reasoning);
-        },
-      });
+      const response = modelSettings.chatModelDisabled
+        ? sourceSearchResponse(toolRun.citations)
+        : await this.generateAnswer({
+            content: validated.content,
+            selectedModelId: modelSettings.selectedModelId,
+            history,
+            toolRun,
+            options,
+            request,
+          });
       throwIfCancelled(request);
       const assistantMessage: AiMessage = {
         id: randomUUID(),
@@ -329,6 +323,44 @@ export class AIService {
     return rows.reverse().map((message) => ({ role: message.role, content: message.content }));
   }
 
+  private static async generateAnswer({
+    content,
+    selectedModelId,
+    history,
+    toolRun,
+    options,
+    request,
+  }: {
+    content: string;
+    selectedModelId?: string | null;
+    history: Array<{ role: 'user' | 'assistant'; content: string }>;
+    toolRun: AiToolRun;
+    options: AiSendMessageOptions;
+    request: ActiveAiRequest;
+  }) {
+    const adapter = (await llamaAdapter.isAvailable(selectedModelId)) ? llamaAdapter : mockAdapter;
+    options.onProgress?.({
+      stage: 'loading_model',
+      label: adapter === llamaAdapter ? 'Loading local model' : 'Preparing response',
+    });
+    throwIfCancelled(request);
+    options.onProgress?.({ stage: 'generating_response', label: 'Generating response' });
+    return adapter.sendMessage({
+      content,
+      selectedModelId,
+      history,
+      citations: toolRun.citations,
+      sourceContext: toolRun.sourceContext,
+      toolTrace: toolRun.toolTrace,
+      onToken: (token) => {
+        if (!request.cancelled) options.onToken?.(token);
+      },
+      onReasoning: (reasoning) => {
+        if (!request.cancelled) options.onReasoning?.(reasoning);
+      },
+    });
+  }
+
   private static async resolveThreadModelSettings(threadId: string) {
     const threadSettings = await this.getThreadModelSettings(threadId);
     const [globalSelectedModelId, globalDisabled] = await Promise.all([
@@ -340,6 +372,31 @@ export class AIService {
       chatModelDisabled: threadSettings.chatModelDisabled ?? globalDisabled,
     };
   }
+}
+
+function sourceSearchResponse(citations: AiCitation[]): AiAdapterResponse {
+  if (!citations.length) {
+    return {
+      content: 'No matching local sources were found.',
+      citations: [],
+    };
+  }
+
+  const results = citations.map((citation, index) => {
+    const location = [
+      citation.sectionTitle,
+      typeof citation.page === 'number' ? `page ${citation.page}` : null,
+    ]
+      .filter(Boolean)
+      .join(', ');
+    const snippet = citation.snippet.trim().replace(/\s+/g, ' ');
+    return `[${index + 1}] **${citation.title}**${location ? ` - ${location}` : ''}\n${snippet}`;
+  });
+
+  return {
+    content: `Found ${citations.length} relevant local source${citations.length === 1 ? '' : 's'}:\n\n${results.join('\n\n')}`,
+    citations,
+  };
 }
 
 function rowToMessage(row: {

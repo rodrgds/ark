@@ -6,6 +6,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { DatabaseClient } from '@/services/db/client';
+import { sqliteBoolean } from '@/services/db/sqlite-values';
 import { FileSystemService } from '@/services/files/filesystem.service';
 import { parseOrThrow, vaultPasswordSchema } from '@/lib/validation';
 import type {
@@ -540,7 +541,7 @@ function mapNoteBackup(row: NoteRow): ArkBackupNote {
     tags: parseJsonArray(row.tags_json),
     themeId: row.theme_id,
     sortOrder: row.sort_order ?? row.updated_at,
-    isFavorite: !!row.is_favorite,
+    isFavorite: sqliteBoolean(row.is_favorite),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -552,7 +553,7 @@ function mapMarkerBackup(row: MarkerRow): MapMarker {
     title: row.title,
     description: row.description,
     pinType: row.pin_type,
-    isEmergencyPin: !!row.is_emergency,
+    isEmergencyPin: sqliteBoolean(row.is_emergency),
     latitude: row.latitude,
     longitude: row.longitude,
     photoUri: row.photo_uri,
@@ -579,7 +580,7 @@ function mapRssFeedBackup(row: RssFeedRow): ArkBackupRssFeed {
     id: row.id,
     title: row.title,
     url: row.url,
-    enabled: !!row.enabled,
+    enabled: sqliteBoolean(row.enabled),
     lastFetchedAt: row.last_fetched_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

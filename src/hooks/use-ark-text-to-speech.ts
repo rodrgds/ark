@@ -72,7 +72,7 @@ export function useArkTextToSpeech() {
 
       stop();
       const runId = runIdRef.current;
-      setIsPlaying(true);
+      setError(null);
       setIsGenerating(true);
       try {
         const moduleInstance = await getModule();
@@ -82,13 +82,19 @@ export function useArkTextToSpeech() {
           normalized + ('.?!;'.includes(normalized.slice(-1)) ? '' : '.')
         );
         streamActiveRef.current = true;
+        let producedAudio = false;
         for await (const waveform of moduleInstance.stream({
           speed: 1,
           phonemize: true,
           stopAutomatically: true,
         })) {
           if (runIdRef.current !== runId) break;
+          producedAudio = true;
+          setIsPlaying(true);
           await playWaveform(waveform, sourceRef, playbackResolveRef);
+        }
+        if (!producedAudio && runIdRef.current === runId) {
+          throw new Error('Voice playback produced no audio.');
         }
       } catch (error) {
         sourceRef.current = null;

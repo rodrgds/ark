@@ -138,15 +138,52 @@ function getEditorCss(noteTheme: NoteThemeVariant, minHeight: number) {
     .ProseMirror ul[data-type='taskList'] li {
       align-items: flex-start;
       display: flex;
-      gap: 8px;
+      gap: 10px;
+      margin-bottom: 8px;
     }
     .ProseMirror ul[data-type='taskList'] li > label {
-      margin-top: 2px;
+      align-items: center;
+      display: flex;
+      flex: 0 0 auto;
+      margin-top: 3px;
     }
     .ProseMirror ul[data-type='taskList'] li > label > input {
-      accent-color: ${noteTheme.foreground};
-      background: ${noteTheme.background};
-      border-color: ${noteTheme.mutedForeground};
+      -webkit-appearance: none;
+      appearance: none;
+      background-color: ${noteTheme.background};
+      border: 1.5px solid ${noteTheme.mutedForeground};
+      border-radius: 4px;
+      box-sizing: border-box;
+      height: 18px;
+      margin: 0;
+      position: relative;
+      transition: background-color 120ms ease, border-color 120ms ease;
+      width: 18px;
+    }
+    .ProseMirror ul[data-type='taskList'] li > label > input:checked {
+      background-color: ${noteTheme.foreground};
+      border-color: ${noteTheme.foreground};
+    }
+    .ProseMirror ul[data-type='taskList'] li > label > input:checked::after {
+      border-bottom: 2px solid ${noteTheme.background};
+      border-right: 2px solid ${noteTheme.background};
+      content: '';
+      height: 8px;
+      left: 5px;
+      position: absolute;
+      top: 2px;
+      transform: rotate(45deg);
+      width: 4px;
+    }
+    .ProseMirror ul[data-type='taskList'] li > div {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    .ProseMirror ul[data-type='taskList'] li > div > p {
+      margin-bottom: 0;
+    }
+    .ProseMirror ul[data-type='taskList'] li[data-checked='true'] > div {
+      color: ${noteTheme.mutedForeground};
     }
     .ProseMirror-focused {
       outline: none;
@@ -360,7 +397,7 @@ export function RichNoteEditor({
     },
     {
       id: 'checklist',
-      label: 'Checklist',
+      label: 'Convert to checklist',
       icon: ListTodo,
       active: !!editorState.isTaskListActive,
       disabled: !editorReady || !editorState.canToggleTaskList,

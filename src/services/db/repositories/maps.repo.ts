@@ -1,6 +1,7 @@
 import { randomUUID } from 'expo-crypto';
 import { getMapPinMeta, normalizeMapPinType, type MapPinType } from '@/constants/map-pins';
 import { DatabaseClient } from '@/services/db/client';
+import { sqliteBoolean } from '@/services/db/sqlite-values';
 import type { MapMarker, MapRegion, MapRegionPackFormat, SavedRoute } from '@/types/maps';
 
 function mapRegion(row: {
@@ -82,7 +83,7 @@ function mapMarker(row: {
     title: row.title,
     description: row.description,
     pinType,
-    isEmergencyPin: Boolean(row.is_emergency),
+    isEmergencyPin: sqliteBoolean(row.is_emergency),
     latitude: row.latitude,
     longitude: row.longitude,
     photoUri: row.photo_uri,

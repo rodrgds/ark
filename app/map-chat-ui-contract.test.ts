@@ -76,12 +76,21 @@ describe('map and chat UI contracts', () => {
     const chat = readFileSync(join(appDir, '(tabs)/chat/[threadId].tsx'), 'utf8');
     const vad = readFileSync(join(process.cwd(), 'src/hooks/use-ark-voice-activity.ts'), 'utf8');
     const tts = readFileSync(join(process.cwd(), 'src/hooks/use-ark-text-to-speech.ts'), 'utf8');
+    const recorder = readFileSync(
+      join(process.cwd(), 'src/services/audio/speech-recording.service.ts'),
+      'utf8'
+    );
 
     expect(chat).toContain('useArkVoiceActivity');
+    expect(chat).toContain('WHISPER_TINY_EN');
     expect(chat).toContain('speechToText.transcribe(speechWaveform, {})');
     expect(chat).toContain('0.18 * sampleRate');
-    expect(chat).toContain('isMeteringEnabled: true');
+    expect(chat).toContain('SpeechRecordingService.stop()');
     expect(chat).toContain('recordingPulseStyle');
+    expect(chat).toContain('Read aloud');
+    expect(recorder).toContain('AudioRecorder');
+    expect(recorder).toContain('sampleRate: SPEECH_SAMPLE_RATE');
+    expect(recorder).toContain('buffer.getChannelData(0).slice()');
     expect(vad).toContain('nativeModule.generate(waveform, 0)');
     expect(tts).toContain('moduleInstance.streamInsert');
     expect(tts).toContain('for await (const waveform of moduleInstance.stream');

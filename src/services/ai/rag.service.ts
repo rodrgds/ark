@@ -1015,6 +1015,10 @@ function citationForRow(row: {
     row.source_id.startsWith('map-region:')
       ? '/(tabs)/map'
       : undefined;
+  const noteTarget =
+    row.source_id.startsWith('note:') && row.source_ref
+      ? `/notes/editor?id=${encodeURIComponent(row.source_ref)}`
+      : undefined;
 
   return {
     sourceId: row.source_id,
@@ -1023,7 +1027,8 @@ function citationForRow(row: {
     sectionTitle: section?.title,
     page,
     chunkIndex: row.chunk_index,
-    targetHref: contentTarget ?? documentTarget ?? zimArticleTarget ?? rssTarget ?? mapTarget,
+    targetHref:
+      contentTarget ?? documentTarget ?? zimArticleTarget ?? rssTarget ?? mapTarget ?? noteTarget,
   };
 }
 

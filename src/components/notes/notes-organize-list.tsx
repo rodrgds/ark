@@ -10,9 +10,10 @@ import * as React from 'react';
 import { View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
+  Easing,
   useAnimatedStyle,
   useSharedValue,
-  withSpring,
+  withTiming,
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
@@ -85,7 +86,10 @@ function DraggableOrganizeRow({
         .onFinalize((event) => {
           const offset = Math.round(event.translationY / ROW_HEIGHT);
           const targetIndex = Math.max(0, Math.min(count - 1, index + offset));
-          translateY.value = withSpring(0, { damping: 18, stiffness: 220 });
+          translateY.value = withTiming(0, {
+            duration: 140,
+            easing: Easing.out(Easing.cubic),
+          });
           dragging.value = 0;
           if (targetIndex !== index) {
             scheduleOnRN(onMoveToIndex, note.id, targetIndex);

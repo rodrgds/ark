@@ -11,8 +11,15 @@
 -keep class com.swmansion.reanimated.** { *; }
 -keep class com.facebook.react.turbomodule.** { *; }
 
+# Add any project specific keep options here:
+
+# @generated begin expo-build-properties - expo prebuild (DO NOT MODIFY)
+# React Native ExecuTorch reaches these Java classes from native JNI code.
+# R8 cannot see those references and otherwise removes or renames the runtime.
+-keep class org.pytorch.executorch.** { *; }
+-keep class com.swmansion.rnexecutorch.** { *; }
+
 # PDFBox can reference the optional Gemalto JPEG2000 decoder when parsing PDFs.
 # Ark does not bundle that decoder; OCR/text extraction paths handle failures.
 -dontwarn com.gemalto.jp2.JP2Decoder
-
-# Add any project specific keep options here:
+# @generated end expo-build-properties

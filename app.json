@@ -97,7 +97,17 @@
         }
       ],
       "@maplibre/maplibre-react-native",
-      "expo-build-properties",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "useLegacyPackaging": true,
+            "extraProguardRules": "# React Native ExecuTorch reaches these Java classes from native JNI code.\n# R8 cannot see those references and otherwise removes or renames the runtime.\n-keep class org.pytorch.executorch.** { *; }\n-keep class com.swmansion.rnexecutorch.** { *; }\n\n# PDFBox can reference the optional Gemalto JPEG2000 decoder when parsing PDFs.\n# Ark does not bundle that decoder; OCR/text extraction paths handle failures.\n-dontwarn com.gemalto.jp2.JP2Decoder"
+          }
+        }
+      ],
       [
         "llama.rn",
         {

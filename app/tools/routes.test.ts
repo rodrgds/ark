@@ -22,4 +22,14 @@ describe('tools routes', () => {
     expect(existsSync(join(toolsDir, 'weather.tsx'))).toBe(true);
     expect(existsSync(join(toolsDir, 'checklist.tsx'))).toBe(true);
   });
+
+  test('compass can navigate toward saved map spots', () => {
+    const compass = readFileSync(join(toolsDir, 'compass.tsx'), 'utf8');
+
+    expect(compass).toContain('OfflineMapService.listMarkers');
+    expect(compass).toContain('MapLocationService.resolveUserLocation');
+    expect(compass).toContain('Navigate to saved spot');
+    expect(compass).toContain('bearingDegrees');
+    expect(compass).toContain('formatTurnGuidance');
+  });
 });

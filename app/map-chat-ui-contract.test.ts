@@ -80,6 +80,8 @@ describe('map and chat UI contracts', () => {
     expect(chat).toContain('useArkVoiceActivity');
     expect(chat).toContain('speechToText.transcribe(speechWaveform, {})');
     expect(chat).toContain('0.18 * sampleRate');
+    expect(chat).toContain('isMeteringEnabled: true');
+    expect(chat).toContain('recordingPulseStyle');
     expect(vad).toContain('nativeModule.generate(waveform, 0)');
     expect(tts).toContain('moduleInstance.streamInsert');
     expect(tts).toContain('for await (const waveform of moduleInstance.stream');

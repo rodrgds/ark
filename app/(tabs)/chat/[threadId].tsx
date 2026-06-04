@@ -12,6 +12,7 @@ import { NAV_COLORS } from '@/constants/theme';
 import { useBatteryReduceMode } from '@/hooks/use-battery-reduce-mode';
 import { useArkTextToSpeech } from '@/hooks/use-ark-text-to-speech';
 import { useArkVoiceActivity } from '@/hooks/use-ark-voice-activity';
+import { useMotionEnabled } from '@/hooks/use-motion-enabled';
 import { NAV_THEME } from '@/lib/theme';
 import { AIService, isAiRequestCancelledError } from '@/services/ai/ai.service';
 import { ModelManagerService } from '@/services/ai/model-manager.service';
@@ -94,6 +95,7 @@ const VOICE_RECORDING_OPTIONS: RecordingOptions = Platform.select({
     sampleRate: 16000,
     numberOfChannels: 1,
     bitRate: 256000,
+    isMeteringEnabled: true,
     android: RecordingPresets.HIGH_QUALITY.android,
     ios: {
       outputFormat: IOSOutputFormat.LINEARPCM,
@@ -107,7 +109,10 @@ const VOICE_RECORDING_OPTIONS: RecordingOptions = Platform.select({
       bitsPerSecond: 256000,
     },
   },
-  default: RecordingPresets.HIGH_QUALITY,
+  default: {
+    ...RecordingPresets.HIGH_QUALITY,
+    isMeteringEnabled: true,
+  },
 });
 
 function CitationItem({ citation, index }: { citation: AiCitation; index: number }) {
@@ -518,9 +523,10 @@ function FloatingComposer({
 }) {
   const inputRef = React.useRef<TextInput>(null);
   const recorder = useAudioRecorder(VOICE_RECORDING_OPTIONS);
-  const recorderState = useAudioRecorderState(recorder, 250);
+  const recorderState = useAudioRecorderState(recorder, 100);
   const speechToText = useSpeechToText({ model: WHISPER_TINY });
   const voiceActivity = useArkVoiceActivity();
+  const motionEnabled = useMotionEnabled();
   const speechAudioContextRef = React.useRef<AudioContext | null>(null);
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
@@ -532,6 +538,7 @@ function FloatingComposer({
   const [inputHeight, setInputHeight] = React.useState(COMPOSER_HEIGHT);
   const keyboardProgress = useSharedValue(0);
   const keyboardOffset = useSharedValue(0);
+  const recordingLevel = useSharedValue(0);
   const hasText = value.length > 0;
   const expanded = inputHeight > COMPOSER_HEIGHT + 8;
 
@@ -653,6 +660,22 @@ function FloatingComposer({
     }
   }, [isFocused, keyboardProgress, keyboardVisible]);
 
+  React.useEffect(() => {
+    if (voiceState !== 'recording') {
+      recordingLevel.value = withTiming(0, { duration: 140 });
+      return;
+    }
+
+    const metering = recorderState.metering ?? -48;
+    const level = motionEnabled
+      ? interpolate(metering, [-60, -24, -6], [0.08, 0.5, 1], Extrapolation.CLAMP)
+      : 0.28;
+    recordingLevel.value = withTiming(level, {
+      duration: motionEnabled ? 100 : 0,
+      easing: Easing.out(Easing.quad),
+    });
+  }, [motionEnabled, recorderState.metering, recordingLevel, voiceState]);
+
   const containerStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: -keyboardOffset.value }],
   }));
@@ -675,6 +698,15 @@ function FloatingComposer({
       width: interpolate(progress, [0, 1], [38, 0], Extrapolation.CLAMP),
     };
   });
+
+  const recordingPulseStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(recordingLevel.value, [0, 1], [0, 0.34], Extrapolation.CLAMP),
+    transform: [
+      {
+        scale: interpolate(recordingLevel.value, [0, 1], [0.8, 1.9], Extrapolation.CLAMP),
+      },
+    ],
+  }));
 
   const bottomPadding = keyboardVisible
     ? COMPOSER_BOTTOM_GAP_FOCUSED
@@ -861,7 +893,17 @@ function FloatingComposer({
               {voiceState === 'transcribing' ? (
                 <ActivityIndicator size="small" />
               ) : voiceState === 'recording' ? (
-                <Icon as={Square} className="text-primary size-5" />
+                <>
+                  <Animated.View
+                    pointerEvents="none"
+                    style={[
+                      styles.recordingPulse,
+                      { backgroundColor: colors.primary },
+                      recordingPulseStyle,
+                    ]}
+                  />
+                  <Icon as={Square} className="text-primary size-5" />
+                </>
               ) : (
                 <Icon as={Mic} className="text-muted-foreground size-5" />
               )}
@@ -1513,7 +1555,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     height: 42,
     justifyContent: 'center',
+    position: 'relative',
     width: 36,
+  },
+  recordingPulse: {
+    borderRadius: 999,
+    height: 20,
+    position: 'absolute',
+    width: 20,
   },
   composerError: {
     borderRadius: 12,

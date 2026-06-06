@@ -100,7 +100,7 @@ function calculateLevel(samples: Float32Array) {
   for (const sample of samples) {
     sum += sample * sample;
   }
-  return Math.min(1, Math.sqrt(sum / samples.length) * 5);
+  return Math.min(1, Math.sqrt(sum / samples.length) * 8);
 }
 
 function concatenateChunks(input: Float32Array[], length: number) {

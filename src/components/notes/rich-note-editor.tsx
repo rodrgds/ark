@@ -358,7 +358,6 @@ export function RichNoteEditor({
   function runFormatCommand(command: () => void) {
     userFormatIntentRef.current = true;
     command();
-    editor.focus('end');
   }
 
   const editorReady = !!editorState.isReady;

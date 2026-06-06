@@ -88,6 +88,9 @@ export default function NotesScreen() {
   );
   const selectedNoteIds = React.useMemo(() => Array.from(selectedIds), [selectedIds]);
   const selectedCount = selectedIds.size;
+  const singleSelectedNote = selectedCount === 1 ? selectedNotes[0] : null;
+  const showPinAction = selectedCount > 1 || singleSelectedNote?.isFavorite === false;
+  const showUnpinAction = selectedCount > 1 || singleSelectedNote?.isFavorite === true;
   const pinnedNotes = React.useMemo(() => notes.filter((note) => note.isFavorite), [notes]);
   const unpinnedNotes = React.useMemo(() => notes.filter((note) => !note.isFavorite), [notes]);
 
@@ -204,22 +207,22 @@ export default function NotesScreen() {
     await SettingsRepository.set('notes.viewMode', nextViewMode);
   }
 
-  async function moveNoteToIndex(noteId: string, targetIndex: number) {
+  async function moveNoteWithinGroup(noteId: string, targetIndex: number, isFavorite: boolean) {
     const previousNotes = notesRef.current;
-    const index = previousNotes.findIndex((note) => note.id === noteId);
-    if (
-      index < 0 ||
-      targetIndex < 0 ||
-      targetIndex >= previousNotes.length ||
-      targetIndex === index
-    ) {
+    const groupNotes = previousNotes.filter((note) => note.isFavorite === isFavorite);
+    const index = groupNotes.findIndex((note) => note.id === noteId);
+    if (index < 0 || targetIndex < 0 || targetIndex >= groupNotes.length || targetIndex === index) {
       return;
     }
 
-    const nextNotes = [...previousNotes];
-    const [movedNote] = nextNotes.splice(index, 1);
+    const nextGroupNotes = [...groupNotes];
+    const [movedNote] = nextGroupNotes.splice(index, 1);
     if (!movedNote) return;
-    nextNotes.splice(targetIndex, 0, movedNote);
+    nextGroupNotes.splice(targetIndex, 0, movedNote);
+    let groupIndex = 0;
+    const nextNotes = previousNotes.map((note) =>
+      note.isFavorite === isFavorite ? (nextGroupNotes[groupIndex++] ?? note) : note
+    );
 
     setMovingNoteId(noteId);
     setNotes(nextNotes);
@@ -263,25 +266,6 @@ export default function NotesScreen() {
     toggleSelection(note);
   }
 
-  async function togglePin(note: Note) {
-    const nextFavorite = !note.isFavorite;
-    setNotes((current) =>
-      current.map((item) => (item.id === note.id ? { ...item, isFavorite: nextFavorite } : item))
-    );
-    try {
-      const updated = await NotesRepository.update(note.id, { isFavorite: nextFavorite });
-      if (!updated) throw new Error('The note no longer exists.');
-      setNotes((current) => current.map((item) => (item.id === updated.id ? updated : item)));
-      await load(query);
-    } catch (error) {
-      setNotes((current) => current.map((item) => (item.id === note.id ? note : item)));
-      showSheetAlert(
-        'Pin failed',
-        error instanceof Error ? error.message : 'Unable to update the pinned state.'
-      );
-    }
-  }
-
   async function setTheme(themeId: NoteThemeId) {
     const target = themeTarget;
     if (!target) return;
@@ -321,6 +305,20 @@ export default function NotesScreen() {
     await load(query);
   }
 
+  async function toggleBulkLabel(label: string, currentlyAppliedToAll: boolean) {
+    const normalized = label.trim();
+    if (!normalized || !selectedNoteIds.length) return;
+
+    if (currentlyAppliedToAll) {
+      await NotesRepository.removeLabels(selectedNoteIds, [normalized]);
+    } else {
+      await SettingsRepository.addLabel(normalized);
+      await NotesRepository.applyLabels(selectedNoteIds, [normalized]);
+    }
+    exitSelection();
+    await load(query);
+  }
+
   async function printNote(note: Note) {
     setPrintingNoteId(note.id);
     try {
@@ -352,6 +350,43 @@ export default function NotesScreen() {
     if (!note) return;
     await printNote(note);
     exitSelection();
+  }
+
+  function renderNotesCollection(collection: Note[]) {
+    return viewMode === 'list' ? (
+      <NotesList
+        notes={collection}
+        labelColors={labelColors}
+        effectiveTheme={effectiveTheme}
+        mode={mode}
+        selectedIds={selectedIds}
+        onNotePress={handleNotePress}
+        onNoteLongPress={handleNoteLongPress}
+      />
+    ) : (
+      <NotesMosaicGrid
+        notes={collection}
+        labelColors={labelColors}
+        effectiveTheme={effectiveTheme}
+        mode={mode}
+        selectedIds={selectedIds}
+        onNotePress={handleNotePress}
+        onNoteLongPress={handleNoteLongPress}
+      />
+    );
+  }
+
+  function renderOrganizeCollection(collection: Note[], isFavorite: boolean) {
+    return (
+      <NotesOrganizeList
+        notes={collection}
+        effectiveTheme={effectiveTheme}
+        movingNoteId={movingNoteId}
+        onMoveToIndex={(noteId, targetIndex) =>
+          void moveNoteWithinGroup(noteId, targetIndex, isFavorite)
+        }
+      />
+    );
   }
 
   if (!unlocked) {
@@ -412,27 +447,41 @@ export default function NotesScreen() {
               </Button>
             </View>
             <View className="flex-row flex-wrap gap-2">
+              {showPinAction ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!selectedCount}
+                  onPress={() => void setSelectedFavorite(true)}>
+                  <Icon as={Pin} className="size-4" />
+                  <Text>Pin</Text>
+                </Button>
+              ) : null}
+              {showUnpinAction ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!selectedCount}
+                  onPress={() => void setSelectedFavorite(false)}>
+                  <Icon as={PinOff} className="size-4" />
+                  <Text>Unpin</Text>
+                </Button>
+              ) : null}
               <Button
                 size="sm"
                 variant="outline"
                 disabled={!selectedCount}
-                onPress={() => void setSelectedFavorite(true)}>
-                <Icon as={Pin} className="size-4" />
-                <Text>Pin</Text>
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={!selectedCount}
-                onPress={() => void setSelectedFavorite(false)}>
-                <Icon as={PinOff} className="size-4" />
-                <Text>Unpin</Text>
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={!selectedCount}
-                onPress={() => setLabelSheetOpen(true)}>
+                onPress={() => {
+                  if (selectedCount === 1 && singleSelectedNote) {
+                    exitSelection();
+                    router.push({
+                      pathname: '/notes/labels' as never,
+                      params: { noteId: singleSelectedNote.id } as never,
+                    });
+                    return;
+                  }
+                  setLabelSheetOpen(true);
+                }}>
                 <Icon as={Tag} className="size-4" />
                 <Text>Labels</Text>
               </Button>
@@ -521,91 +570,41 @@ export default function NotesScreen() {
             </Text>
           </Card>
         ) : mode === 'organize' ? (
-          <NotesOrganizeList
-            notes={notes}
-            effectiveTheme={effectiveTheme}
-            movingNoteId={movingNoteId}
-            onMoveToIndex={(noteId, targetIndex) => void moveNoteToIndex(noteId, targetIndex)}
-          />
-        ) : mode === 'normal' && pinnedNotes.length ? (
+          <View className="gap-5">
+            {pinnedNotes.length ? (
+              <View className="gap-3">
+                <View className="flex-row items-center gap-2">
+                  <Icon as={Pin} className="text-primary size-4" fill="currentColor" />
+                  <Text variant="large">Pinned</Text>
+                </View>
+                {renderOrganizeCollection(pinnedNotes, true)}
+              </View>
+            ) : null}
+            {unpinnedNotes.length ? (
+              <View className="gap-3">
+                {pinnedNotes.length ? <Text variant="large">Unpinned</Text> : null}
+                {renderOrganizeCollection(unpinnedNotes, false)}
+              </View>
+            ) : null}
+          </View>
+        ) : pinnedNotes.length ? (
           <View className="gap-5">
             <View className="gap-3">
               <View className="flex-row items-center gap-2">
                 <Icon as={Pin} className="text-primary size-4" fill="currentColor" />
                 <Text variant="large">Pinned</Text>
               </View>
-              {viewMode === 'list' ? (
-                <NotesList
-                  notes={pinnedNotes}
-                  labelColors={labelColors}
-                  effectiveTheme={effectiveTheme}
-                  mode={mode}
-                  selectedIds={selectedIds}
-                  onNotePress={handleNotePress}
-                  onNoteLongPress={handleNoteLongPress}
-                  onNotePinPress={(note) => void togglePin(note)}
-                />
-              ) : (
-                <NotesMosaicGrid
-                  notes={pinnedNotes}
-                  labelColors={labelColors}
-                  effectiveTheme={effectiveTheme}
-                  mode={mode}
-                  selectedIds={selectedIds}
-                  onNotePress={handleNotePress}
-                  onNoteLongPress={handleNoteLongPress}
-                  onNotePinPress={(note) => void togglePin(note)}
-                />
-              )}
+              {renderNotesCollection(pinnedNotes)}
             </View>
             {unpinnedNotes.length ? (
-              viewMode === 'list' ? (
-                <NotesList
-                  notes={unpinnedNotes}
-                  labelColors={labelColors}
-                  effectiveTheme={effectiveTheme}
-                  mode={mode}
-                  selectedIds={selectedIds}
-                  onNotePress={handleNotePress}
-                  onNoteLongPress={handleNoteLongPress}
-                  onNotePinPress={(note) => void togglePin(note)}
-                />
-              ) : (
-                <NotesMosaicGrid
-                  notes={unpinnedNotes}
-                  labelColors={labelColors}
-                  effectiveTheme={effectiveTheme}
-                  mode={mode}
-                  selectedIds={selectedIds}
-                  onNotePress={handleNotePress}
-                  onNoteLongPress={handleNoteLongPress}
-                  onNotePinPress={(note) => void togglePin(note)}
-                />
-              )
+              <View className="gap-3">
+                <Text variant="large">Unpinned</Text>
+                {renderNotesCollection(unpinnedNotes)}
+              </View>
             ) : null}
           </View>
-        ) : viewMode === 'list' ? (
-          <NotesList
-            notes={notes}
-            labelColors={labelColors}
-            effectiveTheme={effectiveTheme}
-            mode={mode}
-            selectedIds={selectedIds}
-            onNotePress={handleNotePress}
-            onNoteLongPress={handleNoteLongPress}
-            onNotePinPress={(note) => void togglePin(note)}
-          />
         ) : (
-          <NotesMosaicGrid
-            notes={notes}
-            labelColors={labelColors}
-            effectiveTheme={effectiveTheme}
-            mode={mode}
-            selectedIds={selectedIds}
-            onNotePress={handleNotePress}
-            onNoteLongPress={handleNoteLongPress}
-            onNotePinPress={(note) => void togglePin(note)}
-          />
+          renderNotesCollection(notes)
         )}
       </Screen>
 
@@ -679,8 +678,8 @@ export default function NotesScreen() {
         title="Labels"
         description={
           selectedCount === 1
-            ? 'Add a label to the selected note.'
-            : `Add a label to ${selectedCount} selected notes.`
+            ? 'Toggle labels on the selected note.'
+            : `Toggle labels on ${selectedCount} selected notes.`
         }
         onDismiss={() => setLabelSheetOpen(false)}>
         <View className="gap-3">
@@ -715,7 +714,10 @@ export default function NotesScreen() {
                     key={label}
                     variant="ghost"
                     className="h-11 justify-start px-2"
-                    onPress={() => void applyBulkLabel(label)}>
+                    accessibilityLabel={
+                      appliedToAll ? `Remove label ${label}` : `Add label ${label}`
+                    }
+                    onPress={() => void toggleBulkLabel(label, appliedToAll)}>
                     <View
                       className="rounded-full px-2.5 py-1"
                       style={{ backgroundColor: labelColor }}>
@@ -724,7 +726,7 @@ export default function NotesScreen() {
                       </Text>
                     </View>
                     {appliedToAll ? (
-                      <Icon as={Check} className="text-primary ml-auto size-4" />
+                      <Icon as={X} className="text-muted-foreground ml-auto size-4" />
                     ) : null}
                   </Button>
                 );

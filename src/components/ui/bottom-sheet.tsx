@@ -6,7 +6,14 @@ import {
   type Detent,
 } from '@swmansion/react-native-bottom-sheet';
 import * as React from 'react';
-import { Keyboard, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import {
+  Keyboard,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '@/components/ui/text';
 
@@ -51,7 +58,12 @@ export function ArkBottomSheet({
   const dismissingRef = React.useRef(false);
 
   const contentSized = !scrollable && !snapPoints;
-  const effectiveMaxDynamicContentSize = maxDynamicContentSize ?? Math.round(height * 0.82);
+  const keyboardOffset = useKeyboardOffset();
+  const baseMaxDynamicContentSize = maxDynamicContentSize ?? Math.round(height * 0.82);
+  const effectiveMaxDynamicContentSize =
+    keyboardOffset > 0
+      ? Math.max(0, height - keyboardOffset)
+      : baseMaxDynamicContentSize;
   const detents = React.useMemo<Detent[]>(() => {
     if (contentSized) return [0, 'content'];
     return [0, ...(snapPoints ?? ['82%']).map((point) => resolveSnapPoint(point, height))];
@@ -172,6 +184,11 @@ export function ArkBottomSheet({
     </View>
   );
 
+  const keyboardAvoidingStyle =
+    keyboardOffset > 0
+      ? { bottom: keyboardOffset, height: Math.max(0, height - keyboardOffset) }
+      : undefined;
+
   return (
     <ModalBottomSheet
       index={index}
@@ -179,6 +196,7 @@ export function ArkBottomSheet({
       onIndexChange={handleIndexChange}
       onSettle={handleSettle}
       scrimColor="rgba(0, 0, 0, 0.64)"
+      style={keyboardAvoidingStyle}
       surface={
         <View
           style={[
@@ -206,6 +224,37 @@ function resolveSnapPoint(point: string | number, height: number): Detent {
 
   if (point === 'content') return 'content';
   return Math.max(0, Number(point) || 0);
+}
+
+function useKeyboardOffset() {
+  const [offset, setOffset] = React.useState(0);
+
+  React.useEffect(() => {
+    if (Platform.OS !== 'ios') {
+      return undefined;
+    }
+
+    const handleShow = (event: { endCoordinates: { height: number } }) => {
+      setOffset(event.endCoordinates.height);
+    };
+    const handleHide = () => setOffset(0);
+
+    const willShow = Keyboard.addListener('keyboardWillShow', handleShow);
+    const didShow = Keyboard.addListener('keyboardDidShow', handleShow);
+    const willChange = Keyboard.addListener('keyboardWillChangeFrame', handleShow);
+    const willHide = Keyboard.addListener('keyboardWillHide', handleHide);
+    const didHide = Keyboard.addListener('keyboardDidHide', handleHide);
+
+    return () => {
+      willShow.remove();
+      didShow.remove();
+      willChange.remove();
+      willHide.remove();
+      didHide.remove();
+    };
+  }, []);
+
+  return offset;
 }
 
 const styles = StyleSheet.create({

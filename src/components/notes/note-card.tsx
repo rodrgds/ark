@@ -6,7 +6,7 @@ import { NAV_COLORS, type ThemePreference } from '@/constants/theme';
 import { getLabelColor, type LabelColorMap } from '@/lib/label-colors';
 import { getNotePreviewText } from '@/lib/note-text';
 import type { Note } from '@/types/db';
-import { CheckCircle2, Circle, Pin } from 'lucide-react-native';
+import { CheckCircle2, Circle } from 'lucide-react-native';
 import * as React from 'react';
 import { Pressable, View } from 'react-native';
 import Animated from 'react-native-reanimated';
@@ -19,7 +19,6 @@ type NoteCardProps = {
   selected?: boolean;
   onPress: (note: Note) => void;
   onLongPress: (note: Note) => void;
-  onPinPress?: (note: Note) => void;
 };
 
 function NoteCardImpl({
@@ -30,7 +29,6 @@ function NoteCardImpl({
   selected = false,
   onPress,
   onLongPress,
-  onPinPress,
 }: NoteCardProps) {
   const noteTheme = getNoteTheme(note.themeId, effectiveTheme);
   const selectedColor = NAV_COLORS[effectiveTheme].primary;
@@ -62,22 +60,6 @@ function NoteCardImpl({
                 className="size-5"
                 color={selected ? selectedColor : noteTheme.mutedForeground}
               />
-            ) : onPinPress ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`${note.isFavorite ? 'Unpin' : 'Pin'} ${note.title || 'note'}`}
-                hitSlop={8}
-                onPress={(event) => {
-                  event.stopPropagation();
-                  onPinPress(note);
-                }}>
-                <Icon
-                  as={Pin}
-                  className="size-4"
-                  color={note.isFavorite ? selectedColor : noteTheme.mutedForeground}
-                  fill={note.isFavorite ? selectedColor : 'none'}
-                />
-              </Pressable>
             ) : null}
           </View>
         </View>

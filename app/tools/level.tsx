@@ -47,6 +47,9 @@ export default function LevelTool() {
   const bubbleY = clamp(-pitch / 18, -1, 1) * travel;
   const error = Math.hypot(pitch, roll);
   const tubeWidth = Math.min(width - 48, 360);
+  const tubeInset = 14;
+  const tubeCenter = tubeWidth / 2;
+  const tubeTickOffset = tubeWidth / 6;
   const tubeBubbleSize = bubbleRadius * 1.8;
   const tubeTravel = tubeWidth / 2 - tubeBubbleSize / 2 - 26;
   const tubeOffset = clamp(tubeAngle / 12, -1, 1) * tubeTravel;
@@ -150,40 +153,36 @@ export default function LevelTool() {
               borderColor: palette.border,
             },
           ]}>
-          <Svg
-            width="100%"
-            height={120}
-            viewBox="0 0 360 120"
-            style={StyleSheet.absoluteFillObject}>
+          <Svg width={tubeWidth} height={120} style={StyleSheet.absoluteFillObject}>
             <Rect
-              x={14}
+              x={tubeInset}
               y={34}
-              width={332}
+              width={tubeWidth - tubeInset * 2}
               height={52}
               rx={26}
               fill={hexToRgba(palette.background, theme === 'light' ? 0.55 : 0.72)}
               stroke={hexToRgba(palette.foreground, 0.1)}
             />
             <Line
-              x1={180}
+              x1={tubeCenter}
               y1={28}
-              x2={180}
+              x2={tubeCenter}
               y2={92}
               stroke={hexToRgba(tubeSignal, 0.8)}
               strokeWidth={2}
             />
             <Line
-              x1={120}
+              x1={tubeCenter - tubeTickOffset}
               y1={40}
-              x2={120}
+              x2={tubeCenter - tubeTickOffset}
               y2={80}
               stroke={hexToRgba(palette.foreground, 0.2)}
               strokeWidth={1}
             />
             <Line
-              x1={240}
+              x1={tubeCenter + tubeTickOffset}
               y1={40}
-              x2={240}
+              x2={tubeCenter + tubeTickOffset}
               y2={80}
               stroke={hexToRgba(palette.foreground, 0.2)}
               strokeWidth={1}
@@ -267,7 +266,6 @@ const styles = StyleSheet.create({
     height: 120,
     justifyContent: 'center',
     overflow: 'hidden',
-    paddingHorizontal: 16,
   },
   bubble: {
     alignItems: 'center',

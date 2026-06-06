@@ -70,6 +70,9 @@ describe('map and chat UI contracts', () => {
     expect(source).not.toContain('ArkKeyboardAvoidingView');
     expect(source).not.toContain('KeyboardAvoidingView');
     expect(source).not.toContain('keyboardInset');
+    expect(source).toContain('modelChoiceDirtyRef');
+    expect(source).toContain('if (!threadId && modelChoiceDirtyRef.current) return;');
+    expect(source).toContain('className="h-9 w-9 rounded-full"');
   });
 
   test('chat voice input works around native VAD arguments and streams spoken responses', () => {
@@ -91,10 +94,37 @@ describe('map and chat UI contracts', () => {
     expect(recorder).toContain('AudioRecorder');
     expect(recorder).toContain('sampleRate: SPEECH_SAMPLE_RATE');
     expect(recorder).toContain('buffer.getChannelData(0).slice()');
+    expect(recorder).toContain('* 8');
     expect(vad).toContain('nativeModule.generate(waveform, 0)');
     expect(tts).toContain('moduleInstance.streamInsert');
     expect(tts).toContain('for await (const waveform of moduleInstance.stream');
     expect(tts).not.toContain('moduleInstance.forward(normalized');
+  });
+
+  test('upright level draws its tube from the measured width', () => {
+    const source = readFileSync(join(appDir, 'tools/level.tsx'), 'utf8');
+
+    expect(source).toContain('const tubeCenter = tubeWidth / 2');
+    expect(source).toContain('width={tubeWidth}');
+    expect(source).toContain('width={tubeWidth - tubeInset * 2}');
+    expect(source).not.toContain('viewBox="0 0 360 120"');
+  });
+
+  test('settings and the app bar share the animated vault lock sheet', () => {
+    const appShell = readFileSync(
+      join(process.cwd(), 'src/components/layout/app-shell.tsx'),
+      'utf8'
+    );
+    const settings = readFileSync(join(appDir, '(tabs)/settings.tsx'), 'utf8');
+    const lockSheet = readFileSync(
+      join(process.cwd(), 'src/components/security/vault-lock-sheet.tsx'),
+      'utf8'
+    );
+
+    expect(appShell).toContain('<VaultLockSheet');
+    expect(settings).toContain('<VaultLockSheet');
+    expect(lockSheet).toContain('Animated.sequence');
+    expect(lockSheet).toContain('VaultService.lock()');
   });
 
   test('map keeps network enabled while native offline packs are active', () => {

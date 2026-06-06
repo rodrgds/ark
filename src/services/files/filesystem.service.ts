@@ -1,5 +1,6 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { APP_DIRECTORIES, type AppDirectory } from '@/constants/app';
+import { formatBytes } from '@/lib/format';
 
 export class FileSystemService {
   private static readonly LOW_STORAGE_MINIMUM_BYTES = 1024 * 1024 * 1024;
@@ -114,10 +115,7 @@ export class FileSystemService {
   }
 
   static formatBytes(bytes: number) {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-    if (bytes < 1024 * 1024 * 1024) return `${Math.round(bytes / 1024 / 1024)} MB`;
-    return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
+    return formatBytes(bytes);
   }
 
   static safeFileName(name: string) {

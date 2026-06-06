@@ -1,5 +1,6 @@
 import type { MapManifestRegion, MapRegion } from '@/types/maps';
 import { haversineMeters } from '@/lib/geo';
+import { boxesIntersect, getBboxArea, getBboxCenter as getBboxCenterFromTuple } from '@/services/maps/utils/bbox';
 
 export type MapBounds = {
   north: number;
@@ -119,10 +120,7 @@ export function isPresetDownloaded(
   });
 }
 
-export function getBboxCenter(bbox: [number, number, number, number]): [number, number] {
-  const [west, south, east, north] = bbox;
-  return [(west + east) / 2, (south + north) / 2];
-}
+export const getBboxCenter = getBboxCenterFromTuple;
 
 function getRegionBbox(region: Pick<ManifestRegionLike, 'bbox'> | { bounds: MapBounds }) {
   if ('bbox' in region && region.bbox) return region.bbox;
@@ -162,24 +160,16 @@ function getDownloadedBbox(region: DownloadedRegionLike) {
   ] satisfies [number, number, number, number];
 }
 
-function boxesIntersect(a: [number, number, number, number], b: [number, number, number, number]) {
-  const [westA, southA, eastA, northA] = a;
-  const [westB, southB, eastB, northB] = b;
-  return westA <= eastB && eastA >= westB && southA <= northB && northA >= southB;
-}
-
 function regionArea(region: ManifestRegionLike) {
   const bbox = getRegionBbox(region);
   if (!bbox) return Number.POSITIVE_INFINITY;
-  const [west, south, east, north] = bbox;
-  return Math.abs((east - west) * (north - south));
+  return getBboxArea(bbox);
 }
 
 function downloadedRegionArea(region: DownloadedRegionLike) {
   const bbox = getDownloadedBbox(region);
   if (!bbox) return Number.POSITIVE_INFINITY;
-  const [west, south, east, north] = bbox;
-  return Math.abs((east - west) * (north - south));
+  return getBboxArea(bbox);
 }
 
 function regionsShareBounds(region: ManifestRegionLike, downloadedRegion: DownloadedRegionLike) {

@@ -1,4 +1,4 @@
-export type SensorAvailability = {
+type SensorAvailability = {
   compass: boolean;
   barometer: boolean;
   level: boolean;

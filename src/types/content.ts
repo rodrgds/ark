@@ -15,7 +15,7 @@ export type ContentCategory =
 
 export type ContentFormat = 'pdf' | 'markdown' | 'zim' | 'html' | 'txt' | 'bundle' | 'gguf';
 export type ContentModelRole = 'embedding' | 'chat' | 'voice' | 'voiceProjector';
-export type ContentDownloadStrategy = 'file' | 'html_snapshot';
+type ContentDownloadStrategy = 'file' | 'html_snapshot';
 
 export type ContentPackManifest = {
   id: string;

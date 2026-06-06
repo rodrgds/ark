@@ -1,10 +1,6 @@
 import { NAV_COLORS } from '@/constants/theme';
 import { useThemeStore } from '@/stores/theme-store';
-import {
-  BottomSheet,
-  ModalBottomSheet,
-  type Detent,
-} from '@swmansion/react-native-bottom-sheet';
+import { ModalBottomSheet, type Detent } from '@swmansion/react-native-bottom-sheet';
 import * as React from 'react';
 import {
   Keyboard,
@@ -283,5 +279,3 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
 });
-
-export { BottomSheet, ModalBottomSheet };

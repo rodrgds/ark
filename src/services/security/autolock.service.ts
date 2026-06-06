@@ -111,18 +111,4 @@ export class AutoLockService {
       }
     };
   }
-
-  static resetForTests() {
-    backgroundedAt = null;
-    if (timer) {
-      clearTimeout(timer);
-      timer = null;
-    }
-    activeVault = null;
-    appStateListeners.clear();
-  }
-
-  static get backgroundedAtForTests() {
-    return backgroundedAt;
-  }
 }

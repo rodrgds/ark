@@ -22,7 +22,7 @@ export type AiThread = {
 
 export type AiMessageRole = 'user' | 'assistant' | 'system' | 'tool';
 
-export type AiMessageMetadata = {
+type AiMessageMetadata = {
   actions?: Array<{
     tool?: string;
     summary: string;
@@ -54,7 +54,7 @@ export type AiSendMessageOptions = {
   onProgress?: (progress: AiProgressEvent) => void;
 };
 
-export type AiProgressStage =
+type AiProgressStage =
   | 'opening_database'
   | 'searching_notes'
   | 'searching_guides'

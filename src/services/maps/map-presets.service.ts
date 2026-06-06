@@ -38,14 +38,6 @@ export class MapPresetsService {
     return this.getCatalogMeta();
   }
 
-  static useCatalogForTests(catalog: MapCatalog) {
-    activeCatalog = catalog;
-  }
-
-  static resetCatalogForTests() {
-    activeCatalog = MapCatalogRepository.getBundledCatalog();
-  }
-
   static search(query: string, limit = 60) {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return activeCatalog.regions.slice(0, limit);

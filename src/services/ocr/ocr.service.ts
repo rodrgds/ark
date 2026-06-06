@@ -29,7 +29,7 @@ type NativePdfPage = {
   confidence?: number | null;
 };
 
-export type OcrRecognitionResult =
+type OcrRecognitionResult =
   | { status: 'ready'; text: string }
   | { status: 'unavailable'; text: ''; error: string }
   | { status: 'failed'; text: ''; error: string };

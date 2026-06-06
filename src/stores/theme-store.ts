@@ -6,7 +6,6 @@ import type { ThemePreference } from '@/constants/theme';
 type ThemeState = {
   preference: ThemePreference;
   effectiveTheme: 'oled' | 'dark' | 'light';
-  ready: boolean;
   init: () => Promise<void>;
   setPreference: (preference: ThemePreference) => Promise<void>;
 };
@@ -28,12 +27,11 @@ function isThemePreference(value: string | null): value is ThemePreference {
 export const useThemeStore = create<ThemeState>((set) => ({
   preference: 'oled',
   effectiveTheme: 'oled',
-  ready: false,
   init: async () => {
     const stored = await SettingsRepository.get('theme.preference');
     const preference = isThemePreference(stored) ? stored : 'oled';
     const effectiveTheme = applyTheme(preference);
-    set({ preference, effectiveTheme, ready: true });
+    set({ preference, effectiveTheme });
   },
   setPreference: async (preference) => {
     const effectiveTheme = applyTheme(preference);

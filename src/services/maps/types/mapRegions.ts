@@ -1,4 +1,4 @@
-export type MapRegionLevel =
+type MapRegionLevel =
   | 'world'
   | 'continent'
   | 'macroregion'

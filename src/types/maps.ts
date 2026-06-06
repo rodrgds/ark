@@ -25,21 +25,6 @@ export type MapManifestRegion = {
   updatedAt?: string;
 };
 
-export type DownloadedMapRegion = {
-  regionId: string;
-  downloadedAt: string;
-  sizeMb?: number;
-  status: 'downloaded' | 'downloading' | 'failed' | 'queued';
-  progress?: number;
-  offlinePackName?: string;
-  manifestVersion?: number;
-  dataVersion?: string;
-  packFormat?: MapRegionPackFormat;
-  packUrl?: string;
-  checksumSha256?: string;
-  checksumSha256Url?: string;
-};
-
 export type SavedMapPin = {
   id: string;
   title: string;

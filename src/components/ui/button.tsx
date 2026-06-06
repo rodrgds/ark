@@ -127,5 +127,5 @@ function Button({ className, variant, size, onPressIn, onPressOut, style, ...pro
   );
 }
 
-export { Button, buttonTextVariants, buttonVariants };
+export { Button };
 export type { ButtonProps };

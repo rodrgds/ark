@@ -2,6 +2,20 @@
 
 > Source of truth for any agent working on this codebase. Read this first.
 
+## Recent changes
+- `app/(tabs)/settings.tsx` refactored from 1982 → 679 lines. Each tab section now lives in `src/components/settings/`. `AppearanceSection`, `SecuritySection`, `BackupSection`, `AboutSection` (smallest), then `AiSection`, `OfflineMapsCard`, `DownloadsCard`, `DiagnosticsCard`, `EmbeddingIndexCard`, `ModelSection` (bigger). Local state (password inputs, model title/url/checksum, map search/browse) moved into the owning section.
+- `src/lib/errors.ts` (ArkError) **deleted** — zero callers.
+- 8 unused `package.json` deps removed: `defuddle`, `tailwindcss-animate`, `expo-splash-screen`, `expo-system-ui`, `expo-updates`, `expo-battery`, `expo-linking`, `punycode`.
+- Migration 18 added `vault_state.failed_attempts` + `locked_until` columns; sqlite_master guard kept (defensive for users who never created a vault).
+- Backup format bumped to v2: now includes `chat_threads`, `chat_messages`, `document_pages` + FTS rebuild. v1 rejected with "Re-export the backup from this app version."
+- `services/db/migrations.ts` gained `hasColumn(db, table, column)` and `addColumnIfMissing(db, table, column, definition)` helpers for future migrations.
+- `services/content/zim-html-sanitizer.ts` (new): `sanitizeArticleHtml` strips scripts, void tags, iframes, event handlers, javascript: URLs from ZIM article bodies. `ZimService.articleHtml` pipes through it.
+- `src/stores/app-store.ts` boot is now an idempotent mutex with a Pressable "Try again" error splash in `app/_layout.tsx`.
+- `app/(tabs)/chat/[threadId].tsx` and `services/ai/ai.service.ts` use a `Map<threadId, ActiveAiRequest>` for targeted cancellation; new requests for the same thread supersede prior in-flight responses.
+- `services/files/download-manager.service.ts`: queue mutex (`withQueueLock`), 0-byte guard, free-space math subtracts already-on-disk bytes, `MAX_ACTIVE_DOWNLOADS` 1→3, resumeData invalidation after 30 min.
+- `src/components/ui/input.tsx` and `src/services/ai/rag.service.ts` use proper React-subscribed Zustand selectors (no more `getState` outside React).
+- `src/constants/map-pins.ts` exposes `BRAND_AMBER`; literal `#F2B84B` replaced throughout.
+
 ## Identity
 
 **Ark** = "Noé's Ark for the offline age." An offline-first survival computer for mobile. The app should remain useful with zero internet after initial downloads: offline maps, downloadable knowledge packs (Wikipedia/ZIM, survival guides, RSS cache), secure encrypted notes/documents, on-device AI/RAG, and practical sensor tools (compass, barometer, level, pedometer, light meter).
@@ -12,19 +26,19 @@
 
 ## Tech Stack
 
-| Layer           | Choice                             | Notes                                                       |
-| --------------- | ---------------------------------- | ----------------------------------------------------------- |
-| Framework       | Expo SDK 55 + React Native 0.83    | Expo Go for MVP; dev builds for native features             |
-| Routing         | Expo Router (file-based)           | `app/` directory                                            |
-| Styling         | Tailwind CSS v4 + Uniwind v1.6     | `global.css` defines OLED/dark/light themes                 |
-| UI primitives   | shadcn-style (CVA + RN Primitives) | `src/components/ui/` — Button, Text, Input, Card, Icon      |
-| State           | Zustand v5                         | 5 stores in `src/stores/`                                   |
-| Database        | expo-sqlite + custom migrations    | `PRAGMA user_version` pattern, FTS5 virtual tables          |
-| Icons           | lucide-react-native                | Wrapped via `src/components/ui/icon.tsx`                    |
-| Date handling   | date-fns v4                        |                                                             |
-| Validation      | zod v4                             | Installed but barely used                                   |
-| Keyboard        | react-native-keyboard-controller   | Installed but UNUSED — we use built-in KeyboardAvoidingView |
-| Package manager | bun                                | Lockfile is `bun.lock`                                      |
+| Layer           | Choice                             | Notes                                                                                       |
+| --------------- | ---------------------------------- | ------------------------------------------------------------------------------------------- |
+| Framework       | Expo SDK 55 + React Native 0.83    | Expo Go for MVP; dev builds for native features                                             |
+| Routing         | Expo Router (file-based)           | `app/` directory                                                                            |
+| Styling         | Tailwind CSS v4 + Uniwind v1.6     | `global.css` defines OLED/dark/light themes                                                 |
+| UI primitives   | shadcn-style (CVA + RN Primitives) | 11 components in `src/components/ui/` (Button, Text, Input, Card, Icon, plus Sheet, Skeleton, Markdown, Progress, ConfirmModal, BottomSheet) |
+| State           | Zustand v5                         | 4 stores in `src/stores/` (app, auth, theme, sensor)                                       |
+| Database        | expo-sqlite + custom migrations    | `PRAGMA user_version` pattern, FTS5 virtual tables, versioned to 18                          |
+| Icons           | lucide-react-native                | Wrapped via `src/components/ui/icon.tsx`                                                    |
+| Date handling   | date-fns v4                        |                                                                                             |
+| Validation      | zod v4                             | Installed but barely used                                                                   |
+| Keyboard        | react-native-keyboard-controller   | Used by `src/components/layout/keyboard-controller.tsx` (ArkKeyboardProvider/AwareScrollView/AvoidingView) — Screen and OnboardingFrame upgrade to native controller when present |
+| Package manager | bun                                | Lockfile is `bun.lock`                                                                      |
 
 ## Project Structure
 
@@ -32,73 +46,129 @@
 app/                          # Expo Router file-based routes
 ├── _layout.tsx               # Root: boot splash → theme/nav shell
 ├── index.tsx                 # Redirect hub (onboarding vs tabs)
-├── onboarding/
-│   ├── index.tsx             # Step 1: intro cards (offline maps, packs, vault, AI)
-│   ├── security.tsx          # Step 2: create vault password + biometrics
-│   ├── permissions.tsx       # Step 3: location permission request
+├── +html.tsx                 # Web-only <head> injection
+├── +not-found.tsx            # 404 fallback
+├── easter-egg.tsx            # Hidden debug surface
+├── content/[id].tsx          # Content pack reader
+├── documents/[id].tsx        # Imported document viewer
+├── library/[packId]/...      # Library sub-routes
+├── notes/editor.tsx          # Note editor (vault-gated)
+├── onboarding/               # 8 step screens
+│   ├── _layout.tsx           # Stack navigator
+│   ├── index.tsx             # Step 1: intro cards
+│   ├── security.tsx          # Step 2: create vault + biometrics
+│   ├── permissions.tsx       # Step 3: location + sensor permission
 │   ├── packs.tsx             # Step 4: starter pack selection
-│   └── finish.tsx            # Step 5: AI notes + "Enter Ark"
-├── (tabs)/
-│   ├── _layout.tsx           # Bottom tabs + LockStateBar
+│   ├── power.tsx             # Step 5: battery-reduce-mode + low-power guidance
+│   ├── maps.tsx              # Step 6: map region primer
+│   ├── models.tsx            # Step 7: on-device model primer
+│   └── finish.tsx            # Step 8: AI notes + "Enter Ark"
+├── (tabs)/                   # 7 bottom tabs
+│   ├── _layout.tsx           # Tabs + LockStateBar
 │   ├── index.tsx             # Home: status dashboard + action cards
-│   ├── chat.tsx              # AI chat with mock adapter + RAG
-│   ├── map.tsx               # Map shell (MapLibre unavailable)
+│   ├── chat.tsx              # AI chat list (thread [threadId] for one)
+│   ├── map.tsx               # Map shell
 │   ├── library.tsx           # Content pack browser
-│   ├── notes.tsx             # Vault-gated secure notes
-│   ├── tools.tsx             # Sensor tool hub (9 cards)
-│   └── settings.tsx          # Theme/security/diagnostics settings
-└── tools/
+│   ├── notes.tsx             # Vault-gated secure notes list
+│   ├── tools.tsx             # Sensor tool hub
+│   └── settings.tsx          # Theme / security / diagnostics
+└── tools/                    # 11 tool screens
+    ├── _layout.tsx           # Stack navigator
     ├── compass.tsx           # Magnetometer → heading + cardinal
     ├── barometer.tsx         # hPa + pressure trend
     ├── level.tsx             # Accelerometer → pitch/roll bubble
     ├── pedometer.tsx         # Step counter
     ├── light.tsx             # Light meter (lux)
+    ├── coordinates.tsx       # GPS lat/lon with saved-spots actions
+    ├── checklist.tsx         # Offline readiness checklist
+    ├── chronometer.tsx       # Stopwatch / countdown
+    ├── weather.tsx           # Cached forecast + barometer
+    ├── news.tsx              # Cached RSS reader (news/[feedId].tsx is the detail sub-route)
     └── diagnostics.tsx       # Native capability report
 
 src/
 ├── components/
-│   ├── ui/                   # Button, Text, Input, Card, Icon (shadcn-style)
-│   ├── layout/
+│   ├── ui/                   # shadcn-style primitives
+│   ├── layout/               # 5 layout helpers
 │   │   ├── app-shell.tsx     # LockStateBar (vault lock indicator)
-│   │   └── screen.tsx        # Screen wrapper (ScrollView + KeyboardAvoidingView)
-│   ├── onboarding/
-│   │   └── onboarding-frame.tsx  # Reusable onboarding layout
+│   │   ├── screen.tsx        # Screen wrapper (KeyboardAvoidingView fallback)
+│   │   ├── keyboard-controller.tsx  # ArkKeyboardProvider/AwareScrollView/AvoidingView
+│   │   ├── app-header-actions.tsx   # Shared header right-slot actions
+│   │   └── function-search.tsx      # Cmd-K style search overlay
+│   ├── onboarding/           # 2 onboarding helpers
+│   │   ├── onboarding-frame.tsx  # Reusable onboarding layout
+│   │   └── onboarding-feature.tsx# Single feature card used in intro
+│   ├── settings/             # 10 Settings tab sections + cards (extracted from app/(tabs)/settings.tsx)
+│   │   ├── appearance-section.tsx
+│   │   ├── security-section.tsx
+│   │   ├── backup-section.tsx
+│   │   ├── about-section.tsx
+│   │   ├── ai-section.tsx
+│   │   ├── offline-maps-card.tsx
+│   │   ├── downloads-card.tsx
+│   │   ├── diagnostics-card.tsx
+│   │   ├── embedding-index-card.tsx
+│   │   └── model-section.tsx
 │   └── cards/
 │       └── action-card.tsx   # Pressable card with icon + title + description
-├── constants/
+├── constants/                # 11 constants modules
 │   ├── app.ts                # APP_NAME, APP_SLOGAN, APP_TAGLINE, SAFETY_COPY
 │   ├── packs.ts              # STARTER_PACKS (8 off-usable content packs)
-│   └── theme.ts              # ThemePreference type, THEME_OPTIONS, NAV_COLORS
-├── lib/
-│   ├── cn.ts                 # Re-export of cn()
-│   ├── errors.ts             # ArkError class
+│   ├── theme.ts              # ThemePreference type, THEME_OPTIONS, NAV_COLORS
+│   ├── battery.ts            # Battery-reduce-mode thresholds
+│   ├── checklists.ts         # Readiness checklist definitions
+│   ├── map-pins.ts           # Map pin color/icon catalogue
+│   ├── map-presets.ts        # Offline map presets
+│   ├── note-content.ts       # Default note body / template text
+│   ├── note-sort.ts          # Note sort orders
+│   ├── note-themes.ts        # Note color/theme tokens
+│   └── pack-presentation.ts  # Pack card icon/colors
+├── hooks/                    # Custom React hooks
+│   ├── use-ark-text-to-speech.ts
+│   ├── use-ark-voice-activity.ts
+│   ├── use-battery-reduce-mode.ts
+│   ├── use-motion-enabled.ts
+│   └── use-sensor-subscription.ts
+├── lib/                      # 8 lib modules
+│   ├── utils.ts              # cn() = twMerge(clsx())
 │   ├── logger.ts             # Dev-only console logger
 │   ├── platform.ts           # isWeb, isNative helpers
 │   ├── theme.ts              # NAV_THEME for React Navigation
-│   └── utils.ts              # cn() = twMerge(clsx())
-├── stores/
-│   ├── app-store.ts          # Boot state: DB open, FS dirs, content seeding
+│   ├── colors.ts             # hexToRgba utility (NOT a brand-color source; brand color lives in src/constants/map-pins.ts and global.css)
+│   ├── label-colors.ts       # Color cycling for note labels
+│   ├── note-text.ts          # Note body normalisation helpers
+│   └── validation.ts         # zod-style helpers
+├── stores/                   # 4 Zustand stores
+│   ├── app-store.ts          # Boot state: DB open, FS dirs, content seeding, RAG init flag (`ragRelatedInitialized`), boot mutex
 │   ├── auth-store.ts         # Vault lock/unlock state
 │   ├── theme-store.ts        # Theme preference + Uniwind integration
-│   ├── download-store.ts     # Download list (barely used)
-│   └── sensor-store.ts       # Live sensor values (UNUSED by any screen)
-├── services/
-│   ├── db/                   # SQLite client + migrations + 9 repositories
+│   └── sensor-store.ts       # Live sensor readings (consumed by tools/ + map heading)
+├── services/                 # 16 service domains
+│   ├── db/                   # SQLite client + migrations + 11 repositories
 │   ├── security/             # Vault, biometrics, keychain, autolock
-│   ├── ai/                   # AI service, mock adapter, llama placeholder, RAG, chunking
+│   ├── ai/                   # AI service, mock + llama adapters, RAG, chunking, embeddings, voice
 │   ├── sensors/              # Compass, barometer, level, pedometer, light, diagnostics
-│   ├── maps/                 # Map service stub, offline map CRUD
+│   ├── maps/                 # Map service, offline packs, geocoding, region updates
 │   ├── weather/              # Weather cache + pressure trend
-│   ├── content/              # Content pack service, guide service, ZIM placeholder
-│   ├── files/                # FileSystem, download manager, document import
+│   ├── content/              # Content pack service, guide service, ZIM, PDFs
+│   ├── files/                # FileSystem, download manager, document import, SHA-256
 │   ├── connectivity/         # NetInfo wrapper
-│   └── rss/                  # RSS parser stub
-└── types/
+│   ├── rss/                  # RSS parser + cache
+│   ├── backup/               # Encrypted backup export/import
+│   ├── audio/                # Audio capture helpers
+│   ├── ocr/                  # OCR service (calls ark-ocr native module)
+│   ├── device/               # Device capability probing
+│   ├── preferences/          # User preferences (theme, autolock, …)
+│   └── notes/                # Notes domain helpers (formatting, exports)
+└── types/                    # 10 type modules
     ├── ai.ts                 # AiMessage, AiCitation, AiAdapterResponse
+    ├── backup.ts             # Backup manifest types
     ├── content.ts            # ContentPack, ContentCategory, ContentFormat
     ├── db.ts                 # OnboardingState, VaultState, Note
     ├── downloads.ts          # DownloadRow, DownloadKind, DownloadStatus
     ├── maps.ts               # MapRegion
+    ├── polyfills.d.ts        # Polyfill ambient types
+    ├── react-native-keyboard-controller.d.ts  # RNKC ambient types
     ├── security.ts           # VaultUnlockResult, BiometricsStatus
     └── sensors.ts            # SensorAvailability, DiagnosticReport
 ```
@@ -107,18 +177,22 @@ src/
 
 ```
 Boot → index.tsx
-  ├── onboarding not completed → /onboarding (5-step stack)
-  │   1. intro → 2. security → 3. permissions → 4. packs → 5. finish → replace(/(tabs))
+  ├── onboarding not completed → /onboarding (8-step stack)
+  │   1. intro → 2. security → 3. permissions → 4. packs
+  │   5. power → 6. maps → 7. models → 8. finish → replace(/(tabs))
   └── onboarding completed → /(tabs) (7 bottom tabs)
        Home | Chat | Map | Library | Notes | Tools | Settings
-       └── Tools → push stack screens (compass, barometer, level, pedometer, light, diagnostics)
+       └── Tools → push stack screens (compass, barometer, level, pedometer,
+           light, coordinates, checklist, chronometer, weather, news, diagnostics)
 ```
 
 **Onboarding guard:** `app/index.tsx` checks `useAppStore.onboarding.completedAt`. If `null`, redirect to `/onboarding`. If set, redirect to `/(tabs)`.
 
 ## Database Schema
 
-24 tables, 3 FTS5 virtual tables, V1 migration via `PRAGMA user_version`.
+24 base tables + 3 FTS5 virtual tables
+(notes_fts, document_pages_fts, rag_chunks_fts). Migrations run via
+`PRAGMA user_version` and are versioned to 18.
 
 **Key tables actually used by screens:**
 
@@ -132,12 +206,10 @@ Boot → index.tsx
 - `document_pages` + `document_pages_fts` — page-level PDF/text/OCR extraction for document search and RAG
 - `embedding_models` + `chunk_embeddings` — active embedding-pack metadata and model-specific chunk vector links
 - `zim_articles_cache` + `zim_paragraph_chunks` — lazily cached ZIM article paragraphs for RAG
-
-**Tables now used by screens/services:**
-
 - `map_markers` — saved spots from Coordinates/Map
 - `routes` — route drafts built from saved spots
 - `rss_feeds` + `rss_items` — official emergency feed refresh and cached item list
+- `weather_cache` + `sensor_snapshots` — cached weather + barometer history
 
 **Encryption:** SQLCipher is configured in `app.json` and the DB client applies a SecureStore-backed key when the native SQLCipher build is available. Diagnostics reports cipher availability and key state. Plaintext migration/re-key strategy and real-device proof are still launch blockers.
 
@@ -146,10 +218,10 @@ Boot → index.tsx
 ### REAL (works now):
 
 - OLED/Dark/Light/System theme switching, persisted to SQLite
-- SQLite database with full migrations, all 20 tables, FTS5 search
+- SQLite database with full migrations (24 base + 3 FTS5 tables), FTS5 search
 - Repository layer — all CRUD is against real SQLite
 - Secure notes: create, FTS search, favorite, soft-delete (gated by vault unlock)
-- Onboarding wizard: 5-step flow with state persistence
+- Onboarding wizard: 8-step flow with state persistence
 - Vault service: versioned stretched SHA-512 verifier with legacy upgrade, password change, biometric unlock via LocalAuthentication, auto-lock lifecycle enforcement
 - AI chat: messages stored to DB, mock fallback adapter, llama.rn adapter in dev builds when a GGUF model is installed, streaming tokens, Stop action
 - RAG: hybrid FTS plus embeddings, deterministic offline `ark-hash-v2` fallback, llama.rn embedding contexts for installed Nomic/Qwen embedding packs, installed guide chunks, note indexing, imported document text, PDF page text, imported image OCR text, section/page/document citations, and lazy ZIM paragraph citations when ArkZim is available
@@ -160,7 +232,9 @@ Boot → index.tsx
 - Real download manager: resumable Expo file downloads, progress, pause/resume/cancel, free-space checks, MD5/SHA-256 verification, app-directory storage
 - Content readers: PDF/WebView guide reader with section jumps, ZIM detail screen, OS handoff to Kiwix, Android ArkZim native reader path behind dev builds
 - Document ingestion: text-file extraction, Android PDFBox text-layer extraction, capped PDF OCR fallback through ML Kit, Android on-device image OCR through `ark-ocr`, visible extraction/OCR/indexing status, page-level FTS, and document RAG cleanup on delete
-- Sensor tools: compass, barometer, level, pedometer, light meter, coordinates, offline weather, readiness checklist, with live readings in the sensor store
+- Sensor tools: compass, barometer, level, pedometer, light meter, coordinates, offline weather, readiness checklist, with live readings pushed into the shared `sensor-store` and consumed by the tools and the map heading arrow
+- RSS feed cache: parse + persist official emergency feeds, read offline
+- Encrypted backup: export/import of vault + notes + documents with key derivation
 
 ### MOCK / STUB / PLACEHOLDER:
 
@@ -186,7 +260,6 @@ Defined in `global.css`. Three themes as CSS variables:
 | `--popover`            | `#000000`         | `#18181B` | `#FFFFFF` |
 | `--sidebar`            | `#000000`         | `#1A1A1A` | `#F2F2F2` |
 | `--foreground`         | `#FAFAFA`         | `#FAFAFA` | `#0A0A0A` |
-| `--card`               | `#0A0A0A`         | `#18181B` | `#FFFFFF` |
 | `--card-foreground`    | `#FAFAFA`         | `#FAFAFA` | `#0A0A0A` |
 | `--primary`            | `#F2B84B` (amber) | `#F2B84B` | `#996515` |
 | `--primary-foreground` | `#0A0A0A`         | `#0A0A0A` | `#FFFFFF` |
@@ -195,7 +268,9 @@ Defined in `global.css`. Three themes as CSS variables:
 | `--border`             | `#27272A`         | `#27272A` | `#E4E4E7` |
 | `--destructive`        | `#EF4444`         | `#EF4444` | `#DC2626` |
 
-Applied via `Uniwind.setTheme()` called from `theme-store.ts`.
+Brand color tokens are exported from `src/lib/colors.ts`; import from there instead
+of hardcoding `#F2B84B` (or any other theme color) in new code. Applied via
+`Uniwind.setTheme()` called from `theme-store.ts`.
 
 ## Key Architectural Decisions
 
@@ -204,7 +279,7 @@ Applied via `Uniwind.setTheme()` called from `theme-store.ts`.
 3. **Adapter pattern for AI.** `AIService` talks to an adapter interface. Mock now, llama.rn later. Same interface.
 4. **Service isolation.** Each domain (security, maps, sensors, content, AI) has its own service directory.
 5. **Path alias.** `@/` resolves to `src/` via tsconfig. Always import from `@/components/ui/...`, never `components/ui/...`.
-6. **Keyboard handling.** `Screen` and `OnboardingFrame` components wrap content in `KeyboardAvoidingView` (iOS: `behavior="padding"`). All screens using these get keyboard avoidance automatically.
+6. **Keyboard handling.** `Screen` and `OnboardingFrame` wrap content in a fallback `KeyboardAvoidingView` and, when the native `react-native-keyboard-controller` is registered, upgrade to `ArkKeyboardAwareScrollView` from `src/components/layout/keyboard-controller.tsx`.
 
 ## Anti-Patterns & Known Issues
 
@@ -213,6 +288,7 @@ Applied via `Uniwind.setTheme()` called from `theme-store.ts`.
 3. **Password KDF is improved but not production-grade:** v3 SHA-512 stretching replaced the old weak verifier path, but a native libsodium Argon2id module is still required.
 4. **RAG embeddings need device validation:** Nomic/Qwen llama.rn embedding-pack support is implemented with an `ark-hash-v2` fallback, but real-device quality, memory, and sqlite-vec KNN behavior still need verification.
 5. **Mounted UI tests are still absent:** current coverage is route/static/service-level, not React Native render tests. E2E onboarding coverage is intentionally deprioritized for now.
+6. **Big screens:** `app/(tabs)/map.tsx`, `app/(tabs)/chat/[threadId].tsx`, and `src/services/ai/rag.service.ts` are each over 1k lines and should be split before further feature work. `app/(tabs)/settings.tsx` was extracted to 679 lines via `src/components/settings/`.
 
 ## Build / Run Commands
 
@@ -222,6 +298,7 @@ bun run dev          # Start Expo dev server (clears cache)
 bun run ios          # Start for iOS
 bun run android      # Start for Android
 bun run web          # Start for web
+bun run check        # typecheck + lint + tests
 ```
 
 TypeScript check: `npx tsc --noEmit`

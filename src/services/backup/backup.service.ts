@@ -8,9 +8,13 @@ import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { DatabaseClient } from '@/services/db/client';
 import { sqliteBoolean } from '@/services/db/sqlite-values';
 import { FileSystemService } from '@/services/files/filesystem.service';
+import { logger as log } from '@/lib/logger';
 import { parseOrThrow, vaultPasswordSchema } from '@/lib/validation';
 import type {
+  ArkBackupChatMessage,
+  ArkBackupChatThread,
   ArkBackupDocument,
+  ArkBackupDocumentPage,
   ArkBackupEnvelope,
   ArkBackupManifest,
   ArkBackupNote,
@@ -20,7 +24,7 @@ import type {
 import type { ArkDocument } from '@/types/db';
 import type { MapMarker, SavedRoute } from '@/types/maps';
 
-const BACKUP_VERSION = 1;
+const BACKUP_VERSION = 2;
 const BACKUP_AAD = strToU8('ark-backup-v1');
 const BACKUP_FILE_PREFIX = 'Ark backup';
 const DEFAULT_KDF: Required<Pick<ScryptOpts, 'N' | 'r' | 'p' | 'dkLen'>> = {
@@ -110,6 +114,38 @@ type RssFeedRow = {
   last_fetched_at: number | null;
   created_at: number;
   updated_at: number;
+};
+
+type ChatThreadRow = {
+  id: string;
+  title: string;
+  selected_model_id: string | null;
+  chat_model_disabled: number | null;
+  created_at: number;
+  updated_at: number;
+};
+
+type ChatMessageRow = {
+  id: string;
+  thread_id: string;
+  role: 'user' | 'assistant' | 'system' | 'tool';
+  content: string;
+  citations_json: string | null;
+  reasoning: string | null;
+  metadata_json: string | null;
+  deleted_at: number | null;
+  created_at: number;
+};
+
+type DocumentPageRow = {
+  id: string;
+  document_id: string;
+  page_number: number;
+  text: string;
+  extraction_method: ArkBackupDocumentPage['extractionMethod'];
+  confidence: number | null;
+  indexed_at: number | null;
+  created_at: number;
 };
 
 export class BackupService {
@@ -203,7 +239,17 @@ export class BackupService {
 
   private static async createZipPayload() {
     const db = await DatabaseClient.getDb();
-    const [settings, notes, documents, mapMarkers, routes, rssFeeds] = await Promise.all([
+    const [
+      settings,
+      notes,
+      documents,
+      documentPages,
+      mapMarkers,
+      routes,
+      rssFeeds,
+      chatThreads,
+      chatMessages,
+    ] = await Promise.all([
       exportSettings(),
       db.getAllAsync<NoteRow>(
         `SELECT id, title, body, content_html, content_json, content_format, tags_json, theme_id,
@@ -217,6 +263,12 @@ export class BackupService {
                 encryption_status, created_at, updated_at
          FROM documents
          ORDER BY updated_at DESC`
+      ),
+      db.getAllAsync<DocumentPageRow>(
+        `SELECT id, document_id, page_number, text, extraction_method, confidence, indexed_at,
+                created_at
+         FROM document_pages
+         ORDER BY document_id, page_number ASC`
       ),
       db.getAllAsync<MarkerRow>(
         `SELECT id, title, description, pin_type, is_emergency, latitude, longitude, photo_uri,
@@ -233,6 +285,17 @@ export class BackupService {
         `SELECT id, title, url, enabled, last_fetched_at, created_at, updated_at
          FROM rss_feeds
          ORDER BY title`
+      ),
+      db.getAllAsync<ChatThreadRow>(
+        `SELECT id, title, selected_model_id, chat_model_disabled, created_at, updated_at
+         FROM chat_threads
+         ORDER BY updated_at DESC`
+      ),
+      db.getAllAsync<ChatMessageRow>(
+        `SELECT id, thread_id, role, content, citations_json, reasoning, metadata_json,
+                deleted_at, created_at
+         FROM chat_messages
+         ORDER BY thread_id, created_at ASC`
       ),
     ]);
 
@@ -269,11 +332,14 @@ export class BackupService {
         noteThemes: true,
         labels: true,
         importedDocuments: true,
+        importedDocumentPages: true,
         mapMarkers: true,
         routes: true,
         readinessChecklist: true,
         rssSubscriptions: true,
         selectedSettings: true,
+        chatThreads: true,
+        chatMessages: true,
       },
       excludes: [
         'models',
@@ -289,9 +355,12 @@ export class BackupService {
       settings,
       notes: notes.map(mapNoteBackup),
       documents: backupDocuments,
+      documentPages: documentPages.map(mapDocumentPageBackup),
       mapMarkers: mapMarkers.map(mapMarkerBackup),
       routes: routes.map(mapRouteBackup),
       rssFeeds: rssFeeds.map(mapRssFeedBackup),
+      chatThreads: chatThreads.map(mapChatThreadBackup),
+      chatMessages: chatMessages.map(mapChatMessageBackup),
     };
 
     zipEntries['manifest.json'] = strToU8(JSON.stringify(manifest));
@@ -482,7 +551,96 @@ export class BackupService {
           ]
         );
       }
+
+      const restoredPageDocumentIds = new Set<string>();
+      for (const page of manifest.documentPages ?? []) {
+        await db.runAsync(
+          `INSERT INTO document_pages
+            (id, document_id, page_number, text, extraction_method, confidence, indexed_at,
+             created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(document_id, page_number) DO UPDATE SET
+             id = excluded.id,
+             text = excluded.text,
+             extraction_method = excluded.extraction_method,
+             confidence = excluded.confidence,
+             indexed_at = excluded.indexed_at`,
+          [
+            page.id,
+            page.documentId,
+            page.pageNumber,
+            page.text,
+            page.extractionMethod,
+            page.confidence,
+            page.indexedAt,
+            page.createdAt,
+          ]
+        );
+        restoredPageDocumentIds.add(page.documentId);
+      }
+
+      for (const page of manifest.documentPages ?? []) {
+        await db.runAsync('DELETE FROM document_pages_fts WHERE page_id = ?', [page.id]);
+        await db.runAsync(
+          `INSERT INTO document_pages_fts (page_id, document_id, text, title)
+           VALUES (?, ?, ?, ?)`,
+          [page.id, page.documentId, page.text, '']
+        );
+      }
+
+      for (const thread of manifest.chatThreads ?? []) {
+        await db.runAsync(
+          `INSERT INTO chat_threads
+            (id, title, selected_model_id, chat_model_disabled, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET
+             title = excluded.title,
+             selected_model_id = excluded.selected_model_id,
+             chat_model_disabled = excluded.chat_model_disabled,
+             created_at = excluded.created_at,
+             updated_at = excluded.updated_at`,
+          [
+            thread.id,
+            thread.title,
+            thread.selectedModelId,
+            thread.chatModelDisabled == null ? null : thread.chatModelDisabled ? 1 : 0,
+            thread.createdAt,
+            thread.updatedAt,
+          ]
+        );
+      }
+
+      for (const message of manifest.chatMessages ?? []) {
+        await db.runAsync(
+          `INSERT INTO chat_messages
+            (id, thread_id, role, content, citations_json, reasoning, metadata_json,
+             deleted_at, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET
+             thread_id = excluded.thread_id,
+             role = excluded.role,
+             content = excluded.content,
+             citations_json = excluded.citations_json,
+             reasoning = excluded.reasoning,
+             metadata_json = excluded.metadata_json,
+             deleted_at = excluded.deleted_at,
+             created_at = excluded.created_at`,
+          [
+            message.id,
+            message.threadId,
+            message.role,
+            message.content,
+            JSON.stringify(message.citations),
+            message.reasoning,
+            message.metadata ? JSON.stringify(message.metadata) : null,
+            message.deletedAt,
+            message.createdAt,
+          ]
+        );
+      }
     });
+
+    await reindexFts(manifest);
   }
 }
 
@@ -587,6 +745,44 @@ function mapRssFeedBackup(row: RssFeedRow): ArkBackupRssFeed {
   };
 }
 
+function mapDocumentPageBackup(row: DocumentPageRow): ArkBackupDocumentPage {
+  return {
+    id: row.id,
+    documentId: row.document_id,
+    pageNumber: row.page_number,
+    text: row.text,
+    extractionMethod: row.extraction_method,
+    confidence: row.confidence,
+    indexedAt: row.indexed_at,
+    createdAt: row.created_at,
+  };
+}
+
+function mapChatThreadBackup(row: ChatThreadRow): ArkBackupChatThread {
+  return {
+    id: row.id,
+    title: row.title,
+    selectedModelId: row.selected_model_id,
+    chatModelDisabled: row.chat_model_disabled == null ? null : !!row.chat_model_disabled,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapChatMessageBackup(row: ChatMessageRow): ArkBackupChatMessage {
+  return {
+    id: row.id,
+    threadId: row.thread_id,
+    role: row.role,
+    content: row.content,
+    citations: parseJsonCitations(row.citations_json),
+    reasoning: row.reasoning,
+    metadata: parseJsonObject(row.metadata_json),
+    deletedAt: row.deleted_at,
+    createdAt: row.created_at,
+  };
+}
+
 async function encryptZip(
   zipBytes: Uint8Array,
   passphrase: string,
@@ -651,8 +847,13 @@ function parseEnvelope(value: string): ArkBackupEnvelope {
 
 function parseManifest(value: string): ArkBackupManifest {
   const parsed = JSON.parse(value) as ArkBackupManifest;
-  if (parsed.format !== 'ark-backup' || parsed.version !== BACKUP_VERSION) {
-    throw new Error('Backup manifest version is not supported.');
+  if (parsed.format !== 'ark-backup') {
+    throw new Error('Backup manifest format is not supported.');
+  }
+  if (parsed.version !== BACKUP_VERSION) {
+    throw new Error(
+      `Backup manifest version ${parsed.version} is not supported. Re-export the backup from this app version.`
+    );
   }
   return parsed;
 }
@@ -675,6 +876,61 @@ function parseJsonArray(value: string | null) {
     return parsed.filter((item): item is string => typeof item === 'string');
   } catch {
     return [];
+  }
+}
+
+function parseJsonCitations(value: string | null) {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item): item is ArkBackupChatMessage['citations'][number] => {
+      return (
+        !!item &&
+        typeof item === 'object' &&
+        typeof (item as { sourceId?: unknown }).sourceId === 'string' &&
+        typeof (item as { title?: unknown }).title === 'string' &&
+        typeof (item as { snippet?: unknown }).snippet === 'string'
+      );
+    });
+  } catch {
+    return [];
+  }
+}
+
+function parseJsonObject(value: string | null): Record<string, unknown> | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function reindexFts(manifest: ArkBackupManifest) {
+  const db = await DatabaseClient.getDb();
+  try {
+    if (manifest.notes.length > 0) {
+      await db.execAsync(`INSERT INTO notes_fts(notes_fts) VALUES('rebuild')`);
+    }
+  } catch (error) {
+    log.warn('Failed to rebuild notes_fts after restore', { error });
+  }
+  try {
+    if ((manifest.documentPages?.length ?? 0) > 0) {
+      await db.execAsync(`INSERT INTO document_pages_fts(document_pages_fts) VALUES('rebuild')`);
+    }
+  } catch (error) {
+    log.warn('Failed to rebuild document_pages_fts after restore', { error });
+  }
+  try {
+    await db.execAsync(`INSERT INTO rag_chunks_fts(rag_chunks_fts) VALUES('rebuild')`);
+  } catch (error) {
+    log.warn('Failed to rebuild rag_chunks_fts after restore', { error });
   }
 }
 

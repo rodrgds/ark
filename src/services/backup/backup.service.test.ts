@@ -85,7 +85,9 @@ class TestSQLiteDatabase {
   }
 
   async runAsync(sql: string, params?: Params) {
-    this.db.query(sql).run(...this.normalize(params));
+    const stmt = this.db.query(sql);
+    const result = stmt.run(...this.normalize(params));
+    return { changes: result?.changes ?? 0, lastInsertRowId: result?.lastInsertRowid ?? 0 };
   }
 
   async getFirstAsync<T>(sql: string, params?: Params): Promise<T | null> {
@@ -247,7 +249,14 @@ describe('encrypted Ark backups', () => {
     expect(new TextDecoder().decode(files.get(documents[0]?.localUri ?? '')?.data)).toContain(
       'Stored document body'
     );
-    expect(await DocumentPagesRepository.listForDocument('doc-water')).toEqual([]);
+    expect(await DocumentPagesRepository.listForDocument('doc-water')).toEqual([
+      expect.objectContaining({
+        documentId: 'doc-water',
+        pageNumber: 1,
+        text: 'Page index should not be backed up.',
+        extractionMethod: 'manual',
+      }),
+    ]);
 
     expect(await MapsRepository.listMarkers()).toHaveLength(1);
     expect(await MapsRepository.listRoutes()).toHaveLength(1);
@@ -256,7 +265,6 @@ describe('encrypted Ark backups', () => {
     expect(await testDb.getAllAsync('SELECT * FROM downloads')).toEqual([]);
     expect(await testDb.getAllAsync('SELECT * FROM map_regions')).toEqual([]);
     expect(await testDb.getAllAsync('SELECT * FROM rag_sources')).toEqual([]);
-    expect(await testDb.getAllAsync('SELECT * FROM document_pages')).toEqual([]);
 
     const zip = unzipSync(
       (await BackupService.inspectEncryptedBackup(backup.bytes, 'correct horse battery')).entries
@@ -267,6 +275,49 @@ describe('encrypted Ark backups', () => {
       'documents/doc-water/water-plan.txt',
       'manifest.json',
     ]);
+  });
+
+  test('round-trips chat threads, chat messages, and rebuilds FTS indexes', async () => {
+    await seedBackupData();
+    const backup = await BackupService.createEncryptedBackup('correct horse battery', { kdf });
+
+    const inspected = await BackupService.inspectEncryptedBackup(
+      backup.bytes,
+      'correct horse battery'
+    );
+    expect(inspected.manifest.chatThreads).toHaveLength(1);
+    expect(inspected.manifest.chatThreads[0]?.id).toBe('thread-survival');
+    expect(inspected.manifest.chatMessages).toHaveLength(2);
+    expect(inspected.manifest.chatMessages.map((m) => m.role).sort()).toEqual([
+      'assistant',
+      'user',
+    ]);
+
+    testDb.close();
+    testDb = new TestSQLiteDatabase();
+    await migrateDbIfNeeded(testDb as never);
+    DatabaseClient.setTestDbForTests(testDb as never);
+
+    await BackupService.importEncryptedBackup(backup.bytes, 'correct horse battery');
+
+    const restoredThreads = await testDb.getAllAsync<{ id: string; title: string }>(
+      `SELECT id, title FROM chat_threads ORDER BY id`
+    );
+    expect(restoredThreads).toEqual([{ id: 'thread-survival', title: 'Survival plan' }]);
+
+    const restoredMessages = await testDb.getAllAsync<{
+      role: string;
+      content: string;
+    }>(`SELECT role, content FROM chat_messages ORDER BY created_at ASC`);
+    expect(restoredMessages).toEqual([
+      { role: 'user', content: 'How much water per day?' },
+      { role: 'assistant', content: 'At least 4 liters per person.' },
+    ]);
+
+    const ftsRow = await testDb.getFirstAsync<{ count: number }>(
+      `SELECT COUNT(*) as count FROM notes_fts WHERE notes_fts MATCH 'water'`
+    );
+    expect(ftsRow?.count ?? 0).toBeGreaterThan(0);
   });
 });
 
@@ -353,6 +404,21 @@ async function seedBackupData() {
   await testDb.runAsync(
     `INSERT INTO rag_sources (id, kind, source_ref, title, updated_at, created_at)
      VALUES ('document:doc-water', 'document', 'doc-water', 'RAG cache', 1, 1)`
+  );
+
+  const now = Date.now();
+  await testDb.runAsync(
+    `INSERT INTO chat_threads (id, title, selected_model_id, chat_model_disabled, created_at, updated_at)
+     VALUES ('thread-survival', 'Survival plan', NULL, 0, ?, ?)`,
+    [now, now]
+  );
+  await testDb.runAsync(
+    `INSERT INTO chat_messages
+       (id, thread_id, role, content, citations_json, reasoning, metadata_json, deleted_at, created_at)
+     VALUES
+       ('msg-1', 'thread-survival', 'user', 'How much water per day?', NULL, NULL, NULL, NULL, ?),
+       ('msg-2', 'thread-survival', 'assistant', 'At least 4 liters per person.', '[]', NULL, NULL, NULL, ?)`,
+    [now + 1, now + 2]
   );
 }
 

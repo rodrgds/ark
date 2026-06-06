@@ -1,114 +1,104 @@
 import { AppState, type AppStateStatus } from 'react-native';
-import { useAuthStore } from '@/stores/auth-store';
-import { SettingsRepository } from '@/services/db/repositories/settings.repo';
-
-type AppStateListener = (state: AppStateStatus) => void;
-
-export type AppStateAdapter = {
-  addEventListener: (event: string, listener: AppStateListener) => { remove: () => void };
-  get currentState(): AppStateStatus;
-};
-
-const defaultAppState: AppStateAdapter = {
-  addEventListener: (event, listener) =>
-    AppState.addEventListener(event as 'change', listener as never),
-  get currentState() {
-    return AppState.currentState as 'active' | 'background' | 'inactive';
-  },
-};
-
-const appStateListeners = new Set<AppStateListener>();
+import { VaultService } from '@/services/security/vault.service';
+import type { VaultState } from '@/types/db';
 
 let backgroundedAt: number | null = null;
-let timer: ReturnType<typeof setTimeout> | null = null;
-let activeVault: { autoLockMinutes: number } | null = null;
-
-const FIFTEEN_SECONDS = 15_000;
-const MAX_RETRY_TIMEOUT_MS = FIFTEEN_SECONDS;
+let timer: NodeJS.Timeout | null = null;
+let activeVault: VaultState | null = null;
+const appStateListeners = new Set<(status: AppStateStatus) => void>();
 
 export class AutoLockService {
-  static async touch() {
-    useAuthStore.getState().markActivity();
-  }
+  /**
+   * Initializes the auto-lock service by listening to AppState changes.
+   * When the app moves to the background, it starts a timer to lock the vault.
+   * When the app returns to the foreground, it checks if the vault should be locked.
+   */
+  static async start(vault: VaultState) {
+    activeVault = vault;
 
-  static async enforce() {
-    const state = useAuthStore.getState();
-    if (!state.unlocked) return;
-    const vault = activeVault ?? (await SettingsRepository.getVaultState());
-    activeVault = { autoLockMinutes: vault.autoLockMinutes };
-    const thresholdMs = vault.autoLockMinutes * 60 * 1000;
-
-    if (backgroundedAt != null) {
-      const idleMs = Date.now() - backgroundedAt;
-      backgroundedAt = null;
-      if (idleMs >= thresholdMs) {
-        useAuthStore.getState().lock();
-        return;
+    const subscription = AppState.addEventListener('change', async (nextAppState) => {
+      // Notify custom listeners
+      for (const listener of appStateListeners) {
+        listener(nextAppState);
       }
-    }
 
-    AutoLockService.scheduleCheck(thresholdMs);
+      if (nextAppState === 'background' || nextAppState === 'inactive') {
+        if (!backgroundedAt) {
+          backgroundedAt = Date.now();
+        }
+
+        // Set a timer to lock the vault if the app stays in background
+        const timeout = vault.autoLockMinutes * 60 * 1000;
+        if (timeout > 0) {
+          if (timer) clearTimeout(timer);
+          timer = setTimeout(async () => {
+            await VaultService.lock();
+            backgroundedAt = null;
+          }, timeout);
+        }
+      } else if (nextAppState === 'active') {
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+
+        if (backgroundedAt) {
+          const elapsed = Date.now() - backgroundedAt;
+          const timeout = vault.autoLockMinutes * 60 * 1000;
+
+          if (timeout > 0 && elapsed >= timeout) {
+            await VaultService.lock();
+          }
+          backgroundedAt = null;
+        }
+      }
+    });
+
+    return () => {
+      subscription.remove();
+      if (timer) clearTimeout(timer);
+    };
   }
 
-  static scheduleCheck(thresholdMs: number) {
+  /**
+   * Returns a function to subscribe to AppState changes.
+   * Useful for components that need to respond to background/foreground events.
+   */
+  static subscribe(callback: (status: AppStateStatus) => void) {
+    appStateListeners.add(callback);
+    return () => {
+      appStateListeners.delete(callback);
+    };
+  }
+
+  /**
+   * Immediately locks the vault and clears any pending timers.
+   */
+  static async forceLock() {
+    if (timer) clearTimeout(timer);
+    timer = null;
+    backgroundedAt = null;
+    await VaultService.lock();
+  }
+
+  /**
+   * Updates the current vault configuration for the service.
+   */
+  static updateVault(vault: VaultState) {
+    activeVault = vault;
+  }
+
+  static resetForTests() {
+    backgroundedAt = null;
     if (timer) {
       clearTimeout(timer);
       timer = null;
     }
-    const state = useAuthStore.getState();
-    if (!state.unlocked) return;
-    const elapsed = Date.now() - state.lastActivityAt;
-    const remaining = thresholdMs - elapsed;
-    if (remaining <= 0) {
-      useAuthStore.getState().lock();
-      return;
-    }
-    timer = setTimeout(() => {
-      timer = null;
-      void AutoLockService.enforce();
-    }, Math.min(remaining, MAX_RETRY_TIMEOUT_MS));
+    activeVault = null;
+    appStateListeners.clear();
   }
 
-  static onAppStateChange(state: AppStateStatus) {
-    const auth = useAuthStore.getState();
-    if (state === 'active') {
-      backgroundedAt = null;
-      if (auth.unlocked) {
-        void AutoLockService.enforce();
-      }
-    } else {
-      if (auth.unlocked) {
-        backgroundedAt = Date.now();
-      }
-      if (timer) {
-        clearTimeout(timer);
-        timer = null;
-      }
-    }
-    for (const listener of appStateListeners) {
-      try {
-        listener(state);
-      } catch {
-        // listener errors must not break the chain
-      }
-    }
-  }
-
-  static registerAppStateListener(listener: AppStateListener) {
-    appStateListeners.add(listener);
-    return () => {
-      appStateListeners.delete(listener);
-    };
-  }
-
-  static bindAppState(adapter: AppStateAdapter = defaultAppState) {
-    const subscription = adapter.addEventListener('change', AutoLockService.onAppStateChange);
-    return () => {
-      subscription.remove();
-      if (timer) {
-        clearTimeout(timer);
-        timer = null;
-      }
-    };
+  static get backgroundedAtForTests() {
+    return backgroundedAt;
   }
 }

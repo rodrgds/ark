@@ -82,6 +82,7 @@ let DatabaseClient: typeof import('@/services/db/client').DatabaseClient;
 let migrateDbIfNeeded: typeof import('@/services/db/migrations').migrateDbIfNeeded;
 let SettingsRepository: typeof import('@/services/db/repositories/settings.repo').SettingsRepository;
 let ContentRepository: typeof import('@/services/db/repositories/content.repo').ContentRepository;
+let resetStarterPacksSeedFlagForTests: () => void;
 let DownloadsRepository: typeof import('@/services/db/repositories/downloads.repo').DownloadsRepository;
 let NotesRepository: typeof import('@/services/db/repositories/notes.repo').NotesRepository;
 let MapsRepository: typeof import('@/services/db/repositories/maps.repo').MapsRepository;
@@ -98,7 +99,9 @@ beforeAll(async () => {
   ({ DatabaseClient } = await import('@/services/db/client'));
   ({ migrateDbIfNeeded } = await import('@/services/db/migrations'));
   ({ SettingsRepository } = await import('@/services/db/repositories/settings.repo'));
-  ({ ContentRepository } = await import('@/services/db/repositories/content.repo'));
+  ({ ContentRepository, resetStarterPacksSeedFlagForTests } = await import(
+    '@/services/db/repositories/content.repo'
+  ));
   ({ DownloadsRepository } = await import('@/services/db/repositories/downloads.repo'));
   ({ NotesRepository } = await import('@/services/db/repositories/notes.repo'));
   ({ MapsRepository } = await import('@/services/db/repositories/maps.repo'));
@@ -116,12 +119,13 @@ beforeEach(async () => {
   testDb = new TestSQLiteDatabase();
   await migrateDbIfNeeded(testDb as never);
   DatabaseClient.setTestDbForTests(testDb as never);
+  resetStarterPacksSeedFlagForTests();
 });
 
 describe('database migrations', () => {
   test('creates the current schema with FTS and resumable download columns', async () => {
     const version = await testDb.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
-    expect(version?.user_version).toBe(17);
+    expect(version?.user_version).toBe(18);
 
     const noteColumns = await testDb.getAllAsync<{ name: string }>('PRAGMA table_info(notes)');
     expect(noteColumns.map((column) => column.name)).toContain('theme_id');
@@ -237,7 +241,7 @@ describe('database migrations', () => {
       const themeColumn = noteColumns.find((column) => column.name === 'theme_id');
       const sortColumn = noteColumns.find((column) => column.name === 'sort_order');
 
-      expect(version?.user_version).toBe(17);
+      expect(version?.user_version).toBe(18);
       expect(themeColumn?.notnull).toBe(1);
       expect(themeColumn?.dflt_value).toBe("'default'");
       expect(sortColumn?.name).toBe('sort_order');
@@ -280,7 +284,7 @@ describe('database migrations', () => {
         'SELECT id, sort_order FROM notes ORDER BY sort_order ASC'
       );
 
-      expect(version?.user_version).toBe(17);
+      expect(version?.user_version).toBe(18);
       expect(rows).toEqual([
         { id: 'favorite', sort_order: 1000 },
         { id: 'newest', sort_order: 2000 },
@@ -326,7 +330,7 @@ describe('database migrations', () => {
         'plain-note',
       ]);
 
-      expect(version?.user_version).toBe(17);
+      expect(version?.user_version).toBe(18);
       expect(noteColumns.map((column) => column.name)).toContain('content_html');
       expect(noteColumns.map((column) => column.name)).toContain('content_json');
       expect(noteColumns.map((column) => column.name)).toContain('content_format');
@@ -657,6 +661,38 @@ describe('repositories', () => {
     expect((await NotesRepository.list('offline')).map((note) => note.id).sort()).toEqual(
       [first.id, second.id].sort()
     );
+
+    await NotesRepository.removeLabels([first.id, second.id], ['offline', 'missing']);
+    const unlabeled = await NotesRepository.getMany([first.id, second.id]);
+    expect(unlabeled[0]?.tags).toEqual(['comms', 'food']);
+    expect(unlabeled[1]?.tags).toEqual(['food']);
+    expect((await NotesRepository.list('offline')).map((note) => note.id)).toEqual([]);
+
+    const explicitBody = await NotesRepository.create({
+      title: 'Body patch test',
+      body: 'short body',
+      contentHtml: '<p>much longer html content that should not win over the body field</p>',
+      contentJson: JSON.stringify({ type: 'doc', content: [] }),
+      contentFormat: 'tiptap-json-v1',
+    });
+    await NotesRepository.update(explicitBody.id, { body: 'USER EDITED' });
+    const reloaded = await NotesRepository.get(explicitBody.id);
+    expect(reloaded?.body).toBe('USER EDITED');
+
+    const onlyRich = await NotesRepository.create({
+      title: 'Rich only test',
+      body: 'placeholder',
+      contentHtml: '<p>html-only</p>',
+      contentJson: null,
+      contentFormat: 'tiptap-json-v1',
+    });
+    await NotesRepository.update(onlyRich.id, {
+      contentHtml: '<p>rich updated</p>',
+      contentJson: null,
+    });
+    const reloadedRich = await NotesRepository.get(onlyRich.id);
+    expect(reloadedRich?.body).toBe('rich updated');
+    expect(reloadedRich?.contentHtml).toBe('<p>rich updated</p>');
 
     await NotesRepository.softDeleteMany([first.id, second.id]);
     expect(await NotesRepository.get(first.id)).toBeNull();

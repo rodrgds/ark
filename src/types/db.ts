@@ -19,6 +19,8 @@ export type VaultState = {
   updatedAt: number;
   lastUnlockedAt: number | null;
   autoLockMinutes: number;
+  failedAttempts: number;
+  lockedUntil: number | null;
 };
 
 export type Note = {

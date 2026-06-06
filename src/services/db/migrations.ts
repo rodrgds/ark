@@ -6,6 +6,21 @@ async function getUserVersion(db: SQLiteDatabase) {
   return row?.user_version ?? 0;
 }
 
+async function hasColumn(db: SQLiteDatabase, table: string, column: string) {
+  const columns = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${table})`);
+  return columns.some((entry) => entry.name === column);
+}
+
+async function addColumnIfMissing(
+  db: SQLiteDatabase,
+  table: string,
+  column: string,
+  definition: string
+) {
+  if (await hasColumn(db, table, column)) return;
+  await db.execAsync(`ALTER TABLE ${table} ADD COLUMN ${definition}`);
+}
+
 async function backfillNoteSortOrder(db: SQLiteDatabase) {
   const rows = await db.getAllAsync<{ id: string }>(
     `SELECT id FROM notes
@@ -719,6 +734,29 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
         );
       }
       await db.runAsync('PRAGMA user_version = 17');
+    });
+  }
+
+  if (currentVersion < 18) {
+    await db.withTransactionAsync(async () => {
+      const vaultTable = await db.getFirstAsync<{ name: string }>(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'vault_state'"
+      );
+      if (vaultTable?.name === 'vault_state') {
+        await addColumnIfMissing(
+          db,
+          'vault_state',
+          'failed_attempts',
+          'failed_attempts INTEGER NOT NULL DEFAULT 0'
+        );
+        await addColumnIfMissing(
+          db,
+          'vault_state',
+          'locked_until',
+          'locked_until INTEGER'
+        );
+      }
+      await db.runAsync('PRAGMA user_version = 18');
     });
   }
 }

@@ -464,7 +464,9 @@ class TestSQLiteDatabase {
   }
 
   async runAsync(sql: string, params?: Params) {
-    this.db.query(sql).run(...this.normalize(params));
+    const stmt = this.db.query(sql);
+    const result = stmt.run(...this.normalize(params));
+    return { changes: result?.changes ?? 0, lastInsertRowId: result?.lastInsertRowid ?? 0 };
   }
 
   async getFirstAsync<T>(sql: string, params?: Params): Promise<T | null> {
@@ -517,6 +519,7 @@ let RAG_HASH_EMBEDDING_MODEL_ID: typeof import('@/services/ai/rag-embedding').RA
 let RAG_HASH_EMBEDDING_DIMENSIONS: typeof import('@/services/ai/rag-embedding').RAG_HASH_EMBEDDING_DIMENSIONS;
 let useAppStore: typeof import('@/stores/app-store').useAppStore;
 let ContentRepository: typeof import('@/services/db/repositories/content.repo').ContentRepository;
+let resetStarterPacksSeedFlagForTests: () => void;
 let SettingsRepository: typeof import('@/services/db/repositories/settings.repo').SettingsRepository;
 let NotesRepository: typeof import('@/services/db/repositories/notes.repo').NotesRepository;
 let DownloadsRepository: typeof import('@/services/db/repositories/downloads.repo').DownloadsRepository;
@@ -548,7 +551,9 @@ beforeAll(async () => {
   ({ RAG_HASH_EMBEDDING_MODEL_ID, RAG_HASH_EMBEDDING_DIMENSIONS } =
     await import('@/services/ai/rag-embedding'));
   ({ useAppStore } = await import('@/stores/app-store'));
-  ({ ContentRepository } = await import('@/services/db/repositories/content.repo'));
+  ({ ContentRepository, resetStarterPacksSeedFlagForTests } = await import(
+    '@/services/db/repositories/content.repo'
+  ));
   ({ SettingsRepository } = await import('@/services/db/repositories/settings.repo'));
   ({ NotesRepository } = await import('@/services/db/repositories/notes.repo'));
   ({ DownloadsRepository } = await import('@/services/db/repositories/downloads.repo'));
@@ -559,6 +564,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   secureStore.clear();
+  resetStarterPacksSeedFlagForTests();
   llamaStopCalls = 0;
   llamaCompletionGate = null;
   llamaCompletionStarted = null;
@@ -2117,6 +2123,18 @@ describe('service integration', () => {
 
     await expect(ContentPackService.importLocalModel('embedding')).rejects.toThrow(
       'built-in ExecuTorch embeddings'
+    );
+  });
+
+  test('imported local GGUF files must have a valid GGUF magic header', async () => {
+    mockPickedDocument = {
+      name: 'broken.gguf',
+      uri: 'file:///picker/broken.gguf',
+      size: 1024,
+    };
+
+    await expect(ContentPackService.importLocalModel('chat')).rejects.toThrow(
+      'not a valid GGUF model'
     );
   });
 

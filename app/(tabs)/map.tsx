@@ -4,7 +4,7 @@ import { ArkBottomSheet } from '@/components/ui/bottom-sheet';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
-import { showSheetAlert } from '@/components/ui/sheet-alert';
+import { confirmDestructive, showSheetAlert } from '@/components/ui/sheet-alert';
 import { Text } from '@/components/ui/text';
 import type { MapPreset } from '@/constants/map-presets';
 import { getMapPinMeta, MAP_PIN_TYPES, type MapPinType } from '@/constants/map-pins';
@@ -720,47 +720,38 @@ export default function MapScreen() {
   }
 
   async function deleteRegion(region: MapRegion) {
-    showSheetAlert('Delete offline region?', region.name, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          await OfflineMapService.deleteRegion(region.id);
-          await load({ syncNative: true });
-        },
+    confirmDestructive({
+      title: 'Delete offline region?',
+      message: region.name,
+      onConfirm: async () => {
+        await OfflineMapService.deleteRegion(region.id);
+        await load({ syncNative: true });
       },
-    ]);
+    });
   }
 
   async function deleteMarker(marker: MapMarker) {
-    showSheetAlert('Delete spot?', marker.title, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          await OfflineMapService.deleteMarker(marker.id);
-          if (selectedMarkerId === marker.id) setSelectedMarkerId(null);
-          if (editingMarker?.id === marker.id) setEditingMarker(null);
-          await load();
-        },
+    confirmDestructive({
+      title: 'Delete spot?',
+      message: marker.title,
+      onConfirm: async () => {
+        await OfflineMapService.deleteMarker(marker.id);
+        if (selectedMarkerId === marker.id) setSelectedMarkerId(null);
+        if (editingMarker?.id === marker.id) setEditingMarker(null);
+        await load();
       },
-    ]);
+    });
   }
 
   async function deleteRoute(route: SavedRoute) {
-    showSheetAlert('Delete route?', route.title, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          await OfflineMapService.deleteRoute(route.id);
-          await load();
-        },
+    confirmDestructive({
+      title: 'Delete route?',
+      message: route.title,
+      onConfirm: async () => {
+        await OfflineMapService.deleteRoute(route.id);
+        await load();
       },
-    ]);
+    });
   }
 
   async function downloadMissingRegion(preset: MapPreset) {

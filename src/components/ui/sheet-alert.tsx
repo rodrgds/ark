@@ -26,6 +26,20 @@ export function showSheetAlert(
   presentSheetAlert?.({ title, message, buttons: buttons.length ? buttons : [{ text: 'OK' }] });
 }
 
+export function confirmDestructive(options: {
+  title: string;
+  message?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  onConfirm: () => void;
+}) {
+  const { title, message, confirmLabel = 'Delete', cancelLabel = 'Cancel', onConfirm } = options;
+  showSheetAlert(title, message, [
+    { text: cancelLabel, style: 'cancel' },
+    { text: confirmLabel, style: 'destructive', onPress: onConfirm },
+  ]);
+}
+
 export function SheetAlertProvider({ children }: { children: React.ReactNode }) {
   const [alert, setAlert] = React.useState<SheetAlertState | null>(null);
 

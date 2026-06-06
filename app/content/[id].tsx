@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/card';
 import { ArkKeyboardAwareScrollView } from '@/components/layout/keyboard-controller';
 import { Icon } from '@/components/ui/icon';
 import { Progress } from '@/components/ui/progress';
-import { showSheetAlert } from '@/components/ui/sheet-alert';
+import { confirmDestructive, showSheetAlert } from '@/components/ui/sheet-alert';
 import { Text } from '@/components/ui/text';
 import { ContentPackService } from '@/services/content/content-pack.service';
 import { GuideService, type GuideSection } from '@/services/content/guide.service';
@@ -304,14 +304,12 @@ export default function ContentDetailScreen() {
                   }
                   disabled={busy}
                   onPress={() =>
-                    showSheetAlert('Remove Pack?', `Delete ${pack.title} from offline storage?`, [
-                      { text: 'Cancel', style: 'cancel' },
-                      {
-                        text: 'Remove',
-                        style: 'destructive',
-                        onPress: () => runAction(() => ContentPackService.removePack(pack.id)),
-                      },
-                    ])
+                    confirmDestructive({
+                      title: 'Remove Pack?',
+                      message: `Delete ${pack.title} from offline storage?`,
+                      confirmLabel: 'Remove',
+                      onConfirm: () => runAction(() => ContentPackService.removePack(pack.id)),
+                    })
                   }>
                   <Icon as={Trash2} className="text-destructive size-4" />
                   <Text className="text-destructive">{isZim ? 'Remove Archive' : 'Remove'}</Text>
@@ -333,15 +331,14 @@ export default function ContentDetailScreen() {
                   className="border-border active:bg-muted"
                   disabled={busy}
                   onPress={() =>
-                    showSheetAlert('Cancel download?', pack.title, [
-                      { text: 'Keep', style: 'cancel' },
-                      {
-                        text: 'Cancel',
-                        style: 'destructive',
-                        onPress: () =>
-                          runAction(() => ContentPackService.cancelPackDownload(pack.id)),
-                      },
-                    ])
+                    confirmDestructive({
+                      title: 'Cancel download?',
+                      message: pack.title,
+                      cancelLabel: 'Keep',
+                      confirmLabel: 'Cancel',
+                      onConfirm: () =>
+                        runAction(() => ContentPackService.cancelPackDownload(pack.id)),
+                    })
                   }>
                   <Icon as={Trash2} className="text-destructive size-4" />
                 </Button>

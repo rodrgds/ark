@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
 import { Progress } from '@/components/ui/progress';
-import { showSheetAlert } from '@/components/ui/sheet-alert';
+import { confirmDestructive } from '@/components/ui/sheet-alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
 import { getPackIcon } from '@/constants/pack-presentation';
@@ -276,29 +276,26 @@ function DocumentList({
               variant="outline"
               disabled={workingId === document.id}
               onPress={() => {
-                showSheetAlert('Delete document?', document.title, [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Delete',
-                    style: 'destructive',
-                    onPress: async () => {
-                      setWorkingId(document.id);
-                      setError(null);
-                      try {
-                        await ImportService.deleteDocument(document.id);
-                        await reload();
-                      } catch (deleteError) {
-                        setError(
-                          deleteError instanceof Error
-                            ? deleteError.message
-                            : 'Unable to delete document.'
-                        );
-                      } finally {
-                        setWorkingId(null);
-                      }
-                    },
+                confirmDestructive({
+                  title: 'Delete document?',
+                  message: document.title,
+                  onConfirm: async () => {
+                    setWorkingId(document.id);
+                    setError(null);
+                    try {
+                      await ImportService.deleteDocument(document.id);
+                      await reload();
+                    } catch (deleteError) {
+                      setError(
+                        deleteError instanceof Error
+                          ? deleteError.message
+                          : 'Unable to delete document.'
+                      );
+                    } finally {
+                      setWorkingId(null);
+                    }
                   },
-                ]);
+                });
               }}>
               <Icon as={Trash2} className="size-4" />
             </Button>
@@ -404,29 +401,28 @@ function PackCard({
             size={pack.format === 'html' ? undefined : 'icon'}
             variant="outline"
             onPress={() =>
-              showSheetAlert('Cancel download?', pack.title, [
-                { text: 'Keep', style: 'cancel' },
-                {
-                  text: 'Cancel',
-                  style: 'destructive',
-                  onPress: async () => {
-                    setWorkingId(pack.id);
-                    setError(null);
-                    try {
-                      await ContentPackService.cancelPackDownload(pack.id);
-                      await reload();
-                    } catch (cancelError) {
-                      setError(
-                        cancelError instanceof Error
-                          ? cancelError.message
-                          : 'Unable to cancel download.'
-                      );
-                    } finally {
-                      setWorkingId(null);
-                    }
-                  },
+              confirmDestructive({
+                title: 'Cancel download?',
+                message: pack.title,
+                cancelLabel: 'Keep',
+                confirmLabel: 'Cancel',
+                onConfirm: async () => {
+                  setWorkingId(pack.id);
+                  setError(null);
+                  try {
+                    await ContentPackService.cancelPackDownload(pack.id);
+                    await reload();
+                  } catch (cancelError) {
+                    setError(
+                      cancelError instanceof Error
+                        ? cancelError.message
+                        : 'Unable to cancel download.'
+                    );
+                  } finally {
+                    setWorkingId(null);
+                  }
                 },
-              ])
+              })
             }>
             <Icon as={Trash2} className="size-4" />
             {pack.format === 'html' ? <Text>Cancel</Text> : null}
@@ -443,29 +439,28 @@ function PackCard({
             variant="outline"
             disabled={workingId === pack.id}
             onPress={() =>
-              showSheetAlert('Cancel verification?', pack.title, [
-                { text: 'Keep', style: 'cancel' },
-                {
-                  text: 'Cancel',
-                  style: 'destructive',
-                  onPress: async () => {
-                    setWorkingId(pack.id);
-                    setError(null);
-                    try {
-                      await ContentPackService.cancelPackDownload(pack.id);
-                      await reload();
-                    } catch (cancelError) {
-                      setError(
-                        cancelError instanceof Error
-                          ? cancelError.message
-                          : 'Unable to cancel verification.'
-                      );
-                    } finally {
-                      setWorkingId(null);
-                    }
-                  },
+              confirmDestructive({
+                title: 'Cancel download?',
+                message: pack.title,
+                cancelLabel: 'Keep',
+                confirmLabel: 'Cancel',
+                onConfirm: async () => {
+                  setWorkingId(pack.id);
+                  setError(null);
+                  try {
+                    await ContentPackService.cancelPackDownload(pack.id);
+                    await reload();
+                  } catch (cancelError) {
+                    setError(
+                      cancelError instanceof Error
+                        ? cancelError.message
+                        : 'Unable to cancel download.'
+                    );
+                  } finally {
+                    setWorkingId(null);
+                  }
                 },
-              ])
+              })
             }>
             <Icon as={Trash2} className="size-4" />
           </Button>
@@ -496,29 +491,28 @@ function PackCard({
             size="icon"
             variant="outline"
             onPress={() =>
-              showSheetAlert('Cancel download?', pack.title, [
-                { text: 'Keep', style: 'cancel' },
-                {
-                  text: 'Cancel',
-                  style: 'destructive',
-                  onPress: async () => {
-                    setWorkingId(pack.id);
-                    setError(null);
-                    try {
-                      await ContentPackService.cancelPackDownload(pack.id);
-                      await reload();
-                    } catch (cancelError) {
-                      setError(
-                        cancelError instanceof Error
-                          ? cancelError.message
-                          : 'Unable to cancel download.'
-                      );
-                    } finally {
-                      setWorkingId(null);
-                    }
-                  },
+              confirmDestructive({
+                title: 'Cancel download?',
+                message: pack.title,
+                cancelLabel: 'Keep',
+                confirmLabel: 'Cancel',
+                onConfirm: async () => {
+                  setWorkingId(pack.id);
+                  setError(null);
+                  try {
+                    await ContentPackService.cancelPackDownload(pack.id);
+                    await reload();
+                  } catch (cancelError) {
+                    setError(
+                      cancelError instanceof Error
+                        ? cancelError.message
+                        : 'Unable to cancel download.'
+                    );
+                  } finally {
+                    setWorkingId(null);
+                  }
                 },
-              ])
+              })
             }>
             <Icon as={Trash2} className="size-4" />
           </Button>
@@ -547,23 +541,21 @@ function PackCard({
             size={pack.format === 'gguf' ? undefined : 'icon'}
             variant="outline"
             onPress={() =>
-              showSheetAlert('Remove pack?', pack.title, [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                  text: 'Remove',
-                  style: 'destructive',
-                  onPress: async () => {
-                    setWorkingId(pack.id);
-                    setError(null);
-                    try {
-                      await ContentPackService.removePack(pack.id);
-                      await reload();
-                    } finally {
-                      setWorkingId(null);
-                    }
-                  },
+              confirmDestructive({
+                title: 'Remove pack?',
+                message: pack.title,
+                confirmLabel: 'Remove',
+                onConfirm: async () => {
+                  setWorkingId(pack.id);
+                  setError(null);
+                  try {
+                    await ContentPackService.removePack(pack.id);
+                    await reload();
+                  } finally {
+                    setWorkingId(null);
+                  }
                 },
-              ])
+              })
             }>
             <Icon as={Trash2} className="size-4" />
             {pack.format === 'gguf' ? <Text className="ml-2">Remove</Text> : null}

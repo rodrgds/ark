@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
-import { showSheetAlert } from '@/components/ui/sheet-alert';
+import { confirmDestructive } from '@/components/ui/sheet-alert';
 import { Text } from '@/components/ui/text';
 import { ImportService } from '@/services/files/import.service';
 import {
@@ -197,18 +197,15 @@ export default function DocumentReaderScreen() {
               variant="outline"
               disabled={busy}
               onPress={() => {
-                showSheetAlert('Delete document?', document.title, [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Delete',
-                    style: 'destructive',
-                    onPress: () =>
-                      run(async () => {
-                        await ImportService.deleteDocument(document.id);
-                        router.back();
-                      }),
-                  },
-                ]);
+                confirmDestructive({
+                  title: 'Delete document?',
+                  message: document.title,
+                  onConfirm: () =>
+                    run(async () => {
+                      await ImportService.deleteDocument(document.id);
+                      router.back();
+                    }),
+                });
               }}>
               {busy ? <ActivityIndicator /> : <Icon as={Trash2} className="size-4" />}
             </Button>

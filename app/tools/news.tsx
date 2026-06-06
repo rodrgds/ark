@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
-import { showSheetAlert } from '@/components/ui/sheet-alert';
+import { confirmDestructive, showSheetAlert } from '@/components/ui/sheet-alert';
 import { Text } from '@/components/ui/text';
 import { BATTERY_POLL_INTERVALS_MS } from '@/constants/battery';
 import { useBatteryReduceMode } from '@/hooks/use-battery-reduce-mode';
@@ -223,18 +223,16 @@ export default function NewsScreen() {
                   size="icon"
                   variant="ghost"
                   onPress={() => {
-                    showSheetAlert('Remove feed?', feed.title, [
-                      { text: 'Cancel', style: 'cancel' },
-                      {
-                        text: 'Remove',
-                        style: 'destructive',
-                        onPress: () =>
-                          void (async () => {
-                            await RssService.removeFeed(feed.id);
-                            await load();
-                          })(),
-                      },
-                    ]);
+                    confirmDestructive({
+                      title: 'Remove feed?',
+                      message: feed.title,
+                      confirmLabel: 'Remove',
+                      onConfirm: () =>
+                        void (async () => {
+                          await RssService.removeFeed(feed.id);
+                          await load();
+                        })(),
+                    });
                   }}>
                   <Icon as={Trash2} className="size-4" />
                 </Button>

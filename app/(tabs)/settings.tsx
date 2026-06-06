@@ -11,7 +11,7 @@ import { SecuritySection } from '@/components/settings/security-section';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
-import { showSheetAlert } from '@/components/ui/sheet-alert';
+import { confirmDestructive, showSheetAlert } from '@/components/ui/sheet-alert';
 import { Text } from '@/components/ui/text';
 import { BATTERY_POLL_INTERVALS_MS } from '@/constants/battery';
 import { BackupService } from '@/services/backup/backup.service';
@@ -393,14 +393,11 @@ export default function SettingsScreen() {
   }
 
   function confirmDeleteMapRegion(region: MapRegion) {
-    showSheetAlert('Delete offline map?', `${region.name} will be removed from this device.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => void runMapRegionAction(region, 'delete'),
-      },
-    ]);
+    confirmDestructive({
+      title: 'Delete offline map?',
+      message: `${region.name} will be removed from this device.`,
+      onConfirm: () => void runMapRegionAction(region, 'delete'),
+    });
   }
 
   async function removeModel(model: ContentPack) {
@@ -478,14 +475,13 @@ export default function SettingsScreen() {
   }
 
   function confirmImportBackup(passphrase: string) {
-    showSheetAlert(
-      'Import encrypted backup?',
-      'Ark will merge durable records and overwrite matching notes, documents, routes, saved spots, feeds, and selected settings.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Import', style: 'destructive', onPress: () => void importBackup(passphrase) },
-      ]
-    );
+    confirmDestructive({
+      title: 'Import encrypted backup?',
+      message:
+        'Ark will merge durable records and overwrite matching notes, documents, routes, saved spots, feeds, and selected settings.',
+      confirmLabel: 'Import',
+      onConfirm: () => void importBackup(passphrase),
+    });
   }
 
   const nativeMapStorageBytes = mapRegions.reduce(

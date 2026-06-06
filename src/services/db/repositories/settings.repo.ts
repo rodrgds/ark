@@ -149,6 +149,8 @@ export class SettingsRepository {
       updated_at: number;
       last_unlocked_at: number | null;
       auto_lock_minutes: number;
+      failed_attempts: number;
+      locked_until: number | null;
     }>('SELECT * FROM vault_state WHERE id = ?', ['main']);
     const now = Date.now();
     return {
@@ -160,6 +162,8 @@ export class SettingsRepository {
       updatedAt: row?.updated_at ?? now,
       lastUnlockedAt: row?.last_unlocked_at ?? null,
       autoLockMinutes: row?.auto_lock_minutes ?? 5,
+      failedAttempts: row?.failed_attempts ?? 0,
+      lockedUntil: row?.locked_until ?? null,
     };
   }
 
@@ -175,7 +179,9 @@ export class SettingsRepository {
         created_at = ?,
         updated_at = ?,
         last_unlocked_at = ?,
-        auto_lock_minutes = ?
+        auto_lock_minutes = ?,
+        failed_attempts = ?,
+        locked_until = ?
        WHERE id = 'main'`,
       [
         next.isInitialized ? 1 : 0,
@@ -185,6 +191,8 @@ export class SettingsRepository {
         Date.now(),
         next.lastUnlockedAt,
         next.autoLockMinutes,
+        next.failedAttempts,
+        next.lockedUntil,
       ]
     );
     return next;

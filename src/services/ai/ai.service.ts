@@ -28,10 +28,25 @@ class AiRequestCancelledError extends Error {
 
 type ActiveAiRequest = {
   id: string;
+  threadId: string;
   cancelled: boolean;
 };
 
-let activeRequest: ActiveAiRequest | null = null;
+const activeRequests = new Map<string, ActiveAiRequest>();
+
+function registerRequest(threadId: string): ActiveAiRequest {
+  const existing = activeRequests.get(threadId);
+  if (existing) existing.cancelled = true;
+  const request: ActiveAiRequest = { id: randomUUID(), threadId, cancelled: false };
+  activeRequests.set(threadId, request);
+  return request;
+}
+
+function unregisterRequest(request: ActiveAiRequest) {
+  if (activeRequests.get(request.threadId) === request) {
+    activeRequests.delete(request.threadId);
+  }
+}
 
 function throwIfCancelled(request: ActiveAiRequest) {
   if (request.cancelled) throw new AiRequestCancelledError();
@@ -208,9 +223,9 @@ export class AIService {
   }
 
   static async sendMessage(input: AiSendMessageInput, options: AiSendMessageOptions = {}) {
-    const request: ActiveAiRequest = { id: randomUUID(), cancelled: false };
-    activeRequest = request;
     const validated = parseOrThrow(chatMessageSchema, input);
+    const provisionalThreadId = validated.threadId ?? '__pending__';
+    const request = registerRequest(provisionalThreadId);
     try {
       const db = await DatabaseClient.getDb();
       options.onProgress?.({ stage: 'opening_database', label: 'Opening local database' });
@@ -219,6 +234,11 @@ export class AIService {
         validated.threadId,
         validated.content.slice(0, 42) || 'Offline chat'
       );
+      if (threadId !== request.threadId) {
+        unregisterRequest(request);
+        request.threadId = threadId;
+        activeRequests.set(threadId, request);
+      }
       if (
         'selectedModelId' in validated ||
         typeof validated.chatModelDisabled === 'boolean'
@@ -295,13 +315,25 @@ export class AIService {
         threadId,
         messages: [userMessage, ...(toolMessage ? [toolMessage] : []), assistantMessage],
       };
+    } catch (error) {
+      if (request.cancelled) {
+        throwIfCancelled(request);
+      }
+      throw error;
     } finally {
-      if (activeRequest === request) activeRequest = null;
+      unregisterRequest(request);
     }
   }
 
-  static async cancelActiveResponse() {
-    if (activeRequest) activeRequest.cancelled = true;
+  static async cancelActiveResponse(threadId?: string) {
+    if (threadId) {
+      const request = activeRequests.get(threadId);
+      if (request) request.cancelled = true;
+    } else {
+      for (const request of activeRequests.values()) {
+        request.cancelled = true;
+      }
+    }
     await llamaAdapter.cancelActiveCompletion();
   }
 

@@ -62,16 +62,21 @@ export class FileSystemService {
     };
   }
 
-  static async ensureSpaceForDownload(sizeBytes?: number | null) {
+  static async ensureSpaceForDownload(
+    sizeBytes?: number | null,
+    options: { alreadyOnDiskBytes?: number | null } = {}
+  ) {
     if (!sizeBytes) return;
     const capacity = await this.getDiskCapacity();
     if (capacity.freeBytes == null) return;
+    const alreadyOnDisk = Math.max(0, options.alreadyOnDiskBytes ?? 0);
+    const remainingBytes = Math.max(0, sizeBytes - alreadyOnDisk);
     const reserveBytes = Math.max(200 * 1024 * 1024, Math.round(sizeBytes * 0.1));
-    if (capacity.freeBytes < sizeBytes + reserveBytes) {
+    if (capacity.freeBytes < remainingBytes + reserveBytes) {
       throw new Error(
         `Not enough free storage. This download needs about ${this.formatBytes(
-          sizeBytes
-        )}, with at least ${this.formatBytes(reserveBytes)} left for Ark to finish safely.`
+          remainingBytes
+        )} more, with at least ${this.formatBytes(reserveBytes)} left for Ark to finish safely.`
       );
     }
   }

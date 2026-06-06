@@ -650,10 +650,10 @@ function FloatingComposer({
   });
 
   const recordingPulseStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(recordingLevel.value, [0, 1], [0, 0.34], Extrapolation.CLAMP),
+    opacity: interpolate(recordingLevel.value, [0, 1], [0.12, 0.58], Extrapolation.CLAMP),
     transform: [
       {
-        scale: interpolate(recordingLevel.value, [0, 1], [0.8, 1.9], Extrapolation.CLAMP),
+        scale: interpolate(recordingLevel.value, [0, 1], [1, 2.35], Extrapolation.CLAMP),
       },
     ],
   }));
@@ -680,7 +680,7 @@ function FloatingComposer({
         return;
       }
       await SpeechRecordingService.start((level) => {
-        recordingLevel.value = withTiming(motionEnabled ? Math.max(0.08, level) : 0.28, {
+        recordingLevel.value = withTiming(motionEnabled ? Math.max(0.16, level) : 0.32, {
           duration: motionEnabled ? 100 : 0,
           easing: Easing.out(Easing.quad),
         });
@@ -928,6 +928,7 @@ export default function ChatScreen() {
   const [speakingMessageId, setSpeakingMessageId] = React.useState<string | null>(null);
   const [keyboardVisible, setKeyboardVisible] = React.useState(false);
   const sendRunIdRef = React.useRef(0);
+  const modelChoiceDirtyRef = React.useRef(false);
   const flatListRef = React.useRef<FlatList>(null);
 
   const scrollToBottom = React.useCallback((animated = true) => {
@@ -982,6 +983,7 @@ export default function ChatScreen() {
       }
     }
     setInstalledModels(models);
+    if (!threadId && modelChoiceDirtyRef.current) return;
     setActiveModel(nextModel);
     setModelDisabled(nextDisabled);
   }, [threadId]);
@@ -1013,6 +1015,7 @@ export default function ChatScreen() {
   }
 
   React.useEffect(() => {
+    modelChoiceDirtyRef.current = false;
     void load();
   }, [routeThreadId]);
 
@@ -1151,10 +1154,11 @@ export default function ChatScreen() {
     setStreamingText('');
     setStreamingReasoning('');
     setProgressEvents([]);
-    await AIService.cancelActiveResponse();
+    await AIService.cancelActiveResponse(threadId ?? undefined);
   }
 
   async function selectModel(model: ContentPack) {
+    modelChoiceDirtyRef.current = true;
     if (threadId) {
       await AIService.updateThreadModelSettings(threadId, {
         selectedModelId: model.id,
@@ -1166,6 +1170,7 @@ export default function ChatScreen() {
   }
 
   async function disableModel() {
+    modelChoiceDirtyRef.current = true;
     if (threadId) {
       await AIService.updateThreadModelSettings(threadId, {
         selectedModelId: null,
@@ -1215,10 +1220,19 @@ export default function ChatScreen() {
   const headerActions = React.useMemo(
     () => (
       <>
-        <Button size="icon" variant="ghost" onPress={() => setModelInfoOpen(true)}>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-9 w-9 rounded-full"
+          onPress={() => setModelInfoOpen(true)}>
           <Icon as={Bot} className="size-4" />
         </Button>
-        <Button size="icon" variant="ghost" disabled={!threadId || sending} onPress={confirmClear}>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-9 w-9 rounded-full"
+          disabled={!threadId || sending}
+          onPress={confirmClear}>
           <Icon as={Trash2} className="size-4" />
         </Button>
       </>

@@ -40,8 +40,9 @@ const DOWNLOAD_HEADERS = {
     'Mozilla/5.0 (Linux; Android 14; Ark Offline) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125 Mobile Safari/537.36',
 };
 
-const MAX_ACTIVE_DOWNLOADS = 1;
+const MAX_ACTIVE_DOWNLOADS = 3;
 const MIN_EXPECTED_SIZE_RATIO = 0.98;
+const RESUME_DATA_MAX_AGE_MS = 30 * 60 * 1000;
 const SNAPSHOT_ACCEPT_HEADER = 'text/html,application/xhtml+xml,*/*';
 const WIFI_ONLY_PAUSE_REASON =
   'Wi-Fi-only downloads are on. Connect to Wi-Fi or turn it off in Settings.';
@@ -295,6 +296,28 @@ export class DownloadManagerService {
   private static activeDownloads = new Map<string, ActiveDownload>();
   private static downloadPackIds = new Map<string, string | null | undefined>();
   private static drainingQueue = false;
+  private static queueLocks = new Map<string, Promise<unknown>>();
+
+  private static async withQueueLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+    const previous = this.queueLocks.get(key) ?? Promise.resolve();
+    let release!: () => void;
+    const next = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    this.queueLocks.set(
+      key,
+      previous.then(() => next)
+    );
+    try {
+      await previous;
+      return await fn();
+    } finally {
+      release();
+      if (this.queueLocks.get(key) === next) {
+        this.queueLocks.delete(key);
+      }
+    }
+  }
 
   static async queueDownload(input: {
     kind: DownloadKind;
@@ -310,70 +333,81 @@ export class DownloadManagerService {
     snapshotHtml?: boolean;
   }) {
     await FileSystemService.ensureAppDirectories();
-    await FileSystemService.ensureSpaceForDownload(input.expectedSizeBytes);
     const directory = input.directory ?? defaultDirectory(input.kind);
     const fileName = input.fileName ?? inferFileName(input.sourceUrl, `${input.title}.bin`);
     const localUri = input.snapshotHtml
       ? `${snapshotRootUri(directory, fileName, input.title)}index.html`
       : `${FileSystemService.dir(directory)}${fileName}`;
 
-    const existing = (await DownloadsRepository.list()).find(
-      (download) =>
-        isActiveStatus(download.status) &&
-        (download.sourceUrl === input.sourceUrl || download.localUri === localUri)
-    );
-    if (existing) {
-      this.downloadPackIds.set(existing.id, input.packId);
-      const active = this.activeDownloads.has(existing.id);
-      const status =
-        active && (existing.status === 'downloading' || existing.status === 'verifying')
-          ? existing.status
-          : existing.status === 'paused'
-            ? 'paused'
-            : 'queued';
-      if (!active && existing.status !== 'paused') {
-        await DownloadsRepository.markQueued({
-          id: existing.id,
-          progress: existing.progress,
-          clearResumeData: false,
-        });
+    const lockKey = input.sourceUrl || localUri;
+    return this.withQueueLock(lockKey, async () => {
+      const priorDownloads = await DownloadsRepository.list();
+      const priorPartial = priorDownloads.find(
+        (download) =>
+          (download.sourceUrl === input.sourceUrl || download.localUri === localUri) &&
+          typeof download.downloadedBytes === 'number'
+      );
+      await FileSystemService.ensureSpaceForDownload(input.expectedSizeBytes, {
+        alreadyOnDiskBytes: priorPartial?.downloadedBytes ?? null,
+      });
+      const existing = priorDownloads.find(
+        (download) =>
+          isActiveStatus(download.status) &&
+          (download.sourceUrl === input.sourceUrl || download.localUri === localUri)
+      );
+      if (existing) {
+        this.downloadPackIds.set(existing.id, input.packId);
+        const active = this.activeDownloads.has(existing.id);
+        const status =
+          active && (existing.status === 'downloading' || existing.status === 'verifying')
+            ? existing.status
+            : existing.status === 'paused'
+              ? 'paused'
+              : 'queued';
+        if (!active && existing.status !== 'paused') {
+          await DownloadsRepository.markQueued({
+            id: existing.id,
+            progress: existing.progress,
+            clearResumeData: false,
+          });
+        }
+        if (input.packId) {
+          await ContentRepository.updateInstallStatus({
+            id: input.packId,
+            status,
+            progress: existing.progress,
+            localUri,
+          });
+        }
+        this.drainQueueSoon();
+        return existing.id;
       }
+
+      const expectedChecksumSha256 = await FileDigestService.resolveExpectedSha256({
+        checksumSha256: input.expectedChecksumSha256,
+        checksumSha256Url: input.expectedChecksumSha256Url,
+      });
+      const id = await DownloadsRepository.create({
+        kind: input.kind,
+        title: input.title,
+        sourceUrl: input.sourceUrl,
+        localUri,
+        expectedChecksumMd5: input.expectedChecksumMd5,
+        expectedChecksumSha256,
+      });
+      this.downloadPackIds.set(id, input.packId);
       if (input.packId) {
         await ContentRepository.updateInstallStatus({
           id: input.packId,
-          status,
-          progress: existing.progress,
+          status: 'queued',
+          progress: 0,
           localUri,
         });
       }
+
       this.drainQueueSoon();
-      return existing.id;
-    }
-
-    const expectedChecksumSha256 = await FileDigestService.resolveExpectedSha256({
-      checksumSha256: input.expectedChecksumSha256,
-      checksumSha256Url: input.expectedChecksumSha256Url,
+      return id;
     });
-    const id = await DownloadsRepository.create({
-      kind: input.kind,
-      title: input.title,
-      sourceUrl: input.sourceUrl,
-      localUri,
-      expectedChecksumMd5: input.expectedChecksumMd5,
-      expectedChecksumSha256,
-    });
-    this.downloadPackIds.set(id, input.packId);
-    if (input.packId) {
-      await ContentRepository.updateInstallStatus({
-        id: input.packId,
-        status: 'queued',
-        progress: 0,
-        localUri,
-      });
-    }
-
-    this.drainQueueSoon();
-    return id;
   }
 
   static async recoverPendingDownloads() {
@@ -415,13 +449,7 @@ export class DownloadManagerService {
       const queuedRows = (await DownloadsRepository.listByStatuses(['queued'])).filter(
         (row) => row.sourceUrl && row.localUri && !this.activeDownloads.has(row.id)
       );
-      const queued = queuedRows[0];
-      if (!queued?.sourceUrl || !queued.localUri) return;
-
-      const packId = await this.resolvePackIdForDownload(queued);
-      const latest = await DownloadsRepository.get(queued.id);
-      if (latest?.status !== 'queued') return;
-      this.downloadPackIds.set(queued.id, packId);
+      if (queuedRows.length === 0) return;
 
       const gate = await this.getDownloadGate();
       if (!gate.allowed) {
@@ -434,28 +462,37 @@ export class DownloadManagerService {
         return;
       }
 
-      if (queued.kind === 'guide' && isHtmlSnapshotUri(queued.localUri)) {
-        void this.runHtmlSnapshot({
-          id: queued.id,
-          kind: queued.kind,
-          title: queued.title,
-          packId,
-          sourceUrl: queued.sourceUrl,
-          localUri: queued.localUri,
-        });
-      } else {
-        void this.runDownload({
-          id: queued.id,
-          kind: queued.kind,
-          title: queued.title,
-          packId,
-          sourceUrl: queued.sourceUrl,
-          localUri: queued.localUri,
-          expectedChecksumMd5: queued.expectedChecksumMd5,
-          expectedChecksumSha256: queued.expectedChecksumSha256,
-          resumeData: queued.resumeData,
-          expectedSizeBytes: queued.totalBytes,
-        });
+      const slotsAvailable = MAX_ACTIVE_DOWNLOADS - this.activeDownloads.size;
+      const toStart = queuedRows.slice(0, slotsAvailable);
+      for (const queued of toStart) {
+        if (!queued.sourceUrl || !queued.localUri) continue;
+        const latest = await DownloadsRepository.get(queued.id);
+        if (latest?.status !== 'queued') continue;
+        const packId = await this.resolvePackIdForDownload(queued);
+        this.downloadPackIds.set(queued.id, packId);
+        if (queued.kind === 'guide' && isHtmlSnapshotUri(queued.localUri)) {
+          void this.runHtmlSnapshot({
+            id: queued.id,
+            kind: queued.kind,
+            title: queued.title,
+            packId,
+            sourceUrl: queued.sourceUrl,
+            localUri: queued.localUri,
+          });
+        } else {
+          void this.runDownload({
+            id: queued.id,
+            kind: queued.kind,
+            title: queued.title,
+            packId,
+            sourceUrl: queued.sourceUrl,
+            localUri: queued.localUri,
+            expectedChecksumMd5: queued.expectedChecksumMd5,
+            expectedChecksumSha256: queued.expectedChecksumSha256,
+            resumeData: queued.resumeData,
+            expectedSizeBytes: queued.totalBytes,
+          });
+        }
       }
     } finally {
       this.drainingQueue = false;
@@ -863,11 +900,20 @@ export class DownloadManagerService {
     if (!row?.sourceUrl || !row.localUri) throw new Error('Download cannot be resumed.');
     if (packId === undefined) this.downloadPackIds.delete(id);
     else this.downloadPackIds.set(id, packId);
+    const pausedTooLong =
+      typeof row.updatedAt === 'number' &&
+      Date.now() - row.updatedAt > RESUME_DATA_MAX_AGE_MS;
+    const clearResumeData =
+      pausedTooLong || (row.kind === 'guide' && isHtmlSnapshotUri(row.localUri));
+    const resumeProgress = clearResumeData ? 0 : row.progress;
     await DownloadsRepository.markQueued({
       id,
-      progress: row.progress,
-      clearResumeData: row.kind === 'guide' && isHtmlSnapshotUri(row.localUri),
+      progress: resumeProgress,
+      clearResumeData,
     });
+    if (pausedTooLong && row.localUri) {
+      await FileSystem.deleteAsync(row.localUri, { idempotent: true }).catch(() => undefined);
+    }
     this.drainQueueSoon();
   }
 
@@ -1019,6 +1065,14 @@ export class DownloadManagerService {
     ) {
       await FileSystem.deleteAsync(input.resultUri, { idempotent: true }).catch(() => undefined);
       throw new Error('Downloaded file is smaller than expected. Retry from a stable connection.');
+    }
+    if (!input.expectedSizeBytes && !input.expectedChecksumMd5 && !input.expectedChecksumSha256) {
+      if (!sizeBytes || sizeBytes <= 0) {
+        await FileSystem.deleteAsync(input.resultUri, { idempotent: true }).catch(() => undefined);
+        throw new Error(
+          'Downloaded file is empty. The server may have returned a placeholder; retry later.'
+        );
+      }
     }
 
     if (

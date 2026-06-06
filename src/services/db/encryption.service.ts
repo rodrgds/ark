@@ -8,10 +8,18 @@ const KEY_STRATEGY = 'SecureStore device key';
 const MIGRATION_STATUS = 'Plaintext DB migration and vault-passphrase rekey are not implemented.';
 const RAW_KEY_HEX_LENGTH = 64;
 
+function escapeSingleQuotes(value: string): string {
+  return value.replace(/'/g, "''");
+}
+
+function buildKeyPragma(key: string): string {
+  return `PRAGMA key = "x'${escapeSingleQuotes(key)}'"`;
+}
+
 export class DatabaseEncryptionService {
   static async applyKey(db: SQLiteDatabase) {
     const key = await this.getOrCreateDatabaseKey();
-    await db.execAsync(`PRAGMA key = '${key}'`);
+    await db.execAsync(buildKeyPragma(key));
     const active = await this.detectSqlCipher(db);
     setSqlCipherActive(active);
     return active;

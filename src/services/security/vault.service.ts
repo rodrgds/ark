@@ -7,8 +7,34 @@ import { KeychainService } from '@/services/security/keychain.service';
 import { useAuthStore } from '@/stores/auth-store';
 import type { VaultUnlockResult } from '@/types/security';
 
+const RATE_LIMIT_TIERS = [
+  { threshold: 15, lockMs: 60 * 60 * 1000 },
+  { threshold: 10, lockMs: 5 * 60 * 1000 },
+  { threshold: 5, lockMs: 30 * 1000 },
+];
+
+function lockDurationFor(failedAttempts: number): number {
+  for (const tier of RATE_LIMIT_TIERS) {
+    if (failedAttempts >= tier.threshold) return tier.lockMs;
+  }
+  return 0;
+}
+
+function formatLockoutDuration(ms: number): string {
+  const totalSeconds = Math.ceil(ms / 1000);
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const totalMinutes = Math.ceil(totalSeconds / 60);
+  if (totalMinutes < 60) return `${totalMinutes} min`;
+  const totalHours = Math.ceil(totalMinutes / 60);
+  return `${totalHours} hr`;
+}
+
 export class VaultService {
   static async initializeVault(password: string, passwordHint?: string, enableBiometrics = false) {
+    const existing = await SettingsRepository.getVaultState();
+    if (existing.isInitialized) {
+      return { ok: false, reason: 'Vault is already initialized.' };
+    }
     let validatedPassword: string;
     try {
       validatedPassword = parseOrThrow(vaultPasswordSchema, password);
@@ -40,22 +66,59 @@ export class VaultService {
 
   static async unlockWithPassword(password: string): Promise<VaultUnlockResult> {
     const vault = await SettingsRepository.getVaultState();
+    const now = Date.now();
+    if (vault.lockedUntil && vault.lockedUntil > now) {
+      return {
+        ok: false,
+        reason: `Vault is locked. Try again in ${formatLockoutDuration(vault.lockedUntil - now)}.`,
+        lockedUntil: vault.lockedUntil,
+      };
+    }
     const expected = await KeychainService.getPasswordVerifier();
     if (!vault.kdfSalt || !expected) return { ok: false, reason: 'Vault is not initialized.' };
     const matches = await KeychainService.verifyPassword(password, vault.kdfSalt, expected);
-    if (!matches) return { ok: false, reason: 'Passphrase did not match.' };
+    if (!matches) {
+      const nextFailed = vault.failedAttempts + 1;
+      const lockMs = lockDurationFor(nextFailed);
+      const lockedUntil = lockMs > 0 ? now + lockMs : null;
+      await SettingsRepository.updateVaultState({
+        failedAttempts: nextFailed,
+        lockedUntil,
+      });
+      if (lockedUntil) {
+        return {
+          ok: false,
+          reason: `Passphrase did not match. Vault locked for ${formatLockoutDuration(lockMs)}.`,
+          lockedUntil,
+        };
+      }
+      return { ok: false, reason: 'Passphrase did not match.' };
+    }
     if (KeychainService.needsVerifierUpgrade(expected)) {
       await KeychainService.savePasswordVerifier(
         await KeychainService.derivePasswordVerifier(password, vault.kdfSalt)
       );
     }
-    await SettingsRepository.updateVaultState({ lastUnlockedAt: Date.now() });
+    await SettingsRepository.updateVaultState({
+      lastUnlockedAt: now,
+      failedAttempts: 0,
+      lockedUntil: null,
+    });
     useAuthStore.getState().unlock();
     void HapticsService.success();
     return { ok: true };
   }
 
   static async unlockWithBiometrics(): Promise<VaultUnlockResult> {
+    const vault = await SettingsRepository.getVaultState();
+    const now = Date.now();
+    if (vault.lockedUntil && vault.lockedUntil > now) {
+      return {
+        ok: false,
+        reason: `Vault is locked. Try again in ${formatLockoutDuration(vault.lockedUntil - now)}.`,
+        lockedUntil: vault.lockedUntil,
+      };
+    }
     const token = await KeychainService.getBiometricToken();
     if (!token) return { ok: false, reason: 'Biometric unlock has not been enabled.' };
     const status = await BiometricsService.getStatus();
@@ -64,7 +127,11 @@ export class VaultService {
     const result = await BiometricsService.authenticate();
     if (!result.success)
       return { ok: false, reason: 'Biometric authentication was not completed.' };
-    await SettingsRepository.updateVaultState({ lastUnlockedAt: Date.now() });
+    await SettingsRepository.updateVaultState({
+      lastUnlockedAt: now,
+      failedAttempts: 0,
+      lockedUntil: null,
+    });
     useAuthStore.getState().unlock();
     void HapticsService.success();
     return { ok: true };

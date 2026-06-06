@@ -7,12 +7,13 @@ import { DEFAULT_NOTE_CONTENT_FORMAT, type NoteContentFormat } from '@/constants
 import { DEFAULT_NOTE_THEME_ID, getNoteTheme, type NoteThemeId } from '@/constants/note-themes';
 import { RagService } from '@/services/ai/rag.service';
 import { NotesRepository } from '@/services/db/repositories/notes.repo';
+import { useAuthStore } from '@/stores/auth-store';
 import { useThemeStore } from '@/stores/theme-store';
 import type { Note } from '@/types/db';
 import { useNavigation } from '@react-navigation/native';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { Keyboard, Platform, Pressable, TextInput, useWindowDimensions, View } from 'react-native';
-import { PenLine, Plus } from 'lucide-react-native';
+import { PenLine, Plus, Tag } from 'lucide-react-native';
 import * as React from 'react';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,6 +25,7 @@ export default function NoteEditorScreen() {
   const { height: windowHeight } = useWindowDimensions();
   const navigation = useNavigation();
   const effectiveTheme = useThemeStore((state) => state.effectiveTheme);
+  const vaultUnlocked = useAuthStore((state) => state.unlocked);
 
   const [loading, setLoading] = React.useState(Boolean(noteId));
   const [saving, setSaving] = React.useState(false);
@@ -151,6 +153,10 @@ export default function NoteEditorScreen() {
 
   async function saveNote() {
     if (saving || !hasSavableContent) return;
+    if (!vaultUnlocked) {
+      setError('Unlock the vault to save notes.');
+      return;
+    }
     setError(null);
     setSaving(true);
     try {
@@ -193,6 +199,20 @@ export default function NoteEditorScreen() {
           title: noteId ? 'Edit note' : 'Create note',
           headerRight: () => (
             <View className="flex-row items-center gap-4">
+              {noteId ? (
+                <Pressable
+                  onPress={() =>
+                    router.push({
+                      pathname: '/notes/labels' as never,
+                      params: { noteId } as never,
+                    })
+                  }
+                  disabled={loading || saving}
+                  hitSlop={8}
+                  accessibilityLabel="Edit labels">
+                  <Icon as={Tag} className="text-primary size-6" />
+                </Pressable>
+              ) : null}
               <Pressable
                 onPress={() => void saveNote()}
                 disabled={loading || saving || !hasSavableContent}

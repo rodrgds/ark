@@ -10,7 +10,7 @@ import { PortalHost } from '@rn-primitives/portal';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as React from 'react';
-import { AppState, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
@@ -40,7 +40,9 @@ export {
 
 export default function RootLayout() {
   const boot = useAppStore((state) => state.boot);
+  const retryBoot = useAppStore((state) => state.retryBoot);
   const booted = useAppStore((state) => state.booted);
+  const booting = useAppStore((state) => state.booting);
   const bootProgress = useAppStore((state) => state.bootProgress);
   const bootStatus = useAppStore((state) => state.bootStatus);
   const error = useAppStore((state) => state.error);
@@ -50,16 +52,7 @@ export default function RootLayout() {
     boot();
   }, [boot]);
 
-  React.useEffect(() => {
-    const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') {
-        void AutoLockService.enforce();
-      } else {
-        void AutoLockService.touch();
-      }
-    });
-    return () => subscription.remove();
-  }, []);
+  React.useEffect(() => AutoLockService.bindAppState(), []);
 
   if (!booted) {
     return (
@@ -67,11 +60,30 @@ export default function RootLayout() {
         <SafeAreaProvider>
           <View className="bg-background flex-1 items-center justify-center gap-5 p-6">
             <BootSplashMark />
-            <View className="w-full max-w-72 gap-2">
-              <Progress value={bootProgress} />
-              <Text variant="muted" className="text-center">
-                {bootStatus}
-              </Text>
+            <View className="w-full max-w-72 items-center gap-2">
+              {error ? (
+                <>
+                  <Text variant="default" className="text-center font-medium">
+                    Ark could not finish starting up.
+                  </Text>
+                  <Text variant="muted" className="text-center">
+                    {error}
+                  </Text>
+                  <Pressable
+                    onPress={retryBoot}
+                    disabled={booting}
+                    className="bg-primary mt-2 rounded-md px-4 py-2">
+                    <Text className="text-primary-foreground">{booting ? 'Retrying…' : 'Try again'}</Text>
+                  </Pressable>
+                </>
+              ) : (
+                <>
+                  <Progress value={bootProgress} />
+                  <Text variant="muted" className="text-center">
+                    {bootStatus}
+                  </Text>
+                </>
+              )}
             </View>
           </View>
         </SafeAreaProvider>

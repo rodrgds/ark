@@ -81,14 +81,31 @@ function normalizeRichBody(input: {
 }
 
 function normalizeNotePatchBody(current: Note, patch: NotePatch): NotePatch {
-  if (!('body' in patch) && !('contentHtml' in patch) && !('contentJson' in patch)) return patch;
+  const hasBodyField = 'body' in patch;
+  const hasRichField = 'contentHtml' in patch || 'contentJson' in patch;
+  if (!hasBodyField && !hasRichField) return patch;
+
+  if (hasBodyField && !hasRichField) {
+    return {
+      ...patch,
+      body: typeof patch.body === 'string' ? patch.body : current.body,
+    };
+  }
+
+  if (!hasBodyField && hasRichField) {
+    return {
+      ...patch,
+      body: normalizeRichBody({
+        body: current.body,
+        contentHtml: patch.contentHtml === undefined ? current.contentHtml : patch.contentHtml,
+        contentJson: patch.contentJson === undefined ? current.contentJson : patch.contentJson,
+      }),
+    };
+  }
+
   return {
     ...patch,
-    body: normalizeRichBody({
-      body: patch.body ?? current.body,
-      contentHtml: patch.contentHtml === undefined ? current.contentHtml : patch.contentHtml,
-      contentJson: patch.contentJson === undefined ? current.contentJson : patch.contentJson,
-    }),
+    body: typeof patch.body === 'string' ? patch.body : current.body,
   };
 }
 
@@ -176,13 +193,14 @@ export class NotesRepository {
       contentFormat: validated.contentFormat,
       tags: validated.tags,
       themeId: validated.themeId,
-      sortOrder: await this.getNextSortOrder(db),
+      sortOrder: 0,
       isFavorite: false,
       createdAt: now,
       updatedAt: now,
       deletedAt: null,
     };
     await db.withTransactionAsync(async () => {
+      note.sortOrder = await this.getNextSortOrder(db);
       await db.runAsync(
         `INSERT INTO notes
           (id, title, body, content_html, content_json, content_format, tags_json, theme_id, sort_order, is_favorite, created_at, updated_at, deleted_at)
@@ -323,6 +341,41 @@ export class NotesRepository {
     }));
     const db = await DatabaseClient.getDb();
 
+    await db.withTransactionAsync(async () => {
+      for (const note of nextNotes) {
+        await db.runAsync('UPDATE notes SET tags_json = ?, updated_at = ? WHERE id = ?', [
+          JSON.stringify(note.tags),
+          note.updatedAt,
+          note.id,
+        ]);
+        await this.syncFtsInDb(db, note);
+      }
+    });
+
+    void HapticsService.selection();
+    return nextNotes;
+  }
+
+  static async removeLabels(ids: string[], labels: string[]) {
+    const noteIds = uniqueNoteIds(ids);
+    const labelsToRemove = new Set(normalizeLabels(labels));
+    if (!noteIds.length || !labelsToRemove.size) return [];
+
+    const currentNotes = await this.getMany(noteIds);
+    if (!currentNotes.length) return [];
+
+    const now = Date.now();
+    const nextNotes = currentNotes
+      .map((note) => {
+        const filtered = note.tags.filter((tag) => !labelsToRemove.has(tag));
+        if (filtered.length === note.tags.length) return null;
+        return { ...note, tags: normalizeLabels(filtered), updatedAt: now };
+      })
+      .filter((note): note is NonNullable<typeof note> => note !== null);
+
+    if (!nextNotes.length) return [];
+
+    const db = await DatabaseClient.getDb();
     await db.withTransactionAsync(async () => {
       for (const note of nextNotes) {
         await db.runAsync('UPDATE notes SET tags_json = ?, updated_at = ? WHERE id = ?', [

@@ -164,7 +164,15 @@ export class ModelManagerService {
       resetEmbeddingRuntimeContext();
       throw new Error('Unable to download or load the source-search model.');
     }
-    await RagService.rebuildEmbeddingsForActiveModel();
+    try {
+      await RagService.rebuildEmbeddingsForActiveModel();
+    } catch (error) {
+      await PreferencesService.setSelectedEmbeddingModelId(
+        previousModelId ?? EXECUTORCH_TEXT_EMBEDDING_MODEL_ID
+      );
+      resetEmbeddingRuntimeContext();
+      throw error;
+    }
   }
 
   static async setSelectedVoiceModel(modelId: string | null) {

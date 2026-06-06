@@ -504,72 +504,80 @@ export class RagService {
     const chunks = await db.getAllAsync<{ id: string; text: string }>(
       'SELECT id, text FROM rag_chunks ORDER BY created_at ASC'
     );
-    for (const chunk of chunks) {
-      const embeddingResult = await EmbeddingService.embedDocument(chunk.text);
-      const embedding = serializeEmbedding(embeddingResult.vector);
+    if (chunks.length === 0) return;
+    const embeddingResults = await Promise.all(
+      chunks.map(async (chunk) => ({
+        id: chunk.id,
+        result: await EmbeddingService.embedDocument(chunk.text),
+      }))
+    );
+    const batchSize = 100;
+    for (let i = 0; i < embeddingResults.length; i += batchSize) {
+      const batch = embeddingResults.slice(i, i + batchSize);
       await db.withTransactionAsync(async () => {
-        await db.runAsync(
-          'UPDATE rag_chunks SET embedding_model_id = ?, embedding_blob = ? WHERE id = ?',
-          [embeddingResult.modelId, embedding, chunk.id]
-        );
-        await db.runAsync(
-          `INSERT OR REPLACE INTO chunk_embeddings
-            (chunk_id, model_id, dimension, embedding_blob, created_at)
-           VALUES (?, ?, ?, ?, ?)`,
-          [chunk.id, embeddingResult.modelId, embeddingResult.dimensions, embedding, Date.now()]
-        );
-        await RagVectorService.upsertChunk(db, {
-          chunkId: chunk.id,
-          embedding,
-          modelId: embeddingResult.modelId,
-        });
+        for (const { id, result } of batch) {
+          const embedding = serializeEmbedding(result.vector);
+          await db.runAsync(
+            'UPDATE rag_chunks SET embedding_model_id = ?, embedding_blob = ? WHERE id = ?',
+            [result.modelId, embedding, id]
+          );
+          await db.runAsync(
+            `INSERT OR REPLACE INTO chunk_embeddings
+              (chunk_id, model_id, dimension, embedding_blob, created_at)
+             VALUES (?, ?, ?, ?, ?)`,
+            [id, result.modelId, result.dimensions, embedding, Date.now()]
+          );
+          await RagVectorService.upsertChunk(db, {
+            chunkId: id,
+            embedding,
+            modelId: result.modelId,
+          });
+        }
       });
     }
   }
 
   static async seedCoreContent() {
     const db = await DatabaseClient.getDb();
-    const exists = await db.getFirstAsync<{ id: string }>(
-      'SELECT id FROM rag_sources WHERE id = ?',
-      ['guide:starter']
-    );
-    if (exists) return;
     const sourceId = 'guide:starter';
-    const chunkId = randomUUID();
-    const timestamp = Date.now();
-    const text =
-      'Ark starter guide: keep downloaded maps, first aid references, emergency contacts, weather cache, and private notes available before going offline.';
-    const embedding = serializeEmbedding(embedText(text));
-    await db.runAsync(
-      `INSERT INTO rag_sources (id, kind, source_ref, title, created_at, updated_at)
-       VALUES (?, 'guide', 'starter', 'Ark starter guide', ?, ?)`,
-      [sourceId, timestamp, timestamp]
-    );
-    await db.runAsync(
-      `INSERT INTO rag_chunks
-        (id, source_id, chunk_index, text, token_count, embedding_model_id, embedding_blob, created_at)
-       VALUES (?, ?, 0, ?, ?, ?, ?, ?)`,
-      [
-        chunkId,
-        sourceId,
-        text,
-        estimateTokens(text),
-        RAG_HASH_EMBEDDING_MODEL_ID,
-        embedding,
-        timestamp,
-      ]
-    );
-    await db.runAsync(
-      `INSERT OR REPLACE INTO chunk_embeddings
-        (chunk_id, model_id, dimension, embedding_blob, created_at)
-       VALUES (?, ?, ?, ?, ?)`,
-      [chunkId, RAG_HASH_EMBEDDING_MODEL_ID, embedding.byteLength / 4, embedding, timestamp]
-    );
-    await db.runAsync(
-      'INSERT INTO rag_chunks_fts (chunk_id, text, source_title) VALUES (?, ?, ?)',
-      [chunkId, text, 'Ark starter guide']
-    );
-    await RagVectorService.upsertChunk(db, { chunkId, embedding });
+    await db.withTransactionAsync(async () => {
+      const insertSource = await db.runAsync(
+        `INSERT OR IGNORE INTO rag_sources (id, kind, source_ref, title, created_at, updated_at)
+         VALUES (?, 'guide', 'starter', 'Ark starter guide', ?, ?)`,
+        [sourceId, Date.now(), Date.now()]
+      );
+      if (insertSource.changes === 0) return;
+      const chunkId = randomUUID();
+      const timestamp = Date.now();
+      const text =
+        'Ark starter guide: keep downloaded maps, first aid references, emergency contacts, weather cache, and private notes available before going offline.';
+      const embedding = serializeEmbedding(embedText(text));
+      await db.runAsync(
+        `INSERT INTO rag_chunks
+          (id, source_id, chunk_index, text, token_count, embedding_model_id, embedding_blob, created_at)
+         VALUES (?, ?, 0, ?, ?, ?, ?, ?)`,
+        [
+          chunkId,
+          sourceId,
+          text,
+          estimateTokens(text),
+          RAG_HASH_EMBEDDING_MODEL_ID,
+          embedding,
+          timestamp,
+        ]
+      );
+      await db.runAsync(
+        `INSERT OR REPLACE INTO chunk_embeddings
+          (chunk_id, model_id, dimension, embedding_blob, created_at)
+         VALUES (?, ?, ?, ?, ?)`,
+        [chunkId, RAG_HASH_EMBEDDING_MODEL_ID, embedding.byteLength / 4, embedding, timestamp]
+      );
+      await db.runAsync(
+        'INSERT INTO rag_chunks_fts (chunk_id, text, source_title) VALUES (?, ?, ?)',
+        [chunkId, text, 'Ark starter guide']
+      );
+      await RagVectorService.upsertChunk(db, { chunkId, embedding });
+    });
   }
 
   static async search(

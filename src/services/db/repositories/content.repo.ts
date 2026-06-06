@@ -88,6 +88,12 @@ function rowToPack(row: {
   };
 }
 
+let starterPacksSeeded = false;
+
+export function resetStarterPacksSeedFlagForTests() {
+  starterPacksSeeded = false;
+}
+
 export class ContentRepository {
   static async seedStarterPacks() {
     const db = await DatabaseClient.getDb();
@@ -146,7 +152,10 @@ export class ContentRepository {
   }
 
   static async list(options: { includeTestOnly?: boolean } = {}) {
-    await this.seedStarterPacks();
+    if (!starterPacksSeeded) {
+      await this.seedStarterPacks();
+      starterPacksSeeded = true;
+    }
     const db = await DatabaseClient.getDb();
     const rows = await db.getAllAsync<Parameters<typeof rowToPack>[0]>(
       'SELECT * FROM content_packs ORDER BY category, title'

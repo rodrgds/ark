@@ -61,15 +61,19 @@ describe('app route contracts', () => {
 
   test('settings exposes downloads outside advanced diagnostics', () => {
     const settings = readFileSync(join(appDir, '(tabs)/settings.tsx'), 'utf8');
+    const downloadsCard = readFileSync(
+      join(process.cwd(), 'src/components/settings/downloads-card.tsx'),
+      'utf8'
+    );
 
     expect(settings).toContain("{ value: 'downloads', label: 'Downloads' }");
     expect(settings).toContain("activeTab === 'downloads'");
-    expect(settings).toContain('onRetryDownload');
-    expect(settings).toContain('Wi-Fi only');
-    expect(settings).toContain('Pause all');
-    expect(settings).toContain('Resume all');
-    expect(settings).toContain('Retry failed');
-    expect(settings).toContain('Clean completed');
+    expect(downloadsCard).toContain('onRetryDownload');
+    expect(downloadsCard).toContain('Wi-Fi only');
+    expect(downloadsCard).toContain('Pause all');
+    expect(downloadsCard).toContain('Resume all');
+    expect(downloadsCard).toContain('Retry failed');
+    expect(downloadsCard).toContain('Clean completed');
     expect(settings).toContain('PreferencesService.getWifiOnlyDownloadsEnabled');
     expect(settings).toContain('DownloadManagerService.deleteCompletedWhereSafe');
     expect(settings).toContain("{ value: 'advanced', label: 'Advanced' }");
@@ -112,6 +116,10 @@ describe('app route contracts', () => {
 
   test('settings exposes encrypted backup import and export from advanced', () => {
     const settings = readFileSync(join(appDir, '(tabs)/settings.tsx'), 'utf8');
+    const backupSection = readFileSync(
+      join(process.cwd(), 'src/components/settings/backup-section.tsx'),
+      'utf8'
+    );
     const backupService = readFileSync(
       join(process.cwd(), 'src/services/backup/backup.service.ts'),
       'utf8'
@@ -119,11 +127,10 @@ describe('app route contracts', () => {
 
     expect(settings).toContain('BackupService.exportToFile');
     expect(settings).toContain('BackupService.importFromPicker');
-    expect(settings).toContain('Export .arkbackup');
-    expect(settings).toContain('Import .arkbackup');
-    expect(settings.indexOf('Encrypted Backup')).toBeGreaterThan(
-      settings.indexOf("activeTab === 'advanced'")
-    );
+    expect(backupSection).toContain('Export .arkbackup');
+    expect(backupSection).toContain('Import .arkbackup');
+    expect(backupSection).toContain('Encrypted Backup');
+    expect(settings).toContain("activeTab === 'advanced'");
     expect(backupService).toContain("'models'");
     expect(backupService).toContain("'offline maps'");
     expect(backupService).toContain("'embeddings'");
@@ -132,12 +139,16 @@ describe('app route contracts', () => {
 
   test('settings replaces motion with battery reduce mode', () => {
     const settings = readFileSync(join(appDir, '(tabs)/settings.tsx'), 'utf8');
+    const appearanceSection = readFileSync(
+      join(process.cwd(), 'src/components/settings/appearance-section.tsx'),
+      'utf8'
+    );
     const preferences = readFileSync(
       join(process.cwd(), 'src/services/preferences/preferences.service.ts'),
       'utf8'
     );
 
-    expect(settings).toContain('Battery Reduce Mode');
+    expect(appearanceSection).toContain('Battery Reduce Mode');
     expect(settings).toContain('setBatteryReduceModeEnabled');
     expect(settings).toContain("setPreference('oled')");
     expect(settings).not.toContain('toggleMotion');
@@ -184,13 +195,14 @@ describe('app route contracts', () => {
     expect(richEditor).toContain('new BridgeExtension');
     expect(richEditor).toContain("forceName: 'ark-note-editor'");
     expect(richEditor).toContain("ul[data-type='taskList']");
-    expect(richEditor).toContain("label > input:checked");
+    expect(richEditor).toContain('label > input:checked');
     expect(richEditor).toContain('-webkit-appearance: none');
     expect(richEditor).toContain('Convert to checklist');
     expect(richEditor).toContain('RICH_NOTE_CONTENT_FORMAT');
+    expect(richEditor).not.toContain("editor.focus('end')");
   });
 
-  test('notes list keeps pinned state visible and ignores stale reloads', () => {
+  test('notes list keeps pinned sections stable without per-card pin controls', () => {
     const notes = readFileSync(join(appDir, '(tabs)/notes.tsx'), 'utf8');
     const noteCard = readFileSync(
       join(process.cwd(), 'src/components/notes/note-card.tsx'),
@@ -202,10 +214,13 @@ describe('app route contracts', () => {
     );
 
     expect(notes).toContain('loadRequestIdRef');
-    expect(notes).toContain('nextFavorite');
-    expect(notes).toContain('Pin failed');
-    expect(noteCard).toContain("fill={note.isFavorite ? selectedColor : 'none'}");
-    expect(notesList).toContain("fill={note.isFavorite ? selectedColor : 'none'}");
+    expect(notes).toContain('showPinAction');
+    expect(notes).toContain('showUnpinAction');
+    expect(notes).toContain('moveNoteWithinGroup');
+    expect(notes).toContain('renderOrganizeCollection(pinnedNotes, true)');
+    expect(notes).toContain('renderOrganizeCollection(unpinnedNotes, false)');
+    expect(noteCard).not.toContain('onPinPress');
+    expect(notesList).not.toContain('onNotePinPress');
   });
 
   test('manual note ordering settles without a spring bounce', () => {
@@ -227,6 +242,7 @@ describe('app route contracts', () => {
       'app/(tabs)/map.tsx',
       'app/(tabs)/settings.tsx',
       'app/onboarding/security.tsx',
+      'app/notes/labels.tsx',
       'src/components/ui/input.tsx',
       'app/content/[id].tsx',
     ]);

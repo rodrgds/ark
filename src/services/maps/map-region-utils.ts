@@ -1,4 +1,5 @@
 import type { MapManifestRegion, MapRegion } from '@/types/maps';
+import { haversineMeters } from '@/lib/geo';
 
 export type MapBounds = {
   north: number;
@@ -193,20 +194,6 @@ function distanceToRegionCenter(region: ManifestRegionLike, coordinate: Coordina
   const center = region.center ?? (bbox ? getBboxCenter(bbox) : null);
   if (!center) return Number.POSITIVE_INFINITY;
   return haversineMeters(coordinate.latitude, coordinate.longitude, center[1], center[0]);
-}
-
-function haversineMeters(latA: number, lonA: number, latB: number, lonB: number) {
-  const earthRadiusMeters = 6371000;
-  const dLat = toRad(latB - latA);
-  const dLon = toRad(lonB - lonA);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(latA)) * Math.cos(toRad(latB)) * Math.sin(dLon / 2) ** 2;
-  return 2 * earthRadiusMeters * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-function toRad(value: number) {
-  return (value * Math.PI) / 180;
 }
 
 function levelRank(level: ManifestRegionLike['level']) {

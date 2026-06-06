@@ -7,6 +7,7 @@ import { NAV_COLORS } from '@/constants/theme';
 import { useBatteryReduceMode } from '@/hooks/use-battery-reduce-mode';
 import { useMotionEnabled } from '@/hooks/use-motion-enabled';
 import { hexToRgba } from '@/lib/colors';
+import { haversineMeters, toRadians } from '@/lib/geo';
 import { MapLocationService } from '@/services/maps/map-location.service';
 import { OfflineMapService } from '@/services/maps/offline-map.service';
 import { CompassService } from '@/services/sensors/compass.service';
@@ -622,15 +623,7 @@ function bearingDegrees(latA: number, lonA: number, latB: number, lonB: number) 
 }
 
 function distanceMeters(latA: number, lonA: number, latB: number, lonB: number) {
-  const earthRadiusMeters = 6_371_000;
-  const deltaLat = toRadians(latB - latA);
-  const deltaLon = toRadians(lonB - lonA);
-  const startLat = toRadians(latA);
-  const endLat = toRadians(latB);
-  const a =
-    Math.sin(deltaLat / 2) ** 2 +
-    Math.cos(startLat) * Math.cos(endLat) * Math.sin(deltaLon / 2) ** 2;
-  return earthRadiusMeters * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return haversineMeters(latA, lonA, latB, lonB);
 }
 
 function formatTurnGuidance(delta: number) {
@@ -650,10 +643,6 @@ function shortestAngle(degrees: number) {
 
 function normalizeDegrees(degrees: number) {
   return ((degrees % 360) + 360) % 360;
-}
-
-function toRadians(degrees: number) {
-  return (degrees * Math.PI) / 180;
 }
 
 const styles = StyleSheet.create({

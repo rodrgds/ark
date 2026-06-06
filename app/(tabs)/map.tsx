@@ -9,6 +9,7 @@ import { Text } from '@/components/ui/text';
 import type { MapPreset } from '@/constants/map-presets';
 import { getMapPinMeta, MAP_PIN_TYPES, type MapPinType } from '@/constants/map-pins';
 import { NAV_COLORS } from '@/constants/theme';
+import { formatPoint } from '@/lib/geo';
 import { FileSystemService } from '@/services/files/filesystem.service';
 import { MapService, type MapLibreModule } from '@/services/maps/map.service';
 import { MapLocationService, type MapLocationIssue } from '@/services/maps/map-location.service';
@@ -2471,10 +2472,6 @@ function locationIssueCopy(issue: MapLocationIssue) {
     body: 'GPS is not returning a position right now. Saved pins and offline regions still work.',
     retryLabel: 'Try again',
   };
-}
-
-function formatPoint(latitude: number, longitude: number) {
-  return `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
 }
 
 function sameLocation(

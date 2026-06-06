@@ -9,6 +9,7 @@ import { getDownloadedRegionForCoordinate } from '@/services/maps/map-region-uti
 import { estimatedMapRegionBytes } from '@/services/maps/map-storage';
 import type { MapPinType } from '@/constants/map-pins';
 import type { MapMarker, MapRegion, OfflineMapSearchResult, SavedRoutePoint } from '@/types/maps';
+import { haversineMeters, toRadians, formatPoint } from '@/lib/geo';
 
 type OfflinePackStatusLike = {
   state: string;
@@ -628,7 +629,9 @@ export class OfflineMapService {
 }
 
 function routeDistanceMeters(points: SavedRoutePoint[]) {
-  return points.slice(1).reduce((total, point, index) => total + distance(points[index], point), 0);
+  return points
+    .slice(1)
+    .reduce((total, point, index) => total + routeSegmentMeters(points[index], point), 0);
 }
 
 function boundsForMarkers(markers: MapMarker[], paddingKm: number) {
@@ -636,7 +639,7 @@ function boundsForMarkers(markers: MapMarker[], paddingKm: number) {
   const longitudes = markers.map((marker) => marker.longitude);
   const centerLatitude = (Math.min(...latitudes) + Math.max(...latitudes)) / 2;
   const latitudePadding = paddingKm / 111;
-  const longitudePadding = paddingKm / (111 * Math.max(0.2, Math.cos(toRad(centerLatitude))));
+  const longitudePadding = paddingKm / (111 * Math.max(0.2, Math.cos(toRadians(centerLatitude))));
   return {
     north: Math.max(...latitudes) + latitudePadding,
     south: Math.min(...latitudes) - latitudePadding,
@@ -702,10 +705,6 @@ function mapRegionStatusLabel(status: MapRegion['status']) {
   return status;
 }
 
-function formatPoint(latitude: number, longitude: number) {
-  return `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
-}
-
 function isPackForRegion(
   candidate: { id: string; metadata?: Record<string, unknown> },
   region: MapRegion
@@ -744,17 +743,6 @@ function progressFromPackStatus(
   return Math.max(0, Math.min(1, normalized));
 }
 
-function distance(a: SavedRoutePoint, b: SavedRoutePoint) {
-  const earthRadiusMeters = 6371000;
-  const latA = toRad(a.latitude);
-  const latB = toRad(b.latitude);
-  const deltaLat = toRad(b.latitude - a.latitude);
-  const deltaLon = toRad(b.longitude - a.longitude);
-  const h =
-    Math.sin(deltaLat / 2) ** 2 + Math.cos(latA) * Math.cos(latB) * Math.sin(deltaLon / 2) ** 2;
-  return 2 * earthRadiusMeters * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
-}
-
-function toRad(value: number) {
-  return (value * Math.PI) / 180;
+function routeSegmentMeters(a: SavedRoutePoint, b: SavedRoutePoint) {
+  return haversineMeters(a.latitude, a.longitude, b.latitude, b.longitude);
 }

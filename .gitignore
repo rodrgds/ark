@@ -15,9 +15,8 @@ web-build/
 *.p12
 *.key
 *.mobileprovision
-android/.kotlin/
-ios/Pods/
-ios/build/
+android/
+ios/
 modules/*/android/build/
 
 # Metro

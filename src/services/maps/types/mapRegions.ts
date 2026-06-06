@@ -6,13 +6,11 @@ type MapRegionLevel =
   | 'region'
   | 'city';
 
-export type MapRegionPackFormat =
-  | 'maplibre_offline_pack'
-  | 'pmtiles'
-  | 'mbtiles'
-  | 'vector_tiles';
+import type { MapRegionPackFormat } from '@/types/maps';
 
-export type MapRegion = {
+export type { MapRegionPackFormat };
+
+export type MapCatalogRegion = {
   id: string;
   name: string;
   parentId?: string;

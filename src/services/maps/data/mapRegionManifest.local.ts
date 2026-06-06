@@ -1,6 +1,6 @@
-import type { MapRegion } from '../types/mapRegions';
+import type { MapCatalogRegion } from '../types/mapRegions';
 
-export const LOCAL_MAP_REGION_MANIFEST: MapRegion[] = [
+export const LOCAL_MAP_REGION_MANIFEST: MapCatalogRegion[] = [
   {
     id: 'eu-western-base',
     name: 'Western Europe base',

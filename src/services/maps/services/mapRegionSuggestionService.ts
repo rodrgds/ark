@@ -1,4 +1,4 @@
-import type { MapRegion } from '../types/mapRegions';
+import type { MapCatalogRegion } from '../types/mapRegions';
 import { isCoordinateInsideRegion, getBboxArea } from '../utils/bbox';
 import { getRegionAncestors, getRegionDepth } from '../utils/regionHierarchy';
 
@@ -12,7 +12,7 @@ export type Viewport = {
 
 export type RegionSuggestionInput = {
   viewport: Viewport;
-  regions: MapRegion[];
+  regions: MapCatalogRegion[];
   downloadedRegionIds: Set<string>;
   dismissedRegionIds: Set<string>;
   activeDownloadRegionIds: Set<string>;
@@ -21,7 +21,7 @@ export type RegionSuggestionInput = {
 /**
  * Returns if the given zoom is within the suggestion zoom range of the region.
  */
-export function isZoomWithinRegionSuggestRange(zoom: number, region: MapRegion): boolean {
+export function isZoomWithinRegionSuggestRange(zoom: number, region: MapCatalogRegion): boolean {
   const minZ = region.minSuggestZoom ?? 0;
   const maxZ = region.maxSuggestZoom ?? 22;
   return zoom >= minZ && zoom <= maxZ;
@@ -32,9 +32,9 @@ export function isZoomWithinRegionSuggestRange(zoom: number, region: MapRegion):
  * More specific regions (smaller bbox area, deeper in hierarchy) should be preferred.
  */
 export function sortCandidateRegionsForSuggestion(
-  candidates: MapRegion[],
-  regions: MapRegion[]
-): MapRegion[] {
+  candidates: MapCatalogRegion[],
+  regions: MapCatalogRegion[]
+): MapCatalogRegion[] {
   return [...candidates].sort((a, b) => {
     // 1. Deeper hierarchy first (child over parent)
     const depthA = getRegionDepth(a.id, regions);
@@ -70,7 +70,7 @@ export function sortCandidateRegionsForSuggestion(
  */
 export function getBestMissingRegionSuggestion(
   input: RegionSuggestionInput
-): MapRegion | null {
+): MapCatalogRegion | null {
   const { viewport, regions, downloadedRegionIds, dismissedRegionIds, activeDownloadRegionIds } = input;
   const { center, zoom } = viewport;
 

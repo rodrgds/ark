@@ -1,7 +1,10 @@
-import type { MapRegion } from '../types/mapRegions';
+import type { MapCatalogRegion } from '../types/mapRegions';
 
-export function getRegionAncestors(regionId: string, regions: MapRegion[]): MapRegion[] {
-  const ancestors: MapRegion[] = [];
+export function getRegionAncestors(
+  regionId: string,
+  regions: MapCatalogRegion[]
+): MapCatalogRegion[] {
+  const ancestors: MapCatalogRegion[] = [];
   let current = regions.find((r) => r.id === regionId);
 
   while (current?.parentId) {
@@ -15,11 +18,14 @@ export function getRegionAncestors(regionId: string, regions: MapRegion[]): MapR
   return ancestors;
 }
 
-export function getRegionChildren(regionId: string, regions: MapRegion[]): MapRegion[] {
+export function getRegionChildren(
+  regionId: string,
+  regions: MapCatalogRegion[]
+): MapCatalogRegion[] {
   return regions.filter((r) => r.parentId === regionId);
 }
 
-export function getRegionDepth(regionId: string, regions: MapRegion[]): number {
+export function getRegionDepth(regionId: string, regions: MapCatalogRegion[]): number {
   let depth = 0;
   let current = regions.find((r) => r.id === regionId);
 

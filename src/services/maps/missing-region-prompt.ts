@@ -1,6 +1,6 @@
 import type { MapPreset } from '@/constants/map-presets';
-import type { MapRegion as DbMapRegion } from '@/types/maps';
-import type { MapRegion } from './types/mapRegions';
+import type { MapRegion } from '@/types/maps';
+import type { MapCatalogRegion } from './types/mapRegions';
 import { getBestMissingRegionSuggestion } from './services/mapRegionSuggestionService';
 import { isCoordinateInsideRegion } from './utils/bbox';
 
@@ -9,7 +9,7 @@ export type MissingRegionPromptInput = {
   longitude: number;
   viewedBounds?: [number, number, number, number] | null;
   regions: MapPreset[];
-  downloadedRegions: Array<DbMapRegion | any>;
+  downloadedRegions: Array<MapRegion | any>;
   zoom?: number;
 };
 
@@ -49,8 +49,8 @@ function getMissingRegionCandidate(input: MissingRegionPromptInput): MapPreset |
     zoom = estimateZoomFromBounds(input.viewedBounds);
   }
 
-  // Convert MapPreset[] to MapRegion[] for the suggestion algorithm
-  const mappedRegions: MapRegion[] = input.regions.map((preset) => {
+  // Convert MapPreset[] to MapCatalogRegion[] for the suggestion algorithm
+  const mappedRegions: MapCatalogRegion[] = input.regions.map((preset) => {
     const isVague =
       preset.id.includes('low-detail') ||
       preset.id.includes('base') ||

@@ -283,10 +283,9 @@ export default function DocumentReaderScreen() {
             </View>
             <View className="bg-background h-[620px]">
               <WebView
-                originWhitelist={['*']}
+                originWhitelist={textPreview ? [] : document.localUri ? [document.localUri] : []}
                 source={webSource}
                 allowFileAccess
-                allowUniversalAccessFromFileURLs={Platform.OS === 'android'}
                 startInLoadingState
                 renderLoading={() => (
                   <View className="bg-background flex-1 items-center justify-center">

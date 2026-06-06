@@ -181,6 +181,15 @@ export class ContentPackService {
       throw new Error('Select a GGUF model file.');
     }
 
+    const header = await FileSystem.readAsStringAsync(asset.uri, {
+      encoding: FileSystem.EncodingType.Base64,
+      length: 4,
+      position: 0,
+    }).catch(() => '');
+    if (!isGgufMagicHeader(header)) {
+      throw new Error('File is not a valid GGUF model (magic bytes missing).');
+    }
+
     await FileSystemService.ensureAppDirectories();
     const normalizedRole = modelRole === 'voice' ? 'voice' : 'chat';
     const id = `custom-${
@@ -190,6 +199,10 @@ export class ContentPackService {
     await FileSystem.copyAsync({ from: asset.uri, to: localUri });
     const info = await FileSystem.getInfoAsync(localUri);
     const sizeBytes = info.exists && 'size' in info ? (info.size ?? asset.size ?? null) : null;
+    if (!sizeBytes || sizeBytes < 1024 * 1024) {
+      await FileSystem.deleteAsync(localUri, { idempotent: true });
+      throw new Error('GGUF model file is too small to be valid.');
+    }
 
     await ContentRepository.createPack({
       id,
@@ -278,4 +291,23 @@ export class ContentPackService {
       null;
     return { pack, download };
   }
+}
+
+const GGUF_MAGIC = 0x46554747; // "GGUF" little-endian
+
+function isGgufMagicHeader(base64Header: string) {
+  if (!base64Header) return false;
+  let bytes: Uint8Array;
+  try {
+    const binary = atob(base64Header);
+    bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+  } catch {
+    return false;
+  }
+  if (bytes.length < 4) return false;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  return view.getUint32(0, true) === GGUF_MAGIC;
 }

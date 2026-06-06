@@ -483,14 +483,13 @@ export default function GuideReaderScreen() {
           ) : (
             <WebView
               ref={webViewRef}
-              originWhitelist={['*']}
+              originWhitelist={content.allowReadAccessToURL ? [content.allowReadAccessToURL] : []}
               source={
                 content.uri
                   ? { uri: content.uri }
                   : { html: content.html!, baseUrl: content.allowReadAccessToURL }
               }
               allowFileAccess
-              allowUniversalAccessFromFileURLs
               allowingReadAccessToURL={content.allowReadAccessToURL}
               style={{ flex: 1 }}
               scalesPageToFit={isPdf}

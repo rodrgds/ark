@@ -631,7 +631,7 @@ export default function ContentDetailScreen() {
             {/* Article Content */}
             {zimArticle && (
               <WebView
-                originWhitelist={['*']}
+                originWhitelist={[]}
                 source={{ html: ZimService.articleHtml(zimArticle) }}
                 injectedJavaScript={ZIM_LINK_SCRIPT}
                 onMessage={(event) => {

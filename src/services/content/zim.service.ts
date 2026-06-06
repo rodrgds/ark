@@ -1,5 +1,6 @@
 import type { ContentPack } from '@/types/content';
 import { ZimHeaderParser, type ZimHeaderInfo } from '@/services/content/zim-header';
+import { sanitizeArticleHtml } from '@/services/content/zim-html-sanitizer';
 
 export type ZimMetadata = {
   id: string;
@@ -184,7 +185,7 @@ export class ZimService {
   </style>
 </head>
 <body>
-  ${article.html}
+  ${sanitizeArticleHtml(article.html)}
 </body>
 </html>`;
   }

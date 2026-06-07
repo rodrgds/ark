@@ -19,10 +19,10 @@ export default function PedometerTool() {
   const [session, setSession]     = React.useState(0);
   const setStoreSteps             = useSensorStore((state) => state.setSteps);
   const baseRef                   = React.useRef(0);
+  const stopRef                   = React.useRef<(() => void) | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
-    let stop: (() => void) | null = null;
 
     (async () => {
       setStatus('requesting');
@@ -44,18 +44,23 @@ export default function PedometerTool() {
       setBaseSteps(base);
       setStoreSteps(base);
 
-      stop = PedometerService.start((sessionSteps: number) => {
+      stopRef.current = PedometerService.start((sessionSteps: number) => {
         setSession(sessionSteps);
         setStoreSteps(baseRef.current + sessionSteps);
       });
 
-      if (cancelled) { stop?.(); return; }
+      if (cancelled) {
+        stopRef.current?.();
+        stopRef.current = null;
+        return;
+      }
       setStatus('ready');
     })();
 
     return () => {
       cancelled = true;
-      stop?.();
+      stopRef.current?.();
+      stopRef.current = null;
       setStoreSteps(null);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -63,6 +68,8 @@ export default function PedometerTool() {
 
   const retryAfterDenied = React.useCallback(async () => {
     setStatus('requesting');
+    stopRef.current?.();
+    stopRef.current = null;
     const granted = await PedometerService.requestPermission();
     if (!granted) { setStatus('denied'); return; }
     const available = await PedometerService.isAvailable();
@@ -71,7 +78,7 @@ export default function PedometerTool() {
     baseRef.current = base;
     setBaseSteps(base);
     setStoreSteps(base);
-    PedometerService.start((sessionSteps: number) => {
+    stopRef.current = PedometerService.start((sessionSteps: number) => {
       setSession(sessionSteps);
       setStoreSteps(baseRef.current + sessionSteps);
     });

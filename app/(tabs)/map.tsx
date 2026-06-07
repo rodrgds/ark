@@ -1376,29 +1376,40 @@ function MissingRegionPromptModal({
   const [dynamicPreset, setDynamicPreset] = React.useState<MapPreset | null>(null);
 
   React.useEffect(() => {
-    if (visible && region?.id.startsWith('dynamic-')) {
-      const { center } = region;
-      if (center) {
-        import('@/services/maps/geocoding.service').then(({ GeocodingService }) => {
-          GeocodingService.reverseGeocode(center[1], center[0]).then((result) => {
-             if (result.bounds) {
-               setDynamicPreset({
-                 ...region,
-                 name: result.name,
-                 bounds: result.bounds,
-                 bbox: [result.bounds.west, result.bounds.south, result.bounds.east, result.bounds.north],
-                 estimatedSizeMb: 450,
-                 estimatedSize: '450 MB',
-               });
-             } else {
-               setDynamicPreset({ ...region, name: result.name });
-             }
-          });
-        });
-      }
-    } else {
+    if (!visible || !region?.id.startsWith('dynamic-')) {
       setDynamicPreset(null);
+      return;
     }
+    const { center } = region;
+    if (!center) return;
+
+    const abortController = new AbortController();
+    import('@/services/maps/geocoding.service').then(({ GeocodingService }) => {
+      GeocodingService.reverseGeocode(center[1], center[0], abortController.signal).then(
+        (result) => {
+          if (abortController.signal.aborted) return;
+          if (result.bounds) {
+            setDynamicPreset({
+              ...region,
+              name: result.name,
+              bounds: result.bounds,
+              bbox: [
+                result.bounds.west,
+                result.bounds.south,
+                result.bounds.east,
+                result.bounds.north,
+              ],
+              estimatedSizeMb: 450,
+              estimatedSize: '450 MB',
+            });
+          } else {
+            setDynamicPreset({ ...region, name: result.name });
+          }
+        }
+      );
+    });
+
+    return () => abortController.abort();
   }, [visible, region]);
 
   if (!visible || !region) return null;

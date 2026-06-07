@@ -5,6 +5,7 @@ import { Icon } from '@/components/ui/icon';
 import { Progress } from '@/components/ui/progress';
 import { confirmDestructive, showSheetAlert } from '@/components/ui/sheet-alert';
 import { Text } from '@/components/ui/text';
+import { useArkTextToSpeech } from '@/hooks/use-ark-text-to-speech';
 import { ContentPackService } from '@/services/content/content-pack.service';
 import { GuideService, type GuideSection } from '@/services/content/guide.service';
 import {
@@ -24,6 +25,8 @@ import {
   Search,
   Trash2,
   TriangleAlert,
+  Volume2,
+  VolumeX,
 } from 'lucide-react-native';
 import * as React from 'react';
 import { ActivityIndicator, Linking, Modal, View, Pressable } from 'react-native';
@@ -44,6 +47,7 @@ function stripHtml(raw: string): string {
 export default function ContentDetailScreen() {
   const { id, article } = useLocalSearchParams<{ id: string; article?: string }>();
   const insets = useSafeAreaInsets();
+  const speechPlayback = useArkTextToSpeech();
   const [pack, setPack] = React.useState<ContentPack | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -57,6 +61,7 @@ export default function ContentDetailScreen() {
   const [zimQuery, setZimQuery] = React.useState('');
   const [zimResults, setZimResults] = React.useState<ZimSearchResult[]>([]);
   const [zimArticle, setZimArticle] = React.useState<ZimArticle | null>(null);
+  const [zimSpeaking, setZimSpeaking] = React.useState(false);
 
   const sections = React.useMemo(() => (pack ? GuideService.getSections(pack.id) : []), [pack]);
 
@@ -180,6 +185,33 @@ export default function ContentDetailScreen() {
     });
   }
 
+  async function handleSpeakZimArticle() {
+    if (!zimArticle) return;
+    if (zimSpeaking) {
+      speechPlayback.stop();
+      setZimSpeaking(false);
+      return;
+    }
+    const text = [zimArticle.title, stripHtml(ZimService.articleHtml(zimArticle))]
+      .filter(Boolean)
+      .join('. ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 2800);
+    if (!text) return;
+    setZimSpeaking(true);
+    try {
+      await speechPlayback.speak(text);
+    } catch (speechError) {
+      showSheetAlert(
+        'Unable to read article',
+        speechError instanceof Error ? speechError.message : 'Voice playback failed.'
+      );
+    } finally {
+      setZimSpeaking(false);
+    }
+  }
+
   async function handleHandoffToKiwix() {
     if (!pack) return;
     try {
@@ -203,6 +235,7 @@ export default function ContentDetailScreen() {
   const isZim = pack.format === 'zim';
   const canSearchInArk = Boolean(zimPlan?.nativeReaderAvailable);
   const searchableZimMetadata = canSearchInArk ? zimMetadata : null;
+  const isLocalOnly = !pack.sourceUrl;
 
   return (
     <View className="bg-background flex-1">
@@ -247,14 +280,6 @@ export default function ContentDetailScreen() {
               <Text
                 variant="small"
                 className="text-muted-foreground text-xs tracking-widest uppercase">
-                {pack.format.toUpperCase()}
-              </Text>
-              <Text variant="small" className="text-muted-foreground">
-                •
-              </Text>
-              <Text
-                variant="small"
-                className="text-muted-foreground text-xs tracking-widest uppercase">
                 {pack.estimatedSize}
               </Text>
             </View>
@@ -266,7 +291,7 @@ export default function ContentDetailScreen() {
           </View>
 
           {/* Download status / progress bar */}
-          {!pack.installed && (
+          {!pack.installed && !isLocalOnly && (
             <View className="gap-2">
               <Progress value={pack.progress} />
               <View className="flex-row justify-between">
@@ -297,23 +322,25 @@ export default function ContentDetailScreen() {
                   </Button>
                 ) : null}
 
-                <Button
-                  variant="outline"
-                  className={
-                    isZim ? 'border-border active:bg-muted flex-1' : 'border-border active:bg-muted'
-                  }
-                  disabled={busy}
-                  onPress={() =>
-                    confirmDestructive({
-                      title: 'Remove Pack?',
-                      message: `Delete ${pack.title} from offline storage?`,
-                      confirmLabel: 'Remove',
-                      onConfirm: () => runAction(() => ContentPackService.removePack(pack.id)),
-                    })
-                  }>
-                  <Icon as={Trash2} className="text-destructive size-4" />
-                  <Text className="text-destructive">{isZim ? 'Remove Archive' : 'Remove'}</Text>
-                </Button>
+                {!isLocalOnly && (
+                  <Button
+                    variant="outline"
+                    className={
+                      isZim ? 'border-border active:bg-muted flex-1' : 'border-border active:bg-muted'
+                    }
+                    disabled={busy}
+                    onPress={() =>
+                      confirmDestructive({
+                        title: 'Remove Pack?',
+                        message: `Delete ${pack.title} from offline storage?`,
+                        confirmLabel: 'Remove',
+                        onConfirm: () => runAction(() => ContentPackService.removePack(pack.id)),
+                      })
+                    }>
+                    <Icon as={Trash2} className="text-destructive size-4" />
+                    <Text className="text-destructive">{isZim ? 'Remove Archive' : 'Remove'}</Text>
+                  </Button>
+                )}
               </>
             ) : pack.installStatus === 'downloading' ||
               pack.installStatus === 'queued' ||
@@ -354,6 +381,18 @@ export default function ContentDetailScreen() {
                   <Icon as={Download} className="size-5" />
                 )}
                 <Text className="text-primary-foreground font-bold">Resume Download</Text>
+              </Button>
+            ) : isLocalOnly ? (
+              <Button
+                className="bg-primary active:bg-primary/90 flex-1"
+                disabled={busy}
+                onPress={() => runAction(() => ContentPackService.installPack(pack.id))}>
+                {busy ? (
+                  <ActivityIndicator size="small" />
+                ) : (
+                  <Icon as={Download} className="size-5" />
+                )}
+                <Text className="text-primary-foreground font-bold">Restore Guide</Text>
               </Button>
             ) : (
               <Button
@@ -473,243 +512,105 @@ export default function ContentDetailScreen() {
                     size="icon"
                     variant="outline"
                     className="border-border active:bg-muted"
-                    onPress={runZimSearch}
-                    disabled={
-                      zimBusy ||
-                      !zimQuery.trim() ||
-                      (!searchableZimMetadata.hasFulltextIndex &&
-                        !searchableZimMetadata.hasTitleIndex)
-                    }>
-                    {zimBusy ? (
-                      <ActivityIndicator size="small" />
-                    ) : (
-                      <Icon as={Search} className="size-4" />
-                    )}
+                    onPress={runZimSearch}>
+                    <Icon as={Search} className="size-4" />
                   </Button>
                 </View>
 
-                {searchableZimMetadata.mainPath ? (
-                  <Button
-                    variant="secondary"
-                    className="flex-1"
-                    onPress={() => openZimArticle(searchableZimMetadata.mainPath)}>
-                    <Icon as={BookOpen} className="size-4" />
-                    <Text>Read Main Article</Text>
-                  </Button>
-                ) : null}
+                {zimBusy && (
+                  <View className="items-center py-4">
+                    <ActivityIndicator />
+                  </View>
+                )}
 
-                {zimError ? <Text className="text-destructive text-sm">{zimError}</Text> : null}
+                {zimError && (
+                  <Text className="text-destructive text-center text-sm">{zimError}</Text>
+                )}
 
                 {zimResults.length > 0 && (
-                  <View className="gap-1">
-                    {zimResults.map((result) => (
+                  <View className="border-border border-t pt-2">
+                    {zimResults.slice(0, 12).map((result) => (
                       <Pressable
                         key={result.path}
-                        onPress={() => openZimArticle(result.path)}
-                        className="bg-muted/40 active:bg-muted/60 rounded-lg p-3">
-                        <Text className="text-foreground font-semibold">{result.title}</Text>
-                        {result.snippet ? (
-                          <Text
-                            variant="small"
-                            className="text-muted-foreground mt-1"
-                            numberOfLines={3}>
-                            {stripHtml(result.snippet)}
+                        onPress={() => void openZimArticle(result.path)}
+                        className="active:bg-muted flex-row items-center justify-between py-3">
+                        <View className="flex-1 pr-4">
+                          <Text variant="default" className="text-foreground font-medium">
+                            {result.title}
                           </Text>
-                        ) : null}
+                          {result.snippet && (
+                            <Text variant="small" className="text-muted-foreground mt-0.5">
+                              {result.snippet}
+                            </Text>
+                          )}
+                        </View>
+                        <Icon as={ChevronLeft} className="rotate-180 size-4 text-muted-foreground" />
                       </Pressable>
                     ))}
                   </View>
                 )}
-
-                {zimResults.length === 0 && zimQuery.trim() && !zimBusy && !zimError && (
-                  <Text variant="muted" className="text-sm">
-                    No results found.
-                    {!searchableZimMetadata.hasFulltextIndex && searchableZimMetadata.hasTitleIndex
-                      ? ' This archive only supports title search.'
-                      : !searchableZimMetadata.hasFulltextIndex &&
-                          !searchableZimMetadata.hasTitleIndex
-                        ? ' This archive has no search index.'
-                        : ''}
-                  </Text>
-                )}
               </Card>
-            ) : canSearchInArk ? (
-              <Card className="border-border gap-3">
-                <View className="flex-row items-center justify-between gap-3">
-                  <View className="min-w-0 flex-1 gap-1">
-                    <Text variant="large">Search this archive</Text>
-                    <Text variant="muted">
-                      Prepare search when you need it. Large archives may take a moment the first
-                      time.
-                    </Text>
-                  </View>
+            ) : (
+              <Card className="border-border gap-4">
+                <View className="gap-1">
+                  <Text variant="large">In-app search unavailable</Text>
+                  <Text variant="muted">
+                    This archive is best viewed in a dedicated reader like Kiwix.
+                  </Text>
+                </View>
+                <View className="flex-row gap-2">
+                  <Button variant="outline" className="flex-1" onPress={handleHandoffToKiwix}>
+                    <Icon as={ExternalLink} className="size-4" />
+                    <Text>Open External</Text>
+                  </Button>
                   <Button
-                    size="sm"
-                    variant="secondary"
-                    disabled={zimBusy}
-                    onPress={() => void prepareZimSearch()}>
-                    {zimBusy ? (
-                      <ActivityIndicator size="small" />
-                    ) : (
-                      <Icon as={Search} className="size-4" />
-                    )}
-                    <Text>Prepare</Text>
+                    variant="ghost"
+                    className="flex-1"
+                    onPress={() => void Linking.openURL(ZimService.getKiwixJsUrl())}>
+                    <Text className="text-primary text-xs">Learn about Kiwix</Text>
                   </Button>
                 </View>
-                {zimError ? <Text className="text-destructive text-sm">{zimError}</Text> : null}
               </Card>
-            ) : zimPlan?.nativeReaderError ? (
-              <View className="bg-muted/30 gap-2 rounded-lg px-4 py-3">
-                <Text variant="large">Search is unavailable</Text>
-                <Text variant="muted">
-                  Use another reader for this archive on the current build.
-                </Text>
-              </View>
-            ) : null}
-
-            <View className="border-border bg-muted/20 gap-3 rounded-lg border px-4 py-4">
-              <View className="gap-1">
-                <View className="flex-row items-center gap-2">
-                  <Icon as={BookOpen} className="text-primary size-5" />
-                  <Text variant="large" className="text-foreground">
-                    Open elsewhere
-                  </Text>
-                </View>
-                <Text variant="muted" className="leading-relaxed">
-                  Use another reader on this device, or open the web reader for a larger screen.
-                </Text>
-              </View>
-              <View className="flex-row gap-2">
-                <Button
-                  className="border-border active:bg-muted flex-1"
-                  variant="outline"
-                  onPress={handleHandoffToKiwix}>
-                  <Icon as={ExternalLink} className="size-4" />
-                  <Text>Open in...</Text>
-                </Button>
-                <Button
-                  className="border-border active:bg-muted flex-1"
-                  variant="outline"
-                  onPress={() => void Linking.openURL(ZimService.getKiwixJsUrl())}>
-                  <Icon as={ExternalLink} className="size-4" />
-                  <Text>Web reader</Text>
-                </Button>
-              </View>
-            </View>
+            )}
           </View>
         )}
-
-        {/* ZIM Article Viewer Modal */}
-        <Modal
-          visible={!!zimArticle}
-          animationType="slide"
-          onRequestClose={() => setZimArticle(null)}>
-          <View className="bg-background flex-1">
-            {/* Header */}
-            <View
-              style={{ paddingTop: Math.max(20, insets.top) }}
-              className="bg-background border-border border-b">
-              <View className="h-14 flex-row items-center justify-between px-4">
-                <Button variant="ghost" size="icon" onPress={() => setZimArticle(null)}>
-                  <Icon as={ChevronLeft} className="text-foreground" />
-                </Button>
-                <View className="mx-2 flex-1">
-                  <Text
-                    variant="small"
-                    className="text-foreground text-center font-bold"
-                    numberOfLines={1}>
-                    {zimArticle?.title || 'Article'}
-                  </Text>
-                </View>
-                <View className="w-10" />
-              </View>
-            </View>
-
-            {/* Article Content */}
-            {zimArticle && (
-              <WebView
-                originWhitelist={[]}
-                source={{ html: ZimService.articleHtml(zimArticle) }}
-                injectedJavaScript={ZIM_LINK_SCRIPT}
-                onMessage={(event) => {
-                  const path = resolveZimHref(zimArticle.finalPath, event.nativeEvent.data);
-                  if (path) void openZimArticle(path);
-                }}
-                onShouldStartLoadWithRequest={(request) => {
-                  if (!request.url || request.url === 'about:blank') return true;
-                  const path = resolveZimHref(zimArticle.finalPath, request.url);
-                  if (!path) return true;
-                  void openZimArticle(path);
-                  return false;
-                }}
-                style={{ flex: 1 }}
-              />
-            )}
-
-            <View style={{ height: Math.max(8, insets.bottom) }} />
-          </View>
-        </Modal>
       </ArkKeyboardAwareScrollView>
+
+      {/* ZIM Article Viewer Modal */}
+      <Modal
+        visible={Boolean(zimArticle)}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setZimArticle(null)}>
+        <View className="bg-background flex-1">
+          <View className="border-border h-14 flex-row items-center justify-between border-b px-4">
+            <Button variant="ghost" size="sm" onPress={() => setZimArticle(null)}>
+              <Text className="text-primary font-bold">Done</Text>
+            </Button>
+            <Text className="text-foreground font-bold" numberOfLines={1}>
+              {zimArticle?.title}
+            </Text>
+            <View className="flex-row gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                disabled={speechPlayback.isGenerating}
+                onPress={() => void handleSpeakZimArticle()}>
+                {speechPlayback.isGenerating ? (
+                  <ActivityIndicator size="small" />
+                ) : (
+                  <Icon as={zimSpeaking ? VolumeX : Volume2} className="text-foreground" />
+                )}
+              </Button>
+            </View>
+          </View>
+          <WebView
+            originWhitelist={[]}
+            source={{ html: zimArticle ? ZimService.articleHtml(zimArticle) : '' }}
+            style={{ flex: 1 }}
+          />
+        </View>
+      </Modal>
     </View>
   );
-}
-
-const ZIM_LINK_SCRIPT = `
-(function() {
-  if (window.__arkZimLinksInstalled) return true;
-  window.__arkZimLinksInstalled = true;
-  document.addEventListener('click', function(event) {
-    var target = event.target;
-    var link = target && target.closest ? target.closest('a[href]') : null;
-    if (!link) return;
-    var href = link.getAttribute('href') || '';
-    if (!href || href.charAt(0) === '#') return;
-    event.preventDefault();
-    window.ReactNativeWebView && window.ReactNativeWebView.postMessage(href);
-  }, true);
-  true;
-})();
-true;
-`;
-
-function resolveZimHref(currentPath: string, rawHref: string) {
-  const href = rawHref.trim();
-  if (!href || href.startsWith('#')) return null;
-  if (/^(mailto|tel|sms|data|javascript):/i.test(href)) return null;
-
-  let path = href;
-  try {
-    if (/^https?:\/\//i.test(href)) {
-      const parsed = new URL(href);
-      path = parsed.pathname;
-    }
-  } catch {
-    path = href;
-  }
-
-  path = path.split('#')[0]?.split('?')[0] ?? '';
-  try {
-    path = decodeURIComponent(path);
-  } catch {
-    // Keep the original path when a link contains partial escaping.
-  }
-  path = path.replace(/^\/+/, '');
-  if (!path) return null;
-  if (/^[a-z][a-z0-9+.-]*:/i.test(path)) return null;
-
-  const baseParts = currentPath.split('/');
-  baseParts.pop();
-  const rawParts =
-    path.startsWith('./') || path.startsWith('../')
-      ? [...baseParts, ...path.split('/')]
-      : path.includes('/')
-        ? path.split('/')
-        : [...baseParts, path];
-  const resolved: string[] = [];
-  for (const part of rawParts) {
-    if (!part || part === '.') continue;
-    if (part === '..') resolved.pop();
-    else resolved.push(part);
-  }
-  return resolved.join('/');
 }

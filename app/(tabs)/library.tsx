@@ -177,9 +177,9 @@ export default function LibraryScreen() {
           }}
         />
       }>
-      <Card className="gap-3">
+      <View className="gap-3">
         <View className="flex-row items-center gap-3">
-          <View className="border-border bg-background min-w-0 flex-1 flex-row items-center rounded-md border px-3">
+          <View className="border-border min-w-0 flex-1 flex-row items-center border-b px-1">
             <Icon as={Search} className="text-muted-foreground size-4" />
             <Input
               value={query}
@@ -222,7 +222,7 @@ export default function LibraryScreen() {
             <Text>Import</Text>
           </Button>
         </View>
-      </Card>
+      </View>
 
       {error ? (
         <Card className="border-destructive/50 gap-2">
@@ -245,32 +245,34 @@ export default function LibraryScreen() {
             </Text>
           </View>
           {searchResults.length ? (
-            searchResults.map((result) => (
-              <Pressable
-                key={result.key}
-                accessibilityRole="button"
-                accessibilityLabel={`Open ${result.title}`}
-                className="active:opacity-80"
-                onPress={() => router.push(result.href as never)}>
-                <Card className="active:bg-accent min-h-24 flex-row items-center gap-4">
-                  <View className="bg-primary/15 size-12 items-center justify-center rounded-md">
-                    <Icon as={result.icon} className="text-primary size-6" />
+            <View>
+              {searchResults.map((result) => (
+                <Pressable
+                  key={result.key}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open ${result.title}`}
+                  className="border-border active:bg-muted/40 border-b py-4"
+                  onPress={() => router.push(result.href as never)}>
+                  <View className="min-h-20 flex-row items-center gap-4">
+                    <View className="bg-primary/12 size-10 items-center justify-center rounded-md">
+                      <Icon as={result.icon} className="text-primary size-6" />
+                    </View>
+                    <View className="min-w-0 flex-1 gap-1">
+                      <Text variant="large" numberOfLines={1}>
+                        {result.title}
+                      </Text>
+                      <Text variant="muted" numberOfLines={2}>
+                        {result.description}
+                      </Text>
+                      <Text variant="small" className="text-muted-foreground" numberOfLines={1}>
+                        {result.meta}
+                      </Text>
+                    </View>
+                    <Icon as={ChevronRight} className="text-muted-foreground size-5" />
                   </View>
-                  <View className="min-w-0 flex-1 gap-1">
-                    <Text variant="large" numberOfLines={1}>
-                      {result.title}
-                    </Text>
-                    <Text variant="muted" numberOfLines={2}>
-                      {result.description}
-                    </Text>
-                    <Text variant="small" className="text-muted-foreground" numberOfLines={1}>
-                      {result.meta}
-                    </Text>
-                  </View>
-                  <Icon as={ChevronRight} className="text-muted-foreground size-5" />
-                </Card>
-              </Pressable>
-            ))
+                </Pressable>
+              ))}
+            </View>
           ) : (
             <Card className="items-center gap-2 py-6">
               <Icon as={PackageOpen} className="text-muted-foreground size-8" />
@@ -284,16 +286,16 @@ export default function LibraryScreen() {
           )}
         </View>
       ) : (
-        <View className="gap-3">
+        <View>
           {categoryTiles.map((category) => (
             <Pressable
               key={category.key}
               accessibilityRole="button"
               accessibilityLabel={`Open ${category.title} category`}
-              className="active:opacity-80"
+              className="border-border active:bg-muted/40 border-b py-4"
               onPress={() => router.push(category.href as never)}>
-              <Card className="active:bg-accent min-h-24 flex-row items-center gap-4">
-                <View className="bg-primary/15 size-12 items-center justify-center rounded-md">
+              <View className="min-h-20 flex-row items-center gap-4">
+                <View className="bg-primary/12 size-10 items-center justify-center rounded-md">
                   <Icon as={category.icon} className="text-primary size-6" />
                 </View>
                 <View className="min-w-0 flex-1 gap-1">
@@ -301,24 +303,12 @@ export default function LibraryScreen() {
                   <Text variant="muted" numberOfLines={2}>
                     {category.description}
                   </Text>
+                  <Text variant="small" className="text-muted-foreground">
+                    {category.count} {category.count === 1 ? 'item' : 'items'}
+                  </Text>
                 </View>
-                <View className="min-w-20 items-end gap-2">
-                  <View className="border-border rounded-md border px-3 py-1.5">
-                    <Text variant="small" className="text-muted-foreground">
-                      <Text className="text-foreground font-semibold tabular-nums">
-                        {category.count}
-                      </Text>{' '}
-                      {category.count === 1 ? 'item' : 'items'}
-                    </Text>
-                  </View>
-                  <View className="bg-secondary flex-row items-center gap-1 rounded-md px-2 py-1">
-                    <Text variant="small" className="font-semibold">
-                      Open
-                    </Text>
-                    <Icon as={ChevronRight} className="size-4" />
-                  </View>
-                </View>
-              </Card>
+                <Icon as={ChevronRight} className="text-muted-foreground size-5" />
+              </View>
             </Pressable>
           ))}
         </View>
@@ -347,6 +337,8 @@ function describeCategory(category: ContentCategory) {
       return 'Public health, sanitation, and wellness references.';
     case 'Safety':
       return 'Risk, security, and safety procedures.';
+    case 'Water':
+      return 'Sanitation, hygiene, and water treatment principles.';
     case 'Comms':
       return 'Communication and signaling references.';
     default:

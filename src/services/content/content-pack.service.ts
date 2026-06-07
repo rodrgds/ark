@@ -7,6 +7,7 @@ import { RagService } from '@/services/ai/rag.service';
 import { getVoiceProjectorId } from '@/services/ai/voice-models';
 import { DownloadManagerService } from '@/services/files/download-manager.service';
 import { FileSystemService } from '@/services/files/filesystem.service';
+import { AuthoredGuideSeedService } from '@/services/content/authored-guide-seed.service';
 import { contentPackIdSchema, parseOrThrow } from '@/lib/validation';
 import { Linking } from 'react-native';
 import type { ContentFormat, ContentModelRole } from '@/types/content';
@@ -41,7 +42,13 @@ export class ContentPackService {
     const packId = parseOrThrow(contentPackIdSchema, id);
     const pack = (await ContentRepository.list()).find((item) => item.id === packId);
     if (!pack) throw new Error('Content pack not found.');
-    if (!pack.sourceUrl) throw new Error('This pack has no download URL configured.');
+    
+    if (!pack.sourceUrl) {
+      // If it's a local guide (no source URL), we can re-seed it
+      await AuthoredGuideSeedService.seed();
+      return;
+    }
+
     await DownloadManagerService.queueDownload({
       kind:
         pack.category === 'AI Models'

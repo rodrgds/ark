@@ -2,6 +2,7 @@ import { NAV_COLORS } from '@/constants/theme';
 import { useThemeStore } from '@/stores/theme-store';
 import * as React from 'react';
 import { Linking, Platform } from 'react-native';
+import { useRouter } from 'expo-router';
 import {
   EnrichedMarkdownText,
   type MarkdownStyle,
@@ -18,6 +19,7 @@ export function MarkdownText({ children, streaming = false }: MarkdownTextProps)
   const theme = useThemeStore((state) => state.effectiveTheme);
   const colors = NAV_COLORS[theme];
   const monoFont = Platform.select({ ios: 'Menlo', default: 'monospace' });
+  const router = useRouter();
 
   const markdownStyle = React.useMemo<MarkdownStyle>(
     () => ({
@@ -127,7 +129,15 @@ export function MarkdownText({ children, streaming = false }: MarkdownTextProps)
     markdownStyle,
     md4cFlags: markdownFlags,
     onLinkPress: ({ url }: { url: string }) => {
-      void Linking.openURL(url);
+      if (/^https?:\/\//i.test(url)) {
+        router.push({
+          pathname: '/content/web-reader',
+          params: { url },
+        });
+      } else if (!url.startsWith('file://')) {
+        // Only try to open non-file external links (e.g. mailto, tel)
+        void Linking.openURL(url);
+      }
     },
     selectable: true,
   };

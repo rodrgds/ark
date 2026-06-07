@@ -1,6 +1,9 @@
 import * as Crypto from 'expo-crypto';
 import { XMLParser } from 'fast-xml-parser';
 import { RssRepository } from '@/services/db/repositories/rss.repo';
+import { parseHTML } from 'linkedom';
+// @ts-ignore
+import { Defuddle } from 'defuddle/node';
 
 const DEFAULT_FEEDS = [
   {
@@ -133,15 +136,18 @@ async function normalizeRssItem(feedId: string, rawItem: unknown) {
   const title = extractText(item.title) || 'Untitled';
   const url = extractText(item.link) || extractText(item.guid) || null;
   const publishedAt = parseDate(extractText(item.pubDate) || extractText(item['dc:date']));
+  
+  const rawContent = extractText(item['content:encoded']) || extractText(item.description) || '';
+  const { summary, content } = await defuddleContent(rawContent, url);
+
   return {
     id: await itemId(feedId, title, url, publishedAt),
     feedId,
     title,
     url,
     author: extractText(item.author) || extractText(item['dc:creator']) || null,
-    summary: stripHtml(extractText(item.description)) || null,
-    content:
-      stripHtml(extractText(item['content:encoded']) || extractText(item.description)) || null,
+    summary,
+    content,
     publishedAt,
   };
 }
@@ -151,16 +157,62 @@ async function normalizeAtomItem(feedId: string, rawItem: unknown) {
   const title = extractText(item.title) || 'Untitled';
   const url = atomLink(item.link);
   const publishedAt = parseDate(extractText(item.updated) || extractText(item.published));
+  
+  const rawContent = extractText(item.content) || extractText(item.summary) || '';
+  const { summary, content } = await defuddleContent(rawContent, url);
+
   return {
     id: await itemId(feedId, title, url, publishedAt),
     feedId,
     title,
     url,
     author: extractText(item.author) || null,
-    summary: stripHtml(extractText(item.summary)) || null,
-    content: stripHtml(extractText(item.content) || extractText(item.summary)) || null,
+    summary,
+    content,
     publishedAt,
   };
+}
+
+async function defuddleContent(html: string, url: string | null) {
+  if (!html.trim()) return { summary: null, content: null };
+  
+  const dom = parseHTML(html);
+  const { document } = dom;
+
+  // Polyfill essential globals for Turndown/Defuddle internal Markdown conversion
+  const g = global as any;
+  const oldDocument = g.document;
+  const oldNode = g.Node;
+  const oldHTMLElement = g.HTMLElement;
+  const oldDOMParser = g.DOMParser;
+
+  try {
+    g.document = document;
+    g.Node = dom.Node;
+    g.HTMLElement = dom.HTMLElement;
+    g.DOMParser = dom.DOMParser;
+
+    const result = await Defuddle(document, url || '', {
+      markdown: true,
+      standardize: true,
+    });
+    
+    return {
+      summary: result.description || stripHtml(html).slice(0, 200),
+      content: result.content || stripHtml(html),
+    };
+  } catch {
+    const stripped = stripHtml(html);
+    return {
+      summary: stripped.slice(0, 200),
+      content: stripped,
+    };
+  } finally {
+    g.document = oldDocument;
+    g.Node = oldNode;
+    g.HTMLElement = oldHTMLElement;
+    g.DOMParser = oldDOMParser;
+  }
 }
 
 function toArray(value: unknown) {

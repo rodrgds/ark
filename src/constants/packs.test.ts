@@ -61,15 +61,16 @@ describe('starter content packs', () => {
     );
   });
 
-  test('official web guides use offline snapshot downloads and group preparedness pages together', () => {
+  test('official web guides use offline snapshot downloads and are organized by category', () => {
     const htmlGuides = STARTER_PACKS.filter((pack) => pack.format === 'html');
-    const preparednessGuides = htmlGuides.filter((pack) => pack.category === 'Preparedness');
+    const ids = htmlGuides.map((p) => p.id);
 
     expect(htmlGuides.length).toBeGreaterThan(0);
     expect(htmlGuides.every((pack) => pack.downloadStrategy === 'html_snapshot')).toBe(true);
-    expect(preparednessGuides.map((pack) => pack.id)).toEqual([
-      'food-preservation-usda',
-      'sanitation-hygiene',
-    ]);
+    expect(ids).toContain('food-preservation-usda');
+    expect(ids).toContain('sanitation-hygiene');
+    
+    expect(STARTER_PACKS.find((p) => p.id === 'food-preservation-usda')?.category).toBe('Food');
+    expect(STARTER_PACKS.find((p) => p.id === 'sanitation-hygiene')?.category).toBe('Water');
   });
 });

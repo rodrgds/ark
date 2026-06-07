@@ -1,4 +1,5 @@
 import type { OfflineMapSearchResult } from '@/types/maps';
+import { NetworkService } from '@/services/connectivity/network.service';
 import { SettingsRepository } from '@/services/db/repositories/settings.repo';
 
 const PHOTON_API_URL = 'https://photon.komoot.io/api/';
@@ -20,6 +21,10 @@ export class GeocodingService {
   ): Promise<OfflineMapSearchResult[]> {
     const normalized = query.trim().toLowerCase();
 
+    if (!(await this.isOnline())) {
+      return this.getCachedResults(normalized);
+    }
+
     try {
       const url = `${PHOTON_API_URL}?q=${encodeURIComponent(normalized)}&limit=${limit}`;
       const response = await fetch(url, { method: 'GET', signal });
@@ -40,6 +45,15 @@ export class GeocodingService {
     return this.getCachedResults(normalized);
   }
 
+  private static async isOnline(): Promise<boolean> {
+    try {
+      const state = await NetworkService.getState();
+      return NetworkService.isOnline(state) === true;
+    } catch {
+      return true;
+    }
+  }
+
   static async reverseGeocode(
     latitude: number,
     longitude: number,
@@ -48,6 +62,9 @@ export class GeocodingService {
     name: string;
     bounds?: { west: number; south: number; east: number; north: number };
   }> {
+    if (!(await this.isOnline())) {
+      return { name: 'this area' };
+    }
     try {
       const url = `https://photon.komoot.io/reverse?lon=${longitude}&lat=${latitude}`;
       const response = await fetch(url, { method: 'GET', signal });

@@ -69,7 +69,7 @@
 - [x] **`app/tools/compass.tsx`** — No calibration nudge. *Fix: add ±15°-tolerance to `isCalibrated`.** **DONE — new `useHeadingStability(heading, { windowMs, thresholdDeg, minSamples })` hook in `src/hooks/use-sensor-subscription.ts` (default 6s window, 25° threshold, 16 samples). `compass.tsx` swaps the hint copy to "Readings look noisy. Move the phone in a slow figure-eight to recalibrate." when `headingStable === false`. Pure `circularSpreadDeg` extracted to `src/lib/compass-stability.ts` (7 tests).**
 
 ### Stores
-- [ ] **`src/stores/sensor-store.ts`** — Tools screens don't use it; `sensor.service.startAll()` still runs. *Fix: either wire screens to store or stop `startAll`.*
+- [x] **`src/stores/sensor-store.ts`** — Tools screens don't use it; `sensor.service.startAll()` still runs. *Fix: either wire screens to store or stop `startAll`.* **DONE — `sensor-store` is now written by `compass.tsx` and `map.tsx` (focus-effect subscriptions). `CompassService.startReading` is now refcounted so two subscribers share one native magnetometer subscription. (No `sensor.service.startAll` exists in the repo — the audit reference was speculative.)**
 - [ ] **`src/stores/download-store.ts`** — Barely used. *Fix: delete or wire UI.* **DEFERRED — keeping the file; if a real wire-up is needed in this session, do it then.**
 
 ### Performance / Queries

@@ -21,13 +21,14 @@ import { SpeechRecordingService } from '@/services/audio/speech-recording.servic
 import { useThemeStore } from '@/stores/theme-store';
 import type { AiCitation, AiMessage, AiProgressEvent } from '@/types/ai';
 import type { ContentPack } from '@/types/content';
-import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
+import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSpeechToText, WHISPER_TINY_EN } from 'react-native-executorch';
 import {
   Brain,
   BookOpen,
   Bot,
   ChevronDown,
+  ChevronLeft,
   Check,
   ExternalLink,
   Mic,
@@ -79,6 +80,17 @@ const EMPTY_THREAD_PROMPTS = [
 ];
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
+function openSource(href: string) {
+  if (/^https?:\/\//i.test(href)) {
+    router.push({
+      pathname: '/content/web-reader',
+      params: { url: href },
+    });
+  } else {
+    router.push(href as never);
+  }
+}
+
 function CitationItem({ citation, index }: { citation: AiCitation; index: number }) {
   const location = [
     citation.sectionTitle,
@@ -104,7 +116,7 @@ function CitationItem({ citation, index }: { citation: AiCitation; index: number
           size="sm"
           variant="outline"
           className="self-start"
-          onPress={() => router.push(citation.targetHref as never)}>
+          onPress={() => openSource(citation.targetHref!)}>
           <Icon as={ExternalLink} className="size-4" />
           <Text>{actionLabel}</Text>
         </Button>
@@ -141,7 +153,7 @@ function SourceMentions({ content, citations }: { content: string; citations: Ai
           variant="outline"
           className="h-7 px-2"
           disabled={!citation.targetHref}
-          onPress={() => citation.targetHref && router.push(citation.targetHref as never)}>
+          onPress={() => citation.targetHref && openSource(citation.targetHref)}>
           <Text variant="small">[{index + 1}]</Text>
         </Button>
       ))}
@@ -507,7 +519,6 @@ function FloatingComposer({
   const keyboardOffset = useSharedValue(0);
   const recordingLevel = useSharedValue(0);
   const hasText = value.length > 0;
-  const expanded = inputHeight > COMPOSER_HEIGHT + 8;
 
   React.useEffect(
     () => () => {
@@ -515,37 +526,6 @@ function FloatingComposer({
       void SpeechRecordingService.cancel();
     },
     []
-  );
-
-  const calculateKeyboardOffset = React.useCallback(
-    (
-      event: { endCoordinates?: { height?: number; screenY?: number } } | undefined,
-      fallbackOffset: number
-    ) => {
-      const input = inputRef.current;
-      if (!input || !event?.endCoordinates) {
-        keyboardOffset.value = withTiming(fallbackOffset, {
-          duration: 220,
-          easing: Easing.bezier(0.2, 0.8, 0.2, 1),
-        });
-        return;
-      }
-
-      input.measure((_x, _y, _width, height, _pageX, pageY) => {
-        const keyboardTop =
-          typeof event.endCoordinates?.screenY === 'number'
-            ? event.endCoordinates.screenY
-            : windowHeight - (event.endCoordinates?.height ?? 0);
-        const inputBottom = pageY + height;
-        const overlap = Math.max(0, inputBottom + COMPOSER_BOTTOM_GAP_FOCUSED - keyboardTop);
-
-        keyboardOffset.value = withTiming(overlap, {
-          duration: 220,
-          easing: Easing.bezier(0.2, 0.8, 0.2, 1),
-        });
-      });
-    },
-    [keyboardOffset, windowHeight]
   );
 
   const animateKeyboard = React.useCallback(
@@ -562,20 +542,13 @@ function FloatingComposer({
 
       keyboardProgress.value = withTiming(visible ? 1 : 0, { duration, easing });
       if (visible) {
-        const fallbackOffset = measuredOffset;
-        if (Platform.OS === 'android') {
-          keyboardOffset.value = withTiming(fallbackOffset, { duration, easing });
-        } else {
-          requestAnimationFrame(() => calculateKeyboardOffset(event, fallbackOffset));
-          setTimeout(() => calculateKeyboardOffset(event, fallbackOffset), 80);
-        }
+        keyboardOffset.value = withTiming(measuredOffset, { duration, easing });
       } else {
         keyboardOffset.value = withTiming(0, { duration, easing });
       }
       onKeyboardVisibleChange(visible);
     },
     [
-      calculateKeyboardOffset,
       keyboardOffset,
       keyboardProgress,
       onKeyboardVisibleChange,
@@ -633,7 +606,7 @@ function FloatingComposer({
   const detachedPlusStyle = useAnimatedStyle(() => {
     const progress = keyboardProgress.value;
     return {
-      opacity: interpolate(progress, [0, 0.5, 1], [0, 0.72, 1], Extrapolation.CLAMP),
+      opacity: interpolate(progress, [0, 0.5, 1], [0.72, 0.72, 1], Extrapolation.CLAMP),
       transform: [{ scale: interpolate(progress, [0, 1], [0.8, 1], Extrapolation.CLAMP) }],
       width: interpolate(progress, [0, 1], [0, DETACHED_PLUS_SIZE], Extrapolation.CLAMP),
       marginRight: interpolate(progress, [0, 1], [0, COMPOSER_OPEN_GAP], Extrapolation.CLAMP),
@@ -784,19 +757,20 @@ function FloatingComposer({
           style={[
             styles.inputPill,
             {
-              alignItems: expanded ? 'flex-end' : 'center',
+              alignItems: 'flex-end',
               backgroundColor: colors.card,
               borderColor: colors.border,
-              borderRadius: expanded ? 28 : COMPOSER_HEIGHT / 2,
+              borderRadius: 28,
               minHeight: inputHeight,
             },
           ]}>
           <AnimatedPressable
             accessibilityRole="button"
             onPress={onAddContextPress}
-            style={[styles.embeddedPlus, embeddedPlusStyle]}>
+            style={[styles.embeddedPlus, embeddedPlusStyle, { marginBottom: 6 }]}>
             <Icon as={Plus} className="text-foreground size-5" />
           </AnimatedPressable>
+
           <TextInput
             ref={inputRef}
             value={value}
@@ -806,7 +780,7 @@ function FloatingComposer({
             onContentSizeChange={(event) => {
               const nextHeight = Math.min(
                 COMPOSER_MAX_INPUT_HEIGHT,
-                Math.max(COMPOSER_HEIGHT, event.nativeEvent.contentSize.height + 16)
+                Math.max(COMPOSER_HEIGHT, event.nativeEvent.contentSize.height)
               );
               setInputHeight(nextHeight);
             }}
@@ -821,12 +795,11 @@ function FloatingComposer({
               styles.composerInput,
               {
                 color: colors.text,
-                height: inputHeight,
-                paddingBottom: expanded ? 14 : 0,
-                paddingTop: expanded ? 14 : 0,
+                paddingBottom: 14,
+                paddingTop: 14,
               },
             ]}
-            textAlignVertical={expanded ? 'top' : 'center'}
+            textAlignVertical="top"
           />
           {!hasText ? (
             <Pressable
@@ -835,7 +808,7 @@ function FloatingComposer({
               onPress={() =>
                 voiceState === 'recording' ? void stopVoiceRecording() : void startVoiceRecording()
               }
-              style={[styles.micButton, { marginBottom: expanded ? 7 : 0 }]}>
+              style={[styles.micButton, { marginBottom: 7 }]}>
               {voiceState === 'transcribing' ? (
                 <ActivityIndicator size="small" />
               ) : voiceState === 'recording' ? (
@@ -863,7 +836,7 @@ function FloatingComposer({
               styles.voiceButton,
               {
                 backgroundColor: colors.primary,
-                marginBottom: expanded ? 6 : 0,
+                marginBottom: 6,
                 opacity: disabled || !value.trim() ? 0.54 : 1,
               },
             ]}>
@@ -902,7 +875,7 @@ function sliceVoiceActivity(
 
 export default function ChatScreen() {
   const { threadId: routeThreadId } = useLocalSearchParams<{ threadId?: string }>();
-  const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const reduceModeEnabled = useBatteryReduceMode();
   const speechPlayback = useArkTextToSpeech();
   const initialThreadId = routeThreadId && routeThreadId !== 'new' ? routeThreadId : undefined;
@@ -1043,7 +1016,7 @@ export default function ChatScreen() {
     const willShow = Keyboard.addListener(showEvent, handleShow);
     const didShow = Keyboard.addListener('keyboardDidShow', handleShow);
     const willChange = Keyboard.addListener(changeEvent, handleShow);
-    const willHide = Keyboard.addListener(hideEvent, handleHide);
+    const willHide = Keyboard.addListener('keyboardWillHide', handleHide);
     const didHide = Keyboard.addListener('keyboardDidHide', handleHide);
     return () => {
       willShow.remove();
@@ -1105,7 +1078,7 @@ export default function ChatScreen() {
       setPendingUserMessage(null);
       setMessages((current) => [...current, ...result.messages]);
       if (!threadId) {
-        router.replace(`/(tabs)/chat/${result.threadId}` as never);
+        router.replace(`/chat/${result.threadId}` as never);
       }
     } catch (sendError) {
       if (isAiRequestCancelledError(sendError)) return;
@@ -1210,37 +1183,6 @@ export default function ChatScreen() {
     setClearConfirmOpen(true);
   }, [threadId]);
 
-  React.useEffect(() => {
-    navigation.setOptions({
-      tabBarStyle: { display: 'none' },
-    });
-    return () => navigation.setOptions({ tabBarStyle: undefined });
-  }, [navigation]);
-
-  const headerActions = React.useMemo(
-    () => (
-      <>
-        <Button
-          size="icon"
-          variant="ghost"
-          className="h-9 w-9 rounded-full"
-          onPress={() => setModelInfoOpen(true)}>
-          <Icon as={Bot} className="size-4" />
-        </Button>
-        <Button
-          size="icon"
-          variant="ghost"
-          className="h-9 w-9 rounded-full"
-          disabled={!threadId || sending}
-          onPress={confirmClear}>
-          <Icon as={Trash2} className="size-4" />
-        </Button>
-      </>
-    ),
-    [confirmClear, sending, threadId]
-  );
-  useAppHeaderActions(headerActions, [headerActions]);
-
   const data = React.useMemo(
     () => [
       ...buildChatListItems(messages).map((item) => ({
@@ -1272,6 +1214,42 @@ export default function ChatScreen() {
 
   return (
     <View className="bg-background flex-1">
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          title: 'Arky',
+          headerLeft: () => (
+            <Button
+              accessibilityLabel="Back to chats"
+              className="h-9 w-9 rounded-full"
+              size="icon"
+              variant="ghost"
+              onPress={() => router.replace('/(tabs)/chat' as never)}>
+              <Icon as={ChevronLeft} className="size-5 text-foreground" />
+            </Button>
+          ),
+          headerRight: () => (
+            <View className="flex-row items-center gap-1">
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-9 w-9 rounded-full"
+                onPress={() => setModelInfoOpen(true)}>
+                <Icon as={Bot} className="size-4 text-foreground" />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-9 w-9 rounded-full"
+                disabled={!threadId || sending}
+                onPress={confirmClear}>
+                <Icon as={Trash2} className="size-4 text-foreground" />
+              </Button>
+            </View>
+          ),
+        }}
+      />
+
       {loading ? (
         <View className="flex-1 gap-3 p-4" style={{ paddingBottom: MESSAGE_LIST_BOTTOM_PADDING }}>
           <Skeleton className="h-24 w-[86%]" />
@@ -1321,7 +1299,7 @@ export default function ChatScreen() {
                         speechPlayback.isGenerating &&
                         !speechPlayback.isPlaying
                       ? 'Preparing voice'
-                    : undefined
+                      : undefined
                 }
               />
             )
@@ -1330,7 +1308,7 @@ export default function ChatScreen() {
             gap: 12,
             padding: 16,
             paddingBottom: MESSAGE_LIST_BOTTOM_PADDING,
-            paddingTop: 56,
+            paddingTop: 12,
           }}
           maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
           onScroll={handleScroll}

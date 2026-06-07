@@ -6,7 +6,7 @@ export default function OnboardingLayout() {
   const vault = useAppStore((state) => state.vault);
 
   if (onboarding?.completedAt && vault?.isInitialized) {
-    return <Redirect href="/(tabs)" />;
+    return <Redirect href="/(tabs)/chat" />;
   }
 
   return (

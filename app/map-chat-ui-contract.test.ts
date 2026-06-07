@@ -42,7 +42,7 @@ describe('map and chat UI contracts', () => {
   });
 
   test('chat uses a floating split composer that follows the keyboard', () => {
-    const source = readFileSync(join(appDir, '(tabs)/chat/[threadId].tsx'), 'utf8');
+    const source = readFileSync(join(appDir, 'chat/[threadId].tsx'), 'utf8');
 
     expect(source).toContain('keyboardDidShow');
     expect(source).toContain('keyboardDidHide');
@@ -51,10 +51,7 @@ describe('map and chat UI contracts', () => {
     expect(source).toContain('AnimatedPressable');
     expect(source).toContain('detachedPlusStyle');
     expect(source).toContain('embeddedPlusStyle');
-    expect(source).toContain('input.measure');
-    expect(source).toContain("Platform.OS === 'android'");
-    expect(source).toContain('keyboardOffset.value = withTiming(fallbackOffset');
-    expect(source).toContain('inputBottom + COMPOSER_BOTTOM_GAP_FOCUSED - keyboardTop');
+    expect(source).toContain('keyboardOffset.value = withTiming(measuredOffset');
     expect(source).toContain('translateY: -keyboardOffset.value');
     expect(source).toContain('COMPOSER_BOTTOM_GAP');
     expect(source).toContain('DETACHED_PLUS_SIZE = COMPOSER_HEIGHT');
@@ -76,7 +73,7 @@ describe('map and chat UI contracts', () => {
   });
 
   test('chat voice input works around native VAD arguments and streams spoken responses', () => {
-    const chat = readFileSync(join(appDir, '(tabs)/chat/[threadId].tsx'), 'utf8');
+    const chat = readFileSync(join(appDir, 'chat/[threadId].tsx'), 'utf8');
     const vad = readFileSync(join(process.cwd(), 'src/hooks/use-ark-voice-activity.ts'), 'utf8');
     const tts = readFileSync(join(process.cwd(), 'src/hooks/use-ark-text-to-speech.ts'), 'utf8');
     const recorder = readFileSync(
@@ -232,7 +229,7 @@ describe('map and chat UI contracts', () => {
       join(process.cwd(), 'src/components/ui/markdown-text.tsx'),
       'utf8'
     );
-    const chatThread = readFileSync(join(appDir, '(tabs)/chat/[threadId].tsx'), 'utf8');
+    const chatThread = readFileSync(join(appDir, 'chat/[threadId].tsx'), 'utf8');
     const packageJson = readFileSync(join(process.cwd(), 'package.json'), 'utf8');
 
     expect(markdownText).toContain('react-native-enriched-markdown');

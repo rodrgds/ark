@@ -1,13 +1,13 @@
 import { ArkBottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { AIService } from '@/services/ai/ai.service';
 import type { AiThread } from '@/types/ai';
+import { formatDistanceToNow } from 'date-fns';
 import { router, useFocusEffect } from 'expo-router';
-import { Bot, MessageSquare, Plus, Trash2 } from 'lucide-react-native';
+import { Bot, Plus, Trash2 } from 'lucide-react-native';
 import * as React from 'react';
 import { ActivityIndicator, FlatList, Pressable, View } from 'react-native';
 
@@ -34,11 +34,11 @@ export default function ChatIndexScreen() {
   );
 
   function openThread(threadId: string) {
-    router.push(`/(tabs)/chat/${threadId}` as never);
+    router.push(`/chat/${threadId}` as never);
   }
 
   function newThread() {
-    router.push('/(tabs)/chat/new' as never);
+    router.push('/chat/new' as never);
   }
 
   async function deleteThread(thread: AiThread) {
@@ -71,25 +71,29 @@ export default function ChatIndexScreen() {
         <FlatList
           data={threads}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ gap: 10, padding: 16 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 8 }}
           renderItem={({ item }) => (
             <Pressable
               onPress={() => openThread(item.id)}
               onLongPress={() => setActionThread(item)}
-              delayLongPress={220}>
-              <Card className="gap-2 rounded-lg">
-                <View className="flex-row items-center gap-3">
-                  <View className="bg-primary/12 size-10 items-center justify-center rounded-md">
-                    <Icon as={MessageSquare} className="text-primary size-5" />
-                  </View>
-                  <View className="min-w-0 flex-1">
-                    <Text numberOfLines={1}>{item.title}</Text>
-                    <Text variant="small" className="text-muted-foreground" numberOfLines={2}>
-                      {item.lastMessage ?? 'No messages yet'}
-                    </Text>
-                  </View>
+              delayLongPress={220}
+              className="border-border active:bg-muted/40 border-b py-4">
+              <View className="min-w-0 gap-1">
+                <View className="flex-row items-start justify-between gap-3">
+                  <Text className="min-w-0 flex-1 font-semibold" numberOfLines={1}>
+                    {item.title}
+                  </Text>
+                  <Text variant="small" className="text-muted-foreground shrink-0">
+                    {formatDistanceToNow(item.updatedAt, { addSuffix: true })}
+                  </Text>
                 </View>
-              </Card>
+                <Text variant="small" className="text-muted-foreground" numberOfLines={2}>
+                  {item.lastMessage ?? 'No messages yet'}
+                </Text>
+                <Text variant="small" className="text-muted-foreground">
+                  {item.messageCount} {item.messageCount === 1 ? 'message' : 'messages'}
+                </Text>
+              </View>
             </Pressable>
           )}
         />

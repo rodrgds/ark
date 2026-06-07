@@ -18,7 +18,7 @@ export default function FinishScreen() {
       totalSteps={8}
       onNext={async () => {
         await completeOnboarding();
-        router.replace('/(tabs)');
+        router.replace('/(tabs)/chat');
       }}>
       <View className="gap-4">
         <OnboardingFeature

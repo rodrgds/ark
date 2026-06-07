@@ -40,12 +40,13 @@ import {
   Plus,
   Printer,
   Rows3,
+  Search,
   Tag,
   Trash2,
   X,
 } from 'lucide-react-native';
 import * as React from 'react';
-import { BackHandler, Linking, RefreshControl, View } from 'react-native';
+import { BackHandler, Linking, Pressable, RefreshControl, View } from 'react-native';
 
 type NotesMode = 'normal' | 'selection' | 'organize';
 type NotesViewMode = 'mosaic' | 'list';
@@ -525,14 +526,37 @@ export default function NotesScreen() {
           </View>
         ) : (
           <View className="gap-2">
-            <Input
-              value={query}
-              onChangeText={(value) => {
-                setQuery(value);
-                void load(value, sortMode);
-              }}
-              placeholder="Search notes"
-            />
+            <View className="flex-row items-center gap-3">
+              <View className="border-border min-w-0 flex-1 flex-row items-center border-b px-1">
+                <Icon as={Search} className="text-muted-foreground size-4" />
+                <Input
+                  value={query}
+                  onChangeText={(value) => {
+                    setQuery(value);
+                    void load(value, sortMode);
+                  }}
+                  placeholder="Search notes"
+                  className="min-h-11 flex-1 border-0 bg-transparent px-3 py-2"
+                />
+                {query ? (
+                  <Pressable
+                    className="active:bg-accent size-9 items-center justify-center rounded-md"
+                    onPress={() => {
+                      setQuery('');
+                      void load('', sortMode);
+                    }}>
+                    <Icon as={X} className="text-muted-foreground size-4" />
+                  </Pressable>
+                ) : null}
+              </View>
+              <Button
+                size="sm"
+                variant="secondary"
+                onPress={() => router.push('/notes/editor' as never)}>
+                <Icon as={Plus} className="size-4" />
+                <Text>New</Text>
+              </Button>
+            </View>
             <View className="flex-row flex-wrap gap-2">
               <Button size="sm" variant="outline" onPress={() => setSortSheetOpen(true)}>
                 <Icon as={ListFilter} className="size-4" />
@@ -566,7 +590,7 @@ export default function NotesScreen() {
             <Arky pose="scholar" size={120} />
             <Text variant="large">No notes yet</Text>
             <Text variant="muted" className="text-center">
-              Create your first secure note.
+              Tap New above to create your first secure note.
             </Text>
           </Card>
         ) : mode === 'organize' ? (
@@ -607,15 +631,6 @@ export default function NotesScreen() {
           renderNotesCollection(notes)
         )}
       </Screen>
-
-      {mode === 'normal' ? (
-        <Button
-          size="icon"
-          className="absolute right-6 bottom-6 h-14 w-14 rounded-full"
-          onPress={() => router.push('/notes/editor' as never)}>
-          <Icon as={Plus} className="size-6" />
-        </Button>
-      ) : null}
 
       <ArkBottomSheet visible={!!themeTarget} onDismiss={() => setThemeTarget(null)}>
         <View className="gap-1">

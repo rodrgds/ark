@@ -16,5 +16,5 @@ export default function Screen() {
   }
 
   if (!onboarding?.completedAt) return <Redirect href="/onboarding" />;
-  return <Redirect href="/(tabs)" />;
+  return <Redirect href="/(tabs)/chat" />;
 }

@@ -27,15 +27,25 @@ describe('app route contracts', () => {
 
   test('tab layout registers the primary app sections', () => {
     const source = readFileSync(join(appDir, '(tabs)/_layout.tsx'), 'utf8');
-    for (const route of ['index', 'chat/index', 'map', 'library', 'notes', 'tools', 'settings']) {
-      expect(source).toContain(`name="${route}"`);
+    const chatLayout = readFileSync(join(appDir, '(tabs)/chat/_layout.tsx'), 'utf8');
+    const tabConstants = readFileSync(join(process.cwd(), 'src/constants/tabs.ts'), 'utf8');
+    const tabPreferences = readFileSync(
+      join(process.cwd(), 'src/services/preferences/tab-preferences.service.ts'),
+      'utf8'
+    );
+
+    for (const route of ['chat', 'map', 'library', 'notes', 'tools', 'settings']) {
+      expect(tabConstants).toContain(`routeName: '${route}'`);
     }
-    expect(source).toContain('name="chat/[threadId]"');
-    expect(source).toContain("tabBarStyle: { display: 'none' }");
-    expect(source).toContain("'chat/index': 'Arky'");
-    expect(source).toContain('visibleTabRoutes.has(route.name)');
-    expect(source).toContain("chat: 'Arky'");
-    expect(source).toContain("require('@/assets/images/arky/normal.png')");
+    expect(source).toContain("from 'expo-router/unstable-native-tabs'");
+    expect(source).toContain('<NativeTabs');
+    expect(source).toContain('NativeTabs.Trigger');
+    expect(source).toContain('TabPreferencesService.getPreferences');
+    expect(source).toContain('visibleTabs.map');
+    expect(tabPreferences).toContain("const TAB_ORDER_KEY = 'tabs.order'");
+    expect(tabPreferences).toContain("const ENABLED_TABS_KEY = 'tabs.enabled'");
+    expect(chatLayout).toContain('name="[threadId]"');
+    expect(chatLayout).toContain("router.replace('/(tabs)/chat'");
   });
 
   test('onboarding flow keeps the expected step order and tab handoff', () => {
@@ -55,7 +65,7 @@ describe('app route contracts', () => {
     expect(power).toContain('nextHref="/onboarding/packs"');
     expect(packs).toContain('nextHref="/onboarding/models"');
     expect(models).toContain('nextHref="/onboarding/finish"');
-    expect(finish).toContain("router.replace('/(tabs)')");
+    expect(finish).toContain("router.replace('/(tabs)/chat')");
     expect(finish).toContain('completeOnboarding');
   });
 
@@ -238,6 +248,7 @@ describe('app route contracts', () => {
       'app/(tabs)/notes.tsx',
       'app/(tabs)/chat/index.tsx',
       'app/(tabs)/chat/[threadId].tsx',
+      'app/chat/[threadId].tsx',
       'app/(tabs)/library.tsx',
       'app/(tabs)/map.tsx',
       'app/(tabs)/settings.tsx',

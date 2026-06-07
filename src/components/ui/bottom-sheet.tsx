@@ -57,9 +57,7 @@ export function ArkBottomSheet({
   const keyboardOffset = useKeyboardOffset();
   const baseMaxDynamicContentSize = maxDynamicContentSize ?? Math.round(height * 0.82);
   const effectiveMaxDynamicContentSize =
-    keyboardOffset > 0
-      ? Math.max(0, height - keyboardOffset)
-      : baseMaxDynamicContentSize;
+    keyboardOffset > 0 ? Math.max(0, height - keyboardOffset) : baseMaxDynamicContentSize;
   const detents = React.useMemo<Detent[]>(() => {
     if (contentSized) return [0, 'content'];
     return [0, ...(snapPoints ?? ['82%']).map((point) => resolveSnapPoint(point, height))];
@@ -74,11 +72,8 @@ export function ArkBottomSheet({
     if (visible) {
       setMounted(true);
       dismissingRef.current = false;
-      const frame = requestAnimationFrame(() => {
-        hasOpenedRef.current = true;
-        setIndex(initialOpenIndex);
-      });
-      return () => cancelAnimationFrame(frame);
+      setIndex(initialOpenIndex);
+      return undefined;
     }
 
     dismissingRef.current = true;
@@ -98,16 +93,16 @@ export function ArkBottomSheet({
   const handleIndexChange = React.useCallback(
     (nextIndex: number) => {
       setIndex((currentIndex) => (currentIndex === nextIndex ? currentIndex : nextIndex));
-      if (nextIndex > 0) {
-        hasOpenedRef.current = true;
-      }
     },
     []
   );
 
   const handleSettle = React.useCallback(
     (nextIndex: number) => {
-      if (nextIndex !== 0) return;
+      if (nextIndex > 0) {
+        hasOpenedRef.current = true;
+        return;
+      }
 
       const shouldDismiss = visibleRef.current && hasOpenedRef.current && !dismissingRef.current;
       const opening = visibleRef.current && !hasOpenedRef.current && !dismissingRef.current;

@@ -4,8 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
-import { confirmDestructive } from '@/components/ui/sheet-alert';
+import { confirmDestructive, showSheetAlert } from '@/components/ui/sheet-alert';
 import { Text } from '@/components/ui/text';
+import { useArkTextToSpeech } from '@/hooks/use-ark-text-to-speech';
+import { DocumentPagesRepository } from '@/services/db/repositories/document-pages.repo';
 import { ImportService } from '@/services/files/import.service';
 import {
   isImageDocument,
@@ -17,7 +19,7 @@ import type { ArkDocument } from '@/types/db';
 import { format } from 'date-fns';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
-import { ExternalLink, FileText, RefreshCcw, Trash2 } from 'lucide-react-native';
+import { ExternalLink, FileText, RefreshCcw, Trash2, Volume2, VolumeX } from 'lucide-react-native';
 import * as React from 'react';
 import { ActivityIndicator, Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -65,16 +67,27 @@ function escapeHtml(value: string) {
 export default function DocumentReaderScreen() {
   const { id, page } = useLocalSearchParams<{ id: string; page?: string }>();
   const insets = useSafeAreaInsets();
+  const speechPlayback = useArkTextToSpeech();
   const [document, setDocument] = React.useState<ArkDocument | null>(null);
+  const [documentPages, setDocumentPages] = React.useState<
+    Awaited<ReturnType<typeof DocumentPagesRepository.listForDocument>>
+  >([]);
   const [textPreview, setTextPreview] = React.useState<string | null>(null);
   const [titleDraft, setTitleDraft] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [readerSpeaking, setReaderSpeaking] = React.useState(false);
+  const [currentPdfPage, setCurrentPdfPage] = React.useState(
+    page && Number.isFinite(Number(page)) ? Math.max(1, Number(page)) : 1
+  );
 
   async function load() {
     if (!id) return;
     const nextDocument = await ImportService.getDocument(id);
     setDocument(nextDocument);
+    setDocumentPages(
+      nextDocument ? await DocumentPagesRepository.listForDocument(nextDocument.id) : []
+    );
     if (nextDocument?.localUri && canPreviewAsText(nextDocument)) {
       const body = await FileSystem.readAsStringAsync(nextDocument.localUri, {
         encoding: FileSystem.EncodingType.UTF8,
@@ -117,6 +130,46 @@ export default function DocumentReaderScreen() {
     });
   }
 
+  async function handleSpeakDocument() {
+    if (readerSpeaking) {
+      speechPlayback.stop();
+      setReaderSpeaking(false);
+      return;
+    }
+    const text = buildDocumentSpeechText();
+    if (!text) return;
+    setReaderSpeaking(true);
+    try {
+      await speechPlayback.speak(text);
+    } catch (speechError) {
+      showSheetAlert(
+        'Error',
+        speechError instanceof Error ? speechError.message : 'Unable to read this document.'
+      );
+    } finally {
+      setReaderSpeaking(false);
+    }
+  }
+
+  function buildDocumentSpeechText() {
+    if (!document) return '';
+    const currentPageText = documentPages
+      .find((item) => item.pageNumber === currentPdfPage)
+      ?.text.trim();
+    const body =
+      currentPageText ||
+      document.extractedText?.trim() ||
+      document.ocrText?.trim() ||
+      textPreview?.trim() ||
+      '';
+    return [document.title, isPdfDocument(document) ? `Page ${currentPdfPage}.` : null, body]
+      .filter(Boolean)
+      .join('. ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 2800);
+  }
+
   if (!document) {
     return (
       <View className="bg-background flex-1 items-center justify-center p-6">
@@ -135,7 +188,25 @@ export default function DocumentReaderScreen() {
 
   return (
     <View className="bg-background flex-1">
-      <Stack.Screen options={{ title: document.title }} />
+      <Stack.Screen
+        options={{
+          title: document.title,
+          headerRight: () => (
+            <Button
+              accessibilityLabel={readerSpeaking ? 'Stop reading document' : 'Read document aloud'}
+              disabled={speechPlayback.isGenerating}
+              size="icon"
+              variant="ghost"
+              onPress={() => void handleSpeakDocument()}>
+              {speechPlayback.isGenerating ? (
+                <ActivityIndicator size="small" />
+              ) : (
+                <Icon as={readerSpeaking ? VolumeX : Volume2} className="size-5" />
+              )}
+            </Button>
+          ),
+        }}
+      />
       <ArkKeyboardAwareScrollView
         className="flex-1"
         automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
@@ -262,6 +333,7 @@ export default function DocumentReaderScreen() {
                 source={{ uri: document.localUri }}
                 page={initialPage}
                 style={{ flex: 1, backgroundColor: '#000000' }}
+                onPageChanged={(nextPage: number) => setCurrentPdfPage(nextPage)}
                 onError={(pdfError: unknown) => {
                   setError(
                     pdfError && typeof pdfError === 'object' && 'message' in pdfError

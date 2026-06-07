@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
+import { TabPreferencesCard } from '@/components/settings/tab-preferences-card';
 import { THEME_OPTIONS, type ThemePreference } from '@/constants/theme';
 import { BatteryCharging } from 'lucide-react-native';
 import { View } from 'react-native';
@@ -61,6 +62,8 @@ export function AppearanceSection({
           </Button>
         </View>
       </Card>
+
+      <TabPreferencesCard />
     </>
   );
 }

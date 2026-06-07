@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
+import { MarkdownText } from '@/components/ui/markdown-text';
 import { RssService } from '@/services/rss/rss.service';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { format } from 'date-fns';
@@ -63,9 +64,7 @@ export default function NewsDetailScreen() {
           <Icon as={Newspaper} className="text-primary size-5" />
           <Text variant="large">Offline copy</Text>
         </View>
-        <Text selectable className="leading-6">
-          {body}
-        </Text>
+        <MarkdownText>{body}</MarkdownText>
       </Card>
 
       {item.url ? (

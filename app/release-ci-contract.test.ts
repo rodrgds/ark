@@ -12,8 +12,18 @@ describe('release CI contracts', () => {
     expect(pkg.scripts.lint).toContain('eslint .');
     expect(pkg.scripts.check).toContain('bun run typecheck');
     expect(pkg.scripts.check).toContain('bun run lint');
-    expect(pkg.scripts.check).toContain('bun test');
+    expect(pkg.scripts.check).toContain('bun run test');
+    expect(pkg.scripts.test).toContain('bun test');
+    expect(pkg.scripts.test).toContain('tab-preferences-card.rntl.tsx');
     expect(pkg.scripts['android:build:dev']).toContain('assembleDebug');
+  });
+
+  test('pre-commit runs the same local checks as release gates', () => {
+    const hookPath = join(process.cwd(), '.githooks/pre-commit');
+    expect(existsSync(hookPath)).toBe(true);
+
+    const hook = readFileSync(hookPath, 'utf8');
+    expect(hook).toContain('bun run check');
   });
 
   test('GitHub Actions runs install, checks, tests, and an Android debug build', () => {
@@ -24,7 +34,7 @@ describe('release CI contracts', () => {
     expect(workflow).toContain('bun install --frozen-lockfile');
     expect(workflow).toContain('bun run typecheck');
     expect(workflow).toContain('bun run lint');
-    expect(workflow).toContain('bun test');
+    expect(workflow).toContain('bun run test');
     expect(workflow).toContain('bun run android:build:dev');
     expect(workflow).toContain('actions/upload-artifact@v4');
     expect(workflow).toContain('android/app/build/outputs/apk/debug/*.apk');

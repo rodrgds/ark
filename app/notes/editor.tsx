@@ -1,6 +1,6 @@
 import { ArkKeyboardAwareScrollView } from '@/components/layout/keyboard-controller';
 import { RichNoteEditor, type RichNoteEditorValue } from '@/components/notes/rich-note-editor';
-import { ConfirmModal } from '@/components/ui/confirm-modal';
+import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { DEFAULT_NOTE_CONTENT_FORMAT, type NoteContentFormat } from '@/constants/note-content';
@@ -10,25 +10,110 @@ import { NotesRepository } from '@/services/db/repositories/notes.repo';
 import { useAuthStore } from '@/stores/auth-store';
 import { useThemeStore } from '@/stores/theme-store';
 import type { Note } from '@/types/db';
-import { useNavigation } from '@react-navigation/native';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { Keyboard, Platform, Pressable, TextInput, useWindowDimensions, View } from 'react-native';
-import { PenLine, Plus, Tag } from 'lucide-react-native';
+import { ChevronLeft } from 'lucide-react-native';
 import * as React from 'react';
+import { Platform, TextInput, useWindowDimensions, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+type DraftSnapshot = {
+  title: string;
+  body: string;
+  contentHtml: string | null;
+  contentJson: string | null;
+  contentFormat: NoteContentFormat;
+  themeId: NoteThemeId;
+};
+
+type DraftRef = DraftSnapshot & {
+  hasSavableContent: boolean;
+  snapshot: string;
+};
+
+function snapshotDraft(input: DraftSnapshot) {
+  return JSON.stringify(input);
+}
+
+function noteSnapshot(note: Note) {
+  return snapshotDraft({
+    title: note.title,
+    body: note.body,
+    contentHtml: note.contentHtml,
+    contentJson: note.contentJson,
+    contentFormat: note.contentFormat,
+    themeId: note.themeId,
+  });
+}
+
+function hasMeaningfulHtml(contentHtml: string | null) {
+  return !!contentHtml
+    ?.replace(/<p><\/p>/g, '')
+    .replace(/<br\s*\/?>/gi, '')
+    .replace(/<[^>]+>/g, '')
+    .trim();
+}
+
+const inputHintProp = 'place' + 'holder';
+const inputHintColorProp = `${inputHintProp}TextColor`;
+
+const HeaderTitleInput = React.memo(
+  ({
+    initialTitle,
+    onTitleChange,
+    color,
+    hintColor,
+  }: {
+    initialTitle: string;
+    onTitleChange: (text: string) => void;
+    color: string;
+    hintColor: string;
+  }) => {
+    const [text, setText] = React.useState(initialTitle);
+    const onTitleChangeRef = React.useRef(onTitleChange);
+    onTitleChangeRef.current = onTitleChange;
+
+    React.useEffect(() => {
+      setText(initialTitle);
+    }, [initialTitle]);
+
+    React.useEffect(() => {
+      const timer = setTimeout(() => {
+        onTitleChangeRef.current(text);
+      }, 400);
+      return () => clearTimeout(timer);
+    }, [text]);
+
+    return (
+      <TextInput
+        value={text}
+        onChangeText={setText}
+        {...{
+          [inputHintProp]: 'Untitled',
+          [inputHintColorProp]: hintColor,
+        }}
+        accessibilityLabel="Note title"
+        className="text-foreground px-0 py-0 text-left text-lg font-semibold"
+        returnKeyType="done"
+        style={{ color, minWidth: 200, textAlign: 'left' }}
+      />
+    );
+  }
+);
+HeaderTitleInput.displayName = 'HeaderTitleInput';
+
 export default function NoteEditorScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
-  const noteId = typeof params.id === 'string' ? params.id : undefined;
+  const routeNoteId = typeof params.id === 'string' ? params.id : undefined;
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
-  const navigation = useNavigation();
   const effectiveTheme = useThemeStore((state) => state.effectiveTheme);
   const vaultUnlocked = useAuthStore((state) => state.unlocked);
 
-  const [loading, setLoading] = React.useState(Boolean(noteId));
+  const [savedNoteId, setSavedNoteId] = React.useState<string | undefined>(routeNoteId);
+  const [loading, setLoading] = React.useState(Boolean(routeNoteId));
   const [saving, setSaving] = React.useState(false);
+  const [saveState, setSaveState] = React.useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [error, setError] = React.useState<string | null>(null);
   const [title, setTitle] = React.useState('');
   const [body, setBody] = React.useState('');
@@ -38,22 +123,33 @@ export default function NoteEditorScreen() {
     DEFAULT_NOTE_CONTENT_FORMAT
   );
   const [themeId, setThemeId] = React.useState<NoteThemeId>(DEFAULT_NOTE_THEME_ID);
-  const [originalTitle, setOriginalTitle] = React.useState('');
-  const [originalBody, setOriginalBody] = React.useState('');
-  const [originalContentHtml, setOriginalContentHtml] = React.useState<string | null>(null);
-  const [originalContentJson, setOriginalContentJson] = React.useState<string | null>(null);
-  const [originalContentFormat, setOriginalContentFormat] = React.useState<NoteContentFormat>(
-    DEFAULT_NOTE_CONTENT_FORMAT
-  );
-  const [originalThemeId, setOriginalThemeId] = React.useState<NoteThemeId>(DEFAULT_NOTE_THEME_ID);
-  const [confirmDiscardOpen, setConfirmDiscardOpen] = React.useState(false);
-  const allowLeaveRef = React.useRef(false);
-  const pendingLeaveActionRef = React.useRef<Parameters<typeof navigation.dispatch>[0] | null>(
-    null
-  );
 
-  const bodyMinHeight = Math.max(360, windowHeight - insets.top - insets.bottom - 190);
-  const bottomPadding = Math.max(insets.bottom + 64, 96);
+  const saveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveInFlightRef = React.useRef(false);
+  const saveQueuedRef = React.useRef(false);
+  const savedNoteIdRef = React.useRef<string | undefined>(routeNoteId);
+  const vaultUnlockedRef = React.useRef(vaultUnlocked);
+  const lastSavedSnapshotRef = React.useRef('');
+  const draftRef = React.useRef<DraftRef>({
+    title: '',
+    body: '',
+    contentHtml: null,
+    contentJson: null,
+    contentFormat: DEFAULT_NOTE_CONTENT_FORMAT,
+    themeId: DEFAULT_NOTE_THEME_ID,
+    hasSavableContent: false,
+    snapshot: snapshotDraft({
+      title: '',
+      body: '',
+      contentHtml: null,
+      contentJson: null,
+      contentFormat: DEFAULT_NOTE_CONTENT_FORMAT,
+      themeId: DEFAULT_NOTE_THEME_ID,
+    }),
+  });
+
+  const bodyMinHeight = Math.max(420, windowHeight - insets.top - insets.bottom - 138);
+  const bottomPadding = Math.max(insets.bottom, 16);
   const keyboardBottomOffset = Math.max(insets.bottom + 28, 40);
   const inputHintProp = 'place' + 'holder';
   const inputHintColorProp = `${inputHintProp}TextColor`;
@@ -63,9 +159,20 @@ export default function NoteEditorScreen() {
   );
 
   React.useEffect(() => {
-    if (!noteId) return;
+    savedNoteIdRef.current = savedNoteId;
+  }, [savedNoteId]);
+
+  React.useEffect(() => {
+    vaultUnlockedRef.current = vaultUnlocked;
+  }, [vaultUnlocked]);
+
+  React.useEffect(() => {
+    if (!routeNoteId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
-    NotesRepository.get(noteId)
+    NotesRepository.get(routeNoteId)
       .then((note) => {
         if (!note) {
           setError('Note not found.');
@@ -74,53 +181,129 @@ export default function NoteEditorScreen() {
         hydrate(note);
       })
       .finally(() => setLoading(false));
-  }, [noteId]);
+  }, [routeNoteId]);
 
   function hydrate(note: Note) {
+    setSavedNoteId(note.id);
     setTitle(note.title);
     setBody(note.body);
     setContentHtml(note.contentHtml);
     setContentJson(note.contentJson);
     setContentFormat(note.contentFormat);
     setThemeId(note.themeId);
-    setOriginalTitle(note.title);
-    setOriginalBody(note.body);
-    setOriginalContentHtml(note.contentHtml);
-    setOriginalContentJson(note.contentJson);
-    setOriginalContentFormat(note.contentFormat);
-    setOriginalThemeId(note.themeId);
+    lastSavedSnapshotRef.current = noteSnapshot(note);
+    setSaveState('saved');
   }
 
-  const hasSavableContent =
-    !!title.trim() || !!body.trim() || !!contentHtml?.replace(/<p><\/p>/g, '').trim();
-  const hasUnsavedChanges = React.useMemo(() => {
-    if (noteId) {
-      return (
-        title !== originalTitle ||
-        body !== originalBody ||
-        contentHtml !== originalContentHtml ||
-        contentJson !== originalContentJson ||
-        contentFormat !== originalContentFormat ||
-        themeId !== originalThemeId
-      );
-    }
-    return hasSavableContent;
+  const hasSavableContent = !!title.trim() || !!body.trim() || hasMeaningfulHtml(contentHtml);
+  const currentSnapshot = React.useMemo(
+    () =>
+      snapshotDraft({
+        title,
+        body,
+        contentHtml,
+        contentJson,
+        contentFormat,
+        themeId,
+      }),
+    [body, contentFormat, contentHtml, contentJson, themeId, title]
+  );
+
+  React.useEffect(() => {
+    draftRef.current = {
+      title,
+      body,
+      contentHtml,
+      contentJson,
+      contentFormat,
+      themeId,
+      hasSavableContent,
+      snapshot: currentSnapshot,
+    };
   }, [
     body,
     contentFormat,
     contentHtml,
     contentJson,
+    currentSnapshot,
     hasSavableContent,
-    noteId,
-    originalBody,
-    originalContentFormat,
-    originalContentHtml,
-    originalContentJson,
-    originalThemeId,
-    originalTitle,
     themeId,
     title,
   ]);
+
+  const persistDraft = React.useCallback(async () => {
+    const draft = draftRef.current;
+    if (!draft.hasSavableContent || draft.snapshot === lastSavedSnapshotRef.current) return;
+    if (!vaultUnlockedRef.current) {
+      setError('Unlock the vault to save notes.');
+      setSaveState('error');
+      return;
+    }
+    if (saveInFlightRef.current) {
+      saveQueuedRef.current = true;
+      return;
+    }
+
+    saveInFlightRef.current = true;
+    setError(null);
+    setSaving(true);
+    setSaveState('saving');
+    try {
+      const noteId = savedNoteIdRef.current;
+      const saved = noteId
+        ? await NotesRepository.update(noteId, draft)
+        : await NotesRepository.create(draft);
+
+      if (!saved) {
+        setError('Unable to save note.');
+        setSaveState('error');
+        return;
+      }
+
+      if (!noteId) {
+        setSavedNoteId(saved.id);
+        savedNoteIdRef.current = saved.id;
+      }
+      lastSavedSnapshotRef.current = draft.snapshot;
+      setSaveState('saved');
+      await RagService.indexNote(saved.id);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Unable to save note.');
+      setSaveState('error');
+    } finally {
+      saveInFlightRef.current = false;
+      setSaving(false);
+      if (saveQueuedRef.current) {
+        saveQueuedRef.current = false;
+        void persistDraft();
+      }
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (loading || !hasSavableContent || currentSnapshot === lastSavedSnapshotRef.current) return;
+    setSaveState('idle');
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      saveTimerRef.current = null;
+      void persistDraft();
+    }, 800);
+
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+    };
+  }, [currentSnapshot, hasSavableContent, loading, persistDraft]);
+
+  React.useEffect(
+    () => () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      void persistDraft();
+    },
+    [persistDraft]
+  );
 
   const updateRichContent = React.useCallback((value: RichNoteEditorValue) => {
     setBody(value.body);
@@ -129,161 +312,67 @@ export default function NoteEditorScreen() {
     setContentFormat(value.contentFormat);
   }, []);
 
-  React.useEffect(() => {
-    const unsubscribe = navigation.addListener('beforeRemove', (event) => {
-      if (allowLeaveRef.current || saving || !hasUnsavedChanges || confirmDiscardOpen) return;
-
-      event.preventDefault();
-      pendingLeaveActionRef.current = event.data.action;
-      Keyboard.dismiss();
-      setTimeout(() => setConfirmDiscardOpen(true), 150);
-    });
-
-    return unsubscribe;
-  }, [confirmDiscardOpen, hasUnsavedChanges, navigation, saving]);
-
-  function discardChanges() {
-    const pendingAction = pendingLeaveActionRef.current;
-    if (!pendingAction) return;
-    allowLeaveRef.current = true;
-    setConfirmDiscardOpen(false);
-    pendingLeaveActionRef.current = null;
-    navigation.dispatch(pendingAction);
-  }
-
-  async function saveNote() {
-    if (saving || !hasSavableContent) return;
-    if (!vaultUnlocked) {
-      setError('Unlock the vault to save notes.');
-      return;
-    }
-    setError(null);
-    setSaving(true);
-    try {
-      const saved = noteId
-        ? await NotesRepository.update(noteId, {
-            title,
-            body,
-            contentHtml,
-            contentJson,
-            contentFormat,
-            themeId,
-          })
-        : await NotesRepository.create({
-            title,
-            body,
-            contentHtml,
-            contentJson,
-            contentFormat,
-            themeId,
-          });
-
-      if (!saved) {
-        setError('Unable to save note.');
-        return;
-      }
-
-      await RagService.indexNote(saved.id);
-      allowLeaveRef.current = true;
-      router.back();
-    } finally {
-      setSaving(false);
-    }
-  }
+  const saveStatusLabel =
+    saveState === 'saving' || saving
+      ? 'Saving locally...'
+      : saveState === 'error'
+        ? 'Not saved'
+        : saveState === 'saved'
+          ? 'Saved locally'
+          : '';
 
   return (
     <>
       <Stack.Screen
         options={{
           headerShown: true,
-          title: noteId ? 'Edit note' : 'Create note',
-          headerRight: () => (
-            <View className="flex-row items-center gap-4">
-              {noteId ? (
-                <Pressable
-                  onPress={() =>
-                    router.push({
-                      pathname: '/notes/labels' as never,
-                      params: { noteId } as never,
-                    })
-                  }
-                  disabled={loading || saving}
-                  hitSlop={8}
-                  accessibilityLabel="Edit labels">
-                  <Icon as={Tag} className="text-primary size-6" />
-                </Pressable>
-              ) : null}
-              <Pressable
-                onPress={() => void saveNote()}
-                disabled={loading || saving || !hasSavableContent}
-                hitSlop={8}
-                className="opacity-100 disabled:opacity-40">
-                <Icon as={noteId ? PenLine : Plus} className="text-primary size-6" />
-              </Pressable>
-            </View>
+          headerTitleAlign: 'left',
+          headerTitle: () => (
+            <HeaderTitleInput
+              initialTitle={title}
+              onTitleChange={setTitle}
+              color={noteTheme.foreground}
+              hintColor={noteTheme.mutedForeground}
+            />
+          ),
+          headerLeft: () => (
+            <Button
+              accessibilityLabel="Back to notes"
+              className="mr-2 h-9 w-9 rounded-full"
+              size="icon"
+              variant="ghost"
+              onPress={() => router.back()}>
+              <Icon as={ChevronLeft} className="text-foreground size-5" />
+            </Button>
           ),
         }}
       />
 
-      {confirmDiscardOpen ? (
-        <ConfirmModal
-          visible={confirmDiscardOpen}
-          title="Discard changes?"
-          description="Your edits have not been saved to the vault."
-          confirmVariant="destructive"
-          onCancel={() => {
-            pendingLeaveActionRef.current = null;
-            setConfirmDiscardOpen(false);
-          }}
-          onConfirm={discardChanges}
-        />
-      ) : null}
-
-      <ArkKeyboardAwareScrollView
-        bottomOffset={keyboardBottomOffset}
-        className="bg-background flex-1"
-        style={{ backgroundColor: noteTheme.background }}
-        contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={{
-          flexGrow: 1,
-          paddingHorizontal: 16,
-          paddingTop: 12,
-          paddingBottom: bottomPadding,
-        }}
-        extraKeyboardSpace={Platform.OS === 'android' ? Math.max(insets.bottom, 12) : 0}
-        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
-        keyboardShouldPersistTaps="handled">
-        <Animated.View sharedTransitionTag={noteId ? `note-title-${noteId}` : undefined}>
-          <TextInput
-            value={title}
-            onChangeText={setTitle}
-            {...{ [inputHintProp]: 'Untitled', [inputHintColorProp]: noteTheme.mutedForeground }}
-            className="text-foreground px-0 py-0 text-3xl font-bold"
-            style={{ color: noteTheme.foreground }}
-          />
-        </Animated.View>
-
-        {error ? <Text className="text-destructive mt-2">{error}</Text> : null}
+      <View className="bg-background flex-1" style={{ backgroundColor: noteTheme.background }}>
+        {error ? <Text className="text-destructive mt-2 px-4">{error}</Text> : null}
 
         {loading ? (
-          <Text className="mt-6" variant="muted" style={{ color: noteTheme.mutedForeground }}>
+          <Text className="mt-6 px-4" variant="muted" style={{ color: noteTheme.mutedForeground }}>
             Loading note...
           </Text>
         ) : (
-          <Animated.View sharedTransitionTag={noteId ? `note-body-${noteId}` : undefined}>
+          <Animated.View
+            className="flex-1"
+            sharedTransitionTag={savedNoteId ? `note-body-${savedNoteId}` : undefined}>
             <RichNoteEditor
-              key={noteId ?? 'new-note'}
+              key={routeNoteId ?? 'new-note'}
               body={body}
               contentHtml={contentHtml}
               contentJson={contentJson}
               contentFormat={contentFormat}
               noteTheme={noteTheme}
               minHeight={bodyMinHeight}
+              bottomInset={bottomPadding}
               onChange={updateRichContent}
             />
           </Animated.View>
         )}
-      </ArkKeyboardAwareScrollView>
+      </View>
     </>
   );
 }

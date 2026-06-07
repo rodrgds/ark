@@ -30,6 +30,7 @@ export type RichNoteEditorValue = {
 type RichNoteEditorProps = RichNoteEditorValue & {
   noteTheme: NoteThemeVariant;
   minHeight: number;
+  bottomInset?: number;
   onChange: (value: RichNoteEditorValue) => void;
 };
 
@@ -93,7 +94,7 @@ function isEmptyEditorPayload(body: string, html: string) {
   return !body.trim() && (!html.trim() || html.trim() === '<p></p>');
 }
 
-function getEditorCss(noteTheme: NoteThemeVariant, minHeight: number) {
+function getEditorCss(noteTheme: NoteThemeVariant, minHeight: number, bottomInset: number) {
   return `
     html, body {
       background: ${noteTheme.background};
@@ -113,9 +114,10 @@ function getEditorCss(noteTheme: NoteThemeVariant, minHeight: number) {
       caret-color: ${noteTheme.foreground};
       min-height: ${Math.max(180, minHeight - 72)}px;
       outline: none;
-      padding: 0;
+      padding: 0 0 16px;
       font-size: 16px;
       line-height: 1.65;
+      box-sizing: border-box;
     }
     .ProseMirror * {
       color: inherit;
@@ -232,6 +234,7 @@ export function RichNoteEditor({
   contentFormat,
   noteTheme,
   minHeight,
+  bottomInset = 112,
   onChange,
 }: RichNoteEditorProps) {
   const latestValueRef = React.useRef<RichNoteEditorValue>({
@@ -263,7 +266,10 @@ export function RichNoteEditor({
     }),
     [noteTheme.background]
   );
-  const editorCss = React.useMemo(() => getEditorCss(noteTheme, minHeight), [minHeight, noteTheme]);
+  const editorCss = React.useMemo(
+    () => getEditorCss(noteTheme, minHeight, bottomInset),
+    [bottomInset, minHeight, noteTheme]
+  );
   const bridgeExtensions = React.useMemo(
     () => [
       ...TenTapStartKit,
@@ -338,7 +344,7 @@ export function RichNoteEditor({
 
   const editor = useEditorBridge({
     autofocus: false,
-    avoidIosKeyboard: true,
+    avoidIosKeyboard: false,
     bridgeExtensions,
     dynamicHeight: false,
     initialContent,
@@ -420,43 +426,55 @@ export function RichNoteEditor({
 
   return (
     <View
-      className="mt-4 flex-1"
+      className="flex-1"
       style={{
         backgroundColor: noteTheme.background,
-        minHeight,
       }}>
-      <ScrollView
-        horizontal
-        keyboardShouldPersistTaps="handled"
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.toolbarContent}
-        style={[styles.toolbar, { borderBottomColor: noteTheme.border }]}>
-        {actions.map((action) => (
-          <ToolbarButton key={action.id} action={action} noteTheme={noteTheme} />
-        ))}
-      </ScrollView>
-
-      <View className="flex-1 py-4" style={{ minHeight: Math.max(180, minHeight - 52) }}>
-        <RichText
-          editor={editor}
-          style={{ backgroundColor: noteTheme.background }}
-          containerStyle={{
+      <View
+        style={[
+          styles.toolbar,
+          {
             backgroundColor: noteTheme.background,
-            minHeight: Math.max(180, minHeight - 84),
-          }}
-        />
+            borderBottomColor: noteTheme.border,
+          },
+        ]}>
+        <ScrollView
+          horizontal
+          keyboardShouldPersistTaps="always"
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.toolbarContent}>
+          {actions.map((action) => (
+            <ToolbarButton key={action.id} action={action} noteTheme={noteTheme} />
+          ))}
+        </ScrollView>
       </View>
+
+      <RichText
+        editor={editor}
+        style={{
+          backgroundColor: noteTheme.background,
+          flex: 1,
+        }}
+        containerStyle={{
+          backgroundColor: noteTheme.background,
+          flex: 1,
+          marginTop: 16,
+          paddingHorizontal: 16,
+        }}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   toolbar: {
+    height: 60,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   toolbarContent: {
+    flexGrow: 1,
+    alignItems: 'center',
     gap: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingHorizontal: 16,
   },
 });

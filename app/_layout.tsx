@@ -95,38 +95,56 @@ export default function RootLayout() {
     <GestureHandlerRootView className="bg-background flex-1">
       <SafeAreaProvider>
         <ArkKeyboardProvider>
-          <ThemeProvider value={NAV_THEME[effectiveTheme]}>
-            <BottomSheetProvider>
-              <SheetAlertProvider>
-                <StatusBar style={effectiveTheme === 'light' ? 'dark' : 'light'} />
-                <Stack
-                  screenOptions={{
-                    headerStyle: { backgroundColor: NAV_THEME[effectiveTheme].colors.background },
-                    headerTintColor: NAV_THEME[effectiveTheme].colors.text,
-                    contentStyle: { backgroundColor: NAV_THEME[effectiveTheme].colors.background },
-                  }}>
-                  <Stack.Screen name="index" options={{ headerShown: false }} />
-                  <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-                  <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                  <Stack.Screen name="tools" options={{ headerShown: false }} />
-                  <Stack.Screen name="content" options={{ headerShown: false }} />
-                  <Stack.Screen name="documents" options={{ headerShown: false }} />
-                  <Stack.Screen name="library" options={{ headerShown: false }} />
-                  <Stack.Screen name="easter-egg" options={{ headerShown: false }} />
-                  <Stack.Screen name="notes" options={{ headerShown: false }} />
-                </Stack>
-                {error ? (
-                  <View className="bg-destructive p-3">
-                    <Text className="text-white">{error}</Text>
-                  </View>
-                ) : null}
-                <PortalHost />
-              </SheetAlertProvider>
-            </BottomSheetProvider>
-          </ThemeProvider>
+          <ThemedNavigator effectiveTheme={effectiveTheme} error={error} />
         </ArkKeyboardProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
+  );
+}
+
+function ThemedNavigator({
+  effectiveTheme,
+  error,
+}: {
+  effectiveTheme: 'oled' | 'dark' | 'light';
+  error: string | null;
+}) {
+  const themeColors = React.useMemo(
+    () => NAV_THEME[effectiveTheme].colors,
+    [effectiveTheme]
+  );
+
+  return (
+    <ThemeProvider value={NAV_THEME[effectiveTheme]}>
+      <BottomSheetProvider>
+        <SheetAlertProvider>
+          <StatusBar style={effectiveTheme === 'light' ? 'dark' : 'light'} />
+          <Stack
+            screenOptions={{
+              headerStyle: { backgroundColor: themeColors.background },
+              headerTintColor: themeColors.text,
+              contentStyle: { backgroundColor: themeColors.background },
+            }}>
+            <Stack.Screen name="index" options={{ headerShown: false }} />
+            <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="chat" options={{ headerShown: false }} />
+            <Stack.Screen name="tools" options={{ headerShown: false }} />
+            <Stack.Screen name="content" options={{ headerShown: false }} />
+            <Stack.Screen name="documents" options={{ headerShown: false }} />
+            <Stack.Screen name="library" options={{ headerShown: false }} />
+            <Stack.Screen name="easter-egg" options={{ headerShown: false }} />
+            <Stack.Screen name="notes" options={{ headerShown: false }} />
+          </Stack>
+          {error ? (
+            <View className="bg-destructive p-3">
+              <Text className="text-white">{error}</Text>
+            </View>
+          ) : null}
+          <PortalHost />
+        </SheetAlertProvider>
+      </BottomSheetProvider>
+    </ThemeProvider>
   );
 }
 

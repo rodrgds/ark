@@ -9,8 +9,12 @@ type HostProps = Record<string, unknown> & {
 };
 
 const iconNames = [
-  'Bot',
+  'BookHeart',
+  'BookMarked',
   'BookOpen',
+  'Bot',
+  'Check',
+  'ChevronLeft',
   'CheckSquare',
   'Clock',
   'Compass',
@@ -203,5 +207,30 @@ export function installCommonRntlMocks(mockApi: MockApi) {
 
   mockApi.module('react-native-worklets', () => ({
     scheduleOnRN: (callback: (...args: unknown[]) => void, ...args: unknown[]) => callback(...args),
+  }));
+
+  mockApi.module('expo-router', () => ({
+    router: {
+      back: () => undefined,
+      push: () => undefined,
+      replace: () => undefined,
+    },
+    useLocalSearchParams: () => ({}),
+    useGlobalSearchParams: () => ({}),
+    useSegments: () => [],
+    usePathname: () => '/',
+    useRouter: () => ({
+      back: () => undefined,
+      push: () => undefined,
+      replace: () => undefined,
+    }),
+    Link: Host('Link'),
+    Stack: {
+      Screen: () => null,
+    },
+    Tabs: {
+      Screen: () => null,
+    },
+    Redirect: () => null,
   }));
 }

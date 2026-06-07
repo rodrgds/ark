@@ -31,6 +31,16 @@ const updateNote = mock(async (_id: string, _input: unknown) => createdNote);
 const indexNote = mock(async (_id: string) => undefined);
 
 mock.module('expo-router', () => ({
+  router: {
+    back: () => undefined,
+    push: () => undefined,
+    replace: () => undefined,
+  },
+  useRouter: () => ({
+    back: () => undefined,
+    push: () => undefined,
+    replace: () => undefined,
+  }),
   Stack: {
     Screen: ({
       options,
@@ -40,7 +50,11 @@ mock.module('expo-router', () => ({
       };
     }) => <>{options?.headerTitle?.()}</>,
   },
+  Tabs: {
+    Screen: () => null,
+  },
   useLocalSearchParams: () => ({}),
+  Link: ({ children }: React.PropsWithChildren) => children,
 }));
 
 mock.module('react-native-safe-area-context', () => ({

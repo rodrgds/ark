@@ -328,12 +328,21 @@ export default function NoteEditorScreen() {
           headerShown: true,
           headerTitleAlign: 'left',
           headerTitle: () => (
-            <HeaderTitleInput
-              initialTitle={title}
-              onTitleChange={setTitle}
-              color={noteTheme.foreground}
-              hintColor={noteTheme.mutedForeground}
-            />
+            <View>
+              <HeaderTitleInput
+                initialTitle={title}
+                onTitleChange={setTitle}
+                color={noteTheme.foreground}
+                hintColor={noteTheme.mutedForeground}
+              />
+              {saveStatusLabel ? (
+                <Text
+                  className="text-muted-foreground -mt-1 text-[10px]"
+                  style={{ color: noteTheme.mutedForeground }}>
+                  {saveStatusLabel}
+                </Text>
+              ) : null}
+            </View>
           ),
           headerLeft: () => (
             <Button

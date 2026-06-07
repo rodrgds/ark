@@ -61,7 +61,7 @@ describe('ChatIndexScreen', () => {
     expect(view.getByText('3 messages')).toBeTruthy();
 
     await fireEvent.press(view.getByText('Storm plan'));
-    expect(routerPush).toHaveBeenCalledWith('/(tabs)/chat/thread-1');
+    expect(routerPush).toHaveBeenCalledWith('/chat/thread-1');
 
     await fireEvent(view.getByText('Storm plan'), 'longPress');
     await fireEvent.press(await view.findByText('Delete'));

@@ -36,6 +36,9 @@ describe('TabPreferencesCard', () => {
 
     await fireEvent.press(mapToggle);
 
+    const applyButton = await view.findByText('Apply Changes');
+    await fireEvent.press(applyButton);
+
     await waitFor(() => {
       expect(settingsSet).toHaveBeenCalledWith('tabs.enabled', expect.any(String));
     });

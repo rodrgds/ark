@@ -40,3 +40,17 @@ describe('sensor calculations', () => {
     expect(uprightLandscape.tubeAxis).toBe('landscape');
   });
 });
+
+describe('CompassService subscription management', () => {
+  test('exposes a startReading factory', async () => {
+    const { CompassService } = await import('@/services/sensors/compass.service');
+    expect(typeof CompassService.startReading).toBe('function');
+  });
+
+  test('startReading returns a function', async () => {
+    const { CompassService } = await import('@/services/sensors/compass.service');
+    const stop = CompassService.startReading(() => undefined);
+    expect(typeof stop).toBe('function');
+    stop?.();
+  });
+});

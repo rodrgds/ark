@@ -25,6 +25,33 @@ export function calculateCompassReading(input: {
   };
 }
 
+type Listener = (reading: CompassReading) => void;
+
+const listeners = new Set<Listener>();
+let nativeSubscription: { remove: () => void } | null = null;
+let lastReduceMode: boolean | undefined;
+
+function ensureNativeSubscription(reduceModeEnabled: boolean | undefined) {
+  if (nativeSubscription && reduceModeEnabled === lastReduceMode) return;
+  if (nativeSubscription) {
+    nativeSubscription.remove();
+    nativeSubscription = null;
+  }
+  Magnetometer.setUpdateInterval(reducedInterval('compass', reduceModeEnabled));
+  nativeSubscription = Magnetometer.addListener((reading) => {
+    const payload = calculateCompassReading(reading);
+    for (const listener of listeners) listener(payload);
+  });
+  lastReduceMode = reduceModeEnabled;
+}
+
+function dropNativeSubscriptionIfIdle() {
+  if (listeners.size > 0) return;
+  nativeSubscription?.remove();
+  nativeSubscription = null;
+  lastReduceMode = undefined;
+}
+
 export class CompassService {
   static async isAvailable() {
     return Magnetometer.isAvailableAsync().catch(() => false);
@@ -35,11 +62,15 @@ export class CompassService {
   }
 
   static startReading(listener: (reading: CompassReading) => void, options?: SensorStartOptions) {
-    Magnetometer.setUpdateInterval(reducedInterval('compass', options?.reduceModeEnabled));
-    const subscription = Magnetometer.addListener((reading) =>
-      listener(calculateCompassReading(reading))
-    );
-    return () => subscription.remove();
+    ensureNativeSubscription(options?.reduceModeEnabled);
+    listeners.add(listener);
+    let active = true;
+    return () => {
+      if (!active) return;
+      active = false;
+      listeners.delete(listener);
+      dropNativeSubscriptionIfIdle();
+    };
   }
 
   static cardinal(heading: number) {

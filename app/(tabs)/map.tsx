@@ -22,6 +22,8 @@ import { OfflineMapService } from '@/services/maps/offline-map.service';
 import { isPresetDownloaded } from '@/services/maps/map-region-utils';
 import { useThemeStore } from '@/stores/theme-store';
 import { useSensorStore } from '@/stores/sensor-store';
+import { CompassService } from '@/services/sensors/compass.service';
+import { useBatteryReduceMode } from '@/hooks/use-battery-reduce-mode';
 import type { MapMarker, MapRegion, OfflineMapSearchResult, SavedRoute } from '@/types/maps';
 import type { LocationObject } from 'expo-location';
 import { useNetInfo } from '@react-native-community/netinfo';
@@ -338,6 +340,24 @@ export default function MapScreen() {
     React.useCallback(() => {
       void load({ syncNative: true });
     }, [])
+  );
+
+  const reduceModeEnabled = useBatteryReduceMode();
+  const setStoreHeading = useSensorStore((state) => state.setHeading);
+  useFocusEffect(
+    React.useCallback(() => {
+      let stop: (() => void) | undefined;
+      let active = true;
+      CompassService.isAvailable().then((ok) => {
+        if (!active || !ok) return;
+        stop = CompassService.start(setStoreHeading, { reduceModeEnabled });
+      });
+      return () => {
+        active = false;
+        stop?.();
+        setStoreHeading(null);
+      };
+    }, [reduceModeEnabled, setStoreHeading])
   );
 
   React.useEffect(() => {

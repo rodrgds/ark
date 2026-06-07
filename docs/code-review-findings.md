@@ -137,9 +137,9 @@
 
 1. **Boot is not transactional.** Fixing the boot orchestrator + idempotent seeding resolves ~8 HIGH items.
 2. **Repository contracts drift.** Several repos have `list()` that seeds, `create()` that doesn't gate, transactions that aren't atomic. Add a repo lint rule: writes transactional, reads don't seed.
-3. **No rate limit / no lockout** in any auth path.
+3. ~~**No rate limit / no lockout** in any auth path.~~ **DONE — vault unlock now applies failed-attempt counter + exponential backoff (migration 18).**
 4. **Theme system bypassed.** Input reads outside React subscription; brand colors hardcoded; theme flicker on boot.
-5. **Dead/unused code:** `MapRegionManifestService`, `ArkError`, `empty-state` imports, `sensor-store` in tools, plus 8 unused npm packages.
-6. **Big-screen refactor needed:** `map.tsx` (2529), `settings.tsx` (1962), `chat/[threadId].tsx` (1562), `rag.service.ts` (1089).
-7. **AGENTS.md drift is the #1 source of confusion.** Add `scripts/check-docs-drift.ts`.
+5. **Dead/unused code:** `MapRegionManifestService` (doesn't exist), `ArkError` (deleted), `empty-state` imports, `sensor-store` in tools (now wired via map + compass), plus 8 unused npm packages.
+6. **Big-screen refactor needed:** `map.tsx` (2529), `chat/[threadId].tsx` (1529 now), `rag.service.ts` (~1100). `settings.tsx` is done.
+7. ~~**AGENTS.md drift is the #1 source of confusion.** Add `scripts/check-docs-drift.ts`.~~ **DONE — `scripts/check-docs-drift.mjs` verifies 8 counts (onboarding, stores, services, lib, UI, db version, tables, FTS) and exits non-zero on drift. Wired as `bun run check:docs`.**
 8. **Test gap:** 196 service/repo tests, zero render tests, no iOS CI, no Detox.

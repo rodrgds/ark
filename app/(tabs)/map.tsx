@@ -1733,27 +1733,11 @@ function TopMapControls({
           <Card className="gap-1 p-2">
             {offlineResults.length ? (
               offlineResults.map((result) => (
-                <Button
+                <OfflineSearchResultRow
                   key={`${result.kind}:${result.id}`}
-                  className="h-auto min-h-14 items-start justify-start px-2 py-2"
-                  variant="ghost"
-                  onPress={() => onOpenResult(result)}>
-                  <Icon
-                    as={iconForSearchResult(result.kind)}
-                    className="text-primary mt-0.5 size-4"
-                  />
-                  <View className="min-w-0 flex-1 items-start gap-1">
-                    <Text className="text-sm leading-5" numberOfLines={1}>
-                      {result.title}
-                    </Text>
-                    <Text
-                      variant="small"
-                      className="text-muted-foreground leading-4"
-                      numberOfLines={2}>
-                      {labelForSearchResult(result.kind)} · {result.subtitle}
-                    </Text>
-                  </View>
-                </Button>
+                  result={result}
+                  onOpen={() => onOpenResult(result)}
+                />
               ))
             ) : (
               <Text variant="muted" className="px-2 py-1">
@@ -1891,6 +1875,37 @@ function SavedRow({
     </Card>
   );
 }
+
+const OfflineSearchResultRow = React.memo(function OfflineSearchResultRow({
+  result,
+  onOpen,
+}: {
+  result: OfflineMapSearchResult;
+  onOpen: () => void;
+}) {
+  return (
+    <Button
+      className="h-auto min-h-14 items-start justify-start px-2 py-2"
+      variant="ghost"
+      onPress={onOpen}>
+      <Icon
+        as={iconForSearchResult(result.kind)}
+        className="text-primary mt-0.5 size-4"
+      />
+      <View className="min-w-0 flex-1 items-start gap-1">
+        <Text className="text-sm leading-5" numberOfLines={1}>
+          {result.title}
+        </Text>
+        <Text
+          variant="small"
+          className="text-muted-foreground leading-4"
+          numberOfLines={2}>
+          {labelForSearchResult(result.kind)} · {result.subtitle}
+        </Text>
+      </View>
+    </Button>
+  );
+});
 
 function PinTypeSelector({
   emergency,

@@ -88,7 +88,7 @@
 - [ ] **`app/(tabs)/map.tsx:322-340`** — Inline `Pressable` factory re-mounts markers on every render. *Fix: extract memoized `MapPin` component.*
 - [ ] **`app/(tabs)/map.tsx:1747-1811`** — Stale geocoding promise resolves after coordinate change, overwriting user selection. *Fix: AbortController per search, discard on stale.*
 - [ ] **`app/(tabs)/map.tsx:1609-1624`** — User-location heading arrow dead; map never subscribes to magnetometer. *Fix: read `sensorStore.heading` in MapView onUpdate.*
-- [ ] **`src/services/maps/geocode.service.ts:fallback`** — Hits Nominatim even when offline. *Fix: gate on connectivity.*
+- [x] **`src/services/maps/geocode.service.ts:fallback`** — Hits Nominatim even when offline. *Fix: gate on connectivity.* **DONE — `GeocodingService.search` and `reverseGeocode` now call a private `isOnline()` helper (wraps `NetworkService.getState()` + `isOnline`) before fetching. When offline, search returns cached results and reverse returns the 'this area' fallback. (Note: the actual service is Photon, not Nominatim, and lives at `src/services/maps/geocoding.service.ts`. The audit reference was stale.)**
 - [ ] **`src/services/maps/services/offlineMaps.service.ts:createPack`** — Drawn bounds not persisted. *Fix: serialize `bbox` to `map_packs` table.*
 
 ### Content

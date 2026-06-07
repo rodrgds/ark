@@ -1,4 +1,5 @@
 import { useBatteryReduceMode } from '@/hooks/use-battery-reduce-mode';
+import { circularSpreadDeg } from '@/lib/compass-stability';
 import * as React from 'react';
 
 type SensorService<T> = {
@@ -41,4 +42,40 @@ export function useSensorSubscription<T>(
   }, [reduceModeEnabled, service, storeSetter]);
 
   return { available, value };
+}
+
+type StabilitySample = { heading: number; t: number };
+
+export function useHeadingStability(
+  heading: number | null,
+  options: { windowMs?: number; thresholdDeg?: number; minSamples?: number } = {}
+): { stable: boolean | null; spreadDeg: number | null } {
+  const { windowMs = 6_000, thresholdDeg = 30, minSamples = 12 } = options;
+  const samplesRef = React.useRef<StabilitySample[]>([]);
+  const [stable, setStable] = React.useState<boolean | null>(null);
+  const [spreadDeg, setSpreadDeg] = React.useState<number | null>(null);
+
+  React.useEffect(() => {
+    if (heading === null) {
+      samplesRef.current = [];
+      setStable(null);
+      setSpreadDeg(null);
+      return;
+    }
+    const now = Date.now();
+    const next = samplesRef.current.filter((sample) => now - sample.t <= windowMs);
+    next.push({ heading, t: now });
+    samplesRef.current = next;
+
+    if (next.length < minSamples) {
+      setStable(null);
+      return;
+    }
+
+    const spread = circularSpreadDeg(next.map((sample) => sample.heading));
+    setSpreadDeg(spread);
+    setStable(spread <= thresholdDeg);
+  }, [heading, minSamples, thresholdDeg, windowMs]);
+
+  return { stable, spreadDeg };
 }

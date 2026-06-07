@@ -59,4 +59,9 @@ describe('NetworkService', () => {
       false
     );
   });
+
+  test('subscribeDebounced is a public API', async () => {
+    const { NetworkService } = await import('@/services/connectivity/network.service');
+    expect(typeof NetworkService.subscribeDebounced).toBe('function');
+  });
 });

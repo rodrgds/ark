@@ -23,7 +23,7 @@ export function LockStateBar() {
     void NetworkService.getState().then((state) => {
       setIsOnline(NetworkService.isOnline(state));
     });
-    return NetworkService.subscribe((state) => {
+    return NetworkService.subscribeDebounced((state) => {
       setIsOnline(NetworkService.isOnline(state));
     });
   }, []);

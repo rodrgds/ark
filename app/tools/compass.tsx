@@ -6,6 +6,7 @@ import { getMapPinMeta } from '@/constants/map-pins';
 import { NAV_COLORS } from '@/constants/theme';
 import { useBatteryReduceMode } from '@/hooks/use-battery-reduce-mode';
 import { useMotionEnabled } from '@/hooks/use-motion-enabled';
+import { useHeadingStability } from '@/hooks/use-sensor-subscription';
 import { hexToRgba } from '@/lib/colors';
 import { haversineMeters, toRadians } from '@/lib/geo';
 import { MapLocationService } from '@/services/maps/map-location.service';
@@ -357,6 +358,12 @@ export default function CompassTool() {
   const [locationBusy, setLocationBusy] = React.useState(false);
   const [locationMessage, setLocationMessage] = React.useState<string | null>(null);
 
+  const { stable: headingStable } = useHeadingStability(heading, {
+    windowMs: 6_000,
+    thresholdDeg: 25,
+    minSamples: 16,
+  });
+
   const loadMarkers = React.useCallback(async () => {
     const nextMarkers = await OfflineMapService.listMarkers();
     setMarkers(nextMarkers);
@@ -555,7 +562,9 @@ export default function CompassTool() {
         <Text style={[styles.hint, { color: palette.mutedForeground }]}>
           {available === false
             ? 'Magnetometer is not available on this device.'
-            : 'Move in a figure-eight pattern if readings drift.'}
+            : headingStable === false
+              ? 'Readings look noisy. Move the phone in a slow figure-eight to recalibrate.'
+              : 'Move in a figure-eight pattern if readings drift.'}
         </Text>
       </ScrollView>
 

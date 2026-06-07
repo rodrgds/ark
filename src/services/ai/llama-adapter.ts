@@ -16,6 +16,8 @@ let modelPromiseKey: string | null = null;
 let activeAbortController: AbortController | null = null;
 let activeModel: LlamaLanguageModel | null = null;
 
+const COMPLETION_TIMEOUT_MS = 60_000;
+
 export function resetLlamaAdapterForTests() {
   llamaModulePromise = null;
   modelPromise = null;
@@ -58,6 +60,10 @@ export class LlamaAdapter {
     let channelReasoning = '';
     let sdkReasoning = '';
 
+    const timeoutHandle = setTimeout(() => {
+      abortController.abort(new Error('Local model completion timed out.'));
+    }, COMPLETION_TIMEOUT_MS);
+
     try {
       const result = streamText({
         model,
@@ -98,7 +104,12 @@ export class LlamaAdapter {
         const nextReasoning = joinReasoning(sdkReasoning, channelReasoning);
         if (part.type === 'text-delta' && nextReasoning) input.onReasoning?.(nextReasoning);
       }
+    } catch (error) {
+      const reason = abortController.signal.reason;
+      const message = reason instanceof Error ? reason.message : 'Local model completion failed.';
+      throw new Error(message, { cause: error });
     } finally {
+      clearTimeout(timeoutHandle);
       if (activeAbortController === abortController) activeAbortController = null;
       if (activeModel === model) activeModel = null;
     }

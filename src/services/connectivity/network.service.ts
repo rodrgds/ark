@@ -1,5 +1,7 @@
 import NetInfo, { type NetInfoState } from '@react-native-community/netinfo';
 
+const STATE_DEBOUNCE_MS = 5_000;
+
 export class NetworkService {
   static async getState() {
     return NetInfo.fetch();
@@ -7,6 +9,23 @@ export class NetworkService {
 
   static subscribe(listener: (state: NetInfoState) => void) {
     return NetInfo.addEventListener(listener);
+  }
+
+  static subscribeDebounced(
+    listener: (state: NetInfoState) => void,
+    debounceMs: number = STATE_DEBOUNCE_MS
+  ) {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let latestState: NetInfoState | null = null;
+    const flush = () => {
+      timer = null;
+      if (latestState) listener(latestState);
+    };
+    return NetInfo.addEventListener((state) => {
+      latestState = state;
+      if (timer) return;
+      timer = setTimeout(flush, debounceMs);
+    });
   }
 
   static isOnline(state: NetInfoState | null) {

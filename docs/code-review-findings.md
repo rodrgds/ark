@@ -31,11 +31,11 @@
 - [x] **`src/services/ai/embedding.service.ts:35-39` + `rag.service.ts:embeddings`** — Model swap un-awaited `delete()`; dimension mismatch leaves index referencing old model metadata. *Fix: transactional swap.* **DONE — `model-manager.service.ts:setSelectedEmbeddingModelId` now wraps `RagService.rebuildEmbeddingsForActiveModel()` in `try/catch` and reverts the preference + re-resets the runtime context on failure, so a partial rebuild can't leave the app in a model-mismatch state. The pre-existing `prepareActiveModel` rollback is preserved.**
 - [x] **`app/(tabs)/chat/[threadId].tsx:1057-1123`** — Thread switch during streaming loses the running token, post-streams into **new** thread. *Fix: cancel pending stream and flush tokens to original threadId.* **DONE — fixed as a side-effect of the AI service refactor: `activeRequests: Map<threadId, ActiveAiRequest>` means a new `sendMessage` call for the same thread (or any thread-switch) supersedes the prior in-flight request. The cancelled request's `onToken`/`onReasoning` checks the `request.cancelled` flag and short-circuits, the transaction is wrapped in `try/catch/finally` so it never commits cancelled messages, and `cancelActiveResponse(threadId)` is targeted. The screen's `sendRunIdRef` continues to guard the UI layer.**
 - [x] **`src/services/ai/ai.service.ts:198-235`** — `sendMessage` cancellation only cancels most-recent call. *Fix: per-request AbortController stored in a Map keyed by requestId.* **DONE — replaced the module-level `activeRequest: ActiveAiRequest | null` singleton with `activeRequests: Map<threadId, ActiveAiRequest>`. `sendMessage` calls `registerRequest(threadId)` which cancels any in-flight request for the same thread before installing a new one (so thread-switch mid-stream supersedes the prior request). `cancelActiveResponse(threadId?)` is now targeted: pass a `threadId` to cancel just that one, omit to cancel all. The transaction in `sendMessage` is wrapped in a `try/catch/finally` so cancellation short-circuits before the messages are committed. Chat screen's `stopResponse()` now passes the current `threadId`. 196/196 tests still pass.**
-- [ ] **`app/(tabs)/chat/[threadId].tsx:1033-1055`** — `cancelActiveResponse` not actually wired to llama/mock generation. *Fix: check `controller.signal.aborted` in token loop, rethrow AbortError.*
+- [x] **`app/(tabs)/chat/[threadId].tsx:1033-1055`** — `cancelActiveResponse` not actually wired to llama/mock generation. *Fix: check `controller.signal.aborted` in token loop, rethrow AbortError.* **DONE — `LlamaAdapter.sendMessage` now wraps the stream loop in `try/catch/finally`, propagates errors via `throw new Error(reason, { cause })`, clears the timeout, and the active AbortController in the adapter is per-request. `ai.service.ts`'s `sendMessage` already catches and re-throws. `cancelActiveResponse(threadId)` calls `llamaAdapter.cancelActiveCompletion()` which aborts the controller + calls `getContext().stopCompletion()`. Mock adapter's `sendMessage` is synchronous and cancellable via the same `request.cancelled` check inside `onToken`/`onReasoning`.**
 
 ### Maps
-- [ ] **`app/(tabs)/map.tsx:1747-1811`** — Stale geocoding promise resolves after coordinate change, overwriting user selection. *Fix: AbortController per search, discard on stale.*
-- [ ] **`app/(tabs)/map.tsx:1609-1624`** — User-location heading arrow dead; map never subscribes to magnetometer. *Fix: read `sensorStore.heading` in MapView onUpdate.*
+- [x] **`app/(tabs)/map.tsx:1747-1811`** — Stale geocoding promise resolves after coordinate change, overwriting user selection. *Fix: AbortController per search, discard on stale.* **DONE — `GeocodingService.search` and `reverseGeocode` accept an optional `AbortSignal`. `map.tsx`'s reverse-geocode effect creates a per-effect `AbortController`, passes its signal, and aborts in cleanup. The function detects `AbortError` and returns the cached fallback.**
+- [x] **`app/(tabs)/map.tsx:1609-1624`** — User-location heading arrow dead; map never subscribes to magnetometer. *Fix: read `sensorStore.heading` in MapView onUpdate.* **DONE — added a second `useFocusEffect` in `map.tsx` that subscribes to `CompassService` while the map tab is in the foreground and clears the stored heading on blur. The `UserLocationDot` already reads `useSensorStore.heading`; the store now actually has a writer on this screen.**
 - [x] **`src/services/maps/services/mapRegionManifestService.ts`** — Dead code, never imported; region manifest duplicated elsewhere. *Fix: delete file.* **(verified — file does not exist; no deletion needed)**
 
 ### Downloads / Backup
@@ -64,9 +64,9 @@
 - [x] **Brand amber `#F2B84B`** — Hardcoded in 5+ files (`map-pins.ts`, `guide-reader.service.ts`, `zim.service.ts`, `label-colors.ts`, etc.). *Fix: import from `src/lib/colors.ts`.* **DONE — added `BRAND_AMBER` export to `src/constants/map-pins.ts` and replaced the two hardcoded `'#F2B84B'` literals in that file. Other files use the brand color only via `className="text-primary"` / `bg-primary` which already routes through the theme tokens, so no other literals needed replacing. `src/lib/colors.ts` is a hex→rgba utility, not a brand-color source; the constant lives in `constants/` per the existing pattern.**
 
 ### Sensors / Tools
-- [ ] **`app/tools/pedometer.tsx:74`** — On retry, previous subscription never removed. *Fix: unsubscribe in cleanup and on retry.* **DEFERRED — pedometer lives behind `react-native-pedometer` which is itself behind a dev-build native module. The Expo Go MVP doesn't hit this code path. The fix is two lines when the dev-build is ready.**
-- [ ] **`app/tools/light.tsx`** — Missing Android `HIGH_SAMPLING_RATE_SENSORS` permission hint. *Fix: surface one-line hint.*
-- [ ] **`app/tools/compass.tsx`** — No calibration nudge. *Fix: add ±15°-tolerance to `isCalibrated`.*
+- [x] **`app/tools/pedometer.tsx:74`** — On retry, previous subscription never removed. *Fix: unsubscribe in cleanup and on retry.* **DONE — `stopRef` is now a `useRef<(() => void) | null>(null)`; the mount-effect and the `retryAfterDenied` callback both write to it, and the retry path calls `stopRef.current?.()` and nulls the ref before starting a new subscription.**
+- [x] **`app/tools/light.tsx`** — Missing Android `HIGH_SAMPLING_RATE_SENSORS` permission hint. *Fix: surface one-line hint.* **N/A — light sensor runs at 1Hz in normal mode, 0.2Hz in reduced. Android's `HIGH_SAMPLING_RATE_SENSORS` is only required above 200Hz. No hint needed at our sampling rate.**
+- [x] **`app/tools/compass.tsx`** — No calibration nudge. *Fix: add ±15°-tolerance to `isCalibrated`.** **DONE — new `useHeadingStability(heading, { windowMs, thresholdDeg, minSamples })` hook in `src/hooks/use-sensor-subscription.ts` (default 6s window, 25° threshold, 16 samples). `compass.tsx` swaps the hint copy to "Readings look noisy. Move the phone in a slow figure-eight to recalibrate." when `headingStable === false`. Pure `circularSpreadDeg` extracted to `src/lib/compass-stability.ts` (7 tests).**
 
 ### Stores
 - [ ] **`src/stores/sensor-store.ts`** — Tools screens don't use it; `sensor.service.startAll()` still runs. *Fix: either wire screens to store or stop `startAll`.*
@@ -95,7 +95,7 @@
 - [ ] **`src/services/content/guide-reader.service.ts:extractSection`** — Returns raw HTML; no pagination. *Fix: virtualize.*
 
 ### Connectivity
-- [ ] **`src/services/connectivity/connectivity.service.ts`** — NetInfo listener not throttled. *Fix: debounce 5s.*
+- [x] **`src/services/connectivity/connectivity.service.ts`** — NetInfo listener not throttled. *Fix: debounce 5s.* **DONE — `NetworkService.subscribeDebounced(listener, debounceMs=5000)` added. `app-shell.tsx` uses it for the LockStateBar online/offline pill.**
 
 ### Minor
 - [ ] **`app/onboarding/intro.tsx`** — CTA says "Get started" but doesn't link to feature pages. *Fix: link directly.*
@@ -111,9 +111,9 @@
 
 ### Constants / Lib
 - [x] **`src/lib/utils.ts` vs `src/lib/cn.ts`** — Two files re-exporting `cn()`. *Fix: keep one, delete other.* **VERIFIED — no `src/lib/cn.ts` exists; all 11 imports go to `@/lib/utils`.**
-- [ ] **`src/types/maps.ts:MapRegion` vs `src/services/maps/services/types.ts:MapRegion`** — Two `MapRegion` types. *Fix: consolidate.*
-- [ ] **`src/lib/distance.ts` + `src/lib/geo.ts`** — `haversine` duplicated. *Fix: delete one.*
-- [ ] **`src/lib/format.ts:formatBytes`** — Inconsistent with other `formatBytes`. *Fix: pick one.*
+- [x] **`src/types/maps.ts:MapRegion` vs `src/services/maps/services/types.ts:MapRegion`** — Two `MapRegion` types. *Fix: consolidate.* **DONE — manifest type renamed to `MapCatalogRegion` in `types/mapRegions.ts`. The `MapRegion` in `types/maps.ts` is the DB-row type. The `MapRegionPackFormat` was deduped (re-export from `@/types/maps`). The audit's `services/types.ts:MapRegion` no longer exists.**
+- [x] **`src/lib/distance.ts` + `src/lib/geo.ts`** — `haversine` duplicated. *Fix: delete one.* **DONE — `src/lib/geo.ts` is the canonical home. `compass.tsx`'s `distanceMeters` and `offline-map.service.ts`'s `routeSegmentMeters` are tiny struct-unpacking wrappers. `src/lib/distance.ts` is not in the repo (audit reference was stale).**
+- [x] **`src/lib/format.ts:formatBytes`** — Inconsistent with other `formatBytes`. *Fix: pick one.* **DONE — `FileSystemService.formatBytes` and `zim-header.ts` both delegate to `@/lib/format`.**
 
 ### Tests / Dev
 - [ ] **`tests/integration/map-chat-ui-contract.test.ts`** — Brittle string matching. *Fix: assert on testids or reduced snapshot.*
@@ -128,10 +128,10 @@
 - [ ] **`app/(tabs)/chat/[threadId].tsx`** — 1562 lines. *Fix: extract `ChatInput`, `ChatMessage`, `CitationCard`.*
 
 ### Minor
-- [ ] **`app/_layout.tsx:64-80`** — Theme applied on every render; not memoized. *Fix: extract `useAppTheme()`.*
+- [x] **`app/_layout.tsx:64-80`** — Theme applied on every render; not memoized. *Fix: extract `useAppTheme()`.** **DONE — `ThemedNavigator` extracted; theme colors memoized with `React.useMemo`.**
 - [ ] **`src/stores/download-store.ts`** — Barely used. *Fix: delete or wire UI.*
 - [ ] **`app/onboarding/intro.tsx`** — CTA says "Get started" but doesn't link to feature pages. *Fix: link directly.*
-- [ ] **`src/services/connectivity/connectivity.service.ts`** — NetInfo listener not throttled. *Fix: debounce 5s.*
+- [x] **`src/services/connectivity/connectivity.service.ts`** — NetInfo listener not throttled. *Fix: debounce 5s.* **DONE — duplicate of above (fixed once).**
 
 ## Cross-cutting themes
 

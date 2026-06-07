@@ -125,27 +125,25 @@ export default function NotesScreen() {
   }
 
   React.useEffect(() => {
+    if (!unlocked) return;
+    // Initial load
     void load();
-  }, [unlocked]);
+    // Subscribe to changes
+    return NotesRepository.subscribe(() => {
+      void load(query, sortMode);
+    });
+  }, [unlocked, query, sortMode]);
 
   React.useEffect(() => {
     if (!unlocked) return;
-    Promise.all([
-      SettingsRepository.get('notes.sortMode'),
-      SettingsRepository.get('notes.viewMode'),
-    ]).then(([storedSortMode, storedViewMode]) => {
+    SettingsRepository.get('notes.sortMode').then((storedSortMode) => {
       const nextSortMode = normalizeNoteSortMode(storedSortMode);
-      setViewMode(storedViewMode === 'list' ? 'list' : 'mosaic');
       setSortMode(nextSortMode);
-      void load(query, nextSortMode);
+    });
+    SettingsRepository.get('notes.viewMode').then((storedViewMode) => {
+      setViewMode(storedViewMode === 'list' ? 'list' : 'mosaic');
     });
   }, [unlocked]);
-
-  useFocusEffect(
-    React.useCallback(() => {
-      void load(query, sortMode);
-    }, [unlocked, query, sortMode])
-  );
 
   useFocusEffect(
     React.useCallback(() => {

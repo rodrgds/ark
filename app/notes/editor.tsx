@@ -11,9 +11,15 @@ import { useAuthStore } from '@/stores/auth-store';
 import { useThemeStore } from '@/stores/theme-store';
 import type { Note } from '@/types/db';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { ChevronLeft } from 'lucide-react-native';
+import { ChevronLeft, Check, TriangleAlert } from 'lucide-react-native';
 import * as React from 'react';
-import { Platform, TextInput, useWindowDimensions, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Platform,
+  TextInput,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -335,13 +341,28 @@ export default function NoteEditorScreen() {
                 color={noteTheme.foreground}
                 hintColor={noteTheme.mutedForeground}
               />
-              {saveStatusLabel ? (
-                <Text
-                  className="text-muted-foreground -mt-1 text-[10px]"
-                  style={{ color: noteTheme.mutedForeground }}>
-                  {saveStatusLabel}
-                </Text>
-              ) : null}
+              <View className="flex-row items-center gap-1 -mt-1">
+                {saveState === 'saving' || saving ? (
+                  <ActivityIndicator size={10} color={noteTheme.mutedForeground} />
+                ) : saveState === 'saved' ? (
+                  <Icon as={Check} className="size-2.5" color={noteTheme.mutedForeground} />
+                ) : saveState === 'error' ? (
+                  <Icon as={TriangleAlert} className="size-2.5 text-destructive" />
+                ) : null}
+                {saveState !== 'idle' && (
+                  <Text
+                    className="text-[10px]"
+                    style={{
+                      color: saveState === 'error' ? '#ef4444' : noteTheme.mutedForeground,
+                    }}>
+                    {saveState === 'saving' || saving
+                      ? 'Saving...'
+                      : saveState === 'saved'
+                        ? 'Saved'
+                        : 'Error'}
+                  </Text>
+                )}
+              </View>
             </View>
           ),
           headerLeft: () => (

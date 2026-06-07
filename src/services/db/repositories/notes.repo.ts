@@ -123,7 +123,28 @@ function getOrderBy(sortMode: NoteSortMode) {
   }
 }
 
+const changeListeners = new Set<() => void>();
+
 export class NotesRepository {
+  /**
+   * Subscribe to changes in the notes repository.
+   * Useful for keeping UI lists in sync.
+   */
+  static subscribe(callback: () => void) {
+    changeListeners.add(callback);
+    return () => changeListeners.delete(callback);
+  }
+
+  private static notify() {
+    for (const listener of changeListeners) {
+      try {
+        listener();
+      } catch {
+        // Ignore errors in listeners
+      }
+    }
+  }
+
   static async list(query?: string, sortMode: NoteSortMode = DEFAULT_NOTE_SORT_MODE) {
     const db = await DatabaseClient.getDb();
     const fts = query ? toFtsPrefixQuery(query) : '';
@@ -222,6 +243,7 @@ export class NotesRepository {
       await this.syncFts(note);
     });
     void HapticsService.success();
+    this.notify();
     return note;
   }
 
@@ -266,6 +288,7 @@ export class NotesRepository {
       }
     });
     void HapticsService.selection();
+    this.notify();
     return next;
   }
 
@@ -322,6 +345,7 @@ export class NotesRepository {
     });
 
     void HapticsService.selection();
+    this.notify();
     return nextNotes;
   }
 
@@ -353,6 +377,7 @@ export class NotesRepository {
     });
 
     void HapticsService.selection();
+    this.notify();
     return nextNotes;
   }
 
@@ -388,6 +413,7 @@ export class NotesRepository {
     });
 
     void HapticsService.selection();
+    this.notify();
     return nextNotes;
   }
 
@@ -402,6 +428,7 @@ export class NotesRepository {
       await db.runAsync('DELETE FROM notes_fts WHERE note_id = ?', [id]);
     });
     await RagCleanupService.removeSource(`note:${id}`);
+    this.notify();
   }
 
   static async softDeleteMany(ids: string[]) {
@@ -423,6 +450,7 @@ export class NotesRepository {
     for (const id of noteIds) {
       await RagCleanupService.removeSource(`note:${id}`);
     }
+    this.notify();
   }
 
   static async reorder(noteIds: string[]) {
@@ -440,6 +468,7 @@ export class NotesRepository {
     });
 
     void HapticsService.selection();
+    this.notify();
     return this.getMany(orderedIds);
   }
 

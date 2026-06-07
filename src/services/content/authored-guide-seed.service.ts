@@ -29,16 +29,17 @@ export class AuthoredGuideSeedService {
     const existingPacks = await ContentRepository.list({ includeTestOnly: true });
 
     for (const [id, guide] of Object.entries(AUTHORED_GUIDES)) {
-      const fileName = `${id}.html`;
+      const ext = guide.format === 'markdown' ? 'md' : 'html';
+      const fileName = `${id}.${ext}`;
       const localUri = `${contentDir}${fileName}`;
       const info = await FileSystem.getInfoAsync(localUri);
       if (!info.exists) {
-        await FileSystem.writeAsStringAsync(localUri, guide.html, {
+        await FileSystem.writeAsStringAsync(localUri, guide.content, {
           encoding: FileSystem.EncodingType.UTF8,
         });
       }
 
-      const sizeBytes = utf8ByteLength(guide.html);
+      const sizeBytes = utf8ByteLength(guide.content);
       const existing = existingPacks.find((pack) => pack.id === id);
       const unchanged =
         existing?.installed &&
@@ -48,7 +49,7 @@ export class AuthoredGuideSeedService {
         existing.title === guide.title &&
         existing.description === guide.description &&
         existing.category === guide.category &&
-        existing.format === 'html';
+        existing.format === guide.format;
 
       if (!unchanged) {
         await ContentRepository.createPack({
@@ -56,7 +57,7 @@ export class AuthoredGuideSeedService {
           title: guide.title,
           description: guide.description,
           category: guide.category,
-          format: 'html',
+          format: guide.format,
           localUri,
           sizeBytes,
           installed: true,

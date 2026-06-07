@@ -8,6 +8,7 @@ import {
   BrainCircuit,
   ChefHat,
   Cross,
+  FileText,
   FlameKindling,
   Globe,
   HandPlatter,
@@ -16,6 +17,7 @@ import {
   Library,
   Map,
   MessageSquareText,
+  Newspaper,
   PackageOpen,
   PillBottle,
   Plane,
@@ -54,14 +56,18 @@ const PACK_ICONS: Record<string, LucideIcon> = {
 
 const CATEGORY_ICONS: Partial<Record<ContentCategory, LucideIcon>> = {
   'AI Models': Bot,
+  Comms: MessageSquareText,
   Disasters: TriangleAlert,
   Food: UtensilsCrossed,
   Health: Cross,
   Maps: Map,
   Medical: Stethoscope,
+  'Personal Documents': FileText,
   Preparedness: HandPlatter,
+  RSS: Newspaper,
   Safety: ShieldAlert,
   Survival: TentTree,
+  Water: SoapDispenserDroplet,
   Wiki: BookOpen,
 };
 
@@ -69,6 +75,7 @@ const CATEGORY_ORDER: ContentCategory[] = [
   'Medical',
   'Survival',
   'Disasters',
+  'Water',
   'Preparedness',
   'Wiki',
   'Maps',

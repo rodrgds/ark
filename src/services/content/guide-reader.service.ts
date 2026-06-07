@@ -2,11 +2,13 @@ import * as FileSystem from 'expo-file-system/legacy';
 import type { ContentPack } from '@/types/content';
 import type { GuideSection } from '@/services/content/guide.service';
 import { Platform } from 'react-native';
+import { marked } from 'marked';
 
 export type ReaderContent = {
   html?: string;
+  markdown?: string;
   uri?: string;
-  format: 'pdf' | 'html' | 'text';
+  format: 'pdf' | 'html' | 'markdown' | 'text';
   title: string;
   sectionTitle?: string;
   sectionTargets?: string[];
@@ -92,6 +94,13 @@ function escapeHtml(value: string) {
     .replace(/'/g, '&#039;');
 }
 
+function slugify(text: string) {
+  return text
+    .toLowerCase()
+    .replace(/[^\w ]+/g, '')
+    .replace(/ +/g, '-');
+}
+
 function wrapInHtmlShell(body: string, title: string) {
   return `<!doctype html>
 <html lang="en">
@@ -110,7 +119,6 @@ function wrapInHtmlShell(body: string, title: string) {
 export class GuideReaderService {
   /**
    * Prepares content for the full-screen reader.
-   * For PDFs, we pass the local file URI directly to the native react-native-pdf viewer.
    */
   static async prepareContent(
     pack: ContentPack,
@@ -135,6 +143,32 @@ export class GuideReaderService {
         sectionTitle: section?.title,
         sectionTargets: sectionTargets(section),
         page: section?.page,
+      };
+    }
+
+    if (format === 'markdown') {
+      const content = await FileSystem.readAsStringAsync(pack.localUri, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      // Configure marked to add IDs to headers
+      const renderer = new marked.Renderer();
+      renderer.heading = function({ text, depth }) {
+        const id = slugify(text);
+        return `<h${depth} id="${id}">${text}</h${depth}>`;
+      };
+
+      const bodyHtml = await marked.parse(content, { renderer });
+
+      return {
+        html: wrapInHtmlShell(
+          `<article style="padding: 16px;">${bodyHtml}</article>`,
+          pack.title
+        ),
+        format: 'html',
+        title: pack.title,
+        sectionTitle: section?.title,
+        sectionTargets: sectionTargets(section),
       };
     }
 
@@ -194,12 +228,14 @@ export class GuideReaderService {
     };
   }
 
-  private static detectFormat(pack: ContentPack): 'pdf' | 'html' | 'text' {
+  private static detectFormat(pack: ContentPack): 'pdf' | 'html' | 'markdown' | 'text' {
     if (pack.format === 'pdf') return 'pdf';
     if (pack.format === 'html') return 'html';
+    if (pack.format === 'markdown') return 'markdown';
     const uri = pack.localUri?.toLowerCase() ?? '';
     if (uri.endsWith('.pdf')) return 'pdf';
     if (uri.endsWith('.html') || uri.endsWith('.htm')) return 'html';
+    if (uri.endsWith('.md') || uri.endsWith('.markdown')) return 'markdown';
     return 'text';
   }
 }

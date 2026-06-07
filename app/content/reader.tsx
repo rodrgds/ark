@@ -1,78 +1,58 @@
+import { Arky } from '@/components/brand/ark-logo';
+import { ArkBottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
-import { getNativePdf } from '@/components/readers/native-pdf';
-import { ArkBottomSheet } from '@/components/ui/bottom-sheet';
-import { showSheetAlert } from '@/components/ui/sheet-alert';
 import { Text } from '@/components/ui/text';
-import { Arky } from '@/components/brand/ark-logo';
+import { showSheetAlert } from '@/components/ui/sheet-alert';
 import { useArkTextToSpeech } from '@/hooks/use-ark-text-to-speech';
+import OcrService from '@/modules/ark-ocr';
 import { ContentPackService } from '@/services/content/content-pack.service';
-import { GuidePdfService } from '@/services/content/guide-pdf.service';
 import { GuideReaderService, type ReaderContent } from '@/services/content/guide-reader.service';
+import { GuidePdfService } from '@/services/content/guide-pdf.service';
 import { GuideService, type GuideSection } from '@/services/content/guide.service';
 import type { ContentPack } from '@/types/content';
-import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { ChevronLeft, ExternalLink, List, Printer, Share2, Volume2, VolumeX, X } from 'lucide-react-native';
+import { Stack, useLocalSearchParams, router } from 'expo-router';
+import {
+  ChevronLeft,
+  ExternalLink,
+  List,
+  Printer,
+  Share2,
+  Volume2,
+  VolumeX,
+} from 'lucide-react-native';
 import * as React from 'react';
-import { ActivityIndicator, BackHandler, Pressable, View } from 'react-native';
+import {
+  ActivityIndicator,
+  BackHandler,
+  Pressable,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import * as Sharing from 'expo-sharing';
 
+function getNativePdf() {
+  try {
+    return require('react-native-pdf').default;
+  } catch {
+    return null;
+  }
+}
+
 const HTML_READER_SCRIPT = `
 (function() {
-  if (window._arkReaderInjected) return;
-  window._arkReaderInjected = true;
-
-  var style = document.createElement('style');
-  style.textContent = 'img{max-width:100%!important;width:auto!important;height:auto!important;} .ark-snapshot img{width:auto!important;max-width:100%!important;}';
-  document.head.appendChild(style);
-
-  function decodeHash(hash) {
-    try {
-      return decodeURIComponent(String(hash || '').replace(/^#/, ''));
-    } catch (_) {
-      return String(hash || '').replace(/^#/, '');
-    }
-  }
-
-  function findAnchorTarget(hash) {
-    var id = decodeHash(hash);
-    if (!id) return null;
-    if (window.CSS && CSS.escape) {
-      var escaped = CSS.escape(id);
-      var byId = document.querySelector('#' + escaped);
-      if (byId) return byId;
-    }
-    var direct = document.getElementById(id) || document.getElementsByName(id)[0] || null;
-    if (direct) return direct;
-    var normalized = id.replace(/[-_]+/g, ' ').trim().toLowerCase();
-    var headings = Array.prototype.slice.call(document.querySelectorAll('h1,h2,h3,h4,h5,h6,[role="heading"]'));
-    return headings.find(function(node) {
-      var text = String(node.textContent || '').replace(/\\s+/g, ' ').trim().toLowerCase();
-      return text === normalized || text.indexOf(normalized) !== -1;
-    }) || null;
-  }
-
-  function scrollToHash(hash) {
-    var target = findAnchorTarget(hash);
-    if (!target) return false;
-    target.scrollIntoView({ block: 'start', behavior: 'smooth' });
-    if (history.replaceState) history.replaceState(null, '', '#' + decodeHash(hash));
-    return true;
-  }
-
-  document.addEventListener('click', function(event) {
-    var link = event.target && event.target.closest ? event.target.closest('a[href]') : null;
-    if (!link) return;
-    var href = link.getAttribute('href') || '';
-    var hash = link.hash || (href.charAt(0) === '#' ? href : '');
-    if (!hash) return;
-    event.preventDefault();
-    scrollToHash(hash);
-  }, true);
-
-  window.__arkScrollToHash = scrollToHash;
+  var postReaderText = function() {
+    var text = document.body.innerText;
+    if (!text || !window.ReactNativeWebView) return;
+    window.ReactNativeWebView.postMessage(JSON.stringify({
+      type: 'ark-reader-text',
+      text: text.slice(0, 3000)
+    }));
+  };
+  setTimeout(postReaderText, 200);
+  setTimeout(postReaderText, 900);
 })();
 true;
 `;
@@ -167,14 +147,15 @@ function sectionScrollScript(sectionTitle: string, sectionTargets: string[] = []
 function buildReaderSpeechText(
   pack: ContentPack | null,
   content: ReaderContent | null,
-  currentPage: number
+  currentPage: number,
+  webTextSnapshot = ''
 ) {
   if (!content) return '';
   const parts = [
     pack?.title,
     content.sectionTitle,
     content.format === 'pdf' ? `Page ${content.page ?? currentPage}.` : null,
-    content.html ? htmlToSpeechText(content.html) : null,
+    content.html ? htmlToSpeechText(content.html) : webTextSnapshot,
   ];
   return parts
     .filter(Boolean)
@@ -217,6 +198,7 @@ export default function GuideReaderScreen() {
   const [showToc, setShowToc] = React.useState(false);
   const [webViewLoadError, setWebViewLoadError] = React.useState<string | null>(null);
   const [webViewLoading, setWebViewLoading] = React.useState(false);
+  const [webTextSnapshot, setWebTextSnapshot] = React.useState('');
   const [exportingPdf, setExportingPdf] = React.useState(false);
   const [readerSpeaking, setReaderSpeaking] = React.useState(false);
   const webViewRef = React.useRef<WebView>(null);
@@ -268,6 +250,10 @@ export default function GuideReaderScreen() {
   }, [packId, section, page]);
 
   React.useEffect(() => {
+    setWebTextSnapshot('');
+  }, [content?.html, content?.uri]);
+
+  React.useEffect(() => {
     const onBackPress = () => {
       if (showToc) {
         setShowToc(false);
@@ -296,7 +282,7 @@ export default function GuideReaderScreen() {
       setReaderSpeaking(false);
       return;
     }
-    const text = buildReaderSpeechText(pack, content, currentPage);
+    const text = await getSpeechText();
     if (!text) return;
     setReaderSpeaking(true);
     try {
@@ -305,6 +291,43 @@ export default function GuideReaderScreen() {
       showSheetAlert('Error', err instanceof Error ? err.message : 'Unable to read this guide.');
     } finally {
       setReaderSpeaking(false);
+    }
+  }
+
+  async function getSpeechText() {
+    if (!content) return '';
+    if (content.format !== 'pdf' || !content.uri) {
+      return buildReaderSpeechText(pack, content, currentPage, webTextSnapshot);
+    }
+
+    const maxPages = Math.min(Math.max(currentPage, 1), 120);
+    const extracted = await OcrService.extractPdfText(content.uri, maxPages);
+    const pageText =
+      extracted.pages.find((item) => item.pageNumber === currentPage)?.text.trim() ||
+      extracted.pages.find((item) => item.text.trim())?.text.trim() ||
+      '';
+
+    return [
+      pack?.title,
+      content.sectionTitle,
+      `Page ${currentPage}.`,
+      pageText || 'No readable PDF text was found on this page.',
+    ]
+      .filter(Boolean)
+      .join('. ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 2800);
+  }
+
+  function handleReaderMessage(rawMessage: string) {
+    try {
+      const message = JSON.parse(rawMessage) as { type?: string; text?: string };
+      if (message.type === 'ark-reader-text' && typeof message.text === 'string') {
+        setWebTextSnapshot(message.text);
+      }
+    } catch {
+      // Ignore non-JSON messages from embedded content.
     }
   }
 
@@ -340,6 +363,15 @@ export default function GuideReaderScreen() {
         prev ? { ...prev, sectionTitle: targetSection.title, page: targetSection.page } : null
       );
       pdfRef.current?.setPage(targetSection.page);
+      return;
+    }
+
+    // If we're already viewing this pack, just scroll to the section
+    if (content?.format === 'html' && !webViewLoadError) {
+      webViewRef.current?.injectJavaScript(
+        sectionScrollScript(targetSection.title, targetSection.htmlTargets ?? [])
+      );
+      setContent((prev) => (prev ? { ...prev, sectionTitle: targetSection.title } : null));
       return;
     }
 
@@ -483,13 +515,15 @@ export default function GuideReaderScreen() {
           ) : (
             <WebView
               ref={webViewRef}
-              originWhitelist={content.allowReadAccessToURL ? [content.allowReadAccessToURL] : []}
+              originWhitelist={['*']}
               source={
                 content.uri
                   ? { uri: content.uri }
                   : { html: content.html!, baseUrl: content.allowReadAccessToURL }
               }
               allowFileAccess
+              allowFileAccessFromFileURLs
+              allowUniversalAccessFromFileURLs
               allowingReadAccessToURL={content.allowReadAccessToURL}
               style={{ flex: 1 }}
               scalesPageToFit={isPdf}
@@ -503,6 +537,7 @@ export default function GuideReaderScreen() {
                   );
                 }
               }}
+              onMessage={(event) => handleReaderMessage(event.nativeEvent.data)}
               onError={(syntheticEvent) => {
                 const { nativeEvent } = syntheticEvent;
                 setWebViewLoadError(nativeEvent.description || 'Failed to load content.');

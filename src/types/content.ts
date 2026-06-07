@@ -11,6 +11,7 @@ export type ContentCategory =
   | 'Food'
   | 'Comms'
   | 'Safety'
+  | 'Water'
   | 'Health';
 
 export type ContentFormat = 'pdf' | 'markdown' | 'zim' | 'html' | 'txt' | 'bundle' | 'gguf';

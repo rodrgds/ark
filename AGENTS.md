@@ -3,7 +3,10 @@
 > Source of truth for any agent working on this codebase. Read this first.
 
 ## Recent changes
+- Tab reorganization: `NativeTabs` from `expo-router/unstable-native-tabs` with `TabPreferencesService` for user-configurable tab order/visibility. Tools tab hidden by default; chat + settings locked. `FunctionSearch` filters entries by enabled tabs.
 - `app/(tabs)/settings.tsx` refactored from 1982 → 679 lines. Each tab section now lives in `src/components/settings/`. `AppearanceSection`, `SecuritySection`, `BackupSection`, `AboutSection` (smallest), then `AiSection`, `OfflineMapsCard`, `DownloadsCard`, `DiagnosticsCard`, `EmbeddingIndexCard`, `ModelSection` (bigger). Local state (password inputs, model title/url/checksum, map search/browse) moved into the owning section.
+- Vault security: rate-limit with exponential backoff (5→30s, 10→5min, 15→1hr), autolock rewrite with background/active lifecycle, boot mutex idempotency, vault gates on editor save.
+- Content: Markdown-based authored guides, Defuddle for remote HTML → Markdown extraction, enhanced rich editor with toolbar, high-quality PDF rendering, TTS in document/content readers.
 - `src/lib/errors.ts` (ArkError) **deleted** — zero callers.
 - 8 unused `package.json` deps removed: `defuddle`, `tailwindcss-animate`, `expo-splash-screen`, `expo-system-ui`, `expo-updates`, `expo-battery`, `expo-linking`, `punycode`.
 - Migration 18 added `vault_state.failed_attempts` + `locked_until` columns; sqlite_master guard kept (defensive for users who never created a vault).
@@ -247,7 +250,7 @@ Boot → index.tsx
 | Password KDF            | PARTIAL | v3 SHA-512 stretching is in place with legacy upgrades; still needs a custom Expo native libsodium Argon2id `ark-kdf` module before production.                                                     |
 | ZIM reader              | PARTIAL | Android ArkZim module compiles with libkiwix/libzim and the UI can search/open articles when native is available; iOS CoreKiwix binding and real-archive device testing remain.                     |
 | OCR/PDF indexing        | PARTIAL | Android `ark-ocr` compiles with ML Kit and PDFBox, images use on-device OCR, PDFs use text-layer extraction before OCR fallback; still needs real-device verification with scanned/searchable PDFs. |
-| Component tests         | PARTIAL | Route/static/service tests are broad; mounted React Native screen tests are still missing. Detox onboarding coverage is intentionally deprioritized.                                                |
+| Component tests         | PARTIAL | 6 RNTL screen tests added (tab preferences, function search, chat index, tabs layout, note editor autosave); broader mounted coverage still growing. Detox onboarding coverage is intentionally deprioritized. |
 
 ## Theme System
 

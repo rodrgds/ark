@@ -140,6 +140,6 @@ describe('NoteEditorScreen autosave', () => {
     await waitFor(() => {
       expect(indexNote).toHaveBeenCalledWith('note-1');
     });
-    expect(await view.findByText('Saved locally')).toBeTruthy();
+    expect(await view.findByText('Saved')).toBeTruthy();
   });
 });

@@ -37,6 +37,7 @@ const iconNames = [
   'SlidersHorizontal',
   'Smartphone',
   'Trash2',
+  'TriangleAlert',
 ];
 
 function TestIcon() {

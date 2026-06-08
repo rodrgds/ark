@@ -129,9 +129,10 @@ export default function NotesScreen() {
     // Initial load
     void load();
     // Subscribe to changes
-    return NotesRepository.subscribe(() => {
+    const unsub = NotesRepository.subscribe(() => {
       void load(query, sortMode);
     });
+    return () => { unsub(); };
   }, [unlocked, query, sortMode]);
 
   React.useEffect(() => {

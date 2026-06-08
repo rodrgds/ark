@@ -2,7 +2,6 @@ import * as Crypto from 'expo-crypto';
 import { XMLParser } from 'fast-xml-parser';
 import { RssRepository } from '@/services/db/repositories/rss.repo';
 import { parseHTML } from 'linkedom';
-// @ts-ignore
 import { Defuddle } from 'defuddle/node';
 
 const DEFAULT_FEEDS = [

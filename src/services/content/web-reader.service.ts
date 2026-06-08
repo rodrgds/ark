@@ -1,5 +1,4 @@
 import { parseHTML } from 'linkedom';
-// @ts-ignore - defuddle/node might not have types in this env
 import { Defuddle } from 'defuddle/node';
 
 export type WebArticle = {

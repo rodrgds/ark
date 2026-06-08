@@ -10,6 +10,7 @@ import { estimatedMapRegionBytes } from '@/services/maps/map-storage';
 import type { MapPinType } from '@/constants/map-pins';
 import type { MapMarker, MapRegion, OfflineMapSearchResult, SavedRoutePoint } from '@/types/maps';
 import { haversineMeters, toRadians, formatPoint } from '@/lib/geo';
+import { logger } from '@/lib/logger';
 
 type OfflinePackStatusLike = {
   state: string;
@@ -166,7 +167,7 @@ export class OfflineMapService {
           await maplibre.OfflineManager.deletePack(pack.id);
         }
       } catch (error) {
-        console.warn(error instanceof Error ? error.message : 'Unable to delete native map pack.');
+        logger.warn(error instanceof Error ? error.message : 'Unable to delete native map pack.');
       }
     }
 
@@ -188,7 +189,7 @@ export class OfflineMapService {
           await pack.pause();
         }
       } catch (error) {
-        console.warn(error instanceof Error ? error.message : 'Unable to pause native map pack.');
+        logger.warn(error instanceof Error ? error.message : 'Unable to pause native map pack.');
       }
     }
 
@@ -610,7 +611,7 @@ export class OfflineMapService {
   private static handlePackError(regionId: string, message?: string) {
     void MapsRepository.updateRegionStatus(regionId, { status: 'failed', progress: 0 });
     this.completeRegionDownload(regionId);
-    if (message) console.warn(message);
+    if (message) logger.warn(message);
   }
 
   private static startNextQueuedRegion() {

@@ -3,24 +3,7 @@ import { FileSystemService } from '@/services/files/filesystem.service';
 import { ContentRepository } from '@/services/db/repositories/content.repo';
 import { RagService } from '@/services/ai/rag.service';
 import { AUTHORED_GUIDES } from '@/services/content/authored-guides';
-
-function utf8ByteLength(str: string): number {
-  let length = 0;
-  for (let i = 0; i < str.length; i++) {
-    const code = str.charCodeAt(i);
-    if (code <= 0x7f) {
-      length += 1;
-    } else if (code <= 0x7ff) {
-      length += 2;
-    } else if (code >= 0xd800 && code <= 0xdfff) {
-      length += 4;
-      i++;
-    } else {
-      length += 3;
-    }
-  }
-  return length;
-}
+import { utf8ByteLength } from '@/lib/format';
 
 export class AuthoredGuideSeedService {
   static async seed() {

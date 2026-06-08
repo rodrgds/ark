@@ -85,14 +85,7 @@ const OLED_THEME_CSS = `
   ::selection { background: rgba(242, 184, 75, 0.3); }
 `;
 
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
+import { escapeHtml } from '@/lib/format';
 
 function slugify(text: string) {
   return text

@@ -1600,7 +1600,7 @@ function WorldOverviewFallback({ status }: { status: string }) {
   );
 }
 
-function MarkerDot({ marker, selected }: { marker: MapMarker; selected: boolean }) {
+const MarkerDot = React.memo(function MarkerDot({ marker, selected }: { marker: MapMarker; selected: boolean }) {
   const color = marker.color || getMapPinMeta(marker.pinType).color;
   const PinIcon = iconForPinType(marker.pinType);
   return (
@@ -1626,7 +1626,7 @@ function MarkerDot({ marker, selected }: { marker: MapMarker; selected: boolean 
       </View>
     </View>
   );
-}
+});
 
 function UserLocationDot({ mapBearing }: { mapBearing: number }) {
   const heading = useSensorStore((state) => state.heading);

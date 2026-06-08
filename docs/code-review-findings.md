@@ -4,7 +4,7 @@
 >
 > Mark a finding complete with `[x]`. Each fix should pass `bun run typecheck` and ideally add/extend a test.
 
-**Progress:** 67 / 75 findings fixed · 0 / 13 HIGH in progress · 13 / 13 HIGH done · 24 MED done
+**Progress:** 69 / 75 findings fixed · 0 / 13 HIGH in progress · 13 / 13 HIGH done · 26 MED done
 
 ## 🔴 HIGH — fix first (data loss, security, broken flows)
 
@@ -103,10 +103,10 @@
 ## 🟢 LOW — cleanup, consistency, docs drift
 
 ### Documentation
-- [ ] **`AGENTS.md:13-15, 25, 30, 47, 53, 67-69`** — Onboarding: claims 5 steps, 5 stores, 9 service dirs, 24 tables, 3 FTS5 — counts out of sync. *Fix: derive counts in `scripts/check-docs-drift.ts` or just correct text.*
+- [x] **`AGENTS.md:13-15, 25, 30, 47, 53, 67-69`** — Onboarding: claims 5 steps, 5 stores, 9 service dirs, 24 tables, 3 FTS5 — counts out of sync. *Fix: derive counts in `scripts/check-docs-drift.ts` or just correct text.* **DONE — `scripts/check-docs-drift.mjs` verifies 8 counts (onboarding 8, stores 4, services 16, lib 10, UI 11, db v18, 24 base tables, 3 FTS5). AGENTS.md text updated to match. All 8 checks pass.**
 - [x] **`AGENTS.md:46, 53`** — Says `react-native-keyboard-controller` and `sensor-store` are "UNUSED." Both are used. *Fix: move to "USED."* **DONE — AGENTS.md correctly describes both as used.**
 - [x] **`AGENTS.md:33-37`** — Omits new `RAG-related` flag in `app-store`. *Fix: mention it.* **DONE — AGENTS.md mentions `ragRelatedInitialized` in the app-store description.**
-- [ ] **`AGENTS.md:55-78`** — Mock/Stub table: many items no longer mocks. *Fix: refresh.*
+- [x] **`AGENTS.md:55-78`** — Mock/Stub table: many items no longer mocks. *Fix: refresh.* **DONE — "Component tests" row updated to reflect 6 RNTL test files. Other rows verified accurate (all PARTIAL, not fully resolved).**
 
 ### Constants / Lib
 - [x] **`src/lib/utils.ts` vs `src/lib/cn.ts`** — Two files re-exporting `cn()`. *Fix: keep one, delete other.* **VERIFIED — no `src/lib/cn.ts` exists; all 11 imports go to `@/lib/utils`.**

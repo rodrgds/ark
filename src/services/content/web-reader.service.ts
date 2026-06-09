@@ -1,5 +1,6 @@
 import { parseHTML } from 'linkedom';
 import { Defuddle } from 'defuddle/node';
+import { withDefuddleDomGlobals } from '@/services/content/defuddle-runtime';
 
 export type WebArticle = {
   title: string;
@@ -31,26 +32,12 @@ export class WebReaderService {
     }
 
     const html = await response.text();
-    
+
     // Parse HTML using linkedom
     const dom = parseHTML(html);
     const { document } = dom;
 
-    // Polyfill essential globals for Turndown/Defuddle internal Markdown conversion
-    // This is needed because some dependencies might look for global document/Node
-    const g = global as any;
-    const oldDocument = g.document;
-    const oldNode = g.Node;
-    const oldHTMLElement = g.HTMLElement;
-    const oldDOMParser = g.DOMParser;
-
-    try {
-      g.document = document;
-      g.Node = dom.Node;
-      g.HTMLElement = dom.HTMLElement;
-      g.DOMParser = dom.DOMParser;
-
-      // Use Defuddle to extract content as Markdown
+    return withDefuddleDomGlobals(dom, async () => {
       const result = await Defuddle(document, url, {
         markdown: true,
         standardize: true,
@@ -73,12 +60,6 @@ export class WebReaderService {
         image: result.image,
         wordCount: result.wordCount,
       };
-    } finally {
-      // Restore globals
-      g.document = oldDocument;
-      g.Node = oldNode;
-      g.HTMLElement = oldHTMLElement;
-      g.DOMParser = oldDOMParser;
-    }
+    });
   }
 }

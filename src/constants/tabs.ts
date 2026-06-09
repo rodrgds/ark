@@ -10,7 +10,10 @@ export type ArkTabDefinition = {
     default: string;
     selected: string;
   };
-  materialIcon: string;
+  materialIcon: {
+    default: string;
+    selected: string;
+  };
 };
 
 export const ARK_TABS: ArkTabDefinition[] = [
@@ -21,7 +24,7 @@ export const ARK_TABS: ArkTabDefinition[] = [
     description: 'Local AI chat and source-grounded answers.',
     locked: true,
     sfSymbol: { default: 'bubble.left.and.bubble.right', selected: 'bubble.left.and.bubble.right.fill' },
-    materialIcon: 'chat_bubble',
+    materialIcon: { default: 'message-outline', selected: 'message' },
   },
   {
     id: 'map',
@@ -29,7 +32,7 @@ export const ARK_TABS: ArkTabDefinition[] = [
     label: 'Map',
     description: 'Offline maps, saved spots, heading, and route drafts.',
     sfSymbol: { default: 'map', selected: 'map.fill' },
-    materialIcon: 'map',
+    materialIcon: { default: 'map-outline', selected: 'map' },
   },
   {
     id: 'library',
@@ -37,7 +40,10 @@ export const ARK_TABS: ArkTabDefinition[] = [
     label: 'Library',
     description: 'Downloaded guides, documents, ZIM packs, and references.',
     sfSymbol: { default: 'books.vertical', selected: 'books.vertical.fill' },
-    materialIcon: 'menu_book',
+    materialIcon: {
+      default: 'book-open-variant-outline',
+      selected: 'book-open-variant',
+    },
   },
   {
     id: 'notes',
@@ -45,7 +51,7 @@ export const ARK_TABS: ArkTabDefinition[] = [
     label: 'Notes',
     description: 'Vault-gated notes and field records.',
     sfSymbol: { default: 'note.text', selected: 'note.text' },
-    materialIcon: 'edit_note',
+    materialIcon: { default: 'note-edit-outline', selected: 'note-edit' },
   },
   {
     id: 'tools',
@@ -53,7 +59,7 @@ export const ARK_TABS: ArkTabDefinition[] = [
     label: 'Tools',
     description: 'Compass, coordinates, barometer, weather, and readiness tools.',
     sfSymbol: { default: 'safari', selected: 'safari.fill' },
-    materialIcon: 'explore',
+    materialIcon: { default: 'compass-outline', selected: 'compass' },
   },
   {
     id: 'settings',
@@ -62,7 +68,7 @@ export const ARK_TABS: ArkTabDefinition[] = [
     description: 'Device, vault, downloads, and interface controls.',
     locked: true,
     sfSymbol: { default: 'gearshape', selected: 'gearshape.fill' },
-    materialIcon: 'settings',
+    materialIcon: { default: 'cog-outline', selected: 'cog' },
   },
 ];
 

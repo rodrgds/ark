@@ -1,5 +1,6 @@
 import * as Crypto from 'expo-crypto';
 import { XMLParser } from 'fast-xml-parser';
+import { withDefuddleDomGlobals } from '@/services/content/defuddle-runtime';
 import { RssRepository } from '@/services/db/repositories/rss.repo';
 import { parseHTML } from 'linkedom';
 import { Defuddle } from 'defuddle/node';
@@ -174,28 +175,18 @@ async function normalizeAtomItem(feedId: string, rawItem: unknown) {
 
 async function defuddleContent(html: string, url: string | null) {
   if (!html.trim()) return { summary: null, content: null };
-  
+
   const dom = parseHTML(html);
   const { document } = dom;
 
-  // Polyfill essential globals for Turndown/Defuddle internal Markdown conversion
-  const g = global as any;
-  const oldDocument = g.document;
-  const oldNode = g.Node;
-  const oldHTMLElement = g.HTMLElement;
-  const oldDOMParser = g.DOMParser;
-
   try {
-    g.document = document;
-    g.Node = dom.Node;
-    g.HTMLElement = dom.HTMLElement;
-    g.DOMParser = dom.DOMParser;
+    const result = await withDefuddleDomGlobals(dom, () =>
+      Defuddle(document, url || '', {
+        markdown: true,
+        standardize: true,
+      })
+    );
 
-    const result = await Defuddle(document, url || '', {
-      markdown: true,
-      standardize: true,
-    });
-    
     return {
       summary: result.description || stripHtml(html).slice(0, 200),
       content: result.content || stripHtml(html),
@@ -206,11 +197,6 @@ async function defuddleContent(html: string, url: string | null) {
       summary: stripped.slice(0, 200),
       content: stripped,
     };
-  } finally {
-    g.document = oldDocument;
-    g.Node = oldNode;
-    g.HTMLElement = oldHTMLElement;
-    g.DOMParser = oldDOMParser;
   }
 }
 

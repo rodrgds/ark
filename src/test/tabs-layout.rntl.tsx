@@ -74,6 +74,9 @@ mock.module('expo-router/unstable-native-tabs', () => {
   Trigger.Icon = function TriggerIcon() {
     return React.createElement('View');
   };
+  Trigger.VectorIcon = function TriggerVectorIcon() {
+    return React.createElement('View');
+  };
   Trigger.Label = function TriggerLabel({ children }: React.PropsWithChildren) {
     return React.createElement('Text', null, children);
   };

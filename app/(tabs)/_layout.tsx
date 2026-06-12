@@ -1,5 +1,6 @@
 import { AppHeaderActionsProvider } from '@/components/layout/app-header-actions';
 import { LockStateBar } from '@/components/layout/app-shell';
+import { TabsChromeProvider, useTabsChrome } from '@/components/layout/tabs-chrome';
 import { ARK_TABS, DEFAULT_ENABLED_TABS, DEFAULT_TAB_ORDER } from '@/constants/tabs';
 import { NAV_COLORS } from '@/constants/theme';
 import { NAV_THEME } from '@/lib/theme';
@@ -42,6 +43,14 @@ function getMaterialIconSourceKey(name: string, size: number) {
 }
 
 export default function TabsLayout() {
+  return (
+    <TabsChromeProvider>
+      <TabsLayoutContent />
+    </TabsChromeProvider>
+  );
+}
+
+function TabsLayoutContent() {
   const theme = useThemeStore((state) => state.effectiveTheme);
   const colors = NAV_THEME[theme].colors;
   const navColors = NAV_COLORS[theme];
@@ -53,6 +62,7 @@ export default function TabsLayout() {
   const [poppingRouteName, setPoppingRouteName] = React.useState<string | null>(null);
   const [iconPopPhase, setIconPopPhase] = React.useState<'peak' | 'settle' | null>(null);
   const previousActiveRouteNameRef = React.useRef<string | null>(null);
+  const { chromeHidden } = useTabsChrome();
 
   const loadTabPreferences = React.useCallback(() => {
     void TabPreferencesService.getPreferences()
@@ -162,13 +172,14 @@ export default function TabsLayout() {
   return (
     <View className="bg-background flex-1">
       <AppHeaderActionsProvider>
-        <LockStateBar />
+        {chromeHidden ? null : <LockStateBar />}
         <NativeTabs
           backBehavior="history"
           backgroundColor={colors.card}
           badgeBackgroundColor={colors.primary}
           badgeTextColor={colors.card}
           disableTransparentOnScrollEdge
+          hidden={chromeHidden}
           iconColor={{ default: navColors.mutedForeground, selected: colors.primary }}
           indicatorColor={addHexAlpha(colors.primary, '26')}
           labelVisibilityMode="labeled"

@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { confirmDestructive, showSheetAlert } from '@/components/ui/sheet-alert';
 import { Text } from '@/components/ui/text';
+import { useTabsChrome } from '@/components/layout/tabs-chrome';
 import type { MapPreset } from '@/constants/map-presets';
 import { getMapPinMeta, MAP_PIN_TYPES, type MapPinType } from '@/constants/map-pins';
 import { NAV_COLORS } from '@/constants/theme';
@@ -28,6 +29,7 @@ import type { MapMarker, MapRegion, OfflineMapSearchResult, SavedRoute } from '@
 import type { LocationObject } from 'expo-location';
 import { useNetInfo } from '@react-native-community/netinfo';
 import { useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
+import { BottomSheetProvider } from '@swmansion/react-native-bottom-sheet';
 import {
   AlertTriangle,
   Camera,
@@ -105,6 +107,7 @@ const BEARING_UPDATE_EPSILON_DEGREES = 0.35;
 const CENTER_UPDATE_EPSILON_DEGREES = 0.00001;
 const COMPASS_RESET_SUPPRESS_MS = 500;
 const SEARCH_GESTURE_SUPPRESS_MS = 450;
+const FLOATING_CONTROL_BOTTOM = 12;
 const WORLD_OVERVIEW_PATHS = [
   'M42 58L72 45L101 53L116 72L107 94L80 100L58 88Z',
   'M118 95L135 105L128 134L113 154L98 132L103 110Z',
@@ -166,6 +169,7 @@ const WORLD_OVERVIEW_POLYGONS: LngLat[][] = [
 
 export default function MapScreen() {
   const navigation = useNavigation();
+  const { chromeHidden: fullscreen, setChromeHidden } = useTabsChrome();
   const { markerId } = useLocalSearchParams<{ markerId?: string }>();
   const insets = useSafeAreaInsets();
   const theme = useThemeStore((state) => state.effectiveTheme);
@@ -201,7 +205,6 @@ export default function MapScreen() {
   const [viewedBounds, setViewedBounds] = React.useState<MapViewBounds | null>(null);
   const [zoom, setZoom] = React.useState<number>(WORLD_OVERVIEW_ZOOM);
   const mapZoomRef = React.useRef(WORLD_OVERVIEW_ZOOM);
-  const [fullscreen, setFullscreen] = React.useState(false);
   const [mapReady, setMapReady] = React.useState(false);
   const [showEmergencyPinsOnly, setShowEmergencyPinsOnly] = React.useState(false);
   const [busy, setBusy] = React.useState<string | null>(null);
@@ -213,8 +216,9 @@ export default function MapScreen() {
     longitude: number;
   } | null>(null);
   const [locationIssue, setLocationIssue] = React.useState<MapLocationIssue | null>(null);
-  const [recommendedPresets, setRecommendedPresets] = React.useState<MapPreset[]>(() =>
-    MapPresetsService.recommendedForLocation(null)
+  const recommendedPresets = React.useMemo(
+    () => MapPresetsService.recommendedForLocation(userLocation),
+    [catalogVersion, userLocation]
   );
   const netInfo = useNetInfo();
   const [isPlacing, setIsPlacing] = React.useState(false);
@@ -250,6 +254,14 @@ export default function MapScreen() {
     : primaryDownloadedRegion
       ? regionInitialZoom(primaryDownloadedRegion)
       : WORLD_OVERVIEW_ZOOM;
+  const mapViewportCenter = React.useMemo(
+    () => (isDefaultCenter(center) ? mapInitialCenter : center),
+    [center, mapInitialCenter]
+  );
+  const mapViewportZoom = React.useMemo(() => {
+    const hasTrackedViewport = Math.abs(mapZoomRef.current - WORLD_OVERVIEW_ZOOM) >= 0.05;
+    return hasTrackedViewport ? zoom : mapInitialZoom;
+  }, [zoom, mapInitialZoom]);
   const hasActiveMapDownloads = React.useMemo(
     () => regions.some((region) => region.status === 'downloading' || region.status === 'queued'),
     [regions]
@@ -336,6 +348,10 @@ export default function MapScreen() {
       .catch(() => undefined);
   }, []);
 
+  React.useEffect(() => {
+    return () => setChromeHidden(false);
+  }, [setChromeHidden]);
+
   useFocusEffect(
     React.useCallback(() => {
       void load({ syncNative: true });
@@ -359,13 +375,6 @@ export default function MapScreen() {
       };
     }, [reduceModeEnabled, setStoreHeading])
   );
-
-  React.useEffect(() => {
-    navigation.setOptions({
-      tabBarStyle: fullscreen ? { display: 'none' } : undefined,
-    });
-    return () => navigation.setOptions({ tabBarStyle: undefined });
-  }, [fullscreen, navigation]);
 
   React.useEffect(() => {
     activeMapKeyRef.current = mapInstanceKey;
@@ -436,10 +445,6 @@ export default function MapScreen() {
     };
   }, [catalogVersion, markers, regions, routes, search]);
 
-  React.useEffect(() => {
-    setRecommendedPresets(MapPresetsService.recommendedForLocation(userLocation));
-  }, [catalogVersion, userLocation]);
-
   // (suggestion is now computed via useMemo — no debounced effect needed)
 
   const closeSearchKeyboard = React.useCallback(() => {
@@ -459,21 +464,27 @@ export default function MapScreen() {
   }, [compassVisible, searchRightInset]);
 
   React.useEffect(() => {
-    if (!searchFocused && topMode !== 'search') return undefined;
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+    let subscription: { remove: () => void } | null = null;
+    if (!searchFocused && topMode !== 'search') {
+      return () => undefined;
+    }
+    subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       closeSearchKeyboard();
       return true;
     });
-    return () => subscription.remove();
+    return () => subscription?.remove();
   }, [closeSearchKeyboard, searchFocused, topMode]);
 
-  React.useEffect(() => {
-    if (!searchFocused && topMode !== 'search') return undefined;
-    return navigation.addListener('beforeRemove', (event) => {
-      event.preventDefault();
-      closeSearchKeyboard();
-    });
-  }, [closeSearchKeyboard, navigation, searchFocused, topMode]);
+  useFocusEffect(
+    React.useCallback(() => {
+      if (!searchFocused && topMode !== 'search') return undefined;
+      const unsubscribe = navigation.addListener('beforeRemove', (event) => {
+        event.preventDefault();
+        closeSearchKeyboard();
+      });
+      return unsubscribe;
+    }, [closeSearchKeyboard, navigation, searchFocused, topMode])
+  );
 
   function openSpotDialog(lngLat: LngLat) {
     setPendingSpot(lngLat);
@@ -780,7 +791,9 @@ export default function MapScreen() {
 
   function centerOn(nextCenter: LngLat, zoom = 13, duration = 420) {
     setCenter(nextCenter);
+    setZoom(zoom);
     mapCenterRef.current = nextCenter;
+    mapZoomRef.current = zoom;
     queueCameraAction({
       type: 'center',
       center: nextCenter,
@@ -896,15 +909,20 @@ export default function MapScreen() {
     return regions.find((r) => r.status === 'downloading' || r.status === 'queued') || null;
   }, [regions]);
 
-  return (
+  const bottomControlOffset = Math.max(
+    insets.bottom + FLOATING_CONTROL_BOTTOM,
+    FLOATING_CONTROL_BOTTOM
+  );
+
+  const mapContent = (
     <View className="bg-background flex-1">
       <MapCanvas
         cameraRef={cameraRef}
         canMount={canMountMap}
-        center={mapInitialCenter}
+        center={mapViewportCenter}
         fullscreen={fullscreen}
         hasDownloadedRegion={hasDownloadedRegion}
-        initialZoom={mapInitialZoom}
+        initialZoom={mapViewportZoom}
         isSearchActive={searchFocused || topMode === 'search'}
         mapBearing={mapBearing}
         mapKey={mapInstanceKey}
@@ -973,7 +991,7 @@ export default function MapScreen() {
       {!isPlacing ? (
         <View
           className="absolute right-3 gap-2"
-          style={{ bottom: fullscreen ? Math.max(insets.bottom + 12, 32) : 12 }}>
+          style={{ bottom: bottomControlOffset }}>
           <MapFab label="Locate me" loading={busy === 'locate'} onPress={locateMe} text="Me" />
           <MapFab
             icon={MapPin}
@@ -986,15 +1004,15 @@ export default function MapScreen() {
           <MapFab icon={List} label="Saved data" onPress={() => setActivePanel('saved')} />
           <MapFab
             icon={fullscreen ? Minimize2 : Maximize2}
-            label={fullscreen ? 'Exit full map' : 'Fullscreen'}
-            onPress={() => setFullscreen((value) => !value)}
+            label={fullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+            onPress={() => setChromeHidden(!fullscreen)}
           />
         </View>
       ) : null}
 
       <View
         className="absolute left-3 w-72 gap-2"
-        style={{ bottom: fullscreen ? Math.max(insets.bottom + 12, 32) : 12 }}>
+        style={{ bottom: bottomControlOffset }}>
         {locationIssue && !userLocation ? (
           <LocationNoticeCard
             issue={locationIssue}
@@ -1020,7 +1038,7 @@ export default function MapScreen() {
           </View>
           <View
             className="absolute right-3 left-3 flex-row gap-2"
-            style={{ bottom: fullscreen ? Math.max(insets.bottom + 6, 10) : 6 }}>
+            style={{ bottom: bottomControlOffset }}>
             <Button
               className="bg-background/95 h-12 flex-1"
               variant="outline"
@@ -1120,6 +1138,24 @@ export default function MapScreen() {
       />
     </View>
   );
+
+  if (fullscreen) {
+    return (
+      <View className="bg-background flex-1">
+        <Modal
+          animationType="fade"
+          onRequestClose={() => setChromeHidden(false)}
+          presentationStyle="fullScreen"
+          statusBarTranslucent
+          navigationBarTranslucent
+          visible>
+          <BottomSheetProvider>{mapContent}</BottomSheetProvider>
+        </Modal>
+      </View>
+    );
+  }
+
+  return mapContent;
 }
 
 function MapCanvas({
@@ -1234,7 +1270,8 @@ function MapCanvas({
         ref={cameraRef}
         initialViewState={{
           center,
-          zoom: hasDownloadedRegion ? initialZoom : WORLD_OVERVIEW_ZOOM,
+          zoom: initialZoom,
+          bearing: mapBearing,
         }}
       />
       {Marker && userLocation ? (
@@ -1397,11 +1434,10 @@ function MissingRegionPromptModal({
 
   React.useEffect(() => {
     if (!visible || !region?.id.startsWith('dynamic-')) {
-      setDynamicPreset(null);
-      return;
+      return undefined;
     }
     const { center } = region;
-    if (!center) return;
+    if (!center) return undefined;
 
     const abortController = new AbortController();
     import('@/services/maps/geocoding.service').then(({ GeocodingService }) => {
@@ -1434,7 +1470,7 @@ function MissingRegionPromptModal({
 
   if (!visible || !region) return null;
 
-  const activeRegion = dynamicPreset || region;
+  const activeRegion = dynamicPreset?.id === region.id ? dynamicPreset : region;
   const size = activeRegion?.estimatedSizeMb
     ? `About ${Math.round(activeRegion.estimatedSizeMb)} MB`
     : activeRegion?.estimatedSize;

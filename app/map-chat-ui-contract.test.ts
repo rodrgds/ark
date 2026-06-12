@@ -74,6 +74,10 @@ describe('map and chat UI contracts', () => {
 
   test('chat voice input works around native VAD arguments and streams spoken responses', () => {
     const chat = readFileSync(join(appDir, 'chat/[threadId].tsx'), 'utf8');
+    const voiceRuntime = readFileSync(
+      join(process.cwd(), 'src/services/ai/voice-runtime.service.ts'),
+      'utf8'
+    );
     const vad = readFileSync(join(process.cwd(), 'src/hooks/use-ark-voice-activity.ts'), 'utf8');
     const tts = readFileSync(join(process.cwd(), 'src/hooks/use-ark-text-to-speech.ts'), 'utf8');
     const recorder = readFileSync(
@@ -82,20 +86,29 @@ describe('map and chat UI contracts', () => {
     );
 
     expect(chat).toContain('useArkVoiceActivity');
-    expect(chat).toContain('WHISPER_TINY_EN');
+    expect(chat).toContain('useArkSpeechToText');
+    expect(voiceRuntime).toContain('WHISPER_TINY_EN');
     expect(chat).toContain('speechToText.transcribe(speechWaveform, {})');
     expect(chat).toContain('0.18 * sampleRate');
     expect(chat).toContain('SpeechRecordingService.stop()');
-    expect(chat).toContain('recordingPulseStyle');
+    expect(chat).toContain('voiceProgress');
+    expect(chat).toContain('splitProgress');
+    expect(chat).toContain('keyboardProgress.value');
+    expect(chat).toContain('waveformSamples.value = [...waveformSamples.value.slice(1), nextLevel]');
+    expect(chat).toContain('VoiceWaveform');
+    expect(chat).not.toContain('withRepeat(withTiming');
+    expect(chat).toContain('cancelVoiceRecording');
     expect(chat).toContain('Read aloud');
     expect(recorder).toContain('AudioRecorder');
     expect(recorder).toContain('sampleRate: SPEECH_SAMPLE_RATE');
     expect(recorder).toContain('buffer.getChannelData(0).slice()');
     expect(recorder).toContain('* 8');
     expect(vad).toContain('nativeModule.generate(waveform, 0)');
+    expect(vad).not.toContain('moduleRef.current?.delete()');
     expect(tts).toContain('moduleInstance.streamInsert');
     expect(tts).toContain('for await (const waveform of moduleInstance.stream');
     expect(tts).not.toContain('moduleInstance.forward(normalized');
+    expect(tts).not.toContain('moduleRef.current?.delete()');
   });
 
   test('upright level draws its tube from the measured width', () => {
@@ -199,12 +212,14 @@ describe('map and chat UI contracts', () => {
     expect(counts.India).toBeGreaterThanOrEqual(6);
   });
 
-  test('map overlays use shared bottom sheets instead of native modals', () => {
+  test('map edit overlays use shared bottom sheets while fullscreen escapes native tabs', () => {
     const source = readFileSync(join(appDir, '(tabs)/map.tsx'), 'utf8');
 
     expect(source).toContain('ArkBottomSheet');
     expect(source).toContain("snapPoints={['58%', '92%']}");
-    expect(source).not.toContain('<Modal');
+    expect(source).toContain('<Modal');
+    expect(source).toContain('presentationStyle="fullScreen"');
+    expect(source).toContain('navigationBarTranslucent');
     expect(source).not.toContain('KeyboardAvoidingView');
   });
 

@@ -15,6 +15,7 @@ const iconNames = [
   'Bot',
   'Check',
   'ChevronLeft',
+  'CircleX',
   'CheckSquare',
   'Clock',
   'Compass',
@@ -27,6 +28,7 @@ const iconNames = [
   'LocateFixed',
   'LockKeyhole',
   'Map',
+  'MessageSquareText',
   'NotebookPen',
   'Plus',
   'Ruler',
@@ -205,6 +207,12 @@ export function installCommonRntlMocks(mockApi: MockApi) {
       GestureDetector: ({ children }: React.PropsWithChildren) => <>{children}</>,
     };
   });
+
+  mockApi.module('react-native-safe-area-context', () => ({
+    SafeAreaProvider: ({ children }: React.PropsWithChildren) => <>{children}</>,
+    SafeAreaView: View,
+    useSafeAreaInsets: () => ({ bottom: 0, left: 0, right: 0, top: 0 }),
+  }));
 
   mockApi.module('react-native-worklets', () => ({
     scheduleOnRN: (callback: (...args: unknown[]) => void, ...args: unknown[]) => callback(...args),

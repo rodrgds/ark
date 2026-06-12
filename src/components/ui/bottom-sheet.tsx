@@ -31,6 +31,13 @@ export type ArkBottomSheetProps = {
   maxDynamicContentSize?: number;
 };
 
+type SheetState = {
+  mounted: boolean;
+  index: number;
+  visible: boolean;
+  initialOpenIndex: number;
+};
+
 export function ArkBottomSheet({
   visible,
   title,
@@ -43,8 +50,6 @@ export function ArkBottomSheet({
   contentClassName,
   maxDynamicContentSize,
 }: ArkBottomSheetProps) {
-  const [mounted, setMounted] = React.useState(visible);
-  const [index, setIndex] = React.useState(0);
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const effectiveTheme = useThemeStore((state) => state.effectiveTheme);
@@ -63,36 +68,53 @@ export function ArkBottomSheet({
     return [0, ...(snapPoints ?? ['82%']).map((point) => resolveSnapPoint(point, height))];
   }, [contentSized, height, snapPoints]);
   const initialOpenIndex = Math.min(1, detents.length - 1);
+  const [sheetState, setSheetState] = React.useState<SheetState>(() => ({
+    mounted: visible,
+    index: visible ? initialOpenIndex : 0,
+    visible,
+    initialOpenIndex,
+  }));
+  const { mounted, index } = sheetState;
 
-  React.useEffect(() => {
-    visibleRef.current = visible;
-  }, [visible]);
+  visibleRef.current = visible;
 
-  React.useEffect(() => {
+  if (sheetState.visible !== visible || sheetState.initialOpenIndex !== initialOpenIndex) {
     if (visible) {
-      setMounted(true);
       dismissingRef.current = false;
-      setIndex(initialOpenIndex);
-      return undefined;
+    } else if (sheetState.visible) {
+      dismissingRef.current = true;
     }
 
-    dismissingRef.current = true;
-    setIndex(0);
-    return undefined;
-  }, [initialOpenIndex, visible]);
+    setSheetState({
+      mounted: visible ? true : sheetState.mounted,
+      index: visible ? initialOpenIndex : 0,
+      visible,
+      initialOpenIndex,
+    });
+  }
 
   React.useImperativeHandle(
     sheetRef,
     () => ({
-      close: () => setIndex(0),
-      expand: () => setIndex(detents.length - 1),
+      close: () =>
+        setSheetState((current) => ({
+          ...current,
+          index: 0,
+        })),
+      expand: () =>
+        setSheetState((current) => ({
+          ...current,
+          index: detents.length - 1,
+        })),
     }),
     [detents.length]
   );
 
   const handleIndexChange = React.useCallback(
     (nextIndex: number) => {
-      setIndex((currentIndex) => (currentIndex === nextIndex ? currentIndex : nextIndex));
+      setSheetState((current) =>
+        current.index === nextIndex ? current : { ...current, index: nextIndex }
+      );
     },
     []
   );
@@ -116,7 +138,11 @@ export function ArkBottomSheet({
         onDismiss();
       }
 
-      setMounted(false);
+      setSheetState((current) => ({
+        ...current,
+        mounted: false,
+        index: 0,
+      }));
     },
     [onDismiss]
   );

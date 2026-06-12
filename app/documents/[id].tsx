@@ -1,4 +1,5 @@
 import { ArkKeyboardAwareScrollView } from '@/components/layout/keyboard-controller';
+import { NAV_COLORS, type ThemePreference } from '@/constants/theme';
 import { getNativePdf } from '@/components/readers/native-pdf';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -24,6 +25,7 @@ import * as React from 'react';
 import { ActivityIndicator, Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
+import { useThemeStore } from '@/stores/theme-store';
 
 function canPreviewAsText(document: ArkDocument) {
   return isTextDocument(document);
@@ -37,14 +39,60 @@ function canPreviewInWebView(document: ArkDocument) {
   );
 }
 
-function textHtml(title: string, body: string) {
+function documentThemeScript(theme: ThemePreference) {
+  const colors = NAV_COLORS[theme];
+  const selection =
+    theme === 'light' ? 'rgba(74, 87, 66, 0.18)' : 'rgba(149, 167, 139, 0.28)';
+
+  return `
+(function() {
+  var css = ${JSON.stringify(`
+    :root {
+      color-scheme: ${theme === 'light' ? 'light' : 'dark'};
+      --ark-bg: ${colors.background};
+      --ark-fg: ${colors.foreground};
+      --ark-accent: ${colors.primary};
+      --ark-card: ${colors.card};
+      --ark-border: ${colors.border};
+    }
+    html, body {
+      background: var(--ark-bg) !important;
+      color: var(--ark-fg) !important;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      color: var(--ark-fg) !important;
+    }
+    a { color: var(--ark-accent) !important; }
+    pre, code, blockquote, table, th, td {
+      border-color: var(--ark-border) !important;
+    }
+    pre, code, blockquote, th {
+      background: var(--ark-card) !important;
+    }
+    ::selection { background: ${selection}; }
+  `)};
+  var style = document.getElementById('ark-document-theme');
+  if (!style) {
+    style = document.createElement('style');
+    style.id = 'ark-document-theme';
+    document.head.appendChild(style);
+  }
+  style.textContent = css;
+  document.documentElement.style.colorScheme = ${JSON.stringify(theme === 'light' ? 'light' : 'dark')};
+})();
+true;
+`;
+}
+
+function textHtml(title: string, body: string, theme: ThemePreference) {
+  const colors = NAV_COLORS[theme];
   return `<!doctype html>
 <html>
   <head>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
-      body { background: #000; color: #f4f4f5; font: 15px -apple-system, BlinkMacSystemFont, sans-serif; line-height: 1.5; padding: 16px; }
-      h1 { font-size: 18px; margin: 0 0 16px; }
+      body { background: ${colors.background}; color: ${colors.foreground}; font: 15px -apple-system, BlinkMacSystemFont, sans-serif; line-height: 1.5; padding: 16px; }
+      h1 { color: ${colors.foreground}; font-size: 18px; margin: 0 0 16px; }
       pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
     </style>
   </head>
@@ -68,6 +116,8 @@ export default function DocumentReaderScreen() {
   const { id, page } = useLocalSearchParams<{ id: string; page?: string }>();
   const insets = useSafeAreaInsets();
   const speechPlayback = useArkTextToSpeech();
+  const theme = useThemeStore((state) => state.effectiveTheme);
+  const colors = NAV_COLORS[theme];
   const [document, setDocument] = React.useState<ArkDocument | null>(null);
   const [documentPages, setDocumentPages] = React.useState<
     Awaited<ReturnType<typeof DocumentPagesRepository.listForDocument>>
@@ -179,7 +229,7 @@ export default function DocumentReaderScreen() {
   }
 
   const webSource = textPreview
-    ? { html: textHtml(document.title, textPreview) }
+    ? { html: textHtml(document.title, textPreview, theme) }
     : document.localUri
       ? { uri: document.localUri }
       : null;
@@ -332,7 +382,7 @@ export default function DocumentReaderScreen() {
               <Pdf
                 source={{ uri: document.localUri }}
                 page={initialPage}
-                style={{ flex: 1, backgroundColor: '#000000' }}
+                style={{ flex: 1, backgroundColor: colors.background }}
                 onPageChanged={(nextPage: number) => setCurrentPdfPage(nextPage)}
                 onError={(pdfError: unknown) => {
                   setError(
@@ -355,7 +405,10 @@ export default function DocumentReaderScreen() {
                 originWhitelist={textPreview ? [] : document.localUri ? [document.localUri] : []}
                 source={webSource}
                 allowFileAccess
+                injectedJavaScript={documentThemeScript(theme)}
+                injectedJavaScriptBeforeContentLoaded={documentThemeScript(theme)}
                 startInLoadingState
+                style={{ backgroundColor: colors.background }}
                 renderLoading={() => (
                   <View className="bg-background flex-1 items-center justify-center">
                     <ActivityIndicator />

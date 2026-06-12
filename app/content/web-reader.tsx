@@ -144,7 +144,7 @@ export default function WebReaderScreen() {
           paddingBottom: Math.max(40, insets.bottom + 20),
         }}>
         <View className="mb-6 gap-2">
-          <Text variant="h1" className="text-3xl font-extrabold tracking-tight">
+          <Text variant="h1" className="text-foreground text-3xl font-extrabold tracking-tight">
             {article.title}
           </Text>
           {article.author || article.published ? (

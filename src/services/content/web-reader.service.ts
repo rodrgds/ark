@@ -4,7 +4,7 @@ import { withDefuddleDomGlobals } from '@/services/content/defuddle-runtime';
 
 export type WebArticle = {
   title: string;
-  content: string; // Markdown
+  content: string;
   url: string;
   excerpt?: string;
   author?: string;
@@ -17,7 +17,7 @@ export type WebArticle = {
 export class WebReaderService {
   /**
    * Fetches a remote URL and extracts its content using Defuddle.
-   * Returns Markdown content and metadata.
+   * Returns readable content and metadata.
    */
   static async fetchAndParse(url: string): Promise<WebArticle> {
     const response = await fetch(url, {
@@ -39,7 +39,7 @@ export class WebReaderService {
 
     return withDefuddleDomGlobals(dom, async () => {
       const result = await Defuddle(document, url, {
-        markdown: true,
+        markdown: false,
         standardize: true,
         removeHiddenElements: true,
         removeLowScoring: true,
@@ -51,7 +51,7 @@ export class WebReaderService {
 
       return {
         title: result.title || 'Untitled',
-        content: result.content,
+        content: htmlToReadableText(result.content),
         url: url,
         excerpt: result.description,
         author: result.author,
@@ -62,4 +62,15 @@ export class WebReaderService {
       };
     });
   }
+}
+
+function htmlToReadableText(value: string) {
+  const html = value.trim();
+  if (!html) return '';
+  const parsed = parseHTML(html);
+  return (
+    parsed.document.body?.textContent ?? parsed.document.documentElement?.textContent ?? html
+  )
+    .replace(/\s+/g, ' ')
+    .trim();
 }

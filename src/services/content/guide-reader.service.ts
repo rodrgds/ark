@@ -1,4 +1,5 @@
 import * as FileSystem from 'expo-file-system/legacy';
+import { NAV_COLORS, type ThemePreference } from '@/constants/theme';
 import type { ContentPack } from '@/types/content';
 import type { GuideSection } from '@/services/content/guide.service';
 import { Platform } from 'react-native';
@@ -16,14 +17,19 @@ export type ReaderContent = {
   allowReadAccessToURL?: string;
 };
 
-const OLED_THEME_CSS = `
+function getReaderThemeCss(theme: ThemePreference) {
+  const colors = NAV_COLORS[theme];
+  const selection =
+    theme === 'light' ? 'rgba(74, 87, 66, 0.18)' : 'rgba(149, 167, 139, 0.28)';
+
+  return `
   :root {
-    --bg: #000000;
-    --fg: #e4e4e7;
-    --fg-muted: #a1a1aa;
-    --accent: #f2b84b;
-    --card-bg: #0a0a0a;
-    --border: #27272a;
+    --bg: ${colors.background};
+    --fg: ${colors.foreground};
+    --fg-muted: ${colors.mutedForeground};
+    --accent: ${colors.primary};
+    --card-bg: ${colors.card};
+    --border: ${colors.border};
   }
   * { box-sizing: border-box; }
   html, body {
@@ -82,8 +88,9 @@ const OLED_THEME_CSS = `
   hr { border: none; border-top: 1px solid var(--border); margin: 2em 0; }
   ul, ol { padding-left: 1.5em; }
   li { margin: 0.3em 0; }
-  ::selection { background: rgba(242, 184, 75, 0.3); }
+  ::selection { background: ${selection}; }
 `;
+}
 
 import { escapeHtml } from '@/lib/format';
 
@@ -94,14 +101,14 @@ function slugify(text: string) {
     .replace(/ +/g, '-');
 }
 
-function wrapInHtmlShell(body: string, title: string) {
+function wrapInHtmlShell(body: string, title: string, theme: ThemePreference) {
   return `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
   <title>${escapeHtml(title)}</title>
-  <style>${OLED_THEME_CSS}</style>
+  <style>${getReaderThemeCss(theme)}</style>
 </head>
 <body>
   ${body}
@@ -115,7 +122,8 @@ export class GuideReaderService {
    */
   static async prepareContent(
     pack: ContentPack,
-    section?: GuideSection | null
+    section?: GuideSection | null,
+    theme: ThemePreference = 'oled'
   ): Promise<ReaderContent> {
     if (!pack.localUri) {
       throw new Error('This guide has not been downloaded yet.');
@@ -156,7 +164,8 @@ export class GuideReaderService {
       return {
         html: wrapInHtmlShell(
           `<article style="padding: 16px;">${bodyHtml}</article>`,
-          pack.title
+          pack.title,
+          theme
         ),
         format: 'html',
         title: pack.title,
@@ -184,7 +193,7 @@ export class GuideReaderService {
       let html = content;
       // Inject theme if not present
       if (!content.includes('id="ark-theme"')) {
-        const themeStyle = `<style id="ark-theme">${OLED_THEME_CSS} body { padding: 16px !important; }</style>`;
+        const themeStyle = `<style id="ark-theme">${getReaderThemeCss(theme)} body { padding: 16px !important; }</style>`;
         if (content.includes('</head>')) {
           html = content.replace('</head>', themeStyle + '</head>');
         } else if (content.includes('<body')) {
@@ -214,7 +223,8 @@ export class GuideReaderService {
           <h1 style="font-size: 1.3em; margin-bottom: 1em;">${escapeHtml(pack.title)}</h1>
           <pre style="white-space: pre-wrap; word-wrap: break-word; overflow-wrap: anywhere; margin: 0; font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif; font-size: 15px; line-height: 1.6;">${escapeHtml(textContent)}</pre>
         </article>`,
-        pack.title
+        pack.title,
+        theme
       ),
       format: 'text',
       title: pack.title,

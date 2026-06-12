@@ -17,7 +17,10 @@ web-build/
 *.mobileprovision
 android/
 ios/
+!modules/*/ios/
+!modules/*/ios/**
 modules/*/android/build/
+modules/*/ios/CoreKiwix.xcframework/
 
 # Metro
 .metro-health-check*

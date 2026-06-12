@@ -146,7 +146,7 @@ export default function LightTool() {
             const y = DISC_R + DISC_R * 0.82 * Math.sin(rad) - rayLength / 2;
             return (
               <Animated.View
-                key={i}
+                key={angle}
                 style={[
                   styles.ray,
                   {

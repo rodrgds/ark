@@ -35,7 +35,8 @@
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "ACTIVITY_RECOGNITION",
-        "RECORD_AUDIO"
+        "RECORD_AUDIO",
+        "POST_NOTIFICATIONS"
       ],
       "blockedPermissions": [
         "android.permission.READ_EXTERNAL_STORAGE",
@@ -50,6 +51,16 @@
     },
     "plugins": [
       "expo-router",
+      "expo-notifications",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-transparent.png",
+          "imageWidth": 128,
+          "resizeMode": "contain",
+          "backgroundColor": "#000000"
+        }
+      ],
       "expo-secure-store",
       [
         "expo-local-authentication",

@@ -5,6 +5,7 @@ import { NetworkService } from '@/services/connectivity/network.service';
 import { PreferencesService } from '@/services/preferences/preferences.service';
 import { RagService } from '@/services/ai/rag.service';
 import { FileDigestService } from '@/services/files/file-digest.service';
+import { DownloadNotificationService } from '@/services/files/download-notifications.service';
 import { ZimHeaderParser } from '@/services/content/zim-header';
 import type { AppDirectory } from '@/constants/app';
 import type { DownloadKind, DownloadRow } from '@/types/downloads';
@@ -274,6 +275,7 @@ export class DownloadManagerService {
   private static downloadPackIds = new Map<string, string | null | undefined>();
   private static drainingQueue = false;
   private static queueLocks = new Map<string, Promise<unknown>>();
+  private static lifecycleSubscription: { remove: () => void } | null = null;
 
   private static async withQueueLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
     const previous = this.queueLocks.get(key) ?? Promise.resolve();
@@ -388,6 +390,7 @@ export class DownloadManagerService {
   }
 
   static async recoverPendingDownloads() {
+    await DownloadNotificationService.configure().catch(() => undefined);
     const pending = await DownloadsRepository.listByStatuses([
       'queued',
       'downloading',
@@ -412,6 +415,24 @@ export class DownloadManagerService {
       }
     }
     this.drainQueueSoon();
+  }
+
+  static bindLifecycle() {
+    if (this.lifecycleSubscription) return () => undefined;
+    void import('react-native')
+      .then(({ AppState }) => {
+        if (this.lifecycleSubscription) return;
+        this.lifecycleSubscription = AppState.addEventListener('change', (state) => {
+          if (state === 'active') {
+            void this.recoverPendingDownloads();
+          }
+        });
+      })
+      .catch(() => undefined);
+    return () => {
+      this.lifecycleSubscription?.remove();
+      this.lifecycleSubscription = null;
+    };
   }
 
   private static drainQueueSoon() {
@@ -537,6 +558,13 @@ export class DownloadManagerService {
         progress: 0,
         localUri: input.localUri,
       });
+      void DownloadNotificationService.progress({
+        id: input.id,
+        kind: input.kind,
+        title: input.title,
+        progress: 0,
+        status: 'downloading',
+      });
       if (input.packId) {
         await ContentRepository.updateInstallStatus({
           id: input.packId,
@@ -579,6 +607,13 @@ export class DownloadManagerService {
               sizeBytes: totalBytes,
             });
           }
+          void DownloadNotificationService.progress({
+            id: input.id,
+            kind: input.kind,
+            title: input.title,
+            progress,
+            status: 'downloading',
+          });
         },
         input.resumeData ?? undefined
       );
@@ -619,6 +654,13 @@ export class DownloadManagerService {
       if (active?.stopReason === 'paused' || active?.stopReason === 'canceled') return;
       const message = error instanceof Error ? error.message : 'Download failed.';
       await DownloadsRepository.updateStatus(input.id, 'failed', 0, message);
+      await DownloadNotificationService.terminal({
+        id: input.id,
+        kind: input.kind,
+        title: input.title,
+        progress: 0,
+        status: 'failed',
+      });
       if (input.packId) {
         await ContentRepository.updateInstallStatus({
           id: input.packId,
@@ -665,6 +707,13 @@ export class DownloadManagerService {
         },
       };
       this.activeDownloads.set(input.id, active);
+      void DownloadNotificationService.progress({
+        id: input.id,
+        kind: input.kind,
+        title: input.title,
+        progress: 0,
+        status: 'downloading',
+      });
       if (input.packId) {
         await ContentRepository.updateInstallStatus({
           id: input.packId,
@@ -678,7 +727,7 @@ export class DownloadManagerService {
       await FileSystem.makeDirectoryAsync(snapshotRoot, { intermediates: true }).catch(
         () => undefined
       );
-      await this.updateProgressState(input.id, input.packId, input.localUri, 0.08);
+      await this.updateProgressState(input.id, input.packId, input.localUri, input.title, 0.08);
 
       const response = await fetch(input.sourceUrl, {
         headers: {
@@ -702,7 +751,7 @@ export class DownloadManagerService {
         );
       }
 
-      await this.updateProgressState(input.id, input.packId, input.localUri, 0.2);
+      await this.updateProgressState(input.id, input.packId, input.localUri, input.title, 0.2);
 
       for (let index = 0; index < imageUrls.length; index += 1) {
         if (controller.signal.aborted) throw new Error('Download canceled.');
@@ -735,7 +784,7 @@ export class DownloadManagerService {
         }
 
         const progress = 0.2 + ((index + 1) / Math.max(imageUrls.length, 1)) * 0.65;
-        await this.updateProgressState(input.id, input.packId, input.localUri, progress);
+        await this.updateProgressState(input.id, input.packId, input.localUri, input.title, progress);
       }
 
       const snapshotHtml = wrapSnapshotHtml({
@@ -760,6 +809,7 @@ export class DownloadManagerService {
       await this.finalizeDownloadedFile({
         id: input.id,
         kind: input.kind,
+        title: input.title,
         packId: input.packId,
         resultUri: input.localUri,
         resolvedSizeBytes: totalBytes,
@@ -767,6 +817,13 @@ export class DownloadManagerService {
     } catch (error) {
       if (active?.stopReason === 'paused') {
         await DownloadsRepository.updateStatus(input.id, 'paused', active.progress, null);
+        await DownloadNotificationService.terminal({
+          id: input.id,
+          kind: input.kind,
+          title: input.title,
+          progress: active.progress,
+          status: 'paused',
+        });
         if (input.packId) {
           await ContentRepository.updateInstallStatus({
             id: input.packId,
@@ -780,6 +837,13 @@ export class DownloadManagerService {
 
       if (controller.signal.aborted || active?.stopReason === 'canceled') {
         await DownloadsRepository.updateStatus(input.id, 'canceled', active?.progress ?? 0, null);
+        await DownloadNotificationService.terminal({
+          id: input.id,
+          kind: input.kind,
+          title: input.title,
+          progress: active?.progress ?? 0,
+          status: 'canceled',
+        });
         if (input.packId) {
           await ContentRepository.updateInstallStatus({
             id: input.packId,
@@ -794,6 +858,13 @@ export class DownloadManagerService {
       await FileSystem.deleteAsync(snapshotRoot, { idempotent: true }).catch(() => undefined);
       const message = error instanceof Error ? error.message : 'Download failed.';
       await DownloadsRepository.updateStatus(input.id, 'failed', 0, message);
+      await DownloadNotificationService.terminal({
+        id: input.id,
+        kind: input.kind,
+        title: input.title,
+        progress: 0,
+        status: 'failed',
+      });
       if (input.packId) {
         await ContentRepository.updateInstallStatus({
           id: input.packId,
@@ -821,6 +892,13 @@ export class DownloadManagerService {
     if (!row) throw new Error('Download not found.');
     if (!active) {
       await DownloadsRepository.updateStatus(id, 'paused', row.progress, null);
+      await DownloadNotificationService.terminal({
+        id,
+        kind: row.kind,
+        title: row.title,
+        progress: row.progress,
+        status: 'paused',
+      });
       const packId = await this.resolvePackIdForDownload(row);
       if (packId && row.localUri) {
         await ContentRepository.updateInstallStatus({
@@ -840,6 +918,13 @@ export class DownloadManagerService {
         id,
         progress: active.progress || row.progress,
         resumeData: null,
+      });
+      await DownloadNotificationService.terminal({
+        id,
+        kind: row.kind,
+        title: row.title,
+        progress: active.progress || row.progress,
+        status: 'paused',
       });
       if (active.packId) {
         await ContentRepository.updateInstallStatus({
@@ -861,6 +946,13 @@ export class DownloadManagerService {
       id,
       progress: active.progress || row.progress,
       resumeData,
+    });
+    await DownloadNotificationService.terminal({
+      id,
+      kind: row.kind,
+      title: row.title,
+      progress: active.progress || row.progress,
+      status: 'paused',
     });
     if (active.packId) {
       await ContentRepository.updateInstallStatus({
@@ -912,6 +1004,13 @@ export class DownloadManagerService {
       await FileSystem.deleteAsync(targetUri, { idempotent: true }).catch(() => undefined);
     }
     await DownloadsRepository.updateStatus(id, 'canceled', 0, null);
+    await DownloadNotificationService.terminal({
+      id,
+      kind: row.kind,
+      title: row.title,
+      progress: 0,
+      status: 'canceled',
+    });
     this.downloadPackIds.delete(id);
     this.drainQueueSoon();
   }
@@ -1013,6 +1112,7 @@ export class DownloadManagerService {
   private static async finalizeDownloadedFile(input: {
     id: string;
     kind: DownloadKind;
+    title: string;
     packId?: string | null;
     resultUri: string;
     expectedChecksumMd5?: string | null;
@@ -1023,6 +1123,13 @@ export class DownloadManagerService {
   }) {
     this.assertDownloadNotCanceled(input.id);
     await DownloadsRepository.updateStatus(input.id, 'verifying', 1, null);
+    await DownloadNotificationService.progress({
+      id: input.id,
+      kind: input.kind,
+      title: input.title,
+      progress: 1,
+      status: 'verifying',
+    });
     if (input.packId) {
       await ContentRepository.updateInstallStatus({
         id: input.packId,
@@ -1105,6 +1212,13 @@ export class DownloadManagerService {
       checksumMd5: input.checksumMd5 ?? null,
       checksumSha256,
     });
+    await DownloadNotificationService.terminal({
+      id: input.id,
+      kind: input.kind,
+      title: input.title,
+      progress: 1,
+      status: 'completed',
+    });
     if (input.packId) {
       await ContentRepository.updateInstallStatus({
         id: input.packId,
@@ -1135,6 +1249,7 @@ export class DownloadManagerService {
     id: string,
     packId: string | null | undefined,
     localUri: string,
+    title: string,
     progress: number
   ) {
     const nextProgress = Math.max(0, Math.min(progress, 0.99));
@@ -1144,6 +1259,13 @@ export class DownloadManagerService {
       id,
       progress: nextProgress,
       localUri,
+    });
+    void DownloadNotificationService.progress({
+      id,
+      kind: active?.kind ?? 'guide',
+      title,
+      progress: nextProgress,
+      status: 'downloading',
     });
     if (packId) {
       await ContentRepository.updateInstallStatus({

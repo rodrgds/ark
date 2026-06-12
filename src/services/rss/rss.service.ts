@@ -174,7 +174,8 @@ async function normalizeAtomItem(feedId: string, rawItem: unknown) {
 }
 
 async function defuddleContent(html: string, url: string | null) {
-  if (!html.trim()) return { summary: null, content: null };
+  const stripped = stripHtml(html);
+  if (!stripped) return { summary: null, content: null };
 
   const dom = parseHTML(html);
   const { document } = dom;
@@ -182,17 +183,17 @@ async function defuddleContent(html: string, url: string | null) {
   try {
     const result = await withDefuddleDomGlobals(dom, () =>
       Defuddle(document, url || '', {
-        markdown: true,
+        markdown: false,
         standardize: true,
       })
     );
+    const content = stripHtml(result.content || html);
 
     return {
-      summary: result.description || stripHtml(html).slice(0, 200),
-      content: result.content || stripHtml(html),
+      summary: result.description || stripped.slice(0, 200),
+      content: content || stripped,
     };
   } catch {
-    const stripped = stripHtml(html);
     return {
       summary: stripped.slice(0, 200),
       content: stripped,

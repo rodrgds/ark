@@ -52,15 +52,11 @@ export function useHeadingStability(
 ): { stable: boolean | null; spreadDeg: number | null } {
   const { windowMs = 6_000, thresholdDeg = 30, minSamples = 12 } = options;
   const samplesRef = React.useRef<StabilitySample[]>([]);
-  const [stable, setStable] = React.useState<boolean | null>(null);
-  const [spreadDeg, setSpreadDeg] = React.useState<number | null>(null);
 
-  React.useEffect(() => {
+  return React.useMemo(() => {
     if (heading === null) {
       samplesRef.current = [];
-      setStable(null);
-      setSpreadDeg(null);
-      return;
+      return { stable: null, spreadDeg: null };
     }
     const now = Date.now();
     const next = samplesRef.current.filter((sample) => now - sample.t <= windowMs);
@@ -68,14 +64,10 @@ export function useHeadingStability(
     samplesRef.current = next;
 
     if (next.length < minSamples) {
-      setStable(null);
-      return;
+      return { stable: null, spreadDeg: null };
     }
 
     const spread = circularSpreadDeg(next.map((sample) => sample.heading));
-    setSpreadDeg(spread);
-    setStable(spread <= thresholdDeg);
+    return { stable: spread <= thresholdDeg, spreadDeg: spread };
   }, [heading, minSamples, thresholdDeg, windowMs]);
-
-  return { stable, spreadDeg };
 }

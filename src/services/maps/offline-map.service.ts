@@ -1,5 +1,6 @@
 import { MapsRepository } from '@/services/db/repositories/maps.repo';
 import { RagCleanupService } from '@/services/ai/rag-cleanup.service';
+import { DownloadNotificationService } from '@/services/files/download-notifications.service';
 import { FileSystemService } from '@/services/files/filesystem.service';
 import { MapService, type MapLibreModule } from '@/services/maps/map.service';
 import { sizeFromPackStatus } from '@/services/maps/map-pack-status';
@@ -25,6 +26,7 @@ type OfflinePackStatusLike = {
 export class OfflineMapService {
   private static activeRegionId: string | null = null;
   private static startingQueuedRegion = false;
+  private static lifecycleSubscription: { remove: () => void } | null = null;
 
   static async createRegionDownload(input: {
     name: string;
@@ -154,6 +156,24 @@ export class OfflineMapService {
     this.startNextQueuedRegion();
   }
 
+  static bindLifecycle() {
+    if (this.lifecycleSubscription) return () => undefined;
+    void import('react-native')
+      .then(({ AppState }) => {
+        if (this.lifecycleSubscription) return;
+        this.lifecycleSubscription = AppState.addEventListener('change', (state) => {
+          if (state === 'active') {
+            void this.syncNativePacks().catch(() => undefined);
+          }
+        });
+      })
+      .catch(() => undefined);
+    return () => {
+      this.lifecycleSubscription?.remove();
+      this.lifecycleSubscription = null;
+    };
+  }
+
   static async deleteRegion(id: string) {
     const region = await MapsRepository.getRegion(id);
     if (!region) return;
@@ -194,6 +214,7 @@ export class OfflineMapService {
     }
 
     await MapsRepository.updateRegionStatus(id, { status: 'paused' });
+    this.notifyRegionDownload(id, 'paused', region.progress);
     if (this.activeRegionId === id) this.completeRegionDownload(id);
     return { ok: true };
   }
@@ -296,6 +317,7 @@ export class OfflineMapService {
 
     this.activeRegionId = id;
     await MapsRepository.updateRegionStatus(id, { status: 'downloading', progress: 0 });
+    this.notifyRegionDownload(id, 'downloading', 0);
     try {
       maplibre.OfflineManager.setTileCountLimit?.(250000);
       const existingPacks = await maplibre.OfflineManager.getPacks();
@@ -311,6 +333,7 @@ export class OfflineMapService {
             sizeBytes: sizeFromPackStatus(existingStatus),
             offlinePackId: existingPack.id,
           });
+          this.notifyRegionDownload(id, 'completed', 1);
           this.completeRegionDownload(id);
           return { ok: true };
         }
@@ -323,6 +346,7 @@ export class OfflineMapService {
             sizeBytes: sizeFromPackStatus(existingStatus),
             offlinePackId: existingPack.id,
           });
+          this.notifyRegionDownload(id, 'downloading', progressFromPackStatus(existingStatus));
         }
         return { ok: true };
       }
@@ -353,10 +377,14 @@ export class OfflineMapService {
         sizeBytes: status ? sizeFromPackStatus(status) : null,
         offlinePackId: pack.id,
       });
-      if (status && isOfflinePackComplete(status)) this.completeRegionDownload(id);
+      if (status && isOfflinePackComplete(status)) {
+        this.notifyRegionDownload(id, 'completed', 1);
+        this.completeRegionDownload(id);
+      }
       return { ok: true };
     } catch (error) {
       await MapsRepository.updateRegionStatus(id, { status: 'failed', progress: 0 });
+      this.notifyRegionDownload(id, 'failed', 0);
       this.completeRegionDownload(id);
       return {
         ok: false,
@@ -605,13 +633,39 @@ export class OfflineMapService {
       sizeBytes: sizeFromPackStatus(status),
       offlinePackId: packId,
     });
+    this.notifyRegionDownload(
+      regionId,
+      completed ? 'completed' : 'downloading',
+      progressFromPackStatus(status)
+    );
     if (completed) this.completeRegionDownload(regionId);
   }
 
   private static handlePackError(regionId: string, message?: string) {
     void MapsRepository.updateRegionStatus(regionId, { status: 'failed', progress: 0 });
+    this.notifyRegionDownload(regionId, 'failed', 0);
     this.completeRegionDownload(regionId);
     if (message) logger.warn(message);
+  }
+
+  private static notifyRegionDownload(
+    regionId: string,
+    status: 'downloading' | 'paused' | 'completed' | 'failed',
+    progress: number
+  ) {
+    void MapsRepository.getRegion(regionId).then((region) => {
+      const input = {
+        id: `map-${regionId}`,
+        kind: 'map' as const,
+        title: region?.name ?? 'Offline map region',
+        progress,
+        status,
+      };
+      if (status === 'downloading') {
+        return DownloadNotificationService.progress(input);
+      }
+      return DownloadNotificationService.terminal(input);
+    });
   }
 
   private static startNextQueuedRegion() {

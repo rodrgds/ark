@@ -384,10 +384,6 @@ function PackCard({
           </Text>
         ) : null}
 
-        {pack.disclaimer ? (
-          <Text className="text-destructive text-sm">{pack.disclaimer}</Text>
-        ) : null}
-
         {pack.installStatus === 'downloading' || pack.installStatus === 'queued' ? (
           <View className="flex-row gap-2">
             {pack.format !== 'html' ? (

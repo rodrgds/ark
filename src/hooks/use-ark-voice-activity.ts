@@ -1,4 +1,5 @@
-import { FSMN_VAD, VADModule, type Segment } from 'react-native-executorch';
+import { VoiceRuntimeService } from '@/services/ai/voice-runtime.service';
+import { VADModule, type Segment } from 'react-native-executorch';
 import * as React from 'react';
 
 type NativeVadModule = VADModule & {
@@ -13,18 +14,57 @@ export function useArkVoiceActivity() {
   const [downloadProgress, setDownloadProgress] = React.useState(0);
   const [isReady, setIsReady] = React.useState(false);
 
+  const load = React.useCallback(async () => {
+    const existingModule = VoiceRuntimeService.getVoiceActivityModule();
+    if (existingModule) {
+      moduleRef.current = existingModule;
+      setError(null);
+      setIsReady(true);
+      setDownloadProgress(1);
+      return existingModule;
+    }
+
+    setError(null);
+    const moduleInstance = await VoiceRuntimeService.loadVoiceActivity().catch((loadError) => {
+      const nextError =
+        loadError instanceof Error ? loadError : new Error('Unable to load voice activity.');
+      setError(nextError);
+      setIsReady(false);
+      throw nextError;
+    });
+    moduleRef.current = moduleInstance;
+    setError(null);
+    setIsReady(true);
+    setDownloadProgress(1);
+    return moduleInstance;
+  }, []);
+
   React.useEffect(() => {
     let active = true;
-    VADModule.fromModelName(FSMN_VAD, (progress) => {
+    const unsubscribe = VoiceRuntimeService.subscribeVoiceActivityProgress((progress) => {
       if (active) setDownloadProgress(progress);
-    })
+    });
+
+    const existingModule = VoiceRuntimeService.getVoiceActivityModule();
+    if (existingModule) {
+      moduleRef.current = existingModule;
+      setIsReady(true);
+      setDownloadProgress(1);
+      return () => {
+        active = false;
+        unsubscribe();
+        moduleRef.current = null;
+      };
+    }
+
+    setError(VoiceRuntimeService.getVoiceActivityError());
+    load()
       .then((moduleInstance) => {
-        if (!active) {
-          moduleInstance.delete();
-          return;
-        }
+        if (!active) return;
         moduleRef.current = moduleInstance;
+        setError(null);
         setIsReady(true);
+        setDownloadProgress(1);
       })
       .catch((loadError) => {
         if (!active) return;
@@ -35,10 +75,10 @@ export function useArkVoiceActivity() {
 
     return () => {
       active = false;
-      moduleRef.current?.delete();
+      unsubscribe();
       moduleRef.current = null;
     };
-  }, []);
+  }, [load]);
 
   const forward = React.useCallback(async (waveform: Float32Array) => {
     const moduleInstance = moduleRef.current as NativeVadModule | null;
@@ -53,6 +93,7 @@ export function useArkVoiceActivity() {
     error,
     downloadProgress,
     isReady,
+    retry: load,
     forward,
   };
 }

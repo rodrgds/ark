@@ -2,12 +2,13 @@ import { ArkBottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { Icon } from '@/components/ui/icon';
+import { Input } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
 import { AIService } from '@/services/ai/ai.service';
 import type { AiThread } from '@/types/ai';
 import { formatDistanceToNow } from 'date-fns';
 import { router, useFocusEffect } from 'expo-router';
-import { Bot, Plus, Trash2 } from 'lucide-react-native';
+import { Bot, CircleX, Plus, Search, Trash2 } from 'lucide-react-native';
 import * as React from 'react';
 import { ActivityIndicator, FlatList, Pressable, View } from 'react-native';
 
@@ -16,6 +17,16 @@ export default function ChatIndexScreen() {
   const [loading, setLoading] = React.useState(true);
   const [actionThread, setActionThread] = React.useState<AiThread | null>(null);
   const [confirmDeleteThread, setConfirmDeleteThread] = React.useState<AiThread | null>(null);
+  const [query, setQuery] = React.useState('');
+  const normalizedQuery = query.trim().toLowerCase();
+  const visibleThreads = React.useMemo(() => {
+    if (!normalizedQuery) return threads;
+    return threads.filter((thread) =>
+      [thread.title, thread.lastMessage, `${thread.messageCount} messages`]
+        .filter((value): value is string => Boolean(value))
+        .some((value) => value.toLowerCase().includes(normalizedQuery))
+    );
+  }, [normalizedQuery, threads]);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -51,13 +62,30 @@ export default function ChatIndexScreen() {
   return (
     <View className="bg-background flex-1">
       <View className="border-border border-b px-4 py-3">
-        <View className="flex-row items-center justify-between gap-3">
-          <View className="min-w-0 flex-1">
-            <Text variant="h3">Ask Arky</Text>
-            <Text variant="muted">Separate chats keep context focused.</Text>
+        <View className="flex-row items-center gap-3">
+          <View className="border-border min-w-0 flex-1 flex-row items-center border-b px-1">
+            <Icon as={Search} className="text-muted-foreground size-4" />
+            <Input
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search chats"
+              returnKeyType="search"
+              accessibilityLabel="Search chats"
+              className="min-h-11 flex-1 border-0 bg-transparent px-3 py-2"
+            />
+            {query ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Clear chat search"
+                className="active:bg-accent size-9 items-center justify-center rounded-md"
+                onPress={() => setQuery('')}>
+                <Icon as={CircleX} className="text-muted-foreground size-4" />
+              </Pressable>
+            ) : null}
           </View>
-          <Button size="icon" onPress={newThread}>
-            <Icon as={Plus} className="size-5" />
+          <Button size="sm" variant="secondary" onPress={newThread}>
+            <Icon as={Plus} className="size-4" />
+            <Text>New</Text>
           </Button>
         </View>
       </View>
@@ -67,9 +95,9 @@ export default function ChatIndexScreen() {
           <ActivityIndicator />
           <Text variant="muted">Loading chats...</Text>
         </View>
-      ) : threads.length ? (
+      ) : visibleThreads.length ? (
         <FlatList
-          data={threads}
+          data={visibleThreads}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 8 }}
           renderItem={({ item }) => (
@@ -103,15 +131,19 @@ export default function ChatIndexScreen() {
             <Icon as={Bot} className="text-primary size-9" />
           </View>
           <View className="items-center gap-2">
-            <Text variant="h3">No chats yet</Text>
+            <Text variant="h3">{normalizedQuery ? 'No matching chats' : 'No chats yet'}</Text>
             <Text variant="muted" className="text-center">
-              Start a focused chat for a trip, guide, document, or emergency question.
+              {normalizedQuery
+                ? 'Try a title, answer text, or another search term.'
+                : 'Start a focused chat for a trip, guide, document, or emergency question.'}
             </Text>
           </View>
-          <Button onPress={newThread}>
-            <Icon as={Plus} className="size-4" />
-            <Text>New chat</Text>
-          </Button>
+          {!normalizedQuery ? (
+            <Button onPress={newThread}>
+              <Icon as={Plus} className="size-4" />
+              <Text>New chat</Text>
+            </Button>
+          ) : null}
         </View>
       )}
 

@@ -40,6 +40,16 @@ let mockCurrentLocation: MockLocationObject | null = null;
 let mockCurrentLocationError: Error | null = null;
 let mockNetworkState = { type: 'wifi', isConnected: true, isInternetReachable: true };
 let mockExecutorchEmbeddingsAvailable = true;
+let mockTtsLoadCalls = 0;
+let mockVadLoadCalls = 0;
+let mockSttLoadCalls = 0;
+let mockSttAbortOnce = false;
+const mockScheduledNotifications: Array<{
+  identifier?: string;
+  title?: string | null;
+  body?: string | null;
+  sticky?: boolean;
+}> = [];
 
 type MockLocationObject = {
   coords: {
@@ -88,6 +98,29 @@ mock.module('expo-local-authentication', () => ({
   hasHardwareAsync: async () => true,
   isEnrolledAsync: async () => true,
   authenticateAsync: async () => ({ success: true }),
+}));
+
+mock.module('expo-notifications', () => ({
+  AndroidImportance: { LOW: 4 },
+  AndroidNotificationPriority: { LOW: 'low' },
+  setNotificationHandler: () => undefined,
+  setNotificationChannelAsync: async () => null,
+  getPermissionsAsync: async () => ({ granted: true }),
+  requestPermissionsAsync: async () => ({ granted: true }),
+  scheduleNotificationAsync: async (request: {
+    identifier?: string;
+    content?: { title?: string | null; body?: string | null; sticky?: boolean };
+  }) => {
+    mockScheduledNotifications.push({
+      identifier: request.identifier,
+      title: request.content?.title,
+      body: request.content?.body,
+      sticky: request.content?.sticky,
+    });
+    return request.identifier ?? 'mock-notification';
+  },
+  dismissNotificationAsync: async () => undefined,
+  cancelScheduledNotificationAsync: async () => undefined,
 }));
 
 mock.module('expo-location', () => ({
@@ -207,6 +240,9 @@ mock.module('expo-sharing', () => ({
 }));
 
 mock.module('react-native', () => ({
+  AppState: {
+    addEventListener: () => ({ remove: () => undefined }),
+  },
   Appearance: {
     addChangeListener: () => ({ remove: () => undefined }),
     getColorScheme: () => 'dark',
@@ -275,6 +311,32 @@ mock.module('@react-native-ai/llama', () => ({
 }));
 
 mock.module('react-native-executorch', () => ({
+  FSMN_VAD: {
+    modelSource: 'https://example.test/fsmn-vad.pte',
+  },
+  WHISPER_TINY_EN: {
+    modelName: 'whisper-tiny-en',
+    isMultilingual: false,
+    modelSource: 'https://example.test/whisper-tiny-en.pte',
+    tokenizerSource: 'https://example.test/whisper-tokenizer.json',
+  },
+  models: {
+    text_to_speech: {
+      kokoro: {
+        en_us: {
+          heart: () => ({
+            model: {
+              modelName: 'kokoro',
+              durationPredictorSource: 'https://example.test/kokoro-duration.pte',
+              synthesizerSource: 'https://example.test/kokoro-synth.pte',
+            },
+            voiceSource: 'https://example.test/kokoro-heart.bin',
+            phonemizerConfig: { lang: 'en-us' },
+          }),
+        },
+      },
+    },
+  },
   MULTI_QA_MINILM_L6_COS_V1: {
     modelName: 'multi-qa-minilm-l6-cos-v1',
     modelSource: 'https://example.test/multi-qa-minilm.pte',
@@ -303,6 +365,64 @@ mock.module('react-native-executorch', () => ({
       return Float32Array.from({ length: this.dimensions }, (_, index) =>
         text.toLowerCase().includes('water') && index === 0 ? 1 : index === 1 ? 0.5 : 0
       );
+    }
+
+    delete() {}
+  },
+  SpeechToTextModule: class MockSpeechToTextModule {
+    static async fromModelName(
+      _model: unknown,
+      _vad?: unknown,
+      onProgress: (progress: number) => void = () => undefined
+    ) {
+      mockSttLoadCalls += 1;
+      onProgress(0.08);
+      if (mockSttAbortOnce) {
+        mockSttAbortOnce = false;
+        throw new Error('Software caused connection abort');
+      }
+      onProgress(1);
+      return new MockSpeechToTextModule();
+    }
+
+    async transcribe() {
+      return { text: 'mock transcript' };
+    }
+
+    delete() {}
+  },
+  TextToSpeechModule: class MockTextToSpeechModule {
+    static async fromModelName(
+      _model: unknown,
+      onProgress: (progress: number) => void = () => undefined
+    ) {
+      mockTtsLoadCalls += 1;
+      onProgress(1);
+      return new MockTextToSpeechModule();
+    }
+
+    streamInsert() {}
+
+    async *stream() {
+      yield new Float32Array([0.1, 0.2]);
+    }
+
+    streamStop() {}
+
+    delete() {}
+  },
+  VADModule: class MockVADModule {
+    nativeModule = {
+      generate: async () => [{ start: 0, end: 1 }],
+    };
+
+    static async fromModelName(
+      _model: unknown,
+      onProgress: (progress: number) => void = () => undefined
+    ) {
+      mockVadLoadCalls += 1;
+      onProgress(1);
+      return new MockVADModule();
     }
 
     delete() {}
@@ -515,6 +635,8 @@ let DownloadManagerService: typeof import('@/services/files/download-manager.ser
 let OcrService: typeof import('@/services/ocr/ocr.service').OcrService;
 let resetLlamaAdapterForTests: typeof import('@/services/ai/llama-adapter').resetLlamaAdapterForTests;
 let resetEmbeddingServiceForTests: typeof import('@/services/ai/embedding.service').resetEmbeddingServiceForTests;
+let VoiceRuntimeService: typeof import('@/services/ai/voice-runtime.service').VoiceRuntimeService;
+let resetVoiceRuntimeForTests: typeof import('@/services/ai/voice-runtime.service').resetVoiceRuntimeForTests;
 let RAG_HASH_EMBEDDING_MODEL_ID: typeof import('@/services/ai/rag-embedding').RAG_HASH_EMBEDDING_MODEL_ID;
 let RAG_HASH_EMBEDDING_DIMENSIONS: typeof import('@/services/ai/rag-embedding').RAG_HASH_EMBEDDING_DIMENSIONS;
 let useAppStore: typeof import('@/stores/app-store').useAppStore;
@@ -548,6 +670,9 @@ beforeAll(async () => {
   ({ OcrService } = await import('@/services/ocr/ocr.service'));
   ({ resetLlamaAdapterForTests } = await import('@/services/ai/llama-adapter'));
   ({ resetEmbeddingServiceForTests } = await import('@/services/ai/embedding.service'));
+  ({ VoiceRuntimeService, resetVoiceRuntimeForTests } = await import(
+    '@/services/ai/voice-runtime.service'
+  ));
   ({ RAG_HASH_EMBEDDING_MODEL_ID, RAG_HASH_EMBEDDING_DIMENSIONS } =
     await import('@/services/ai/rag-embedding'));
   ({ useAppStore } = await import('@/stores/app-store'));
@@ -586,6 +711,11 @@ beforeEach(async () => {
   mockCurrentLocation = null;
   mockCurrentLocationError = null;
   mockExecutorchEmbeddingsAvailable = true;
+  mockTtsLoadCalls = 0;
+  mockVadLoadCalls = 0;
+  mockSttLoadCalls = 0;
+  mockSttAbortOnce = false;
+  mockScheduledNotifications.length = 0;
   mockNetworkState = { type: 'wifi', isConnected: true, isInternetReachable: true };
   delete process.env.EXPO_PUBLIC_ARK_MAP_CATALOG_URL;
   delete process.env.EXPO_PUBLIC_ARK_MAP_CATALOG_SHA256;
@@ -612,6 +742,7 @@ beforeEach(async () => {
   }) as typeof fetch;
   resetLlamaAdapterForTests?.();
   resetEmbeddingServiceForTests?.();
+  resetVoiceRuntimeForTests?.();
   ZimService?.setNativeModuleForTests(undefined);
   OcrService?.setNativeModuleForTests(undefined);
   testDb?.close();
@@ -650,6 +781,37 @@ describe('service integration', () => {
     expect(state.booted).toBe(true);
     expect(state.error).toBeNull();
     expect(fetchCalls).toBe(0);
+  });
+
+  test('voice runtimes share native loads and retry transient aborts', async () => {
+    mockSttAbortOnce = true;
+    const speechProgress: number[] = [];
+    const unsubscribeSpeech = VoiceRuntimeService.subscribeSpeechToTextProgress((progress) => {
+      speechProgress.push(progress);
+    });
+
+    const [speechA, speechB] = await Promise.all([
+      VoiceRuntimeService.loadSpeechToText(),
+      VoiceRuntimeService.loadSpeechToText(),
+    ]);
+    const [ttsA, ttsB] = await Promise.all([
+      VoiceRuntimeService.loadTextToSpeech(),
+      VoiceRuntimeService.loadTextToSpeech(),
+    ]);
+    const [vadA, vadB] = await Promise.all([
+      VoiceRuntimeService.loadVoiceActivity(),
+      VoiceRuntimeService.loadVoiceActivity(),
+    ]);
+    unsubscribeSpeech();
+
+    expect(speechA).toBe(speechB);
+    expect(ttsA).toBe(ttsB);
+    expect(vadA).toBe(vadB);
+    expect(mockSttLoadCalls).toBe(2);
+    expect(mockTtsLoadCalls).toBe(1);
+    expect(mockVadLoadCalls).toBe(1);
+    expect(speechProgress).toContain(0.08);
+    expect(speechProgress.at(-1)).toBe(1);
   });
 
   test('database encryption reports key storage and unresolved migration limits', async () => {
@@ -854,6 +1016,62 @@ describe('service integration', () => {
     ).not.toBeNull();
   });
 
+  test('ZIM reader plan exposes native search without opening the archive on screen load', async () => {
+    await ContentRepository.createPack({
+      id: 'custom-zim-plan-test',
+      title: 'Plan encyclopedia',
+      description: 'Installed offline encyclopedia for native reader plan coverage.',
+      category: 'Wiki',
+      format: 'zim',
+      localUri: 'file:///ark/content/plan.zim',
+      installed: true,
+      installStatus: 'installed',
+      progress: 1,
+    });
+    const openedPaths: string[] = [];
+    ZimService.setNativeModuleForTests({
+      openArchive: async (path) => {
+        openedPaths.push(path);
+        return {
+          id: 'plan',
+          title: 'Plan encyclopedia',
+          articleCount: 12,
+          hasFulltextIndex: true,
+          hasTitleIndex: true,
+        };
+      },
+      search: async () => [
+        {
+          path: 'A/Main',
+          title: 'Main',
+          snippet: 'Main article snippet',
+        },
+      ],
+      suggest: async () => [],
+      getArticle: async () => ({
+        finalPath: 'A/Main',
+        title: 'Main',
+        mimeType: 'text/html',
+        html: '<p>Main article</p>',
+      }),
+    });
+
+    const pack = await ContentPackService.getPack('custom-zim-plan-test');
+    const plan = await ZimService.getReaderPlan(pack);
+
+    expect(plan.nativeReaderAvailable).toBe(true);
+    expect(plan.nativeReaderError).toBeNull();
+    expect(plan.metadata?.title).toBe('Plan encyclopedia');
+    expect(plan.metadata?.hasFulltextIndex).toBe(true);
+    expect(plan.status).toBe('Ready for search and reading in Ark.');
+    expect(openedPaths).toEqual([]);
+
+    const results = await ZimService.search(pack!, 'main');
+
+    expect(openedPaths).toEqual(['file:///ark/content/plan.zim']);
+    expect(results[0]?.title).toBe('Main');
+  });
+
   test('content pack install rejects mismatched MD5 checksums', async () => {
     await ContentRepository.createPack({
       id: 'custom-model-checksum-test',
@@ -968,6 +1186,37 @@ describe('service integration', () => {
     expect(row?.progress).toBe(1);
     expect(row?.error).toBeNull();
     expect(mockFiles.has('file:///ark-test/ark/content/wifi-held.pdf')).toBe(true);
+  });
+
+  test('downloads publish progress and terminal notifications', async () => {
+    const id = await DownloadManagerService.queueDownload({
+      kind: 'guide',
+      title: 'Notified guide',
+      sourceUrl: 'https://example.test/notified.pdf',
+      expectedSizeBytes: 2048,
+    });
+
+    await waitFor(async () => (await DownloadsRepository.get(id))?.status === 'completed');
+    await waitFor(async () =>
+      mockScheduledNotifications.some((notification) => notification.title === 'Ark download complete')
+    );
+
+    expect(
+      mockScheduledNotifications.some(
+        (notification) =>
+          notification.identifier === `ark-download-${id}` &&
+          notification.title === 'Ark download running' &&
+          notification.sticky === true
+      )
+    ).toBe(true);
+    expect(
+      mockScheduledNotifications.some(
+        (notification) =>
+          notification.identifier === `ark-download-${id}` &&
+          notification.title === 'Ark download complete' &&
+          notification.body === 'Ready for offline use.'
+      )
+    ).toBe(true);
   });
 
   test('download cleanup deletes only completed files that are not installed packs', async () => {
@@ -1886,6 +2135,171 @@ describe('service integration', () => {
     expect(stored[1].reasoning).toBe('private scratchpad');
   });
 
+  test('local llama recovers final answer from thinking output without a closing tag', async () => {
+    await ContentRepository.createPack({
+      id: 'custom-model-thinking-final-test',
+      title: 'Thinking model',
+      description: 'Installed local model for reasoning final-channel coverage.',
+      category: 'AI Models',
+      format: 'gguf',
+      localUri: 'file:///ark/models/thinking.gguf',
+      installed: true,
+      installStatus: 'installed',
+      progress: 1,
+    });
+    mockLlamaCompletionResults = [
+      {
+        content:
+          '<think>private chain of thought\nFinal answer:\nBoil water for one minute, then store it in a sealed clean container.',
+      },
+    ];
+    resetLlamaAdapterForTests();
+
+    const result = await AIService.sendMessage({
+      content: 'How should I make questionable water safer?',
+      useRag: false,
+    });
+
+    expect(result.messages[1].content).toBe(
+      'Boil water for one minute, then store it in a sealed clean container.'
+    );
+    expect(result.messages[1].reasoning).toBe('private chain of thought');
+    expect(result.messages[1].content).not.toContain('private chain');
+  });
+
+  test('local llama keeps the last visible answer when a later tool step is empty', async () => {
+    await ContentRepository.createPack({
+      id: 'custom-model-empty-final-step-test',
+      title: 'Empty final step model',
+      description: 'Installed local model for multi-step recovery coverage.',
+      category: 'AI Models',
+      format: 'gguf',
+      localUri: 'file:///ark/models/empty-final-step.gguf',
+      installed: true,
+      installStatus: 'installed',
+      progress: 1,
+    });
+    const note = await NotesRepository.create({
+      title: 'Water note',
+      body: 'Boiled water should be stored in a clean sealed container.',
+      tags: ['water'],
+    });
+    await RagService.indexNote(note.id);
+    mockLlamaCompletionResults = [
+      {
+        content:
+          '<think>private tool planning</think>Boil the water, then store it sealed.',
+        stream:
+          '<think>private tool planning</think>Boil the water, then store it sealed.',
+        tool_calls: [
+          {
+            type: 'function',
+            id: 'call-search-empty-step',
+            function: {
+              name: 'search_local_knowledge',
+              arguments: '{"query":"boiled water sealed container","limit":3}',
+            },
+          },
+        ],
+      },
+      {
+        content: '',
+        stream: '',
+      },
+    ];
+    resetLlamaAdapterForTests();
+
+    const result = await AIService.sendMessage({
+      content: 'What should I do after boiling water?',
+      useRag: false,
+    });
+
+    expect(result.messages[1].content).toBe('Boil the water, then store it sealed.');
+    expect(result.messages[1].reasoning).toBe('private tool planning');
+  });
+
+  test('local llama repairs Gemma-style reasoning-only generations into a final answer', async () => {
+    await ContentRepository.createPack({
+      id: 'custom-model-gemma-repair-test',
+      title: 'Gemma repair model',
+      description: 'Installed local model for reasoning-only repair coverage.',
+      category: 'AI Models',
+      format: 'gguf',
+      localUri: 'file:///ark/models/gemma-repair.gguf',
+      installed: true,
+      installStatus: 'installed',
+      progress: 1,
+    });
+    mockLlamaCompletionResults = [
+      {
+        content: '',
+        stream: '',
+        reasoning_content:
+          'Thinking Process: Analyze the request. The user asks how to make a fishing hook. Source 1 says pins, needles, wire, small nails, wood, bone, thorns, flint, seashell, or shell can be used.',
+      },
+      {
+        content:
+          'Use a small piece of wire, a thorn, bone, or a nail; shape it into a hook, sharpen the point, and add a notch or eye for line. Keep it small enough for the fish you are targeting.',
+      },
+    ];
+    resetLlamaAdapterForTests();
+
+    const result = await AIService.sendMessage({
+      content: 'How do I make a fishing hook?',
+      useRag: false,
+    });
+
+    expect(result.messages[1].content).toContain('shape it into a hook');
+    expect(result.messages[1].content).not.toContain('Thinking Process');
+    expect(result.messages[1].content).not.toBe('The local model returned an empty response.');
+    expect(result.messages[1].reasoning).toContain('Source 1 says');
+  });
+
+  test('local llama falls back to retrieved source snippets when Gemma never writes final text', async () => {
+    await ContentRepository.createPack({
+      id: 'custom-model-gemma-fallback-test',
+      title: 'Gemma fallback model',
+      description: 'Installed local model for reasoning-only fallback coverage.',
+      category: 'AI Models',
+      format: 'gguf',
+      localUri: 'file:///ark/models/gemma-fallback.gguf',
+      installed: true,
+      installStatus: 'installed',
+      progress: 1,
+    });
+    const note = await NotesRepository.create({
+      title: 'Improvised fishhooks',
+      body: 'A small fishhook can be made from wire, a thorn, bone, or a small nail. Sharpen the point and tie line securely to a notch or eye.',
+      tags: ['fishing'],
+    });
+    await RagService.indexNote(note.id);
+    mockLlamaCompletionResults = [
+      {
+        content: '',
+        stream: '',
+        reasoning_content:
+          'Thinking Process: The user asks how to make a fishing hook. The retrieved note contains the useful field-expedient materials, but I stopped before writing the final.',
+      },
+      {
+        content: '',
+        stream: '',
+        reasoning_content: 'Still analyzing instead of answering.',
+      },
+    ];
+    resetLlamaAdapterForTests();
+
+    const result = await AIService.sendMessage({
+      content: 'How do I make a fishing hook?',
+      useRag: true,
+    });
+
+    expect(result.messages).toHaveLength(3);
+    expect(result.messages[2].content).toContain('Do this:');
+    expect(result.messages[2].content).toContain('wire, a thorn, bone, or a small nail');
+    expect(result.messages[2].content).not.toContain('Thinking Process');
+    expect(result.messages[2].content).not.toBe('The local model returned an empty response.');
+  });
+
   test('local llama receives recent chat history and exposes reasoning separately', async () => {
     await ContentRepository.createPack({
       id: 'custom-model-history-test',
@@ -1996,7 +2410,8 @@ describe('service integration', () => {
     expect(status.adapter).toBe('llama');
     expect(status.installedModels).toBe(1);
     expect(status.activeModelTitle).toBe('Status model');
-    expect(status.contextTokens).toBe(2048);
+    expect(status.contextTokens).toBe(4096);
+    expect(status.maxResponseTokens).toBe(2048);
   });
 
   test('model manager only selects chat models and llama loads the selected one', async () => {

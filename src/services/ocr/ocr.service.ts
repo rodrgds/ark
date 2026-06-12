@@ -132,7 +132,7 @@ export class OcrService {
   private static async requireNativeModule() {
     if (this.nativeModuleOverride !== undefined) return this.nativeModuleOverride;
     try {
-      const { requireOptionalNativeModule } = await import('expo-modules-core');
+      const { requireOptionalNativeModule } = await import('expo');
       return requireOptionalNativeModule<ArkOcrNativeModule>('ArkOcr');
     } catch {
       return null;

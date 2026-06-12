@@ -1069,6 +1069,34 @@ function parsePageNumber(text: string) {
   return Number.isFinite(page) && page > 0 ? page : null;
 }
 
+function isMetadataLine(line: string) {
+  const prefixes = [
+    'document:',
+    'type:',
+    'page:',
+    'reader page target:',
+    'saved map spot:',
+    'saved route:',
+    'offline map region:',
+    'status:',
+    'bounds:',
+    'zoom:',
+    'feed:',
+    'headline:',
+    'published:',
+    'source url:',
+    'category:',
+    'format:',
+    'size:',
+    'source:',
+    'section:',
+    'coordinates:',
+    'points:',
+  ];
+  const lower = line.toLowerCase();
+  return prefixes.some((prefix) => lower.startsWith(prefix));
+}
+
 function snippetForRow(row: {
   source_ref: string;
   kind: string;
@@ -1087,11 +1115,14 @@ function snippetForRow(row: {
         : indexedSection
       : null;
   if (section?.detail) return section.detail;
-  return (
-    row.text
-      .split('\n')
-      .map((line) => line.trim())
-      .find((line) => line.length > 0)
-      ?.slice(0, 240) ?? row.text.slice(0, 240)
-  );
+
+  const lines = row.text.split('\n').map((line) => line.trim()).filter(Boolean);
+  if (row.kind === 'note') {
+    if (lines.length >= 2) {
+      return lines[1].slice(0, 240);
+    }
+  }
+
+  const contentLine = lines.find((line) => !isMetadataLine(line)) ?? lines[0] ?? '';
+  return contentLine.slice(0, 240);
 }

@@ -1,8 +1,9 @@
-import { models, TextToSpeechModule } from 'react-native-executorch';
 import {
   getSpeechPlaybackContext,
   getSpeechSampleRate,
 } from '@/services/audio/speech-playback.service';
+import { VoiceRuntimeService } from '@/services/ai/voice-runtime.service';
+import { TextToSpeechModule } from 'react-native-executorch';
 import * as React from 'react';
 
 type PlaybackSource = {
@@ -10,11 +11,8 @@ type PlaybackSource = {
   onEnded?: () => void;
 };
 
-const TTS_MODEL = models.text_to_speech.kokoro.en_us.heart();
-
 export function useArkTextToSpeech() {
   const moduleRef = React.useRef<TextToSpeechModule | null>(null);
-  const modulePromiseRef = React.useRef<Promise<TextToSpeechModule> | null>(null);
   const sourceRef = React.useRef<PlaybackSource | null>(null);
   const playbackResolveRef = React.useRef<(() => void) | null>(null);
   const streamActiveRef = React.useRef(false);
@@ -45,24 +43,17 @@ export function useArkTextToSpeech() {
 
   const getModule = React.useCallback(async () => {
     if (moduleRef.current) return moduleRef.current;
-    if (!modulePromiseRef.current) {
-      setError(null);
-      setDownloadProgress(0);
-      modulePromiseRef.current = TextToSpeechModule.fromModelName(TTS_MODEL, setDownloadProgress)
-        .then((moduleInstance) => {
-          moduleRef.current = moduleInstance;
-          setIsReady(true);
-          return moduleInstance;
-        })
-        .catch((loadError) => {
-          modulePromiseRef.current = null;
-          const nextError =
-            loadError instanceof Error ? loadError : new Error('Unable to load voice playback.');
-          setError(nextError);
-          throw nextError;
-        });
-    }
-    return modulePromiseRef.current;
+    setError(null);
+    const moduleInstance = await VoiceRuntimeService.loadTextToSpeech().catch((loadError) => {
+      const nextError =
+        loadError instanceof Error ? loadError : new Error('Unable to load voice playback.');
+      setError(nextError);
+      throw nextError;
+    });
+    moduleRef.current = moduleInstance;
+    setIsReady(true);
+    setDownloadProgress(1);
+    return moduleInstance;
   }, []);
 
   const speak = React.useCallback(
@@ -114,12 +105,23 @@ export function useArkTextToSpeech() {
   React.useEffect(
     () => () => {
       stop();
-      moduleRef.current?.delete();
       moduleRef.current = null;
-      modulePromiseRef.current = null;
     },
     [stop]
   );
+
+  React.useEffect(() => {
+    const unsubscribe = VoiceRuntimeService.subscribeTextToSpeechProgress(setDownloadProgress);
+    const existingModule = VoiceRuntimeService.getTextToSpeechModule();
+    if (existingModule) {
+      moduleRef.current = existingModule;
+      setIsReady(true);
+      setDownloadProgress(1);
+    } else {
+      setError(VoiceRuntimeService.getTextToSpeechError());
+    }
+    return unsubscribe;
+  }, []);
 
   return {
     error,

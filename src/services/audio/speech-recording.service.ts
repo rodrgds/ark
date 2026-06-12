@@ -42,6 +42,7 @@ export class SpeechRecordingService {
         channelCount: 1,
       },
       ({ buffer }) => {
+        if (!recording) return;
         const samples = buffer.getChannelData(0).slice();
         chunks.push(samples);
         totalSamples += samples.length;

@@ -37,4 +37,19 @@ describe('AI reasoning normalizer', () => {
       reasoning: 'private partial',
     });
   });
+
+  test('recovers final text from an unclosed think block only when requested', () => {
+    const output = '<think>private plan\nFinal answer:\nFilter water through cloth first.';
+
+    expect(normalizeReasoningOutput(output)).toEqual({
+      content: '',
+      reasoning: 'private plan Final answer: Filter water through cloth first.',
+    });
+    expect(
+      normalizeReasoningOutput(output, { recoverFinalFromUnclosedReasoning: true })
+    ).toEqual({
+      content: 'Filter water through cloth first.',
+      reasoning: 'private plan',
+    });
+  });
 });

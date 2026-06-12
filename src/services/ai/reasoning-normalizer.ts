@@ -4,9 +4,18 @@ export type NormalizedReasoningOutput = {
 };
 
 const CHANNEL_TOKEN_PATTERN = /<\|channel\|>|<\|channel>|<channel\|>/gi;
+const FINAL_MARKER_PATTERN =
+  /(?:^|\n)\s*(?:final|final answer|answer|assistant)\s*[:\n-]\s*/i;
 
-export function normalizeReasoningOutput(text: string): NormalizedReasoningOutput {
-  const withoutThink = extractThinkBlocks(text);
+type NormalizeOptions = {
+  recoverFinalFromUnclosedReasoning?: boolean;
+};
+
+export function normalizeReasoningOutput(
+  text: string,
+  options: NormalizeOptions = {}
+): NormalizedReasoningOutput {
+  const withoutThink = extractThinkBlocks(text, options);
   const channelSplit = splitChannelOutput(withoutThink.content);
   return {
     content: cleanVisibleText(channelSplit.content),
@@ -14,7 +23,7 @@ export function normalizeReasoningOutput(text: string): NormalizedReasoningOutpu
   };
 }
 
-function extractThinkBlocks(text: string): NormalizedReasoningOutput {
+function extractThinkBlocks(text: string, options: NormalizeOptions): NormalizedReasoningOutput {
   let content = '';
   const reasoning: string[] = [];
   let cursor = 0;
@@ -27,7 +36,12 @@ function extractThinkBlocks(text: string): NormalizedReasoningOutput {
     const reasoningStart = open.index + open[0].length;
     const closeIndex = text.toLowerCase().indexOf('</think>', reasoningStart);
     if (closeIndex === -1) {
-      reasoning.push(text.slice(reasoningStart));
+      const tail = text.slice(reasoningStart);
+      const recovered = options.recoverFinalFromUnclosedReasoning
+        ? splitRecoveredFinal(tail)
+        : null;
+      reasoning.push(recovered?.reasoning ?? tail);
+      if (recovered?.content) content += recovered.content;
       cursor = text.length;
       break;
     }
@@ -38,6 +52,18 @@ function extractThinkBlocks(text: string): NormalizedReasoningOutput {
 
   content += text.slice(cursor);
   return { content, reasoning: reasoning.join('\n') };
+}
+
+function splitRecoveredFinal(text: string): NormalizedReasoningOutput | null {
+  const match = text.match(FINAL_MARKER_PATTERN);
+  if (!match || match.index == null) return null;
+  const contentStart = match.index + match[0].length;
+  const content = text.slice(contentStart).trim();
+  if (!content) return null;
+  return {
+    reasoning: text.slice(0, match.index).trim(),
+    content,
+  };
 }
 
 function splitChannelOutput(text: string): NormalizedReasoningOutput {

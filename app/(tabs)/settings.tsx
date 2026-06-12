@@ -38,19 +38,20 @@ import { HardDrive, Trash2, Upload } from 'lucide-react-native';
 import * as React from 'react';
 import { ActivityIndicator, ScrollView, View } from 'react-native';
 
-type SettingsTab = 'appearance' | 'security' | 'ai' | 'downloads' | 'maps' | 'advanced';
+type SettingsTab = 'appearance' | 'security' | 'ai' | 'maps' | 'advanced';
 
 const SETTINGS_TABS: Array<{ value: SettingsTab; label: string }> = [
   { value: 'appearance', label: 'Appearance' },
   { value: 'security', label: 'Security' },
   { value: 'ai', label: 'AI' },
-  { value: 'downloads', label: 'Downloads' },
   { value: 'maps', label: 'Offline Maps' },
   { value: 'advanced', label: 'Advanced' },
 ];
 
 export default function SettingsScreen() {
-  const { tab } = useLocalSearchParams<{ tab?: SettingsTab | 'storage' | 'internals' }>();
+  const { tab } = useLocalSearchParams<{
+    tab?: SettingsTab | 'downloads' | 'storage' | 'internals';
+  }>();
   const preference = useThemeStore((state) => state.preference);
   const effectiveTheme = useThemeStore((state) => state.effectiveTheme);
   const setPreference = useThemeStore((state) => state.setPreference);
@@ -145,7 +146,8 @@ export default function SettingsScreen() {
   }, []);
 
   React.useEffect(() => {
-    const requestedTab = tab === 'storage' || tab === 'internals' ? 'advanced' : tab;
+    const requestedTab =
+      tab === 'storage' || tab === 'internals' || tab === 'downloads' ? 'advanced' : tab;
     if (requestedTab && SETTINGS_TABS.some((item) => item.value === requestedTab)) {
       setActiveTab(requestedTab);
     }
@@ -165,8 +167,7 @@ export default function SettingsScreen() {
       !hasActiveModelDownload &&
       !hasActiveDownload &&
       !hasActiveMapDownload &&
-      activeTab !== 'advanced' &&
-      activeTab !== 'downloads'
+      activeTab !== 'advanced'
     )
       return;
     const interval = setInterval(
@@ -656,20 +657,6 @@ export default function SettingsScreen() {
         </>
       ) : null}
 
-      {activeTab === 'downloads' ? (
-        <DownloadsCard
-          downloads={downloads}
-          mapRegions={mapRegions}
-          storage={storage}
-          wifiOnlyDownloadsEnabled={wifiOnlyDownloadsEnabled}
-          busy={busy}
-          onToggleWifiOnlyDownloads={toggleWifiOnlyDownloads}
-          onBatchAction={runDownloadBatchAction}
-          onRetryDownload={retryDownload}
-          onDeleteMapRegion={confirmDeleteMapRegion}
-          onMapRegionAction={runMapRegionAction}
-        />
-      ) : null}
     </Screen>
   );
 }

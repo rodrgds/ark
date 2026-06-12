@@ -69,15 +69,15 @@ describe('app route contracts', () => {
     expect(finish).toContain('completeOnboarding');
   });
 
-  test('settings exposes downloads outside advanced diagnostics', () => {
+  test('settings keeps downloads inside advanced diagnostics', () => {
     const settings = readFileSync(join(appDir, '(tabs)/settings.tsx'), 'utf8');
     const downloadsCard = readFileSync(
       join(process.cwd(), 'src/components/settings/downloads-card.tsx'),
       'utf8'
     );
 
-    expect(settings).toContain("{ value: 'downloads', label: 'Downloads' }");
-    expect(settings).toContain("activeTab === 'downloads'");
+    expect(settings).not.toContain("{ value: 'downloads', label: 'Downloads' }");
+    expect(settings).not.toContain("activeTab === 'downloads'");
     expect(downloadsCard).toContain('onRetryDownload');
     expect(downloadsCard).toContain('Wi-Fi only');
     expect(downloadsCard).toContain('Pause all');
@@ -88,6 +88,7 @@ describe('app route contracts', () => {
     expect(settings).toContain('DownloadManagerService.deleteCompletedWhereSafe');
     expect(settings).toContain("{ value: 'advanced', label: 'Advanced' }");
     expect(settings).toContain("activeTab === 'advanced'");
+    expect(settings).toContain('<DownloadsCard');
     expect(settings).not.toContain("label: 'Internals'");
     expect(settings).not.toContain(
       '<DownloadsCard downloads={downloads} mapRegions={mapRegions} />'

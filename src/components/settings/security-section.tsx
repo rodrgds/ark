@@ -24,6 +24,13 @@ type SecuritySectionProps = {
 
 const AUTO_LOCK_OPTIONS = [1, 5, 15, 60] as const;
 
+type PasswordState = {
+  vaultUnlocked: boolean;
+  currentPassword: string;
+  nextPassword: string;
+  passwordHint: string;
+};
+
 export function SecuritySection({
   vaultUnlocked,
   autoLockMinutes,
@@ -35,18 +42,23 @@ export function SecuritySection({
   passwordBusy,
   onLockPress,
 }: SecuritySectionProps) {
-  const [currentPassword, setCurrentPassword] = React.useState('');
-  const [nextPassword, setNextPassword] = React.useState('');
-  const [passwordHint, setPasswordHint] = React.useState('');
+  const [passwordState, setPasswordState] = React.useState<PasswordState>(() => ({
+    vaultUnlocked,
+    currentPassword: '',
+    nextPassword: '',
+    passwordHint: '',
+  }));
   const [securityMessage, setSecurityMessage] = React.useState<string | null>(null);
+  const { currentPassword, nextPassword, passwordHint } = passwordState;
 
-  React.useEffect(() => {
-    if (!vaultUnlocked) {
-      setCurrentPassword('');
-      setNextPassword('');
-      setPasswordHint('');
-    }
-  }, [vaultUnlocked]);
+  if (passwordState.vaultUnlocked !== vaultUnlocked) {
+    setPasswordState({
+      vaultUnlocked,
+      currentPassword: '',
+      nextPassword: '',
+      passwordHint: '',
+    });
+  }
 
   async function handleChangePassword() {
     setSecurityMessage(null);
@@ -55,8 +67,11 @@ export function SecuritySection({
       setSecurityMessage(result.reason ?? 'Unable to change passphrase.');
       return;
     }
-    setCurrentPassword('');
-    setNextPassword('');
+    setPasswordState((current) => ({
+      ...current,
+      currentPassword: '',
+      nextPassword: '',
+    }));
     showSheetAlert('Passphrase changed', 'The vault verifier has been updated on this device.');
   }
 
@@ -101,21 +116,27 @@ export function SecuritySection({
           <>
             <Input
               value={currentPassword}
-              onChangeText={setCurrentPassword}
+              onChangeText={(value) =>
+                setPasswordState((current) => ({ ...current, currentPassword: value }))
+              }
               placeholder="Current passphrase"
               secureTextEntry
               autoCapitalize="none"
             />
             <Input
               value={nextPassword}
-              onChangeText={setNextPassword}
+              onChangeText={(value) =>
+                setPasswordState((current) => ({ ...current, nextPassword: value }))
+              }
               placeholder="New passphrase"
               secureTextEntry
               autoCapitalize="none"
             />
             <Input
               value={passwordHint}
-              onChangeText={setPasswordHint}
+              onChangeText={(value) =>
+                setPasswordState((current) => ({ ...current, passwordHint: value }))
+              }
               placeholder="Password hint"
             />
             <Button

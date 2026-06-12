@@ -24,12 +24,11 @@ export function VaultLockSheet({ visible, onDismiss, onLocked }: VaultLockSheetP
     outputRange: ['0deg', '12deg'],
   });
 
-  React.useEffect(() => {
-    if (!visible) {
-      setLocking(false);
-      anim.setValue(0);
-    }
-  }, [anim, visible]);
+  function resetAndDismiss() {
+    setLocking(false);
+    anim.setValue(0);
+    onDismiss();
+  }
 
   function runLockAnimation() {
     if (locking) return;
@@ -48,8 +47,7 @@ export function VaultLockSheet({ visible, onDismiss, onLocked }: VaultLockSheetP
         useNativeDriver: true,
       }),
     ]).start(() => {
-      onDismiss();
-      setLocking(false);
+      resetAndDismiss();
       VaultService.lock();
       onLocked?.();
     });
@@ -60,7 +58,7 @@ export function VaultLockSheet({ visible, onDismiss, onLocked }: VaultLockSheetP
       visible={visible}
       title="Lock vault?"
       description="Secure notes will require unlock again."
-      onDismiss={onDismiss}>
+      onDismiss={resetAndDismiss}>
       <View className="w-full items-center gap-4">
         <Pressable onPress={runLockAnimation} disabled={locking} hitSlop={12}>
           <Animated.View

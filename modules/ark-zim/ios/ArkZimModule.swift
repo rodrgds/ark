@@ -1,43 +1,64 @@
 import ExpoModulesCore
 
 public class ArkZimModule: Module {
+  private let reader = ArkZimReader()
+
   public func definition() -> ModuleDefinition {
     Name("ArkZim")
 
-    AsyncFunction("openArchive") { (path: String) -> [String: Any?] in
-      throw ArkZimError.notImplemented
+    AsyncFunction("openArchive") { (path: String, promise: Promise) in
+      let reader = self.reader
+      DispatchQueue.global(qos: .userInitiated).async {
+        do {
+          promise.resolve(try reader.openArchive(path))
+        } catch {
+          promise.reject(Self.exception(from: error, fallbackCode: "ERR_ZIM_OPEN", fallbackReason: "Could not open ZIM archive."))
+        }
+      }
     }
 
-    AsyncFunction("getArticle") { (_ path: String) -> [String: String] in
-      throw ArkZimError.notImplemented
+    AsyncFunction("getArticle") { (path: String, promise: Promise) in
+      let reader = self.reader
+      DispatchQueue.global(qos: .userInitiated).async {
+        do {
+          promise.resolve(try reader.getArticle(path))
+        } catch {
+          promise.reject(Self.exception(from: error, fallbackCode: "ERR_ZIM_ARTICLE", fallbackReason: "Article could not be opened."))
+        }
+      }
     }
 
-    AsyncFunction("search") { (_ query: String, _ limit: Int) -> [[String: String]] in
-      throw ArkZimError.notImplemented
+    AsyncFunction("search") { (query: String, limit: Int, promise: Promise) in
+      let reader = self.reader
+      DispatchQueue.global(qos: .userInitiated).async {
+        do {
+          promise.resolve(try reader.search(query, limit: limit))
+        } catch {
+          promise.reject(Self.exception(from: error, fallbackCode: "ERR_ZIM_SEARCH", fallbackReason: "Archive search failed."))
+        }
+      }
     }
 
-    AsyncFunction("suggest") { (_ prefix: String, _ limit: Int) -> [[String: String]] in
-      throw ArkZimError.notImplemented
+    AsyncFunction("suggest") { (prefix: String, limit: Int, promise: Promise) in
+      let reader = self.reader
+      DispatchQueue.global(qos: .userInitiated).async {
+        do {
+          promise.resolve(try reader.suggest(prefix, limit: limit))
+        } catch {
+          promise.reject(Self.exception(from: error, fallbackCode: "ERR_ZIM_SUGGEST", fallbackReason: "Archive title search failed."))
+        }
+      }
     }
   }
-}
 
-enum ArkZimError: Error {
-  case notImplemented
-}
-
-extension ArkZimError: CodedError {
-  var code: String {
-    switch self {
-    case .notImplemented:
-      return "E_NOT_IMPLEMENTED"
+  private static func exception(from error: Error, fallbackCode: String, fallbackReason: String) -> Exception {
+    if let exception = error as? Exception {
+      return exception
     }
-  }
-
-  var message: String {
-    switch self {
-    case .notImplemented:
-      return "In-app ZIM reading is not yet implemented on iOS. Open the archive in Kiwix."
+    let nsError = error as NSError
+    if let code = nsError.userInfo["code"] as? String {
+      return Exception(name: code, description: nsError.localizedDescription)
     }
+    return Exception(name: fallbackCode, description: nsError.localizedDescription.isEmpty ? fallbackReason : nsError.localizedDescription)
   }
 }

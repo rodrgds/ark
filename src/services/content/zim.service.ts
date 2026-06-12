@@ -37,6 +37,7 @@ export type ZimReaderPlan = {
   installed: boolean;
   nativeReaderAvailable: boolean;
   nativeReaderError: string | null;
+  metadata: ZimMetadata | null;
   jsHeaderAvailable: boolean;
   handoffAvailable: boolean;
   status: string;
@@ -61,10 +62,12 @@ export class ZimService {
     const nativeModule = await this.requireNativeReader();
     let nativeReaderAvailable = !!nativeModule;
     let nativeReaderError: string | null = null;
+    let metadata: ZimMetadata | null = null;
 
     let headerInfo: ZimHeaderInfo | null = null;
     if (installed && pack?.localUri) {
       headerInfo = await this.parseHeader(pack.localUri);
+      metadata = metadataFromHeader(pack, headerInfo, nativeReaderAvailable);
     }
 
     const capabilities: string[] = [];
@@ -83,9 +86,10 @@ export class ZimService {
       installed,
       nativeReaderAvailable,
       nativeReaderError,
+      metadata,
       jsHeaderAvailable: headerInfo?.valid ?? false,
       handoffAvailable: installed,
-      status: this.getReaderStatus(pack, nativeReaderAvailable, headerInfo),
+      status: this.getReaderStatus(pack, nativeReaderAvailable, headerInfo, nativeReaderError),
       kiwixJsUrl: 'https://pwa.kiwix.org',
       headerInfo,
       capabilities,
@@ -95,11 +99,13 @@ export class ZimService {
   private static getReaderStatus(
     pack?: ContentPack | null,
     nativeAvailable = false,
-    headerInfo?: ZimHeaderInfo | null
+    headerInfo?: ZimHeaderInfo | null,
+    nativeError?: string | null
   ): string {
     if (!pack) return 'Select a ZIM archive to inspect it.';
     if (!pack.installed) return 'Download this archive to read it offline.';
     if (nativeAvailable) return 'Ready for search and reading in Ark.';
+    if (nativeError) return nativeError;
     if (headerInfo?.valid) {
       return `${headerInfo.articleCount.toLocaleString()} entries stored locally. Open in another reader to browse.`;
     }
@@ -210,15 +216,16 @@ export class ZimService {
   }
 
   private static async ensureArchiveOpened(module: ArkZimNativeModule, localUri: string) {
-    if (this.activeArchivePath === localUri && this.activeArchiveMetadata) {
+    const archivePath = localUri;
+    if (this.activeArchivePath === archivePath && this.activeArchiveMetadata) {
       return this.activeArchiveMetadata;
     }
-    if (this.activeArchivePath === localUri && this.activeArchivePromise) {
+    if (this.activeArchivePath === archivePath && this.activeArchivePromise) {
       return this.activeArchivePromise;
     }
-    this.activeArchivePath = localUri;
+    this.activeArchivePath = archivePath;
     this.activeArchivePromise = module
-      .openArchive(localUri)
+      .openArchive(archivePath)
       .then((metadata) => {
         this.activeArchiveMetadata = metadata;
         return metadata;
@@ -243,6 +250,22 @@ export class ZimService {
       return null;
     }
   }
+}
+
+function metadataFromHeader(
+  pack: ContentPack,
+  header: ZimHeaderInfo | null,
+  nativeReaderAvailable: boolean
+): ZimMetadata | null {
+  if (!header?.valid && !nativeReaderAvailable) return null;
+  return {
+    id: pack.id,
+    title: pack.title,
+    description: pack.description,
+    articleCount: header?.valid ? header.articleCount : undefined,
+    hasFulltextIndex: true,
+    hasTitleIndex: true,
+  };
 }
 
 async function withTimeout<T>(

@@ -50,4 +50,33 @@ describe('ArkZim local module', () => {
     expect(kotlin).toContain('Searcher(archive)');
     expect(kotlin).toContain('SuggestionSearcher(archive)');
   });
+
+  test('wires iOS through CoreKiwix and a native Objective-C++ reader bridge', () => {
+    const podspec = readFileSync(join(moduleRoot, 'ios', 'ArkZim.podspec'), 'utf8');
+    const swift = readFileSync(join(moduleRoot, 'ios', 'ArkZimModule.swift'), 'utf8');
+    const reader = readFileSync(join(moduleRoot, 'ios', 'ArkZimReader.mm'), 'utf8');
+    const modulemap = readFileSync(join(moduleRoot, 'ios', 'CoreKiwix.modulemap'), 'utf8');
+
+    expect(podspec).toContain("s.vendored_frameworks = 'CoreKiwix.xcframework'");
+    expect(podspec).toContain('libkiwix_xcframework-14.2.1-2.tar.gz');
+    expect(podspec).toContain('libmerged.a');
+    expect(podspec).toContain('PlistBuddy');
+    expect(podspec).toContain(
+      "s.source_files   = 'ArkZimModule.swift', 'ArkZimReader.h', 'ArkZimReader.mm'"
+    );
+    expect(podspec).toContain("s.public_header_files = 'ArkZimReader.h'");
+    expect(podspec).toContain("s.exclude_files = 'CoreKiwix.xcframework/**/*'");
+    expect(podspec).toContain("'CLANG_CXX_LANGUAGE_STANDARD' => 'c++17'");
+    expect(podspec).not.toContain('HEADER_SEARCH_PATHS');
+    expect(swift).toContain('private let reader = ArkZimReader()');
+    expect(swift).toContain('DispatchQueue.global(qos: .userInitiated).async');
+    expect(swift).not.toContain('notImplemented');
+    expect(reader).toContain('#include "zim/archive.h"');
+    expect(reader).toContain('#include "zim/search.h"');
+    expect(reader).toContain('#include "zim/suggestion.h"');
+    expect(reader).toContain('zim::Searcher searcher');
+    expect(reader).toContain('zim::SuggestionSearcher');
+    expect(reader).toContain('zim::setClusterCacheMaxSize(16777216)');
+    expect(modulemap).toContain('module CoreKiwix');
+  });
 });

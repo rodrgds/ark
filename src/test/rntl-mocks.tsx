@@ -127,6 +127,12 @@ export function installCommonRntlMocks(mockApi: MockApi) {
     Object.fromEntries(iconNames.map((name) => [name, TestIcon]))
   );
 
+  mockApi.module('@expo/vector-icons/MaterialCommunityIcons', () => ({
+    default: {
+      getImageSource: async (name: string, size: number, color: string) => ({ name, size, color }),
+    },
+  }));
+
   mockApi.module('@rn-primitives/slot', () => ({
     Slot: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
       React.isValidElement(children)

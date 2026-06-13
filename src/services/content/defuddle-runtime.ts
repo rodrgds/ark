@@ -14,12 +14,7 @@ export async function withDefuddleDomGlobals<T>(
   dom: LinkedomWindow,
   callback: () => Promise<T> | T
 ): Promise<T> {
-  const globalObject = globalThis as typeof globalThis & {
-    document?: unknown;
-    Node?: unknown;
-    HTMLElement?: unknown;
-    DOMParser?: unknown;
-  };
+  const globalObject = globalThis as Record<string, unknown>;
 
   const previousDocument = globalObject.document;
   const previousNode = globalObject.Node;

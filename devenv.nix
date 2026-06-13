@@ -67,6 +67,9 @@ in
   scripts = {
     install.exec = "bun install --frozen-lockfile";
     format.exec = "bunx prettier --write .";
+    # CI-friendly counterpart of `format`: exits non-zero on any unformatted
+    # file instead of rewriting in place.
+    format-check.exec = "${lib.getExe prettier-check-wrapper}";
     typecheck.exec = "bunx tsc --noEmit";
     lint.exec = "bun run lint";
     test.exec = "bun test";

@@ -9,6 +9,15 @@ on:
 
 permissions:
   contents: read
+  # dorny/paths-filter calls the GitHub PR-files API to enumerate
+  # changed files on a pull request. On private repos that endpoint
+  # requires `pull-requests: read` on the workflow token; on public
+  # repos the call is more permissive and `contents: read` alone
+  # works (which is why the personal-website sister repo's identical
+  # workflow passes without this scope). Without it, the action
+  # fails at "Detect changed paths" with
+  # `Resource not accessible by integration`.
+  pull-requests: read
 
 # Cancel any in-flight run for the same ref the moment a new commit lands.
 # Same convention as OpenPost.

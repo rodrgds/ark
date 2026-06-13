@@ -31,6 +31,12 @@ jobs:
         id: filter
         uses: dorny/paths-filter@v3
         with:
+          # Use the local git diff instead of the GitHub PR-files API.
+          # list-files: api (the default) needs pull-requests: read on
+          # the workflow token, which the contents: read permission
+          # below doesn't grant. Switching to local avoids the
+          # "Resource not accessible by integration" error.
+          list-files: none
           filters: |
             app:
               - 'app/**'

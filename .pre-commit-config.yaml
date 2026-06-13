@@ -1,0 +1,11 @@
+repos:
+  - repo: local
+    hooks:
+      - id: prettier-check
+        name: prettier-check
+        entry: scripts/prettier-check-hook.sh
+        language: system
+        pass_filenames: false
+        files: .
+        stages:
+          - pre-commit

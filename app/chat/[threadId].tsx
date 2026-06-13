@@ -560,7 +560,9 @@ function FloatingComposer({
   const hasText = value.length > 0;
   const voiceActive = voiceState !== 'idle';
   const isFocusedRef = React.useRef(false);
-  const splitProgress = useDerivedValue(() => Math.max(keyboardProgress.value, voiceProgress.value));
+  const splitProgress = useDerivedValue(() =>
+    Math.max(keyboardProgress.value, voiceProgress.value)
+  );
 
   React.useEffect(
     () => () => {
@@ -972,9 +974,7 @@ function FloatingComposer({
                 textAlignVertical="top"
               />
             </Animated.View>
-            <Animated.View
-              pointerEvents="none"
-              style={[styles.waveformLayer, waveformLayerStyle]}>
+            <Animated.View pointerEvents="none" style={[styles.waveformLayer, waveformLayerStyle]}>
               <VoiceWaveform
                 color={colors.primary}
                 sampleCount={waveformSampleCount}
@@ -987,11 +987,7 @@ function FloatingComposer({
           <AnimatedPressable
             accessibilityRole="button"
             accessibilityLabel={voiceActive ? 'Stop voice input' : 'Start voice input'}
-            disabled={
-              disabled ||
-              voiceState === 'transcribing' ||
-              (!voiceActive && hasText)
-            }
+            disabled={disabled || voiceState === 'transcribing' || (!voiceActive && hasText)}
             onPress={() => {
               if (voiceState === 'recording') {
                 void stopVoiceRecording();
@@ -1070,12 +1066,7 @@ function VoiceWaveform({
   return (
     <View style={styles.waveformTrack} onLayout={handleLayout}>
       {Array.from({ length: sampleCount }).map((_, index) => (
-        <WaveformBar
-          key={index}
-          color={color}
-          index={index}
-          samples={samples}
-        />
+        <WaveformBar key={index} color={color} index={index} samples={samples} />
       ))}
     </View>
   );
@@ -1153,7 +1144,11 @@ function fallbackSpeechWaveform(waveform: Float32Array) {
 
   let firstFrame = -1;
   let lastFrame = -1;
-  for (let offset = 0, frameIndex = 0; offset < waveform.length; offset += frameSize, frameIndex += 1) {
+  for (
+    let offset = 0, frameIndex = 0;
+    offset < waveform.length;
+    offset += frameSize, frameIndex += 1
+  ) {
     const frameEnd = Math.min(waveform.length, offset + frameSize);
     let frameSquares = 0;
     for (let sampleIndex = offset; sampleIndex < frameEnd; sampleIndex += 1) {
@@ -1172,7 +1167,10 @@ function fallbackSpeechWaveform(waveform: Float32Array) {
   }
 
   const start = Math.max(0, firstFrame * frameSize - Math.round(sampleRate * 0.18));
-  const end = Math.min(waveform.length, (lastFrame + 1) * frameSize + Math.round(sampleRate * 0.28));
+  const end = Math.min(
+    waveform.length,
+    (lastFrame + 1) * frameSize + Math.round(sampleRate * 0.28)
+  );
   if (end - start < minimumDuration) return null;
   return waveform.slice(start, end);
 }

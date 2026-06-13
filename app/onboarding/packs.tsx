@@ -15,10 +15,7 @@ import { Check } from 'lucide-react-native';
 import * as React from 'react';
 import { Pressable, View } from 'react-native';
 
-const RECOMMENDED_PACK_IDS = [
-  'hesperian-first-aid',
-  'us-army-survival-fm-21-76',
-];
+const RECOMMENDED_PACK_IDS = ['hesperian-first-aid', 'us-army-survival-fm-21-76'];
 
 export default function PacksScreen() {
   const [selected, setSelected] = React.useState(() => new Set(RECOMMENDED_PACK_IDS));
@@ -42,9 +39,10 @@ export default function PacksScreen() {
     return groups;
   }, []);
   const visiblePacks = React.useMemo(() => STARTER_PACKS.filter((p) => !p.testOnly), []);
-  const orderedCategories = React.useMemo(() => getOrderedContentCategories(visiblePacks), [
-    visiblePacks,
-  ]);
+  const orderedCategories = React.useMemo(
+    () => getOrderedContentCategories(visiblePacks),
+    [visiblePacks]
+  );
   const contentCategories = orderedCategories.filter((category) => category !== 'AI Models');
 
   return (

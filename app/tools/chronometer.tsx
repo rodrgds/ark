@@ -7,8 +7,8 @@ import * as React from 'react';
 import { Dimensions, FlatList, StyleSheet, TouchableOpacity, View } from 'react-native';
 
 const { width: SW, height: SH } = Dimensions.get('window');
-const RING_SIZE  = SW - 24;
-const RING_R     = RING_SIZE / 2;
+const RING_SIZE = SW - 24;
+const RING_R = RING_SIZE / 2;
 const INNER_SIZE = RING_SIZE - 28;
 
 function pad(n: number, len = 2) {
@@ -16,9 +16,9 @@ function pad(n: number, len = 2) {
 }
 
 function formatTime(ms: number) {
-  const h  = Math.floor(ms / 3_600_000);
-  const m  = Math.floor((ms % 3_600_000) / 60_000);
-  const s  = Math.floor((ms % 60_000) / 1_000);
+  const h = Math.floor(ms / 3_600_000);
+  const m = Math.floor((ms % 3_600_000) / 60_000);
+  const s = Math.floor((ms % 60_000) / 1_000);
   const cs = Math.floor((ms % 1_000) / 10);
   const base = h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
   return { base, cs: pad(cs) };
@@ -31,11 +31,11 @@ export default function ChronometerTool() {
   const palette = NAV_COLORS[theme];
   const [running, setRunning] = React.useState(false);
   const [elapsed, setElapsed] = React.useState(0);
-  const [laps, setLaps]       = React.useState<Lap[]>([]);
+  const [laps, setLaps] = React.useState<Lap[]>([]);
 
-  const startRef   = React.useRef(0);
-  const baseRef    = React.useRef(0);
-  const frameRef   = React.useRef(0);
+  const startRef = React.useRef(0);
+  const baseRef = React.useRef(0);
+  const frameRef = React.useRef(0);
   const lapBaseRef = React.useRef(0);
 
   const tick = React.useCallback(() => {
@@ -57,7 +57,7 @@ export default function ChronometerTool() {
 
   const reset = React.useCallback(() => {
     cancelAnimationFrame(frameRef.current);
-    baseRef.current    = 0;
+    baseRef.current = 0;
     lapBaseRef.current = 0;
     setRunning(false);
     setElapsed(0);
@@ -65,16 +65,16 @@ export default function ChronometerTool() {
   }, []);
 
   const lap = React.useCallback(() => {
-    const now   = baseRef.current + (Date.now() - startRef.current);
+    const now = baseRef.current + (Date.now() - startRef.current);
     const split = now - lapBaseRef.current;
     lapBaseRef.current = now;
-    setLaps(prev => [{ index: prev.length + 1, split, total: now }, ...prev]);
+    setLaps((prev) => [{ index: prev.length + 1, split, total: now }, ...prev]);
   }, []);
 
   React.useEffect(() => () => cancelAnimationFrame(frameRef.current), []);
 
-  const fastestMs = laps.length > 1 ? Math.min(...laps.map(l => l.split)) : -1;
-  const slowestMs = laps.length > 1 ? Math.max(...laps.map(l => l.split)) : -1;
+  const fastestMs = laps.length > 1 ? Math.min(...laps.map((l) => l.split)) : -1;
+  const slowestMs = laps.length > 1 ? Math.max(...laps.map((l) => l.split)) : -1;
 
   const { base, cs } = formatTime(elapsed);
   const success = '#22c55e';
@@ -87,7 +87,6 @@ export default function ChronometerTool() {
 
   return (
     <Screen style={[styles.screen, { backgroundColor: palette.background }]}>
-
       <View
         style={[
           styles.ring,
@@ -115,7 +114,7 @@ export default function ChronometerTool() {
           </View>
           {laps.length > 0 && (
             <Text style={[styles.lapHint, { color: palette.mutedForeground }]}>
-              Lap {laps[0].index}  {lapFormatted(laps[0].split)}
+              Lap {laps[0].index} {lapFormatted(laps[0].split)}
             </Text>
           )}
         </View>
@@ -131,12 +130,11 @@ export default function ChronometerTool() {
                 backgroundColor: palette.card,
                 borderColor: palette.border,
               },
-              (!running && elapsed === 0) && styles.btnDisabled,
+              !running && elapsed === 0 && styles.btnDisabled,
             ]}
             onPress={running ? lap : reset}
             disabled={!running && elapsed === 0}
-            activeOpacity={0.75}
-          >
+            activeOpacity={0.75}>
             <Text style={[styles.btnGrayText, { color: palette.mutedForeground }]}>
               {running ? 'Lap' : 'Reset'}
             </Text>
@@ -149,14 +147,20 @@ export default function ChronometerTool() {
               styles.btn,
               running ? styles.btnRed : styles.btnGreen,
               {
-                backgroundColor: hexToRgba(running ? danger : success, theme === 'light' ? 0.12 : 0.18),
+                backgroundColor: hexToRgba(
+                  running ? danger : success,
+                  theme === 'light' ? 0.12 : 0.18
+                ),
                 borderColor: running ? danger : success,
               },
             ]}
             onPress={running ? pause : start}
-            activeOpacity={0.75}
-          >
-            <Text style={[running ? styles.btnRedText : styles.btnGreenText, { color: running ? danger : success }]}>
+            activeOpacity={0.75}>
+            <Text
+              style={[
+                running ? styles.btnRedText : styles.btnGreenText,
+                { color: running ? danger : success },
+              ]}>
               {running ? 'Stop' : elapsed === 0 ? 'Start' : 'Resume'}
             </Text>
           </TouchableOpacity>
@@ -175,28 +179,47 @@ export default function ChronometerTool() {
             },
           ]}>
           <View style={[styles.lapHeader, { borderBottomColor: palette.border }]}>
-            <Text style={[styles.lapColNarrow, styles.lapHeadText, { color: palette.mutedForeground }]}>LAP</Text>
-            <Text style={[styles.lapColWide, styles.lapHeadText, { color: palette.mutedForeground }]}>SPLIT</Text>
-            <Text style={[styles.lapColWide, styles.lapHeadText, { color: palette.mutedForeground }]}>TOTAL</Text>
+            <Text
+              style={[styles.lapColNarrow, styles.lapHeadText, { color: palette.mutedForeground }]}>
+              LAP
+            </Text>
+            <Text
+              style={[styles.lapColWide, styles.lapHeadText, { color: palette.mutedForeground }]}>
+              SPLIT
+            </Text>
+            <Text
+              style={[styles.lapColWide, styles.lapHeadText, { color: palette.mutedForeground }]}>
+              TOTAL
+            </Text>
           </View>
           <FlatList
             data={laps}
-            keyExtractor={l => String(l.index)}
+            keyExtractor={(l) => String(l.index)}
             style={{ flex: 1 }}
             showsVerticalScrollIndicator={false}
             renderItem={({ item }) => (
-              <View style={[styles.lapRow, { borderBottomColor: hexToRgba(palette.foreground, 0.08) }]}>
-                <Text style={[styles.lapColNarrow, styles.lapRowText, { color: palette.foreground }]}>{item.index}</Text>
-                <Text style={[
-                  styles.lapColWide,
-                  styles.lapRowText,
-                  { color: palette.foreground },
-                  item.split === fastestMs && { color: success },
-                  item.split === slowestMs && { color: danger },
-                ]}>
+              <View
+                style={[styles.lapRow, { borderBottomColor: hexToRgba(palette.foreground, 0.08) }]}>
+                <Text
+                  style={[styles.lapColNarrow, styles.lapRowText, { color: palette.foreground }]}>
+                  {item.index}
+                </Text>
+                <Text
+                  style={[
+                    styles.lapColWide,
+                    styles.lapRowText,
+                    { color: palette.foreground },
+                    item.split === fastestMs && { color: success },
+                    item.split === slowestMs && { color: danger },
+                  ]}>
                   {lapFormatted(item.split)}
                 </Text>
-                <Text style={[styles.lapColWide, styles.lapRowText, { color: palette.mutedForeground }]}>
+                <Text
+                  style={[
+                    styles.lapColWide,
+                    styles.lapRowText,
+                    { color: palette.mutedForeground },
+                  ]}>
                   {lapFormatted(item.total)}
                 </Text>
               </View>
@@ -204,7 +227,6 @@ export default function ChronometerTool() {
           />
         </View>
       )}
-
     </Screen>
   );
 }
@@ -258,7 +280,7 @@ const styles = StyleSheet.create({
 
   controls: {
     flexDirection: 'row',
-    width: SW - 32, 
+    width: SW - 32,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -326,5 +348,5 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   lapColNarrow: { width: 44 },
-  lapColWide:   { flex: 1 },
+  lapColWide: { flex: 1 },
 });

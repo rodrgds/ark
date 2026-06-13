@@ -19,11 +19,24 @@ describe('release CI contracts', () => {
   });
 
   test('pre-commit runs the same local checks as release gates', () => {
-    const hookPath = join(process.cwd(), '.githooks/pre-commit');
-    expect(existsSync(hookPath)).toBe(true);
+    // Pre-commit hooks are now declared in devenv.nix (git-hooks.hooks.*)
+    // and materialized by `devenv:git-hooks:install` on every shell
+    // entry. The legacy `.githooks/pre-commit` shell script was removed
+    // in 5ff6f93; do not reintroduce it.
+    const devenvNix = readFileSync(join(process.cwd(), 'devenv.nix'), 'utf8');
 
-    const hook = readFileSync(hookPath, 'utf8');
-    expect(hook).toContain('bun run check');
+    // The prek-installed hook config must drive the same gates as the
+    // GitHub Actions release workflow: typecheck, lint, test, prettier.
+    for (const hook of ['typecheck', 'lint', 'test', 'prettier-check']) {
+      expect(devenvNix).toContain(`${hook} = {`);
+      expect(devenvNix).toContain(`name = "${hook}-wrapper"`);
+    }
+
+    // The CI workflow must also wire the same checks.
+    const workflow = readFileSync(join(process.cwd(), '.github/workflows/ci.yml'), 'utf8');
+    expect(workflow).toContain('bun run typecheck');
+    expect(workflow).toContain('bun run lint');
+    expect(workflow).toContain('bun run test');
   });
 
   test('GitHub Actions runs install, checks, tests, and an Android debug build', () => {

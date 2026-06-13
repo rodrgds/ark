@@ -24,4 +24,3 @@ describe('map pack format support', () => {
     );
   });
 });
-

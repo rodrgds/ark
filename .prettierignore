@@ -1,0 +1,33 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Build outputs
+dist
+build
+.next
+.turbo
+.expo
+android
+ios
+
+# Test/coverage
+coverage
+*.lcov
+
+# Bun
+bun.lockb
+
+# Generated / cached
+*.tsbuildinfo
+.project.inlang/**
+
+# Agent skills — their frontmatter is consumed by tools (skills index,
+# capability registry), not just humans. Prettier rewriting double-quotes
+# to single-quotes or `*foo*` to `_foo_` is a semantic shift for those
+# parsers. Leave them alone.
+.agents/**
+
+# Per-project .devenv shell state
+.devenv/

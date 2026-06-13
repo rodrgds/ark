@@ -77,7 +77,13 @@ function normalizeRegion(region) {
   const minZoom = Number(region.minZoom ?? region.minSuggestZoom ?? region.minDownloadZoom);
   const maxZoom = Number(region.maxZoom ?? region.maxSuggestZoom ?? region.maxDownloadZoom);
 
-  if (!region.id || !region.name || !bbox || !Number.isFinite(minZoom) || !Number.isFinite(maxZoom)) {
+  if (
+    !region.id ||
+    !region.name ||
+    !bbox ||
+    !Number.isFinite(minZoom) ||
+    !Number.isFinite(maxZoom)
+  ) {
     throw new Error(`Invalid map region: ${JSON.stringify(region)}`);
   }
   if (maxZoom < minZoom) throw new Error(`Invalid zoom range for ${region.id}.`);

@@ -48,21 +48,19 @@ resource.
 **Returns:** `Promise<OfflinePack>` — The created offline pack with its generated ID.
 
 ```ts
-const progressListener = (offlineRegion, status) =>
-  console.log(offlineRegion, status);
-const errorListener = (offlineRegion, error) =>
-  console.log(offlineRegion, error);
+const progressListener = (offlineRegion, status) => console.log(offlineRegion, status);
+const errorListener = (offlineRegion, error) => console.log(offlineRegion, error);
 
 const offlinePack = await OfflineManager.createPack(
   {
-    mapStyle: "https://demotiles.maplibre.org/tiles/tiles.json",
+    mapStyle: 'https://demotiles.maplibre.org/tiles/tiles.json',
     minZoom: 14,
     maxZoom: 20,
     bounds: [west, south, east, north],
-    metadata: { customValue: "myValue" },
+    metadata: { customValue: 'myValue' },
   },
   progressListener,
-  errorListener,
+  errorListener
 );
 ```
 
@@ -275,8 +273,7 @@ resource.
 **Returns:** `Promise<void>`
 
 ```ts
-const progressListener = (offlinePack, status) =>
-  console.log(offlinePack, status);
+const progressListener = (offlinePack, status) => console.log(offlinePack, status);
 const errorListener = (offlinePack, error) => console.log(offlinePack, error);
 OfflineManager.addListener(pack.id, progressListener, errorListener);
 ```
@@ -309,5 +306,5 @@ useEffect(() => {
 Represents the offline pack download state
 
 ```ts
-type OfflinePackDownloadState = "inactive" | "active" | "complete";
+type OfflinePackDownloadState = 'inactive' | 'active' | 'complete';
 ```

@@ -39,7 +39,10 @@ export class LlamaAdapter {
   readonly id = 'llama';
 
   async isAvailable(selectedModelId?: string | null) {
-    const [module, model] = await Promise.all([loadLlamaModule(), getInstalledModel(selectedModelId)]);
+    const [module, model] = await Promise.all([
+      loadLlamaModule(),
+      getInstalledModel(selectedModelId),
+    ]);
     return !!module && !!model?.localUri;
   }
 
@@ -128,11 +131,7 @@ export class LlamaAdapter {
       if (activeModel === model) activeModel = null;
     }
 
-    let finalText = recoverFinalText(
-      completedStepRawText,
-      completedStepVisibleText,
-      sdkReasoning
-    );
+    let finalText = recoverFinalText(completedStepRawText, completedStepVisibleText, sdkReasoning);
     let finalReasoning = recoverReasoningText(
       completedStepRawText,
       sdkReasoning,
@@ -150,7 +149,10 @@ export class LlamaAdapter {
     }
 
     return {
-      content: finalText || buildGroundedFallbackAnswer(input) || 'I could not generate a useful local answer for that message.',
+      content:
+        finalText ||
+        buildGroundedFallbackAnswer(input) ||
+        'I could not generate a useful local answer for that message.',
       citations: combinedCitations,
       reasoning: finalReasoning || undefined,
     };
@@ -188,7 +190,10 @@ async function getLanguageModel(selectedModelId?: string | null) {
   if (!modelPromise || modelPromiseKey !== key) {
     modelPromiseKey = key;
     modelPromise = (async () => {
-      const [module, model] = await Promise.all([loadLlamaModule(), getInstalledModel(selectedModelId)]);
+      const [module, model] = await Promise.all([
+        loadLlamaModule(),
+        getInstalledModel(selectedModelId),
+      ]);
       if (!module || !model?.localUri) return null;
       const languageModel = module.llama.languageModel(model.localUri, {
         contextParams: {
@@ -314,7 +319,10 @@ async function repairMissingFinalAnswer(
 
   return {
     content: normalizedText.content || recoverExplicitFinalFromReasoning(sdkReasoning),
-    reasoning: joinReasoning(normalizedText.reasoning, normalizedReasoning.reasoning || sdkReasoning),
+    reasoning: joinReasoning(
+      normalizedText.reasoning,
+      normalizedReasoning.reasoning || sdkReasoning
+    ),
   };
 }
 
@@ -499,8 +507,7 @@ function ensureSentence(text: string) {
 }
 
 function recoverExplicitFinalFromReasoning(reasoning: string) {
-  const finalMarker =
-    /(?:^|\n)\s*(?:final|final answer|answer|assistant)\s*[:\n-]\s*([\s\S]+)$/i;
+  const finalMarker = /(?:^|\n)\s*(?:final|final answer|answer|assistant)\s*[:\n-]\s*([\s\S]+)$/i;
   const match = reasoning.match(finalMarker);
   return match?.[1]?.trim() ?? '';
 }

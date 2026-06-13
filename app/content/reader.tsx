@@ -39,8 +39,7 @@ function getNativePdf() {
 
 function readerThemeScript(theme: ThemePreference) {
   const colors = NAV_COLORS[theme];
-  const selection =
-    theme === 'light' ? 'rgba(74, 87, 66, 0.18)' : 'rgba(149, 167, 139, 0.28)';
+  const selection = theme === 'light' ? 'rgba(74, 87, 66, 0.18)' : 'rgba(149, 167, 139, 0.28)';
 
   return `
 (function() {
@@ -621,7 +620,11 @@ function useGuideReaderController() {
         initialSection = guideSections.find((s) => s.title === section) ?? null;
       }
 
-      const readerContent = await GuideReaderService.prepareContent(currentPack, initialSection, theme);
+      const readerContent = await GuideReaderService.prepareContent(
+        currentPack,
+        initialSection,
+        theme
+      );
       const requestedPage = page ? Number(page) : null;
       const nextPage =
         Number.isFinite(requestedPage) && requestedPage ? requestedPage : readerContent.page;

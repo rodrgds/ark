@@ -784,7 +784,13 @@ export class DownloadManagerService {
         }
 
         const progress = 0.2 + ((index + 1) / Math.max(imageUrls.length, 1)) * 0.65;
-        await this.updateProgressState(input.id, input.packId, input.localUri, input.title, progress);
+        await this.updateProgressState(
+          input.id,
+          input.packId,
+          input.localUri,
+          input.title,
+          progress
+        );
       }
 
       const snapshotHtml = wrapSnapshotHtml({
@@ -970,8 +976,7 @@ export class DownloadManagerService {
     if (packId === undefined) this.downloadPackIds.delete(id);
     else this.downloadPackIds.set(id, packId);
     const pausedTooLong =
-      typeof row.updatedAt === 'number' &&
-      Date.now() - row.updatedAt > RESUME_DATA_MAX_AGE_MS;
+      typeof row.updatedAt === 'number' && Date.now() - row.updatedAt > RESUME_DATA_MAX_AGE_MS;
     const clearResumeData =
       pausedTooLong || (row.kind === 'guide' && isHtmlSnapshotUri(row.localUri));
     const resumeProgress = clearResumeData ? 0 : row.progress;

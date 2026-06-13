@@ -749,12 +749,7 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
           'failed_attempts',
           'failed_attempts INTEGER NOT NULL DEFAULT 0'
         );
-        await addColumnIfMissing(
-          db,
-          'vault_state',
-          'locked_until',
-          'locked_until INTEGER'
-        );
+        await addColumnIfMissing(db, 'vault_state', 'locked_until', 'locked_until INTEGER');
       }
       await db.runAsync('PRAGMA user_version = 18');
     });

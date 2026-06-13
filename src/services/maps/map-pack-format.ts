@@ -20,4 +20,3 @@ export function getUnsupportedMapPackReason(target: MapPackTarget) {
     target.packFormat
   )} region packs are cataloged for future Ark map builds, but this app version can only download MapLibre offline packs.`;
 }
-

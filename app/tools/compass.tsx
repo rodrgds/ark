@@ -354,7 +354,9 @@ export default function CompassTool() {
   const [markers, setMarkers] = React.useState<MapMarker[]>([]);
   const [targetMarker, setTargetMarker] = React.useState<MapMarker | null>(null);
   const [pickerOpen, setPickerOpen] = React.useState(false);
-  const [location, setLocation] = React.useState<{ latitude: number; longitude: number } | null>(null);
+  const [location, setLocation] = React.useState<{ latitude: number; longitude: number } | null>(
+    null
+  );
   const [locationBusy, setLocationBusy] = React.useState(false);
   const [locationMessage, setLocationMessage] = React.useState<string | null>(null);
 
@@ -368,7 +370,7 @@ export default function CompassTool() {
     const nextMarkers = await OfflineMapService.listMarkers();
     setMarkers(nextMarkers);
     setTargetMarker((current) =>
-      current ? nextMarkers.find((marker) => marker.id === current.id) ?? null : null
+      current ? (nextMarkers.find((marker) => marker.id === current.id) ?? null) : null
     );
   }, []);
 
@@ -541,7 +543,7 @@ export default function CompassTool() {
             </Text>
             <Text variant="muted">
               {targetBearing === null || targetDistance === null
-                ? locationMessage ?? 'Use location to calculate distance and bearing.'
+                ? (locationMessage ?? 'Use location to calculate distance and bearing.')
                 : `${formatDistance(targetDistance)} · ${Math.round(targetBearing)}° bearing`}
             </Text>
             <Button

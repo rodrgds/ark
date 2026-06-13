@@ -30,10 +30,10 @@ const uri = await StaticMapManager.createImage({
   zoom: 12,
   bearing: 20,
   pitch: 30,
-  mapStyle: "https://demotiles.maplibre.org/style.json",
+  mapStyle: 'https://demotiles.maplibre.org/style.json',
   width: 128,
   height: 64,
-  output: "file",
+  output: 'file',
 });
 ```
 
@@ -45,9 +45,9 @@ const uri = await StaticMapManager.createImage({
     [-74.12641, 40.797968],
     [-74.143727, 40.772177],
   ],
-  mapStyle: "https://demotiles.maplibre.org/style.json",
+  mapStyle: 'https://demotiles.maplibre.org/style.json',
   width: 128,
   height: 64,
-  output: "base64",
+  output: 'base64',
 });
 ```

@@ -45,9 +45,7 @@ describe('AI reasoning normalizer', () => {
       content: '',
       reasoning: 'private plan Final answer: Filter water through cloth first.',
     });
-    expect(
-      normalizeReasoningOutput(output, { recoverFinalFromUnclosedReasoning: true })
-    ).toEqual({
+    expect(normalizeReasoningOutput(output, { recoverFinalFromUnclosedReasoning: true })).toEqual({
       content: 'Filter water through cloth first.',
       reasoning: 'private plan',
     });

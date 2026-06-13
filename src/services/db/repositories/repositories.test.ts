@@ -99,9 +99,8 @@ beforeAll(async () => {
   ({ DatabaseClient } = await import('@/services/db/client'));
   ({ migrateDbIfNeeded } = await import('@/services/db/migrations'));
   ({ SettingsRepository } = await import('@/services/db/repositories/settings.repo'));
-  ({ ContentRepository, resetStarterPacksSeedFlagForTests } = await import(
-    '@/services/db/repositories/content.repo'
-  ));
+  ({ ContentRepository, resetStarterPacksSeedFlagForTests } =
+    await import('@/services/db/repositories/content.repo'));
   ({ DownloadsRepository } = await import('@/services/db/repositories/downloads.repo'));
   ({ NotesRepository } = await import('@/services/db/repositories/notes.repo'));
   ({ MapsRepository } = await import('@/services/db/repositories/maps.repo'));

@@ -3,10 +3,7 @@ import { useThemeStore } from '@/stores/theme-store';
 import * as React from 'react';
 import { Linking, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
-import {
-  EnrichedMarkdownText,
-  type MarkdownStyle,
-} from 'react-native-enriched-markdown';
+import { EnrichedMarkdownText, type MarkdownStyle } from 'react-native-enriched-markdown';
 
 type MarkdownTextProps = {
   children: string;

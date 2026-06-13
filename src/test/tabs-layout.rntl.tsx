@@ -67,7 +67,12 @@ mock.module('expo-router/unstable-native-tabs', () => {
   }>) {
     return React.createElement(
       'View',
-      { accessibilityLabel: `Tab ${name}`, accessibilityRole: 'tab', accessible: true, routeName: name },
+      {
+        accessibilityLabel: `Tab ${name}`,
+        accessibilityRole: 'tab',
+        accessible: true,
+        routeName: name,
+      },
       children
     );
   }

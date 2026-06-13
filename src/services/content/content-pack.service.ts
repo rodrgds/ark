@@ -42,7 +42,7 @@ export class ContentPackService {
     const packId = parseOrThrow(contentPackIdSchema, id);
     const pack = (await ContentRepository.list()).find((item) => item.id === packId);
     if (!pack) throw new Error('Content pack not found.');
-    
+
     if (!pack.sourceUrl) {
       // If it's a local guide (no source URL), we can re-seed it
       await AuthoredGuideSeedService.seed();
@@ -199,9 +199,7 @@ export class ContentPackService {
 
     await FileSystemService.ensureAppDirectories();
     const normalizedRole = modelRole === 'voice' ? 'voice' : 'chat';
-    const id = `custom-${
-      normalizedRole === 'voice' ? 'voice' : 'chat'
-    }-model-${randomUUID()}`;
+    const id = `custom-${normalizedRole === 'voice' ? 'voice' : 'chat'}-model-${randomUUID()}`;
     const localUri = `${FileSystemService.dir('models')}${id}-${FileSystemService.safeFileName(asset.name)}`;
     await FileSystem.copyAsync({ from: asset.uri, to: localUri });
     const info = await FileSystem.getInfoAsync(localUri);
@@ -216,8 +214,8 @@ export class ContentPackService {
       title: asset.name.replace(/\.gguf$/i, ''),
       description:
         normalizedRole === 'voice'
-            ? 'User-imported GGUF voice model for on-device transcription.'
-            : 'User-imported GGUF chat model for on-device AI.',
+          ? 'User-imported GGUF voice model for on-device transcription.'
+          : 'User-imported GGUF chat model for on-device AI.',
       category: 'AI Models',
       format: 'gguf',
       localUri,
@@ -267,8 +265,8 @@ export class ContentPackService {
       title: input.title.trim() || fileName.replace(/\.gguf$/i, ''),
       description:
         modelRole === 'voice'
-            ? 'Custom GGUF voice model URL. Download before using local transcription.'
-            : 'Custom GGUF chat model URL. Download before using local AI.',
+          ? 'Custom GGUF voice model URL. Download before using local transcription.'
+          : 'Custom GGUF chat model URL. Download before using local AI.',
       category: 'AI Models',
       format: 'gguf',
       sourceUrl,

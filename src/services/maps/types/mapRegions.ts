@@ -1,10 +1,4 @@
-type MapRegionLevel =
-  | 'world'
-  | 'continent'
-  | 'macroregion'
-  | 'country'
-  | 'region'
-  | 'city';
+type MapRegionLevel = 'world' | 'continent' | 'macroregion' | 'country' | 'region' | 'city';
 
 import type { MapRegionPackFormat } from '@/types/maps';
 

@@ -32,8 +32,7 @@ export class DatabaseEncryptionService {
       keyStored,
       keyStrategy: KEY_STRATEGY,
       migrationStatus: MIGRATION_STATUS,
-      note:
-        'A development build with SQLCipher should report active after the database opens. Existing plaintext databases still need an explicit migration plan.',
+      note: 'A development build with SQLCipher should report active after the database opens. Existing plaintext databases still need an explicit migration plan.',
     };
   }
 

@@ -54,7 +54,9 @@ describe('starter content packs', () => {
       (pack) => pack.id === 'usda-special-forest-products-harvest'
     );
 
-    expect(plantSafety?.sourceUrl).toBe('https://research.fs.usda.gov/download/treesearch/45826.pdf');
+    expect(plantSafety?.sourceUrl).toBe(
+      'https://research.fs.usda.gov/download/treesearch/45826.pdf'
+    );
     expect(plantSafety?.sourceLabel).toBe('USDA Forest Service');
     expect(`${plantSafety?.title} ${plantSafety?.description}`.toLowerCase()).not.toContain(
       'mushroom identification'
@@ -69,7 +71,7 @@ describe('starter content packs', () => {
     expect(htmlGuides.every((pack) => pack.downloadStrategy === 'html_snapshot')).toBe(true);
     expect(ids).toContain('food-preservation-usda');
     expect(ids).toContain('sanitation-hygiene');
-    
+
     expect(STARTER_PACKS.find((p) => p.id === 'food-preservation-usda')?.category).toBe('Food');
     expect(STARTER_PACKS.find((p) => p.id === 'sanitation-hygiene')?.category).toBe('Water');
   });

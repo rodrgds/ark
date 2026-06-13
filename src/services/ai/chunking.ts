@@ -20,7 +20,7 @@ export async function splitTextForRag(
 ) {
   const chunkSize = options.chunkSize ?? DEFAULT_CHUNK_SIZE;
   const chunkOverlap = options.chunkOverlap ?? DEFAULT_CHUNK_OVERLAP;
-  
+
   // For Markdown, we want to keep structural breaks like double newlines.
   // We only normalize horizontal whitespace and excessive vertical whitespace.
   const normalized = text
@@ -28,7 +28,7 @@ export async function splitTextForRag(
     .replace(/[ \t\f\v]+/g, ' ')
     .replace(/\n{4,}/g, '\n\n\n')
     .trim();
-    
+
   if (!normalized) return [];
 
   try {

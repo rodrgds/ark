@@ -15,11 +15,7 @@ export type MapRegionUpdateState = {
 export function getMapRegionUpdateState(
   region: Pick<
     MapRegion,
-    | 'checksumSha256'
-    | 'dataVersion'
-    | 'manifestVersion'
-    | 'regionUpdatedAt'
-    | 'status'
+    'checksumSha256' | 'dataVersion' | 'manifestVersion' | 'regionUpdatedAt' | 'status'
   >,
   preset?: Pick<MapPreset, 'checksumSha256' | 'dataVersion' | 'updatedAt'> | null,
   catalogVersion?: number | null

@@ -146,9 +146,7 @@ export function SecuritySection({
               {passwordBusy ? <ActivityIndicator /> : null}
               <Text>Change Passphrase</Text>
             </Button>
-            {securityMessage ? (
-              <Text className="text-destructive">{securityMessage}</Text>
-            ) : null}
+            {securityMessage ? <Text className="text-destructive">{securityMessage}</Text> : null}
           </>
         ) : (
           <Text variant="muted">Unlock the vault to change your passphrase or recovery hint.</Text>

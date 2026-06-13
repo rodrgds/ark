@@ -85,7 +85,9 @@ export default function RootLayout() {
                 onPress={retryBoot}
                 disabled={booting}
                 className="bg-primary mt-2 rounded-md px-4 py-2">
-                <Text className="text-primary-foreground">{booting ? 'Retrying…' : 'Try again'}</Text>
+                <Text className="text-primary-foreground">
+                  {booting ? 'Retrying…' : 'Try again'}
+                </Text>
               </Pressable>
             </View>
           </View>
@@ -112,10 +114,7 @@ function ThemedNavigator({
   effectiveTheme: 'oled' | 'dark' | 'light';
   error: string | null;
 }) {
-  const themeColors = React.useMemo(
-    () => NAV_THEME[effectiveTheme].colors,
-    [effectiveTheme]
-  );
+  const themeColors = React.useMemo(() => NAV_THEME[effectiveTheme].colors, [effectiveTheme]);
 
   return (
     <ThemeProvider value={NAV_THEME[effectiveTheme]}>

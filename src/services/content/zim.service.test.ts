@@ -41,8 +41,7 @@ describe('sanitizeArticleHtml', () => {
   });
 
   test('neutralises javascript: URLs in href/src/action', () => {
-    const html =
-      '<a href="javascript:alert(1)">x</a><img src="javascript:alert(2)">';
+    const html = '<a href="javascript:alert(1)">x</a><img src="javascript:alert(2)">';
     const out = sanitizeArticleHtml(html);
     expect(out).not.toMatch(/href\s*=\s*["']\s*javascript:/i);
     expect(out).not.toMatch(/src\s*=\s*["']\s*javascript:/i);

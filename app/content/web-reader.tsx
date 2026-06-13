@@ -63,7 +63,7 @@ export default function WebReaderScreen() {
       .replace(/\s+/g, ' ')
       .trim()
       .slice(0, 4000);
-    
+
     setSpeaking(true);
     try {
       await speechPlayback.speak(text);

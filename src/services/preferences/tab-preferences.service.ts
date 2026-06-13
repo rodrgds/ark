@@ -1,9 +1,4 @@
-import {
-  ARK_TABS,
-  DEFAULT_ENABLED_TABS,
-  DEFAULT_TAB_ORDER,
-  type ArkTabId,
-} from '@/constants/tabs';
+import { ARK_TABS, DEFAULT_ENABLED_TABS, DEFAULT_TAB_ORDER, type ArkTabId } from '@/constants/tabs';
 import { SettingsRepository } from '@/services/db/repositories/settings.repo';
 
 const TAB_ORDER_KEY = 'tabs.order';

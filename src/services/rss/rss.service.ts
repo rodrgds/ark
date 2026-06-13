@@ -136,7 +136,7 @@ async function normalizeRssItem(feedId: string, rawItem: unknown) {
   const title = extractText(item.title) || 'Untitled';
   const url = extractText(item.link) || extractText(item.guid) || null;
   const publishedAt = parseDate(extractText(item.pubDate) || extractText(item['dc:date']));
-  
+
   const rawContent = extractText(item['content:encoded']) || extractText(item.description) || '';
   const { summary, content } = await defuddleContent(rawContent, url);
 
@@ -157,7 +157,7 @@ async function normalizeAtomItem(feedId: string, rawItem: unknown) {
   const title = extractText(item.title) || 'Untitled';
   const url = atomLink(item.link);
   const publishedAt = parseDate(extractText(item.updated) || extractText(item.published));
-  
+
   const rawContent = extractText(item.content) || extractText(item.summary) || '';
   const { summary, content } = await defuddleContent(rawContent, url);
 

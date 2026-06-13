@@ -252,12 +252,14 @@ const GUIDE_SECTIONS: Record<string, GuideSection[]> = {
   'disaster-earthquakes': [
     {
       title: 'Prepare Before an Earthquake',
-      detail: 'Secure heavy items, make a family plan, and keep supplies ready before shaking starts.',
+      detail:
+        'Secure heavy items, make a family plan, and keep supplies ready before shaking starts.',
       htmlTargets: ['#before', 'Prepare Before an Earthquake'],
     },
     {
       title: 'During an Earthquake',
-      detail: 'Drop, cover, and hold on. Stay away from glass, exterior walls, and falling objects.',
+      detail:
+        'Drop, cover, and hold on. Stay away from glass, exterior walls, and falling objects.',
       htmlTargets: ['#during', 'During an Earthquake', 'Protect Yourself During Earthquakes'],
     },
     {
@@ -316,12 +318,14 @@ const GUIDE_SECTIONS: Record<string, GuideSection[]> = {
   'disaster-extreme-heat': [
     {
       title: 'Before Extreme Heat',
-      detail: 'Plan cooling options, check insulation, and prepare for heat emergencies before they happen.',
+      detail:
+        'Plan cooling options, check insulation, and prepare for heat emergencies before they happen.',
       htmlTargets: ['#prepare', 'Before Extreme Heat'],
     },
     {
       title: 'During Extreme Heat',
-      detail: 'Stay cool, drink water regularly, avoid strenuous activity, and check vulnerable people.',
+      detail:
+        'Stay cool, drink water regularly, avoid strenuous activity, and check vulnerable people.',
       htmlTargets: ['#during', 'During Extreme Heat'],
     },
     {

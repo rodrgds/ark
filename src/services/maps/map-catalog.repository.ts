@@ -97,8 +97,7 @@ function normalizeCatalog(
   context: CatalogNormalizeContext = {}
 ): MapCatalog {
   const source = catalog && typeof catalog === 'object' ? catalog : {};
-  const sourceUrl =
-    typeof source.sourceUrl === 'string' ? source.sourceUrl : context.sourceUrl;
+  const sourceUrl = typeof source.sourceUrl === 'string' ? source.sourceUrl : context.sourceUrl;
   const baseUrl = getCatalogBaseUrl(source, sourceUrl);
   const regions = Array.isArray(source.regions)
     ? source.regions.filter(isValidPreset).map((preset) => normalizePreset(preset, source, baseUrl))

@@ -3,11 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
-import {
-  LABEL_COLOR_OPTIONS,
-  getLabelColor,
-  getLabelForegroundColor,
-} from '@/lib/label-colors';
+import { LABEL_COLOR_OPTIONS, getLabelColor, getLabelForegroundColor } from '@/lib/label-colors';
 import { NotesRepository } from '@/services/db/repositories/notes.repo';
 import { SettingsRepository } from '@/services/db/repositories/settings.repo';
 import type { Note } from '@/types/db';
@@ -19,9 +15,7 @@ import { Swipeable } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function collectLabels(notes: Note[]) {
-  return Array.from(new Set(notes.flatMap((note) => note.tags))).sort((a, b) =>
-    a.localeCompare(b)
-  );
+  return Array.from(new Set(notes.flatMap((note) => note.tags))).sort((a, b) => a.localeCompare(b));
 }
 
 export default function NoteLabelsScreen() {
@@ -63,9 +57,9 @@ export default function NoteLabelsScreen() {
     setNote(currentNote);
     setAllNotes(notes);
     const savedLabels = await SettingsRepository.getLabels();
-    const merged = Array.from(
-      new Set([...collectLabels(notes), ...savedLabels])
-    ).sort((a, b) => a.localeCompare(b));
+    const merged = Array.from(new Set([...collectLabels(notes), ...savedLabels])).sort((a, b) =>
+      a.localeCompare(b)
+    );
     setLabels(merged);
     setLabelColors(await SettingsRepository.getLabelColors());
     setSelectedLabels(currentNote.tags);
@@ -97,9 +91,7 @@ export default function NoteLabelsScreen() {
 
   function toggleLabel(label: string) {
     setSelectedLabels((current) =>
-      current.includes(label)
-        ? current.filter((item) => item !== label)
-        : [...current, label]
+      current.includes(label) ? current.filter((item) => item !== label) : [...current, label]
     );
   }
 
@@ -230,9 +222,7 @@ export default function NoteLabelsScreen() {
             </Text>
           </View>
         ) : (
-          <View
-            className="flex-1"
-            style={{ paddingBottom: Math.max(insets.bottom, 8) }}>
+          <View className="flex-1" style={{ paddingBottom: Math.max(insets.bottom, 8) }}>
             {labels.map((label) => {
               const selected = selectedLabels.includes(label);
               const labelColor = getLabelColor(label, labelColors);
@@ -250,11 +240,11 @@ export default function NoteLabelsScreen() {
                       onPress={() => {
                         void deleteLabelEverywhere(label);
                       }}>
-                      <Icon as={Trash2} className="text-white size-5" />
+                      <Icon as={Trash2} className="size-5 text-white" />
                     </Pressable>
                   )}>
                   <Pressable
-                    className="mx-2 my-1 flex-row items-center justify-between rounded-xl px-2 py-3 active:bg-accent"
+                    className="active:bg-accent mx-2 my-1 flex-row items-center justify-between rounded-xl px-2 py-3"
                     onPress={() => toggleLabel(label)}>
                     <View className="flex-row items-center gap-3">
                       <Pressable
@@ -270,9 +260,7 @@ export default function NoteLabelsScreen() {
                       <View
                         className="rounded-full px-3 py-1.5"
                         style={{ backgroundColor: labelColor }}>
-                        <Text
-                          className="text-base font-medium"
-                          style={{ color: labelForeground }}>
+                        <Text className="text-base font-medium" style={{ color: labelForeground }}>
                           {label}
                         </Text>
                       </View>
@@ -303,7 +291,7 @@ export default function NoteLabelsScreen() {
                             className={
                               active
                                 ? 'h-7 w-7 rounded-full border-2 border-white'
-                                : 'h-7 w-7 rounded-full border border-border'
+                                : 'border-border h-7 w-7 rounded-full border'
                             }
                             style={{ backgroundColor: option.value }}
                           />

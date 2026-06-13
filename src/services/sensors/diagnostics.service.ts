@@ -25,17 +25,17 @@ export class DiagnosticsService {
       databaseEncryption,
       modelStatus,
     ] = await Promise.all([
-        CompassService.isAvailable(),
-        BarometerService.isAvailable(),
-        LevelService.isAvailable(),
-        PedometerService.isAvailable(),
-        LightMeterService.isAvailable(),
-        Location.getForegroundPermissionsAsync().catch(() => ({ granted: false })),
-        NetworkService.getState().catch(() => null),
-        FileSystemService.getStorageSummary(),
-        DatabaseEncryptionService.getRuntimeStatus(SQLCIPHER_ACTIVE),
-        ModelManagerService.getStatus(),
-      ]);
+      CompassService.isAvailable(),
+      BarometerService.isAvailable(),
+      LevelService.isAvailable(),
+      PedometerService.isAvailable(),
+      LightMeterService.isAvailable(),
+      Location.getForegroundPermissionsAsync().catch(() => ({ granted: false })),
+      NetworkService.getState().catch(() => null),
+      FileSystemService.getStorageSummary(),
+      DatabaseEncryptionService.getRuntimeStatus(SQLCIPHER_ACTIVE),
+      ModelManagerService.getStatus(),
+    ]);
 
     return {
       sensors: {

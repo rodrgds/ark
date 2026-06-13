@@ -1,7 +1,6 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { formatBytes } from '@/lib/format';
 
-
 /**
  * ZIM file format header structure (80 bytes):
  * https://wiki.openzim.org/wiki/ZIM_file_format
@@ -188,9 +187,7 @@ export class ZimHeaderParser {
    * Determines if the archive contains HTML articles (vs. just metadata).
    */
   static hasHtmlContent(header: ZimHeaderInfo): boolean {
-    return header.mimeTypes.some(
-      (mime) => mime === 'text/html' || mime.startsWith('text/html;')
-    );
+    return header.mimeTypes.some((mime) => mime === 'text/html' || mime.startsWith('text/html;'));
   }
 
   private static invalidResult(reason: string): ZimHeaderInfo {
@@ -207,5 +204,3 @@ export class ZimHeaderParser {
     };
   }
 }
-
-

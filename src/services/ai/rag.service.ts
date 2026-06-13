@@ -1116,7 +1116,10 @@ function snippetForRow(row: {
       : null;
   if (section?.detail) return section.detail;
 
-  const lines = row.text.split('\n').map((line) => line.trim()).filter(Boolean);
+  const lines = row.text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
   if (row.kind === 'note') {
     if (lines.length >= 2) {
       return lines[1].slice(0, 240);

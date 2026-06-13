@@ -28,7 +28,7 @@ export function useAppHeaderActions(actions: React.ReactNode, deps: React.Depend
       if (!context) return undefined;
       context.setActions(actions);
       return () => context.setActions(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, deps)
   );
 }

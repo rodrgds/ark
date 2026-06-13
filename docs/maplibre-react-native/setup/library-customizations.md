@@ -13,19 +13,19 @@ When using Expo, simply add the customizations in the projects `app.json` or `ap
 example customization for in a `app.config.ts`:
 
 ```ts
-import type { MapLibrePluginProps } from "@maplibre/maplibre-react-native";
+import type { MapLibrePluginProps } from '@maplibre/maplibre-react-native';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   plugins: [
     [
-      "@maplibre/maplibre-react-native",
+      '@maplibre/maplibre-react-native',
       {
         android: {
-          nativeVersion: "x.x.x",
+          nativeVersion: 'x.x.x',
         },
         ios: {
-          nativeVersion: "x.x.x",
+          nativeVersion: 'x.x.x',
         },
       } as MapLibrePluginProps,
     ],

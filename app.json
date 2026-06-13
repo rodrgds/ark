@@ -82,9 +82,7 @@
         {
           "iosMicrophonePermission": "Allow Ark to record short voice prompts for offline transcription.",
           "iosBackgroundMode": false,
-          "androidPermissions": [
-            "android.permission.RECORD_AUDIO"
-          ],
+          "androidPermissions": ["android.permission.RECORD_AUDIO"],
           "androidForegroundService": false,
           "disableFFmpeg": true
         }

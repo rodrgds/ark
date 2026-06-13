@@ -1,6 +1,10 @@
 import type { MapManifestRegion, MapRegion } from '@/types/maps';
 import { haversineMeters } from '@/lib/geo';
-import { boxesIntersect, getBboxArea, getBboxCenter as getBboxCenterFromTuple } from '@/services/maps/utils/bbox';
+import {
+  boxesIntersect,
+  getBboxArea,
+  getBboxCenter as getBboxCenterFromTuple,
+} from '@/services/maps/utils/bbox';
 
 export type MapBounds = {
   north: number;
@@ -84,7 +88,11 @@ export function sortRegionsByDistanceFromCoordinate<T extends ManifestRegionLike
 ) {
   return regions
     .slice()
-    .sort((a, b) => distanceToRegionCenter(a, { latitude, longitude }) - distanceToRegionCenter(b, { latitude, longitude }));
+    .sort(
+      (a, b) =>
+        distanceToRegionCenter(a, { latitude, longitude }) -
+        distanceToRegionCenter(b, { latitude, longitude })
+    );
 }
 
 export function findChildRegions<T extends { parentId?: string }>(parentId: string, regions: T[]) {
@@ -135,7 +143,11 @@ function getRegionBbox(region: Pick<ManifestRegionLike, 'bbox'> | { bounds: MapB
   return null;
 }
 
-function isCoordinateInsideDownloadedRegion(latitude: number, longitude: number, region: DownloadedRegionLike) {
+function isCoordinateInsideDownloadedRegion(
+  latitude: number,
+  longitude: number,
+  region: DownloadedRegionLike
+) {
   const bbox = getDownloadedBbox(region);
   if (!bbox) return false;
   const [west, south, east, north] = bbox;
@@ -144,20 +156,15 @@ function isCoordinateInsideDownloadedRegion(latitude: number, longitude: number,
 
 function getDownloadedBbox(region: DownloadedRegionLike) {
   if (region.bbox) return region.bbox;
-  if (
-    region.west == null ||
-    region.south == null ||
-    region.east == null ||
-    region.north == null
-  ) {
+  if (region.west == null || region.south == null || region.east == null || region.north == null) {
     return null;
   }
-  return [
-    region.west,
-    region.south,
-    region.east,
-    region.north,
-  ] satisfies [number, number, number, number];
+  return [region.west, region.south, region.east, region.north] satisfies [
+    number,
+    number,
+    number,
+    number,
+  ];
 }
 
 function regionArea(region: ManifestRegionLike) {

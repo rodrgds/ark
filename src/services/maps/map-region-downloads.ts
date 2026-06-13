@@ -116,9 +116,9 @@ function hasNativeOfflineManager(maplibre: MapLibreModule | null) {
   const manager = maplibre?.OfflineManager;
   return Boolean(
     manager &&
-      typeof manager.getPacks === 'function' &&
-      typeof manager.createPack === 'function' &&
-      typeof manager.addListener === 'function'
+    typeof manager.getPacks === 'function' &&
+    typeof manager.createPack === 'function' &&
+    typeof manager.addListener === 'function'
   );
 }
 

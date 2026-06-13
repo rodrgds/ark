@@ -63,10 +63,13 @@ export class AutoLockService {
       useAuthStore.getState().lock();
       return;
     }
-    timer = setTimeout(() => {
-      timer = null;
-      void AutoLockService.enforce();
-    }, Math.min(remaining, MAX_RETRY_TIMEOUT_MS));
+    timer = setTimeout(
+      () => {
+        timer = null;
+        void AutoLockService.enforce();
+      },
+      Math.min(remaining, MAX_RETRY_TIMEOUT_MS)
+    );
   }
 
   static onAppStateChange(state: AppStateStatus) {

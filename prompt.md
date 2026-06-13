@@ -1,1373 +1,1374 @@
 Android SDK is working. Implement these features:
 
-   - Interest points on the mapsd with farmacies, local markets, shoppings, etc
-   - More detailed maps, houses, green spaces, more detailed roads, preferably 3d buildings as well
+- Interest points on the mapsd with farmacies, local markets, shoppings, etc
+- More detailed maps, houses, green spaces, more detailed roads, preferably 3d buildings as well
 
-   Refer to maplibre react native documentation:
+Refer to maplibre react native documentation:
 
-   Map
-   A view of a MapLibre Native Map.
+Map
+A view of a MapLibre Native Map.
 
-   Rendering a basic Map
+Rendering a basic Map
 
    <Map mapStyle="https://demotiles.maplibre.org/style.json" />
 
-   Also accepts props from: ViewProps
+Also accepts props from: ViewProps
 
-   Props
-   style
-   Style for wrapping React Native View
+Props
+style
+Style for wrapping React Native View
 
-   Type: ViewProps["style"]
+Type: ViewProps["style"]
 
-   Required: No
+Required: No
 
-   Default: { flex: 1 }
+Default: { flex: 1 }
 
-   mapStyle
-   Maplibre style - either a URL or a Style JSON.
+mapStyle
+Maplibre style - either a URL or a Style JSON.
 
-   Type: string | StyleSpecification
+Type: string | StyleSpecification
 
-   Required: Yes
+Required: Yes
 
-   See also: https://maplibre.org/maplibre-style-spec/
+See also: https://maplibre.org/maplibre-style-spec/
 
-   light
-   Light properties of the style. Must conform to the Light Style Specification. Controls the light source for extruded
-   geometries.
+light
+Light properties of the style. Must conform to the Light Style Specification. Controls the light source for extruded
+geometries.
 
-   Type: LightSpecification
+Type: LightSpecification
 
-   Required: No
+Required: No
 
-   contentInset
-   The distance from the edges of the map view's frame to the edges of the map view's logical viewport.
+contentInset
+The distance from the edges of the map view's frame to the edges of the map view's logical viewport.
 
-   Type: ViewPadding
+Type: ViewPadding
 
-   Required: No
+Required: No
 
-   preferredFramesPerSecond
-   iOS: The preferred frame rate at which the map view is rendered. The default value for this property is
-   MLNMapViewPreferredFramesPerSecondDefault, which will adaptively set the preferred frame rate based on the capability of
-   the user’s device to maintain a smooth experience. This property can be set to arbitrary integer values. Android: The
-   maximum frame rate at which the map view is rendered, but it can't exceed the ability of device hardware. This property
-   can be set to arbitrary integer values.
+preferredFramesPerSecond
+iOS: The preferred frame rate at which the map view is rendered. The default value for this property is
+MLNMapViewPreferredFramesPerSecondDefault, which will adaptively set the preferred frame rate based on the capability of
+the user’s device to maintain a smooth experience. This property can be set to arbitrary integer values. Android: The
+maximum frame rate at which the map view is rendered, but it can't exceed the ability of device hardware. This property
+can be set to arbitrary integer values.
 
-   Type: number
+Type: number
 
-   Required: No
+Required: No
 
-   dragPan
-   Toggle pan interaction of the map
+dragPan
+Toggle pan interaction of the map
 
-   Type: boolean
+Type: boolean
 
-   Required: No
+Required: No
 
-   Default: true
+Default: true
 
-   touchZoom
-   Toggle pinch/scroll zoom interaction of the map. On Android this also disables doubleTapZoom and doubleTapHoldZoom.
+touchZoom
+Toggle pinch/scroll zoom interaction of the map. On Android this also disables doubleTapZoom and doubleTapHoldZoom.
 
-   Type: boolean
+Type: boolean
 
-   Required: No
+Required: No
 
-   Default: true
+Default: true
 
-   doubleTapZoom
-   Toggle double-tap zoom interaction of the map.
+doubleTapZoom
+Toggle double-tap zoom interaction of the map.
 
-   Type: boolean
+Type: boolean
 
-   Required: No
+Required: No
 
-   Default: true
+Default: true
 
-   doubleTapHoldZoom
-   Toggle double-tap-and-hold zoom interaction of the map (also known as quick zoom and one finger zoom).
+doubleTapHoldZoom
+Toggle double-tap-and-hold zoom interaction of the map (also known as quick zoom and one finger zoom).
 
-   Type: boolean
+Type: boolean
 
-   Required: No
+Required: No
 
-   Default: true
+Default: true
 
-   touchRotate
-   Toggle rotate interaction of the map
+touchRotate
+Toggle rotate interaction of the map
 
-   Type: boolean
+Type: boolean
 
-   Required: No
+Required: No
 
-   Default: true
+Default: true
 
-   touchPitch
-   Toggle pitch interaction of the map
+touchPitch
+Toggle pitch interaction of the map
 
-   Type: boolean
+Type: boolean
 
-   Required: No
+Required: No
 
-   Default: true
+Default: true
 
-   tintColor
-   Tints UI elements like the attribution button
+tintColor
+Tints UI elements like the attribution button
 
-   Type: string
+Type: string
 
-   Required: No
+Required: No
 
-   attribution
-   Toggle the attribution button of the map
+attribution
+Toggle the attribution button of the map
 
-   Type: boolean
+Type: boolean
 
-   Required: No
+Required: No
 
-   attributionPosition
-   Positions the attribution button
+attributionPosition
+Positions the attribution button
 
-   Type: OrnamentViewPosition
+Type: OrnamentViewPosition
 
-   Required: No
+Required: No
 
-   logo
-   Toggle the logo on the map
+logo
+Toggle the logo on the map
 
-   Type: boolean
+Type: boolean
 
-   Required: No
+Required: No
 
-   logoPosition
-   Positions the logo
+logoPosition
+Positions the logo
 
-   Type: OrnamentViewPosition
+Type: OrnamentViewPosition
 
-   Required: No
+Required: No
 
-   compass
-   Toggle the compass from appearing on the map
+compass
+Toggle the compass from appearing on the map
 
-   Type: boolean
+Type: boolean
 
-   Required: No
+Required: No
 
-   compassPosition
-   Positions the compass
+compassPosition
+Positions the compass
 
-   Type: OrnamentViewPosition
+Type: OrnamentViewPosition
 
-   Required: No
+Required: No
 
-   compassHiddenFacingNorth
-   Toggle the compass from hiding when facing north
+compassHiddenFacingNorth
+Toggle the compass from hiding when facing north
 
-   Type: boolean
+Type: boolean
 
-   Required: No
+Required: No
 
-   Default: true
+Default: true
 
-   scaleBar
-   Toggle the scale bar on the map
+scaleBar
+Toggle the scale bar on the map
 
-   Type: boolean
+Type: boolean
 
-   Required: No
+Required: No
 
-   scaleBarPosition
-   Positions the scale bar. Android only supports top-left corner.
+scaleBarPosition
+Positions the scale bar. Android only supports top-left corner.
 
-   Type: OrnamentViewPosition
+Type: OrnamentViewPosition
 
-   Required: No
+Required: No
 
-   androidView
-   Android only: Switch between TextureView (default) and GLSurfaceView for rendering the map
+androidView
+Android only: Switch between TextureView (default) and GLSurfaceView for rendering the map
 
-   Type: "surface" | "texture"
+Type: "surface" | "texture"
 
-   Required: No
+Required: No
 
-   Default: "surface"
+Default: "surface"
 
-   onPress
-   Called when a user presses the map If the event bubbles up from a child Source with an onPress handler the features will
-   be included. The event will emit on Map and Source . To prevent this use event.stopPropagation() in the Source handler.
+onPress
+Called when a user presses the map If the event bubbles up from a child Source with an onPress handler the features will
+be included. The event will emit on Map and Source . To prevent this use event.stopPropagation() in the Source handler.
 
-   Type:
+Type:
 
-   (
-       event:
-         | NativeSyntheticEvent<PressEvent>
-         | NativeSyntheticEvent<PressEventWithFeatures>,
-     ) => void
+(
+event:
+| NativeSyntheticEvent<PressEvent>
+| NativeSyntheticEvent<PressEventWithFeatures>,
+) => void
 
-   Required: No
+Required: No
 
-   onLongPress
-   Called when a user long presses the map
+onLongPress
+Called when a user long presses the map
 
-   Type: (event: NativeSyntheticEvent<PressEvent>) => void
+Type: (event: NativeSyntheticEvent<PressEvent>) => void
 
-   Required: No
+Required: No
 
-   onRegionWillChange
-   Called when the currently displayed map region is about to change
+onRegionWillChange
+Called when the currently displayed map region is about to change
 
-   Type:
+Type:
 
-   (
-       event: NativeSyntheticEvent<ViewStateChangeEvent>,
-     ) => void
+(
+event: NativeSyntheticEvent<ViewStateChangeEvent>,
+) => void
 
-   Required: No
+Required: No
 
-   onRegionIsChanging
-   Called when the currently displayed map region is changing
+onRegionIsChanging
+Called when the currently displayed map region is changing
 
-   Type:
+Type:
 
-   (
-       event: NativeSyntheticEvent<ViewStateChangeEvent>,
-     ) => void
+(
+event: NativeSyntheticEvent<ViewStateChangeEvent>,
+) => void
 
-   Required: No
+Required: No
 
-   onRegionDidChange
-   Called when the currently displayed map region finished changing
+onRegionDidChange
+Called when the currently displayed map region finished changing
 
-   Type:
+Type:
 
-   (
-       event: NativeSyntheticEvent<ViewStateChangeEvent>,
-     ) => void
+(
+event: NativeSyntheticEvent<ViewStateChangeEvent>,
+) => void
 
-   Required: No
+Required: No
 
-   onWillStartLoadingMap
-   Called when the map is about to start loading a new map style
+onWillStartLoadingMap
+Called when the map is about to start loading a new map style
 
-   Type: (event: NativeSyntheticEvent<null>) => void
+Type: (event: NativeSyntheticEvent<null>) => void
 
-   Required: No
+Required: No
 
-   onDidFinishLoadingMap
-   Called when the map has successfully loaded a new map style
+onDidFinishLoadingMap
+Called when the map has successfully loaded a new map style
 
-   Type: (event: NativeSyntheticEvent<null>) => void
+Type: (event: NativeSyntheticEvent<null>) => void
 
-   Required: No
+Required: No
 
-   onDidFailLoadingMap
-   Called when the map has failed to load a new map style
+onDidFailLoadingMap
+Called when the map has failed to load a new map style
 
-   Type: (event: NativeSyntheticEvent<null>) => void
+Type: (event: NativeSyntheticEvent<null>) => void
 
-   Required: No
+Required: No
 
-   onWillStartRenderingFrame
-   Called when the map will start rendering a frame
+onWillStartRenderingFrame
+Called when the map will start rendering a frame
 
-   Type: (event: NativeSyntheticEvent<null>) => void
+Type: (event: NativeSyntheticEvent<null>) => void
 
-   Required: No
+Required: No
 
-   onDidFinishRenderingFrame
-   Called when the map finished rendering a frame
+onDidFinishRenderingFrame
+Called when the map finished rendering a frame
 
-   Type: (event: NativeSyntheticEvent<null>) => void
+Type: (event: NativeSyntheticEvent<null>) => void
 
-   Required: No
+Required: No
 
-   onDidFinishRenderingFrameFully
-   Called when the map fully finished rendering a frame
+onDidFinishRenderingFrameFully
+Called when the map fully finished rendering a frame
 
-   Type: (event: NativeSyntheticEvent<null>) => void
+Type: (event: NativeSyntheticEvent<null>) => void
 
-   Required: No
+Required: No
 
-   onWillStartRenderingMap
-   Called when the map will start rendering itself
+onWillStartRenderingMap
+Called when the map will start rendering itself
 
-   Type: (event: NativeSyntheticEvent<null>) => void
+Type: (event: NativeSyntheticEvent<null>) => void
 
-   Required: No
+Required: No
 
-   onDidFinishRenderingMap
-   Called when the map has finished rendering itself
+onDidFinishRenderingMap
+Called when the map has finished rendering itself
 
-   Type: (event: NativeSyntheticEvent<null>) => void
+Type: (event: NativeSyntheticEvent<null>) => void
 
-   Required: No
+Required: No
 
-   onDidFinishRenderingMapFully
-   Called when the map has fully finished rendering itself
+onDidFinishRenderingMapFully
+Called when the map has fully finished rendering itself
 
-   Type: (event: NativeSyntheticEvent<null>) => void
+Type: (event: NativeSyntheticEvent<null>) => void
 
-   Required: No
+Required: No
 
-   onDidFinishLoadingStyle
-   Triggered when a style has finished loading
+onDidFinishLoadingStyle
+Triggered when a style has finished loading
 
-   Type: (event: NativeSyntheticEvent<null>) => void
+Type: (event: NativeSyntheticEvent<null>) => void
 
-   Required: No
+Required: No
 
-   ref
-   Ref to access Map methods.
+ref
+Ref to access Map methods.
 
-   Type: Ref<MapRef>
+Type: Ref<MapRef>
 
-   Required: No
+Required: No
 
-   testID
-   Type: string
+testID
+Type: string
 
-   Required: No
+Required: No
 
-   Ref Methods
-   getCenter()
-   Returns the current center coordinates of the map
+Ref Methods
+getCenter()
+Returns the current center coordinates of the map
 
-   Returns: Promise<LngLat> — Current center coordinates of the map
+Returns: Promise<LngLat> — Current center coordinates of the map
 
-   await mapRef.current?.getCenter();
+await mapRef.current?.getCenter();
 
-   getZoom()
-   Returns the current zoom level of the map
+getZoom()
+Returns the current zoom level of the map
 
-   Returns: Promise<number> — Current zoom level of the map
+Returns: Promise<number> — Current zoom level of the map
 
-   await mapRef.current?.getZoom();
+await mapRef.current?.getZoom();
 
-   getBearing()
-   Returns the current bearing of the map
+getBearing()
+Returns the current bearing of the map
 
-   Returns: Promise<number> — Current bearing of the map
+Returns: Promise<number> — Current bearing of the map
 
-   await mapRef.current?.getBearing();
+await mapRef.current?.getBearing();
 
-   getPitch()
-   Returns the current pitch of the map
+getPitch()
+Returns the current pitch of the map
 
-   Returns: Promise<number> — Current pitch of the map
+Returns: Promise<number> — Current pitch of the map
 
-   await mapRef.current?.getPitch();
+await mapRef.current?.getPitch();
 
-   getBounds()
-   Returns the current bounds of the map
+getBounds()
+Returns the current bounds of the map
 
-   Returns: Promise<LngLatBounds> — Current bounds of the map
+Returns: Promise<LngLatBounds> — Current bounds of the map
 
-   await mapRef.current?.getBounds();
+await mapRef.current?.getBounds();
 
-   getViewState()
-   Returns the current view state of the map
+getViewState()
+Returns the current view state of the map
 
-   Returns: Promise<ViewState> — Current view state of the map
+Returns: Promise<ViewState> — Current view state of the map
 
-   await mapRef.current?.getViewState();
+await mapRef.current?.getViewState();
 
-   project(lngLat)
-   Converts geographic coordinates to pixel point of the view
+project(lngLat)
+Converts geographic coordinates to pixel point of the view
 
-   lngLat
-   Geographic coordinate
+lngLat
+Geographic coordinate
 
-   Type: LngLat
+Type: LngLat
 
-   Required: Yes
+Required: Yes
 
-   Returns: Promise<PixelPoint> — Pixel point
+Returns: Promise<PixelPoint> — Pixel point
 
-   await mapRef.current?.project([13.04214014753952, 47.80554907882145]);
+await mapRef.current?.project([13.04214014753952, 47.80554907882145]);
 
-   unproject(point)
-   Converts a pixel point of the view to geographic coordinates.
+unproject(point)
+Converts a pixel point of the view to geographic coordinates.
 
-   point
-   Pixel point
+point
+Pixel point
 
-   Type: PixelPoint
+Type: PixelPoint
 
-   Required: Yes
+Required: Yes
 
-   Returns: Promise<LngLat> — Geographic coordinate
+Returns: Promise<LngLat> — Geographic coordinate
 
-   await mapRef.current?.unproject([280, 640]);
+await mapRef.current?.unproject([280, 640]);
 
-   queryRenderedFeatures(pixelPoint, [options])
-   Query rendered features at a point
+queryRenderedFeatures(pixelPoint, [options])
+Query rendered features at a point
 
-   pixelPoint
-   Type: PixelPoint
+pixelPoint
+Type: PixelPoint
 
-   Required: Yes
+Required: Yes
 
-   options
-   Type: QueryRenderedFeaturesOptions
+options
+Type: QueryRenderedFeaturesOptions
 
-   Required: No
+Required: No
 
-   Returns: Promise<GeoJSON.Feature[]> — Queried features
+Returns: Promise<GeoJSON.Feature[]> — Queried features
 
-   await mapRef.current?.queryRenderedFeatures([240, 640], {
-     filter: ["==", "type", "Point"],
-     layers: ["restaurants", "shops"],
-   });
+await mapRef.current?.queryRenderedFeatures([240, 640], {
+filter: ["==", "type", "Point"],
+layers: ["restaurants", "shops"],
+});
 
-   queryRenderedFeatures(pixelPointBounds, [options])
-   Query rendered features within pixel bounds
+queryRenderedFeatures(pixelPointBounds, [options])
+Query rendered features within pixel bounds
 
-   pixelPointBounds
-   Type: PixelPointBounds
+pixelPointBounds
+Type: PixelPointBounds
 
-   Required: Yes
+Required: Yes
 
-   options
-   Type: QueryRenderedFeaturesOptions
+options
+Type: QueryRenderedFeaturesOptions
 
-   Required: No
+Required: No
 
-   Returns: Promise<GeoJSON.Feature[]> — Queried features
+Returns: Promise<GeoJSON.Feature[]> — Queried features
 
-   await mapRef.current?.queryRenderedFeatures([100, 100, 400, 400], {
-     filter: ["==", "type", "Point"],
-     layers: ["restaurants", "shops"],
-   });
+await mapRef.current?.queryRenderedFeatures([100, 100, 400, 400], {
+filter: ["==", "type", "Point"],
+layers: ["restaurants", "shops"],
+});
 
-   queryRenderedFeatures([options])
-   Query rendered features within the current viewport
+queryRenderedFeatures([options])
+Query rendered features within the current viewport
 
-   options
-   Type: QueryRenderedFeaturesOptions
+options
+Type: QueryRenderedFeaturesOptions
 
-   Required: No
+Required: No
 
-   Returns: Promise<GeoJSON.Feature[]> — Queried features
+Returns: Promise<GeoJSON.Feature[]> — Queried features
 
-   await mapRef.current?.queryRenderedFeatures({
-     filter: ["==", "type", "Point"],
-     layers: ["restaurants", "shops"],
-   });
+await mapRef.current?.queryRenderedFeatures({
+filter: ["==", "type", "Point"],
+layers: ["restaurants", "shops"],
+});
 
-   createStaticMapImage(options)
-   Takes static-map image of the currently displayed map
+createStaticMapImage(options)
+Takes static-map image of the currently displayed map
 
-   options
-   Type: { output: "base64" | "file" }
+options
+Type: { output: "base64" | "file" }
 
-   Required: Yes
+Required: Yes
 
-   Returns: Promise<string> — Base64 encoded image or URI of image file
+Returns: Promise<string> — Base64 encoded image or URI of image file
 
-   setSourceVisibility(visible, source, [sourceLayer])
-   Sets the visibility of all the layers referencing the specified source and optionally sourceLayer
+setSourceVisibility(visible, source, [sourceLayer])
+Sets the visibility of all the layers referencing the specified source and optionally sourceLayer
 
-   visible
-   Visibility of the layers
+visible
+Visibility of the layers
 
-   Type: boolean
+Type: boolean
 
-   Required: Yes
+Required: Yes
 
-   source
-   Identifier of the target source (e.g. 'composite')
+source
+Identifier of the target source (e.g. 'composite')
 
-   Type: string
+Type: string
 
-   Required: Yes
+Required: Yes
 
-   sourceLayer
-   Identifier of the target source-layer (e.g. 'building')
+sourceLayer
+Identifier of the target source-layer (e.g. 'building')
 
-   Type: string
+Type: string
 
-   Required: No
+Required: No
 
-   Returns: Promise<void>
+Returns: Promise<void>
 
-   await mapRef.current?.setSourceVisibility(false, "composite", "building");
+await mapRef.current?.setSourceVisibility(false, "composite", "building");
 
-   showAttribution()
-   Show the attribution dialog Can be used to implement a custom attribution button.
+showAttribution()
+Show the attribution dialog Can be used to implement a custom attribution button.
 
-   Returns: Promise<void>
+Returns: Promise<void>
 
-   Types
-   OrnamentViewPosition
-   Screen position for map ornaments (logo, compass, scale bar). Exactly one of top / bottom and one of left / right must be
-   provided.
+Types
+OrnamentViewPosition
+Screen position for map ornaments (logo, compass, scale bar). Exactly one of top / bottom and one of left / right must be
+provided.
 
-   type OrnamentViewPosition =
-     | { top: number; left: number }
-     | { top: number; right: number }
-     | { bottom: number; right: number }
-     | { bottom: number; left: number };
+type OrnamentViewPosition =
+| { top: number; left: number }
+| { top: number; right: number }
+| { bottom: number; right: number }
+| { bottom: number; left: number };
 
-   ViewState
-   Current viewport state of the map.
+ViewState
+Current viewport state of the map.
 
-   type ViewState = {
-     center: LngLat;
-     zoom: number;
-     bearing: number;
-     pitch: number;
-     bounds: LngLatBounds;
-   };
+type ViewState = {
+center: LngLat;
+zoom: number;
+bearing: number;
+pitch: number;
+bounds: LngLatBounds;
+};
 
-   ViewStateChangeEvent
-   Event emitted when the map viewport changes (pan, zoom, rotate, pitch).
+ViewStateChangeEvent
+Event emitted when the map viewport changes (pan, zoom, rotate, pitch).
 
-   type ViewStateChangeEvent = ViewState & {
-     animated: boolean;
-     userInteraction: boolean;
-   };
+type ViewStateChangeEvent = ViewState & {
+animated: boolean;
+userInteraction: boolean;
+};
 
-   QueryRenderedFeaturesOptions
-   Options for querying rendered features at a screen point or within a bounding box.
+QueryRenderedFeaturesOptions
+Options for querying rendered features at a screen point or within a bounding box.
 
-   type QueryRenderedFeaturesOptions = {
-     /**
-      * Filter expression to filter the queried features
-      */
-     filter?: FilterSpecification;
+type QueryRenderedFeaturesOptions = {
+/\*\*
+_ Filter expression to filter the queried features
+_/
+filter?: FilterSpecification;
 
      /**
       * IDs of layers to query features from
       */
      layers?: string[];
-   };
-   Camera
-   Controls the viewport of the Map.
 
-   Props
-   testID
-   Type: string
+};
+Camera
+Controls the viewport of the Map.
 
-   Required: No
+Props
+testID
+Type: string
 
-   zoom
-   The zoom level of the map.
+Required: No
 
-   Type: number
+zoom
+The zoom level of the map.
 
-   Required: No
+Type: number
 
-   bearing
-   The bearing (rotation) of the map.
+Required: No
 
-   Type: number
+bearing
+The bearing (rotation) of the map.
 
-   Required: No
+Type: number
 
-   pitch
-   The pitch of the map.
+Required: No
 
-   Type: number
+pitch
+The pitch of the map.
 
-   Required: No
+Type: number
 
-   padding
-   The viewport padding in points.
+Required: No
 
-   Type: ViewPadding
+padding
+The viewport padding in points.
 
-   Required: No
+Type: ViewPadding
 
-   duration
-   The duration the map takes to animate to a new configuration.
+Required: No
 
-   Type: number
+duration
+The duration the map takes to animate to a new configuration.
 
-   Required: No
+Type: number
 
-   easing
-   The easing or path the camera uses to animate to a new configuration.
+Required: No
 
-   Type: CameraEasing
+easing
+The easing or path the camera uses to animate to a new configuration.
 
-   Required: No
+Type: CameraEasing
 
-   initialViewState
-   Default view settings applied on camera
+Required: No
 
-   Type: InitialViewState
+initialViewState
+Default view settings applied on camera
 
-   Required: No
+Type: InitialViewState
 
-   minZoom
-   Minimum zoom level of the map
+Required: No
 
-   Type: number
+minZoom
+Minimum zoom level of the map
 
-   Required: No
+Type: number
 
-   maxZoom
-   Maximum zoom level of the map
+Required: No
 
-   Type: number
+maxZoom
+Maximum zoom level of the map
 
-   Required: No
+Type: number
 
-   maxBounds
-   Restrict map panning so that the center is within these bounds
+Required: No
 
-   Type: LngLatBounds
+maxBounds
+Restrict map panning so that the center is within these bounds
 
-   Required: No
+Type: LngLatBounds
 
-   trackUserLocation
-   The mode used to track the user location on the map:
+Required: No
 
-   undefined: The user's location is not tracked
-   "default": Centers the user's location
-   "heading": Centers the user's location and uses the compass for bearing
-   "course": Centers the user's location and uses the direction of travel for bearing
-   Type: TrackUserLocation
+trackUserLocation
+The mode used to track the user location on the map:
 
-   Required: No
+undefined: The user's location is not tracked
+"default": Centers the user's location
+"heading": Centers the user's location and uses the compass for bearing
+"course": Centers the user's location and uses the direction of travel for bearing
+Type: TrackUserLocation
 
-   Default: undefined
+Required: No
 
-   onTrackUserLocationChange
-   Triggered when trackUserLocation changes
+Default: undefined
 
-   Type:
+onTrackUserLocationChange
+Triggered when trackUserLocation changes
 
-   (
-         event: NativeSyntheticEvent<TrackUserLocationChangeEvent>,
-       ) => void
+Type:
 
-   Required: No
+(
+event: NativeSyntheticEvent<TrackUserLocationChangeEvent>,
+) => void
 
-   ref
-   Ref to access Camera methods.
+Required: No
 
-   Type: Ref<CameraRef>
+ref
+Ref to access Camera methods.
 
-   Required: No
+Type: Ref<CameraRef>
 
-   Ref Methods
-   jumpTo(options)
-   Map camera will move to new coordinates at the same zoom level
+Required: No
 
-   options
-   Type: CameraCenterOptions & CameraOptions
+Ref Methods
+jumpTo(options)
+Map camera will move to new coordinates at the same zoom level
 
-   Required: Yes
+options
+Type: CameraCenterOptions & CameraOptions
 
-   Jump to a position
+Required: Yes
 
-   cameraRef.current?.jumpTo({ center: [lng, lat] });
+Jump to a position
 
-   easeTo(options)
-   Map camera will move to new coordinates at the same zoom level
+cameraRef.current?.jumpTo({ center: [lng, lat] });
 
-   options
-   Type: CameraCenterOptions & CameraOptions & CameraAnimationOptions
+easeTo(options)
+Map camera will move to new coordinates at the same zoom level
 
-   Required: Yes
+options
+Type: CameraCenterOptions & CameraOptions & CameraAnimationOptions
 
-   Eases camera to new location based on duration
+Required: Yes
 
-   cameraRef.current?.easeTo({ center: [lng, lat], duration: 200 });
+Eases camera to new location based on duration
 
-   flyTo(options)
-   Map camera will fly to new coordinate
+cameraRef.current?.easeTo({ center: [lng, lat], duration: 200 });
 
-   options
-   Type: CameraCenterOptions & CameraOptions & CameraAnimationOptions
+flyTo(options)
+Map camera will fly to new coordinate
 
-   Required: Yes
+options
+Type: CameraCenterOptions & CameraOptions & CameraAnimationOptions
 
-   cameraRef.current?.flyTo({ center: [lng, lat], duration: 12000 });
+Required: Yes
 
-   fitBounds(bounds, [options])
-   Map camera transitions to fit provided bounds
+cameraRef.current?.flyTo({ center: [lng, lat], duration: 12000 });
 
-   bounds
-   Type: LngLatBounds
+fitBounds(bounds, [options])
+Map camera transitions to fit provided bounds
 
-   Required: Yes
+bounds
+Type: LngLatBounds
 
-   options
-   Type: CameraOptions & CameraAnimationOptions
+Required: Yes
 
-   Required: No
+options
+Type: CameraOptions & CameraAnimationOptions
 
-   cameraRef.current?.fitBounds(
-     [west, south, east, north],
-     { top: 20, right: 20, bottom: 20, left: 20 },
-     1000,
-   );
+Required: No
 
-   zoomTo(zoom, [options])
-   Map camera will zoom to specified level
+cameraRef.current?.fitBounds(
+[west, south, east, north],
+{ top: 20, right: 20, bottom: 20, left: 20 },
+1000,
+);
 
-   zoom
-   Zoom level that the map camera will animate too
+zoomTo(zoom, [options])
+Map camera will zoom to specified level
 
-   Type: number
+zoom
+Zoom level that the map camera will animate too
 
-   Required: Yes
+Type: number
 
-   options
-   Options
+Required: Yes
 
-   Type: CameraOptions & CameraAnimationOptions
+options
+Options
 
-   Required: No
+Type: CameraOptions & CameraAnimationOptions
 
-   cameraRef.current?.zoomTo(16, { duration: 100 });
+Required: No
 
-   setStop(stop)
-   Map camera will perform updates based on provided config. Advanced use only!
+cameraRef.current?.zoomTo(16, { duration: 100 });
 
-   stop
-   Array of Camera stops
+setStop(stop)
+Map camera will perform updates based on provided config. Advanced use only!
 
-   Type: CameraStop
+stop
+Array of Camera stops
 
-   Required: Yes
+Type: CameraStop
 
-   Returns: Promise<void>
+Required: Yes
 
-   cameraRef.current?.setStop({
-     centerCoordinate: [lng, lat],
-     zoomLevel: 16,
-     duration: 2000,
-   });
+Returns: Promise<void>
 
-   cameraRef.current?.setStop({
-     stops: [
-       { pitch: 45, duration: 200 },
-       { heading: 180, duration: 300 },
-     ],
-   });
+cameraRef.current?.setStop({
+centerCoordinate: [lng, lat],
+zoomLevel: 16,
+duration: 2000,
+});
 
-   Types
-   CameraOptions
-   Camera viewport configuration: zoom, bearing, pitch, and padding.
+cameraRef.current?.setStop({
+stops: [
+{ pitch: 45, duration: 200 },
+{ heading: 180, duration: 300 },
+],
+});
 
-   interface CameraOptions {
-     zoom?: number;
-     bearing?: number;
-     pitch?: number;
-     padding?: ViewPadding;
-   }
+Types
+CameraOptions
+Camera viewport configuration: zoom, bearing, pitch, and padding.
 
-   CameraEasing
-   Easing function used for camera animations.
+interface CameraOptions {
+zoom?: number;
+bearing?: number;
+pitch?: number;
+padding?: ViewPadding;
+}
 
-   type CameraEasing = undefined | "linear" | "ease" | "fly";
+CameraEasing
+Easing function used for camera animations.
 
-   CameraAnimationOptions
-   Animation timing options for camera transitions.
+type CameraEasing = undefined | "linear" | "ease" | "fly";
 
-   interface CameraAnimationOptions {
-     duration?: number;
-     easing?: CameraEasing;
-   }
+CameraAnimationOptions
+Animation timing options for camera transitions.
 
-   CameraCenterOptions
-   Camera center coordinate options.
+interface CameraAnimationOptions {
+duration?: number;
+easing?: CameraEasing;
+}
 
-   interface CameraCenterOptions {
-     center: LngLat;
-   }
+CameraCenterOptions
+Camera center coordinate options.
 
-   CameraBoundsOptions
-   Camera bounds options.
+interface CameraCenterOptions {
+center: LngLat;
+}
 
-   interface CameraBoundsOptions {
-     bounds: LngLatBounds;
-   }
+CameraBoundsOptions
+Camera bounds options.
 
-   CameraCenterStop
-   Camera animation stop positioned by a center coordinate.
+interface CameraBoundsOptions {
+bounds: LngLatBounds;
+}
 
-   type CameraCenterStop = CameraOptions &
-     CameraAnimationOptions &
-     CameraCenterOptions;
+CameraCenterStop
+Camera animation stop positioned by a center coordinate.
 
-   CameraBoundsStop
-   Camera animation stop positioned by geographic bounds.
+type CameraCenterStop = CameraOptions &
+CameraAnimationOptions &
+CameraCenterOptions;
 
-   type CameraBoundsStop = CameraOptions &
-     CameraAnimationOptions &
-     CameraBoundsOptions;
+CameraBoundsStop
+Camera animation stop positioned by geographic bounds.
 
-   CameraStop
-   A single camera animation stop — optionally positioned by center, bounds, or neither.
+type CameraBoundsStop = CameraOptions &
+CameraAnimationOptions &
+CameraBoundsOptions;
 
-   type CameraStop =
-     | (CameraOptions &
-         CameraAnimationOptions & {
-           center?: never;
-           bounds?: never;
-         })
-     | CameraCenterStop
-     | CameraBoundsStop;
+CameraStop
+A single camera animation stop — optionally positioned by center, bounds, or neither.
 
-   InitialViewState
-   Initial camera state when the map first loads.
+type CameraStop =
+| (CameraOptions &
+CameraAnimationOptions & {
+center?: never;
+bounds?: never;
+})
+| CameraCenterStop
+| CameraBoundsStop;
 
-   type InitialViewState =
-     | (CameraOptions & {
-         center?: never;
-         bounds?: never;
-       })
-     | (CameraOptions & CameraCenterOptions)
-     | (CameraOptions & CameraBoundsOptions);
+InitialViewState
+Initial camera state when the map first loads.
 
-   TrackUserLocation
-   User location tracking mode.
+type InitialViewState =
+| (CameraOptions & {
+center?: never;
+bounds?: never;
+})
+| (CameraOptions & CameraCenterOptions)
+| (CameraOptions & CameraBoundsOptions);
 
-   type TrackUserLocation = "default" | "heading" | "course";
+TrackUserLocation
+User location tracking mode.
 
-   TrackUserLocationChangeEvent
-   Event emitted when the user location tracking mode changes.
+type TrackUserLocation = "default" | "heading" | "course";
 
-   type TrackUserLocationChangeEvent = {
-     trackUserLocation: TrackUserLocation | null;
-   };
-   GeoJSONSource
-   GeoJSONSource is a map content source that supplies GeoJSON to be shown on the map. The data may be provided as an url or
-   a GeoJSON object.
+TrackUserLocationChangeEvent
+Event emitted when the user location tracking mode changes.
 
-   Props
-   id
-   A string that uniquely identifies the source.
+type TrackUserLocationChangeEvent = {
+trackUserLocation: TrackUserLocation | null;
+};
+GeoJSONSource
+GeoJSONSource is a map content source that supplies GeoJSON to be shown on the map. The data may be provided as an url or
+a GeoJSON object.
 
-   Type: string
+Props
+id
+A string that uniquely identifies the source.
 
-   Required: No
+Type: string
 
-   data
-   Can be provided as one of:
+Required: No
 
-   An HTTP(S) URL, absolute file URL, or local file URL relative to the current application’s resource bundle
-   Any valid GeoJSON object
-   Type: string | GeoJSON.GeoJSON
+data
+Can be provided as one of:
 
-   Required: Yes
+An HTTP(S) URL, absolute file URL, or local file URL relative to the current application’s resource bundle
+Any valid GeoJSON object
+Type: string | GeoJSON.GeoJSON
 
-   cluster
-   Enables clustering on the source
+Required: Yes
 
-   Type: boolean
+cluster
+Enables clustering on the source
 
-   Required: No
+Type: boolean
 
-   clusterRadius
-   Specifies the radius of each cluster if clustering is enabled. A value of 512 produces a radius equal to the width of a
-   tile. The default value is 50.
+Required: No
 
-   Type: number
+clusterRadius
+Specifies the radius of each cluster if clustering is enabled. A value of 512 produces a radius equal to the width of a
+tile. The default value is 50.
 
-   Required: No
+Type: number
 
-   clusterMinPoints
-   Specifies minimum number of points to form a cluster if clustering is enabled. The default value is 2.
+Required: No
 
-   Type: number
+clusterMinPoints
+Specifies minimum number of points to form a cluster if clustering is enabled. The default value is 2.
 
-   Required: No
+Type: number
 
-   clusterMaxZoom
-   Specifies the maximum zoom level at which to cluster points if clustering is enabled. Defaults to one zoom level less than
-   the value of maxzoom so that, at the maximum zoom, the data is not clustered.
+Required: No
 
-   Type: number
+clusterMaxZoom
+Specifies the maximum zoom level at which to cluster points if clustering is enabled. Defaults to one zoom level less than
+the value of maxzoom so that, at the maximum zoom, the data is not clustered.
 
-   Required: No
+Type: number
 
-   clusterProperties
-   Specifies custom properties on the generated clusters if clustering is enabled, aggregating values from clustered points.
-   Has the form { "property_name": [operator, map_expression]} , where operator is a custom reduce expression that references
-   a special ["accumulated"] value - it accumulates the property value from clusters/points the cluster contains
-   map_expression produces the value of a single point
+Required: No
 
-   Type: GeoJSONSourceSpecification["clusterProperties"]
+clusterProperties
+Specifies custom properties on the generated clusters if clustering is enabled, aggregating values from clustered points.
+Has the form { "property_name": [operator, map_expression]} , where operator is a custom reduce expression that references
+a special ["accumulated"] value - it accumulates the property value from clusters/points the cluster contains
+map_expression produces the value of a single point
 
-   Required: No
+Type: GeoJSONSourceSpecification["clusterProperties"]
 
-   maxzoom
-   Specifies the maximum zoom level at which to create vector tiles. A greater value produces greater detail at high zoom
-   levels. The default value is 18.
+Required: No
 
-   Type: number
+maxzoom
+Specifies the maximum zoom level at which to create vector tiles. A greater value produces greater detail at high zoom
+levels. The default value is 18.
 
-   Required: No
+Type: number
 
-   buffer
-   Specifies the size of the tile buffer on each side. A value of 0 produces no buffer. A value of 512 produces a buffer as
-   wide as the tile itself. Larger values produce fewer rendering artifacts near tile edges and slower performance. The
-   default value is 128.
+Required: No
 
-   Type: number
+buffer
+Specifies the size of the tile buffer on each side. A value of 0 produces no buffer. A value of 512 produces a buffer as
+wide as the tile itself. Larger values produce fewer rendering artifacts near tile edges and slower performance. The
+default value is 128.
 
-   Required: No
+Type: number
 
-   tolerance
-   Douglas-Peucker simplification tolerance applied to geometries Higher means simpler geometries and faster performance.
+Required: No
 
-   Type: number
+tolerance
+Douglas-Peucker simplification tolerance applied to geometries Higher means simpler geometries and faster performance.
 
-   Required: No
+Type: number
 
-   Default: 0.375
+Required: No
 
-   lineMetrics
-   Whether to calculate line distance metrics. This is required for line layers that specify lineGradient values. The default
-   value is false.
+Default: 0.375
 
-   Type: boolean
+lineMetrics
+Whether to calculate line distance metrics. This is required for line layers that specify lineGradient values. The default
+value is false.
 
-   Required: No
+Type: boolean
 
-   children
-   Type: ReactNode
+Required: No
 
-   Required: No
+children
+Type: ReactNode
 
-   ref
-   Ref to access GeoJSONSource methods.
+Required: No
 
-   Type: Ref<GeoJSONSourceRef>
+ref
+Ref to access GeoJSONSource methods.
 
-   Required: No
+Type: Ref<GeoJSONSourceRef>
 
-   testID
-   Type: string
+Required: No
 
-   Required: No
+testID
+Type: string
 
-   onPress
-   Emits on press when a child Layer within the hitbox has highest z-index This bubbles up to Map's onPress unless
-   event.stopPropagation() is called.
+Required: No
 
-   Type: (event: NativeSyntheticEvent<PressEventWithFeatures>) => void
+onPress
+Emits on press when a child Layer within the hitbox has highest z-index This bubbles up to Map's onPress unless
+event.stopPropagation() is called.
 
-   Required: No
+Type: (event: NativeSyntheticEvent<PressEventWithFeatures>) => void
 
-   hitbox
-   Overrides the default touch hitbox (44 x 44 pixels) for the source layers
+Required: No
 
-   Type: ViewPadding
+hitbox
+Overrides the default touch hitbox (44 x 44 pixels) for the source layers
 
-   Required: No
+Type: ViewPadding
 
-   Ref Methods
-   getData([filter])
-   Get all features from the source that match the filter, regardless of visibility
+Required: No
 
-   filter
-   Optional filter statement to filter the returned features
+Ref Methods
+getData([filter])
+Get all features from the source that match the filter, regardless of visibility
 
-   Type: FilterSpecification
+filter
+Optional filter statement to filter the returned features
 
-   Required: No
+Type: FilterSpecification
 
-   Returns: Promise<GeoJSON.FeatureCollection>
+Required: No
 
-   const data = await geoJSONSourceRef.current?.getData(clusterId);
+Returns: Promise<GeoJSON.FeatureCollection>
 
-   getClusterExpansionZoom(clusterId)
-   Returns the zoom needed to expand the cluster.
+const data = await geoJSONSourceRef.current?.getData(clusterId);
 
-   clusterId
-   The feature cluster to expand.
+getClusterExpansionZoom(clusterId)
+Returns the zoom needed to expand the cluster.
 
-   Type: number
+clusterId
+The feature cluster to expand.
 
-   Required: Yes
+Type: number
 
-   Returns: Promise<number> — Zoom level at which the cluster expands
+Required: Yes
 
-   const zoom = await geoJSONSourceRef.current?.getClusterExpansionZoom(clusterId);
+Returns: Promise<number> — Zoom level at which the cluster expands
 
-   getClusterLeaves(clusterId, limit, offset)
-   Returns the FeatureCollection from the cluster.
+const zoom = await geoJSONSourceRef.current?.getClusterExpansionZoom(clusterId);
 
-   clusterId
-   The feature cluster to expand.
+getClusterLeaves(clusterId, limit, offset)
+Returns the FeatureCollection from the cluster.
 
-   Type: number
+clusterId
+The feature cluster to expand.
 
-   Required: Yes
+Type: number
 
-   limit
-   The number of points to return.
+Required: Yes
 
-   Type: number
+limit
+The number of points to return.
 
-   Required: Yes
+Type: number
 
-   offset
-   The amount of points to skip (for pagination).
+Required: Yes
 
-   Type: number
+offset
+The amount of points to skip (for pagination).
 
-   Required: Yes
+Type: number
 
-   Returns: Promise<GeoJSON.Feature[]>
+Required: Yes
 
-   const collection = await geoJSONSourceRef.current?.getClusterLeaves(clusterId, limit, offset);
+Returns: Promise<GeoJSON.Feature[]>
 
-   getClusterChildren(clusterId)
-   Returns the FeatureCollection from the cluster (on the next zoom level).
+const collection = await geoJSONSourceRef.current?.getClusterLeaves(clusterId, limit, offset);
 
-   clusterId
-   The feature cluster to expand.
+getClusterChildren(clusterId)
+Returns the FeatureCollection from the cluster (on the next zoom level).
 
-   Type: number
+clusterId
+The feature cluster to expand.
 
-   Required: Yes
+Type: number
 
-   Returns: Promise<GeoJSON.Feature[]>
+Required: Yes
 
-   const collection = await geoJSONSourceRef.current?.getClusterChildren(clusterId);
+Returns: Promise<GeoJSON.Feature[]>
 
-   getAnimatableRef()
-   Returns the native ref for Reanimated compatibility.
+const collection = await geoJSONSourceRef.current?.getClusterChildren(clusterId);
 
-   Returns: NativeGeoJSONSourceRef | null
-   ImageSource
-   ImageSource is a content source that is used for a georeferenced raster image to be shown on the map. The georeferenced
-   image scales and rotates as the user zooms and rotates the map
+getAnimatableRef()
+Returns the native ref for Reanimated compatibility.
 
-   Props
-   id
-   A string that uniquely identifies the source.
+Returns: NativeGeoJSONSourceRef | null
+ImageSource
+ImageSource is a content source that is used for a georeferenced raster image to be shown on the map. The georeferenced
+image scales and rotates as the user zooms and rotates the map
 
-   Type: string
+Props
+id
+A string that uniquely identifies the source.
 
-   Required: No
+Type: string
 
-   url
-   An HTTP(S) URL, absolute file URL, or local file URL to the source image. Animated GIFs are not supported.
+Required: No
 
-   Type: string | number
+url
+An HTTP(S) URL, absolute file URL, or local file URL to the source image. Animated GIFs are not supported.
 
-   Required: Yes
+Type: string | number
 
-   coordinates
-   The top left, top right, bottom right, and bottom left coordinates for the image.
+Required: Yes
 
-   Type:
+coordinates
+The top left, top right, bottom right, and bottom left coordinates for the image.
 
-   [
-       topLeft: LngLat,
-       topRight: LngLat,
-       bottomRight: LngLat,
-       bottomLeft: LngLat,
-     ]
+Type:
 
-   Required: Yes
+[
+topLeft: LngLat,
+topRight: LngLat,
+bottomRight: LngLat,
+bottomLeft: LngLat,
+]
 
-   children
-   Type: ReactNode
+Required: Yes
 
-   Required: No
+children
+Type: ReactNode
 
-   testID
-   Type: string
+Required: No
 
-   Required: No
-   RasterDEMSource
-   RasterDEMSource is a map content source that supplies rasterized digital elevation model (DEM) tiles to be shown on the
-   map. Use it together with a hillshade layer to visualize terrain.
+testID
+Type: string
 
-   Props
-   id
-   A string that uniquely identifies the source.
+Required: No
+RasterDEMSource
+RasterDEMSource is a map content source that supplies rasterized digital elevation model (DEM) tiles to be shown on the
+map. Use it together with a hillshade layer to visualize terrain.
 
-   Type: string
+Props
+id
+A string that uniquely identifies the source.
 
-   Required: No
+Type: string
 
-   url
-   A URL to a TileJSON configuration file describing the source's contents and other metadata.
+Required: No
 
-   Type: string
+url
+A URL to a TileJSON configuration file describing the source's contents and other metadata.
 
-   Required: No
+Type: string
 
-   tiles
-   An array of tile URL templates. If multiple endpoints are specified, clients may use any combination of endpoints.
+Required: No
 
-   Type: string[]
+tiles
+An array of tile URL templates. If multiple endpoints are specified, clients may use any combination of endpoints.
 
-   Required: No
+Type: string[]
 
-   minzoom
-   An unsigned integer that specifies the minimum zoom level at which to display tiles from the source. The value should be
-   between 0 and 22, inclusive, and less than maxzoom, if specified. The default value for this option is 0.
+Required: No
 
-   Type: number
+minzoom
+An unsigned integer that specifies the minimum zoom level at which to display tiles from the source. The value should be
+between 0 and 22, inclusive, and less than maxzoom, if specified. The default value for this option is 0.
 
-   Required: No
+Type: number
 
-   maxzoom
-   An unsigned integer that specifies the maximum zoom level at which to display tiles from the source. The value should be
-   between 0 and 22, inclusive, and greater than minzoom, if specified. The default value for this option is 22.
+Required: No
 
-   Type: number
+maxzoom
+An unsigned integer that specifies the maximum zoom level at which to display tiles from the source. The value should be
+between 0 and 22, inclusive, and greater than minzoom, if specified. The default value for this option is 22.
 
-   Required: No
+Type: number
 
-   tileSize
-   Size of the map tiles.
+Required: No
 
-   Type: number
+tileSize
+Size of the map tiles.
 
-   Required: No
+Type: number
 
-   Default: 512
+Required: No
 
-   attribution
-   An HTML or literal text string defining the buttons to be displayed in an action sheet when the source is part of a map
-   view's style and the map view's attribution button is pressed.
+Default: 512
 
-   Type: string
+attribution
+An HTML or literal text string defining the buttons to be displayed in an action sheet when the source is part of a map
+view's style and the map view's attribution button is pressed.
 
-   Required: No
+Type: string
 
-   encoding
-   The encoding formula for the raster DEM tileset.
+Required: No
 
-   Type: "mapbox" | "terrarium"
+encoding
+The encoding formula for the raster DEM tileset.
 
-   Required: No
+Type: "mapbox" | "terrarium"
 
-   Default: "mapbox"
+Required: No
 
-   children
-   Type: ReactNode
+Default: "mapbox"
 
-   Required: No
+children
+Type: ReactNode
 
-   testID
-   Type: string
+Required: No
 
-   Required: No
-   RasterSource
-   RasterSource is a map content source that supplies raster image tiles to be shown on the map. The location of and metadata
-   about the tiles are defined either by an option dictionary or by an external file that conforms to the TileJSON
-   specification.
+testID
+Type: string
 
-   Props
-   id
-   A string that uniquely identifies the source.
+Required: No
+RasterSource
+RasterSource is a map content source that supplies raster image tiles to be shown on the map. The location of and metadata
+about the tiles are defined either by an option dictionary or by an external file that conforms to the TileJSON
+specification.
 
-   Type: string
+Props
+id
+A string that uniquely identifies the source.
 
-   Required: No
+Type: string
 
-   url
-   A URL to a TileJSON configuration file describing the source's contents and other metadata.
+Required: No
 
-   Type: string
+url
+A URL to a TileJSON configuration file describing the source's contents and other metadata.
 
-   Required: No
+Type: string
 
-   tiles
-   An array of tile URL templates. If multiple endpoints are specified, clients may use any combination of endpoints.
+Required: No
 
-   Type: string[]
+tiles
+An array of tile URL templates. If multiple endpoints are specified, clients may use any combination of endpoints.
 
-   Required: No
+Type: string[]
 
-   minzoom
-   An unsigned integer that specifies the minimum zoom level at which to display tiles from the source. The value should be
-   between 0 and 22, inclusive, and less than maxzoom, if specified. The default value for this option is 0.
+Required: No
 
-   Type: number
+minzoom
+An unsigned integer that specifies the minimum zoom level at which to display tiles from the source. The value should be
+between 0 and 22, inclusive, and less than maxzoom, if specified. The default value for this option is 0.
 
-   Required: No
+Type: number
 
-   maxzoom
-   An unsigned integer that specifies the maximum zoom level at which to display tiles from the source. The value should be
-   between 0 and 22, inclusive, and less than minzoom, if specified. The default value for this option is 22.
+Required: No
 
-   Type: number
+maxzoom
+An unsigned integer that specifies the maximum zoom level at which to display tiles from the source. The value should be
+between 0 and 22, inclusive, and less than minzoom, if specified. The default value for this option is 22.
 
-   Required: No
+Type: number
 
-   tileSize
-   Size of the map tiles.
+Required: No
 
-   Type: number
+tileSize
+Size of the map tiles.
 
-   Required: No
+Type: number
 
-   Default: 512
+Required: No
 
-   scheme
-   Influences the y direction of the tile coordinates. (tms inverts y-axis)
+Default: 512
 
-   Type: "xyz" | "tms"
+scheme
+Influences the y direction of the tile coordinates. (tms inverts y-axis)
 
-   Required: No
+Type: "xyz" | "tms"
 
-   Default: "xyz"
+Required: No
 
-   attribution
-   An HTML or literal text string defining the buttons to be displayed in an action sheet when the source is part of a map
-   view's style and the map view's attribution button is pressed.
+Default: "xyz"
 
-   Type: string
+attribution
+An HTML or literal text string defining the buttons to be displayed in an action sheet when the source is part of a map
+view's style and the map view's attribution button is pressed.
 
-   Required: No
+Type: string
 
-   children
-   Type: ReactNode
+Required: No
 
-   Required: No
+children
+Type: ReactNode
 
-   testID
-   Type: string
+Required: No
 
-   Required: No
-   VectorSource
-   VectorSource is a map content source that supplies tiled vector data in Mapbox Vector Tile format to be shown on the map.
-   The location of and metadata about the tiles are defined either by an option dictionary or by an external file that
-   conforms to the TileJSON specification.
+testID
+Type: string
 
-   Props
-   id
-   A string that uniquely identifies the source.
+Required: No
+VectorSource
+VectorSource is a map content source that supplies tiled vector data in Mapbox Vector Tile format to be shown on the map.
+The location of and metadata about the tiles are defined either by an option dictionary or by an external file that
+conforms to the TileJSON specification.
 
-   Type: string
+Props
+id
+A string that uniquely identifies the source.
 
-   Required: No
+Type: string
 
-   url
-   A URL to a TileJSON configuration file describing the source’s contents and other metadata.
+Required: No
 
-   Type: string
+url
+A URL to a TileJSON configuration file describing the source’s contents and other metadata.
 
-   Required: No
+Type: string
 
-   tiles
-   An array of tile URL templates. If multiple endpoints are specified, clients may use any combination of endpoints. Common
-   format should be: https://example.com/vector-tiles/{z}/{x}/{y}.pbf .
+Required: No
 
-   Type: string[]
+tiles
+An array of tile URL templates. If multiple endpoints are specified, clients may use any combination of endpoints. Common
+format should be: https://example.com/vector-tiles/{z}/{x}/{y}.pbf .
 
-   Required: No
+Type: string[]
 
-   minzoom
-   An unsigned integer that specifies the minimum zoom level at which to display tiles from the source. The value should be
-   between 0 and 22, inclusive, and less than maxzoom, if specified. The default value for this option is 0.
+Required: No
 
-   Type: number
+minzoom
+An unsigned integer that specifies the minimum zoom level at which to display tiles from the source. The value should be
+between 0 and 22, inclusive, and less than maxzoom, if specified. The default value for this option is 0.
 
-   Required: No
+Type: number
 
-   maxzoom
-   An unsigned integer that specifies the maximum zoom level at which to display tiles from the source. The value should be
-   between 0 and 22, inclusive, and less than minzoom, if specified. The default value for this option is 22.
+Required: No
 
-   Type: number
+maxzoom
+An unsigned integer that specifies the maximum zoom level at which to display tiles from the source. The value should be
+between 0 and 22, inclusive, and less than minzoom, if specified. The default value for this option is 22.
 
-   Required: No
+Type: number
 
-   scheme
-   Influences the y direction of the tile coordinates. (tms inverts y-axis)
+Required: No
 
-   Type: "xyz" | "tms"
+scheme
+Influences the y direction of the tile coordinates. (tms inverts y-axis)
 
-   Required: No
+Type: "xyz" | "tms"
 
-   Default: "xyz"
+Required: No
 
-   attribution
-   An HTML or literal text string defining the buttons to be displayed in an action sheet when the source is part of a map
-   view’s style and the map view’s attribution button is pressed.
+Default: "xyz"
 
-   Type: string
+attribution
+An HTML or literal text string defining the buttons to be displayed in an action sheet when the source is part of a map
+view’s style and the map view’s attribution button is pressed.
 
-   Required: No
+Type: string
 
-   children
-   Type: ReactNode
+Required: No
 
-   Required: No
+children
+Type: ReactNode
 
-   ref
-   Ref to access VectorSource methods.
+Required: No
 
-   Type: Ref<VectorSourceRef>
+ref
+Ref to access VectorSource methods.
 
-   Required: No
+Type: Ref<VectorSourceRef>
 
-   testID
-   Type: string
+Required: No
 
-   Required: No
+testID
+Type: string
 
-   onPress
-   Emits on press when a child Layer within the hitbox has highest z-index This bubbles up to Map's onPress unless
-   event.stopPropagation() is called.
+Required: No
 
-   Type: (event: NativeSyntheticEvent<PressEventWithFeatures>) => void
+onPress
+Emits on press when a child Layer within the hitbox has highest z-index This bubbles up to Map's onPress unless
+event.stopPropagation() is called.
 
-   Required: No
+Type: (event: NativeSyntheticEvent<PressEventWithFeatures>) => void
 
-   hitbox
-   Overrides the default touch hitbox (44 x 44 pixels) for the source layers
+Required: No
 
-   Type: ViewPadding
+hitbox
+Overrides the default touch hitbox (44 x 44 pixels) for the source layers
 
-   Required: No
+Type: ViewPadding
 
-   Ref Methods
-   querySourceFeatures(options)
-   Returns all features that match the query parameters regardless of whether the feature is currently rendered on the map.
-   The domain of the query includes all currently-loaded vector tiles and GeoJSON source tiles. This function does not check
-   tiles outside the visible viewport.
+Required: No
 
-   options
-   Type:
+Ref Methods
+querySourceFeatures(options)
+Returns all features that match the query parameters regardless of whether the feature is currently rendered on the map.
+The domain of the query includes all currently-loaded vector tiles and GeoJSON source tiles. This function does not check
+tiles outside the visible viewport.
 
-   {
-       sourceLayer: string;
-       filter?: FilterSpecification;
-     }
+options
+Type:
 
-   Required: Yes
+{
+sourceLayer: string;
+filter?: FilterSpecification;
+}
 
-   Returns: Promise<GeoJSON.Feature[]>
+Required: Yes
 
-   vectorSource.querySourceFeatures({ sourceLayer: "some-source-layer" });
-   Layer
-   Layer is a style layer that renders geospatial data on the map. Follow the MapLibre Style Spec for Layer definitions.
+Returns: Promise<GeoJSON.Feature[]>
 
-   Basic Usage
+vectorSource.querySourceFeatures({ sourceLayer: "some-source-layer" });
+Layer
+Layer is a style layer that renders geospatial data on the map. Follow the MapLibre Style Spec for Layer definitions.
 
-   <Layer
-     type="fill"
-     id="parks"
-     source="parks-source"
-     paint={{ "fill-color": "green", "fill-opacity": 0.5 }}
-     layout={{ visibility: "visible" }}
-   />
+Basic Usage
 
-   Using Expressions
+<Layer
+type="fill"
+id="parks"
+source="parks-source"
+paint={{ "fill-color": "green", "fill-opacity": 0.5 }}
+layout={{ visibility: "visible" }}
+/>
 
-   <Layer
-     type="fill"
-     id="parks"
-     source="parks-source"
-     paint={{
+Using Expressions
+
+<Layer
+type="fill"
+id="parks"
+source="parks-source"
+paint={{
        "fill-color": [
          "interpolate",
          ["linear"],
@@ -1378,1127 +1379,1116 @@ Android SDK is working. Implement these features:
          "red",
        ],
      }}
-   />
+/>
 
-   Props
-   source
-   Type: string
+Props
+source
+Type: string
 
-   Required: No
+Required: No
 
-   source-layer
-   Type: string
+source-layer
+Type: string
 
-   Required: No
+Required: No
 
-   filter
-   Type: FilterSpecification
+filter
+Type: FilterSpecification
 
-   Required: No
+Required: No
 
-   id
-   A string that uniquely identifies the layer in the style.
+id
+A string that uniquely identifies the layer in the style.
 
-   Type: string
+Type: string
 
-   Required: No
+Required: No
 
-   minzoom
-   The minimum zoom at which the layer gets parsed and appears.
+minzoom
+The minimum zoom at which the layer gets parsed and appears.
 
-   Type: number
+Type: number
 
-   Required: No
+Required: No
 
-   maxzoom
-   The maximum zoom at which the layer gets parsed and appears.
+maxzoom
+The maximum zoom at which the layer gets parsed and appears.
 
-   Type: number
+Type: number
 
-   Required: No
+Required: No
 
-   paint
-   Type: never
+paint
+Type: never
 
-   Required: No
+Required: No
 
-   layout
-   Type: never
+layout
+Type: never
 
-   Required: No
+Required: No
 
-   beforeId
-   The layer will appear under this layer.
+beforeId
+The layer will appear under this layer.
 
-   Type: string
+Type: string
 
-   Required: No
+Required: No
 
-   afterId
-   The layer will appear above this layer.
+afterId
+The layer will appear above this layer.
 
-   Type: string
+Type: string
 
-   Required: No
+Required: No
 
-   layerIndex
-   Inserts the layer at the specified index.
+layerIndex
+Inserts the layer at the specified index.
 
-   Type: number
+Type: number
 
-   Required: No
+Required: No
 
-   testID
-   Type: string
+testID
+Type: string
 
-   Required: No
+Required: No
 
+Images
+Images defines the images used in Symbol layers. Use this component to add images to the map style that can be referenced
+by symbol layers using the iconImage property.
 
-   Images
-   Images defines the images used in Symbol layers. Use this component to add images to the map style that can be referenced
-   by symbol layers using the iconImage property.
+Props
+images
+Specifies the images in key-value pairs required for the style. Keys are names used in style expressions (e.g.,
+"customIcon"). Values provide a source, which can be one of the following types:
 
-   Props
-   images
-   Specifies the images in key-value pairs required for the style. Keys are names used in style expressions (e.g.,
-   "customIcon"). Values provide a source, which can be one of the following types:
+A string URL: "https://example.com/icon.png"
+A native asset name: "pin" (from xcassets on iOS or drawable on Android)
+A require/import: require('./icon.png') If your image supports SDF, you can set the sdf property to true: { source:
+require('./sdf-icon.png'), sdf: true }
+Type: { [key: string]: ImageEntry }
 
-   A string URL: "https://example.com/icon.png"
-   A native asset name: "pin" (from xcassets on iOS or drawable on Android)
-   A require/import: require('./icon.png') If your image supports SDF, you can set the sdf property to true: { source:
-   require('./sdf-icon.png'), sdf: true }
-   Type: { [key: string]: ImageEntry }
+Required: Yes
 
-   Required: Yes
+onImageMissing
+Called when a layer references an image that is not present in the style. You can use this to dynamically add images on
+demand.
 
-   onImageMissing
-   Called when a layer references an image that is not present in the style. You can use this to dynamically add images on
-   demand.
+Type: (event: NativeSyntheticEvent<{ image: string }>) => void
 
-   Type: (event: NativeSyntheticEvent<{ image: string }>) => void
+Required: No
 
-   Required: No
+testID
+Type: string
 
-   testID
-   Type: string
+Required: No
 
-   Required: No
+Types
+ImageSourceWithSdf
+An image source with optional SDF (Signed Distance Field) rendering mode.
 
-   Types
-   ImageSourceWithSdf
-   An image source with optional SDF (Signed Distance Field) rendering mode.
+type ImageSourceWithSdf = {
+source: ImageSourcePropType;
+sdf?: boolean;
+};
 
-   type ImageSourceWithSdf = {
-     source: ImageSourcePropType;
-     sdf?: boolean;
-   };
+ImageEntry
+A map image entry: a URL string, a native asset require, or an ImageSourceWithSdf object.
 
-   ImageEntry
-   A map image entry: a URL string, a native asset require, or an ImageSourceWithSdf object.
+type ImageEntry = string | ImageRequireSource | ImageSourceWithSdf;
+Callout
+Callout that displays information about a selected annotation near the annotation.
 
-   type ImageEntry = string | ImageRequireSource | ImageSourceWithSdf;
-   Callout
-   Callout that displays information about a selected annotation near the annotation.
+Also accepts props from: Omit<ViewProps, "style">
 
-   Also accepts props from: Omit<ViewProps, "style">
+Props
+title
+String that gets displayed in the default callout.
 
-   Props
-   title
-   String that gets displayed in the default callout.
+Type: string
 
-   Type: string
+Required: No
 
-   Required: No
+style
+Style property for the CalloutNativeComponent. Use at your own risk.
 
-   style
-   Style property for the CalloutNativeComponent. Use at your own risk.
+Type: ViewStyle
 
-   Type: ViewStyle
+Required: No
 
-   Required: No
+animatedStyle
+Style property for the Animated.View wrapper, apply animations to this
 
-   animatedStyle
-   Style property for the Animated.View wrapper, apply animations to this
+Type: ViewStyle
 
-   Type: ViewStyle
+Required: No
 
-   Required: No
+contentStyle
+Style property for the content bubble.
 
-   contentStyle
-   Style property for the content bubble.
+Type: ViewStyle
 
-   Type: ViewStyle
+Required: No
 
-   Required: No
+tipStyle
+Style property for the triangle tip under the content.
 
-   tipStyle
-   Style property for the triangle tip under the content.
+Type: ViewStyle
 
-   Type: ViewStyle
+Required: No
 
-   Required: No
+titleStyle
+Style property for the title in the content bubble.
 
-   titleStyle
-   Style property for the title in the content bubble.
+Type: ViewStyle
 
-   Type: ViewStyle
+Required: No
 
-   Required: No
+LayerAnnotation
+Convenience wrapper around a GeoJSONSource for a Point/LngLat, optionally animated.
 
+Props
+id
+Type: string
 
-   LayerAnnotation
-   Convenience wrapper around a GeoJSONSource for a Point/LngLat, optionally animated.
+Required: No
 
-   Props
-   id
-   Type: string
+lngLat
+Type: LngLat
 
-   Required: No
+Required: Yes
 
-   lngLat
-   Type: LngLat
+animated
+Type: boolean
 
-   Required: Yes
+Required: No
 
-   animated
-   Type: boolean
+animationDuration
+Type: number
 
-   Required: No
+Required: No
 
-   animationDuration
-   Type: number
+animationEasingFunction
+Type: (x: number) => number
 
-   Required: No
+Required: No
 
-   animationEasingFunction
-   Type: (x: number) => number
+onPress
+Type: (event: NativeSyntheticEvent<PressEventWithFeatures>) => void
 
-   Required: No
+Required: No
 
-   onPress
-   Type: (event: NativeSyntheticEvent<PressEventWithFeatures>) => void
+children
+Type: ReactNode
 
-   Required: No
+Required: No
 
-   children
-   Type: ReactNode
+testID
+Type: string
 
-   Required: No
+Required: No
 
-   testID
-   Type: string
+Marker
+Marker allows you to place an interactive React Native View on the map. If you have static view consider using
+ViewAnnotation or SymbolLayer for better performance. Implemented through:
 
-   Required: No
+Android: Native Views placed on the map projection
+iOS: MLNPointAnnotation
+Also accepts props from: ViewProps
 
+Props
+id
+A string that uniquely identifies the marker.
 
-   Marker
-   Marker allows you to place an interactive React Native View on the map. If you have static view consider using
-   ViewAnnotation or SymbolLayer for better performance. Implemented through:
+Type: string
 
-   Android: Native Views placed on the map projection
-   iOS: MLNPointAnnotation
-   Also accepts props from: ViewProps
+Required: No
 
-   Props
-   id
-   A string that uniquely identifies the marker.
+lngLat
+The center point (specified as a map coordinate) of the marker. See also #anchor.
 
-   Type: string
+Type: LngLat
 
-   Required: No
+Required: Yes
 
-   lngLat
-   The center point (specified as a map coordinate) of the marker. See also #anchor.
+anchor
+Specifies the anchor being set on a particular point of the annotation. The anchor indicates which part of the marker
+should be placed closest to the coordinate.
 
-   Type: LngLat
+Type: Anchor
 
-   Required: Yes
+Required: No
 
-   anchor
-   Specifies the anchor being set on a particular point of the annotation. The anchor indicates which part of the marker
-   should be placed closest to the coordinate.
+Default: "center"
 
-   Type: Anchor
+See also: https://maplibre.org/maplibre-gl-js/docs/API/type-aliases/PositionAnchor/
 
-   Required: No
+offset
+The offset in pixels to apply relative to the anchor. Negative values indicate left and up.
 
-   Default: "center"
+Type: PixelPoint
 
-   See also: https://maplibre.org/maplibre-gl-js/docs/API/type-aliases/PositionAnchor/
+Required: No
 
-   offset
-   The offset in pixels to apply relative to the anchor. Negative values indicate left and up.
+Default: [0, 0]
 
-   Type: PixelPoint
+See also: https://maplibre.org/maplibre-gl-js/docs/API/type-aliases/MarkerOptions/#offset
 
-   Required: No
+selected
+Manually selects/deselects the marker. iOS
 
-   Default: [0, 0]
+Type: boolean
 
-   See also: https://maplibre.org/maplibre-gl-js/docs/API/type-aliases/MarkerOptions/#offset
+Required: No
 
-   selected
-   Manually selects/deselects the marker. iOS
+onPress
+This callback is fired when the marker is pressed.
 
-   Type: boolean
+Type: (event: NativeSyntheticEvent<MarkerEvent>) => void
 
-   Required: No
+Required: No
 
-   onPress
-   This callback is fired when the marker is pressed.
+children
+Expects one child - can be a View with multiple elements.
 
-   Type: (event: NativeSyntheticEvent<MarkerEvent>) => void
+Type: ReactElement
 
-   Required: No
+Required: Yes
 
-   children
-   Expects one child - can be a View with multiple elements.
+ref
+Ref to access Marker methods.
 
-   Type: ReactElement
+Type: Ref<MarkerRef>
 
-   Required: Yes
+Required: No
 
-   ref
-   Ref to access Marker methods.
+Ref Methods
+getAnimatableRef()
+Returns the native ref for Reanimated v4 compatibility.
 
-   Type: Ref<MarkerRef>
+Returns: NativeMarkerRef | null
 
-   Required: No
+Types
+MarkerEvent
+Event emitted by a Marker on press.
 
-   Ref Methods
-   getAnimatableRef()
-   Returns the native ref for Reanimated v4 compatibility.
+type MarkerEvent = PressEvent & {
+id: string;
+};
 
-   Returns: NativeMarkerRef | null
+UserLocation
+Props
+children
+Children to render inside the UserLocation Annotation, e.g. CircleLayer, SymbolLayer
 
-   Types
-   MarkerEvent
-   Event emitted by a Marker on press.
+Type: ReactNode
 
-   type MarkerEvent = PressEvent & {
-     id: string;
-   };
+Required: No
 
+animated
+Whether the UserLocation Annotation is animated between updates
 
-   UserLocation
-   Props
-   children
-   Children to render inside the UserLocation Annotation, e.g. CircleLayer, SymbolLayer
+Type: boolean
 
-   Type: ReactNode
+Required: No
 
-   Required: No
+accuracy
+Render a circle which indicates the accuracy of the location
 
-   animated
-   Whether the UserLocation Annotation is animated between updates
+Type: boolean
 
-   Type: boolean
+Required: No
 
-   Required: No
+heading
+Render an arrow which indicates direction the device is pointing relative to north
 
-   accuracy
-   Render a circle which indicates the accuracy of the location
+Type: boolean
 
-   Type: boolean
+Required: No
 
-   Required: No
+minDisplacement
+Minimum delta in meters for location updates
 
-   heading
-   Render an arrow which indicates direction the device is pointing relative to north
+Type: number
 
-   Type: boolean
+Required: No
 
-   Required: No
+onPress
+Event triggered on pressing the UserLocation Annotation
 
-   minDisplacement
-   Minimum delta in meters for location updates
+Type: () => void
 
-   Type: number
+Required: No
 
-   Required: No
+ViewAnnotation
+ViewAnnotation represents a one-dimensional shape located at a single geographical coordinate. Consider using
+GeoJSONSource and SymbolLayer instead, if you have many points, and you have static images, they'll offer much better
+performance. If you need interactive views please use Marker, as with ViewAnnotation on Android child views are rendered
+onto a bitmap for better performance.
 
-   onPress
-   Event triggered on pressing the UserLocation Annotation
+Props
+id
+A string that uniquely identifies the annotation. If not provided, a unique ID will be generated automatically.
 
-   Type: () => void
+Type: string
 
-   Required: No
+Required: No
 
+title
+The string containing the annotation's title. Note this is required to be set if you want to see a callout appear on iOS.
 
-   ViewAnnotation
-   ViewAnnotation represents a one-dimensional shape located at a single geographical coordinate. Consider using
-   GeoJSONSource and SymbolLayer instead, if you have many points, and you have static images, they'll offer much better
-   performance. If you need interactive views please use Marker, as with ViewAnnotation on Android child views are rendered
-   onto a bitmap for better performance.
+Type: string
 
-   Props
-   id
-   A string that uniquely identifies the annotation. If not provided, a unique ID will be generated automatically.
+Required: No
 
-   Type: string
+snippet
+The string containing the annotation's snippet(subtitle). Not displayed in the default callout.
 
-   Required: No
+Type: string
 
-   title
-   The string containing the annotation's title. Note this is required to be set if you want to see a callout appear on iOS.
+Required: No
 
-   Type: string
+selected
+Manually selects/deselects annotation
 
-   Required: No
+Type: boolean
 
-   snippet
-   The string containing the annotation's snippet(subtitle). Not displayed in the default callout.
+Required: No
 
-   Type: string
+draggable
+Enable or disable dragging.
 
-   Required: No
+Type: boolean
 
-   selected
-   Manually selects/deselects annotation
+Required: No
 
-   Type: boolean
+Default: false
 
-   Required: No
+lngLat
+The center point (specified as a map coordinate) of the annotation.
 
-   draggable
-   Enable or disable dragging.
+Type: LngLat
 
-   Type: boolean
+Required: Yes
 
-   Required: No
+anchor
+Specifies the anchor being set on a particular point of the annotation. The anchor indicates which part of the marker
+should be placed closest to the coordinate.
 
-   Default: false
+Type: Anchor
 
-   lngLat
-   The center point (specified as a map coordinate) of the annotation.
+Required: No
 
-   Type: LngLat
+Default: "center"
 
-   Required: Yes
+See also: https://maplibre.org/maplibre-gl-js/docs/API/type-aliases/PositionAnchor/
 
-   anchor
-   Specifies the anchor being set on a particular point of the annotation. The anchor indicates which part of the marker
-   should be placed closest to the coordinate.
+offset
+The offset in pixels to apply relative to the anchor. Negative values indicate left and up.
 
-   Type: Anchor
+Type: PixelPoint
 
-   Required: No
+Required: No
 
-   Default: "center"
+Default: [0, 0]
 
-   See also: https://maplibre.org/maplibre-gl-js/docs/API/type-aliases/PositionAnchor/
+See also: https://maplibre.org/maplibre-gl-js/docs/API/type-aliases/MarkerOptions/#offset
 
-   offset
-   The offset in pixels to apply relative to the anchor. Negative values indicate left and up.
+onPress
+This callback is fired when the annotation is pressed.
 
-   Type: PixelPoint
+Type: (event: NativeSyntheticEvent<ViewAnnotationEvent>) => void
 
-   Required: No
+Required: No
 
-   Default: [0, 0]
+onSelect
+This callback is fired once this annotation is selected.
 
-   See also: https://maplibre.org/maplibre-gl-js/docs/API/type-aliases/MarkerOptions/#offset
+Type: (event: NativeSyntheticEvent<ViewAnnotationEvent>) => void
 
-   onPress
-   This callback is fired when the annotation is pressed.
+Required: No
 
-   Type: (event: NativeSyntheticEvent<ViewAnnotationEvent>) => void
+onDeselect
+This callback is fired once this annotation is deselected.
 
-   Required: No
+Type: (event: NativeSyntheticEvent<ViewAnnotationEvent>) => void
 
-   onSelect
-   This callback is fired once this annotation is selected.
+Required: No
 
-   Type: (event: NativeSyntheticEvent<ViewAnnotationEvent>) => void
+onDragStart
+This callback is fired once this annotation has started being dragged.
 
-   Required: No
+Type: (event: NativeSyntheticEvent<ViewAnnotationEvent>) => void
 
-   onDeselect
-   This callback is fired once this annotation is deselected.
+Required: No
 
-   Type: (event: NativeSyntheticEvent<ViewAnnotationEvent>) => void
+onDragEnd
+This callback is fired once this annotation has stopped being dragged.
 
-   Required: No
+Type: (event: NativeSyntheticEvent<ViewAnnotationEvent>) => void
 
-   onDragStart
-   This callback is fired once this annotation has started being dragged.
+Required: No
 
-   Type: (event: NativeSyntheticEvent<ViewAnnotationEvent>) => void
+onDrag
+This callback is fired while this annotation is being dragged.
 
-   Required: No
+Type: (event: NativeSyntheticEvent<ViewAnnotationEvent>) => void
 
-   onDragEnd
-   This callback is fired once this annotation has stopped being dragged.
+Required: No
 
-   Type: (event: NativeSyntheticEvent<ViewAnnotationEvent>) => void
+style
+Type: ViewProps["style"]
 
-   Required: No
+Required: No
 
-   onDrag
-   This callback is fired while this annotation is being dragged.
+children
+Expects one child, and an optional callout can be added as well
 
-   Type: (event: NativeSyntheticEvent<ViewAnnotationEvent>) => void
+Type: ReactElement | [ReactElement, ReactElement]
 
-   Required: No
+Required: Yes
 
-   style
-   Type: ViewProps["style"]
+ref
+Ref to access ViewAnnotation methods.
 
-   Required: No
+Type: Ref<ViewAnnotationRef>
 
-   children
-   Expects one child, and an optional callout can be added as well
+Required: No
 
-   Type: ReactElement | [ReactElement, ReactElement]
+Ref Methods
+refresh()
+On android point annotation is rendered offscreen with a canvas into an image. To rerender the image from the current
+state of the view call refresh. Call this for example from Image#onLoad.
 
-   Required: Yes
+getAnimatableRef()
+Returns the native ref for Reanimated v4 compatibility.
 
-   ref
-   Ref to access ViewAnnotation methods.
+Returns: NativeViewAnnotationRef | null
 
-   Type: Ref<ViewAnnotationRef>
+Types
+ViewAnnotationEvent
+Event emitted by a ViewAnnotation on press.
 
-   Required: No
+type ViewAnnotationEvent = PressEvent & {
+id: string;
+};
 
-   Ref Methods
-   refresh()
-   On android point annotation is rendered offscreen with a canvas into an image. To rerender the image from the current
-   state of the view call refresh. Call this for example from Image#onLoad.
+LocationManager
+Methods
+getCurrentPosition()
+Returns: Promise<GeolocationPosition | undefined>
 
-   getAnimatableRef()
-   Returns the native ref for Reanimated v4 compatibility.
+addListener(newListener)
+newListener
+Type: (location: GeolocationPosition) => void
 
-   Returns: NativeViewAnnotationRef | null
+Required: Yes
 
-   Types
-   ViewAnnotationEvent
-   Event emitted by a ViewAnnotation on press.
+removeListener(oldListener)
+oldListener
+Type: (location: GeolocationPosition) => void
 
-   type ViewAnnotationEvent = PressEvent & {
-     id: string;
-   };
+Required: Yes
 
+removeAllListeners()
+start()
+stop()
+setMinDisplacement(minDisplacement)
+minDisplacement
+Type: number
 
-   LocationManager
-   Methods
-   getCurrentPosition()
-   Returns: Promise<GeolocationPosition | undefined>
+Required: Yes
 
-   addListener(newListener)
-   newListener
-   Type: (location: GeolocationPosition) => void
+requestPermissions()
+Request location permissions Requests the following:
 
-   Required: Yes
+Android: ACCESS_FINE_LOCATION, ACCESS_COARSE_LOCATION
+iOS: requestWhenInUseAuthorization
+Returns: Promise<boolean> — Promise resolves to true if permissions were granted, false otherwise
+LogManager
+Methods
+onLog(logHandler)
+Override logging behavior
 
-   removeListener(oldListener)
-   oldListener
-   Type: (location: GeolocationPosition) => void
+logHandler
+Type: LogHandler
 
-   Required: Yes
+Required: Yes
 
-   removeAllListeners()
-   start()
-   stop()
-   setMinDisplacement(minDisplacement)
-   minDisplacement
-   Type: number
+setLogLevel(level)
+Set the minimum log level for a message to be logged
 
-   Required: Yes
+level
+Minimum log level
 
-   requestPermissions()
-   Request location permissions Requests the following:
+Type: LogLevel
 
-   Android: ACCESS_FINE_LOCATION, ACCESS_COARSE_LOCATION
-   iOS: requestWhenInUseAuthorization
-   Returns: Promise<boolean> — Promise resolves to true if permissions were granted, false otherwise
-   LogManager
-   Methods
-   onLog(logHandler)
-   Override logging behavior
+Required: Yes
 
-   logHandler
-   Type: LogHandler
+start()
+stop()
+Types
+LogLevel
+Log levels in decreasing order of severity
 
-   Required: Yes
+type LogLevel = "error" | "warn" | "info" | "debug" | "verbose";
 
-   setLogLevel(level)
-   Set the minimum log level for a message to be logged
+NetworkManager
+NetworkManager provides methods for managing and controlling network connectivity.
 
-   level
-   Minimum log level
+Methods
+setConnected(connected)
+Android only: Sets the connectivity state of the map. When set to false, the map will not make any network requests and
+will only use cached tiles. This is useful for implementing offline mode or reducing data usage.
 
-   Type: LogLevel
+connected
+Whether the map should be connected to the network
 
-   Required: Yes
+Type: boolean
 
-   start()
-   stop()
-   Types
-   LogLevel
-   Log levels in decreasing order of severity
+Required: Yes
 
-   type LogLevel = "error" | "warn" | "info" | "debug" | "verbose";
+// Enable offline mode
+NetworkManager.setConnected(false);
+// Re-enable network requests
+NetworkManager.setConnected(true);
+OfflineManager
+OfflineManager implements a singleton (shared object) that manages offline packs. All of this class's instance methods are
+asynchronous, reflecting the fact that offline resources are stored in a database. The shared object maintains a canonical
+collection of offline packs.
 
+Methods
+createPack(options, progressListener, errorListener)
+Creates and registers an offline pack that downloads the resources needed to use the given region offline.
 
-   NetworkManager
-   NetworkManager provides methods for managing and controlling network connectivity.
+options
+Create options for offline pack that specifies zoom levels, style url, and the region to download.
 
-   Methods
-   setConnected(connected)
-   Android only: Sets the connectivity state of the map. When set to false, the map will not make any network requests and
-   will only use cached tiles. This is useful for implementing offline mode or reducing data usage.
+Type: OfflinePackCreateOptions
 
-   connected
-   Whether the map should be connected to the network
+Required: Yes
 
-   Type: boolean
+progressListener
+Callback that listens for status events while downloading the offline resource.
 
-   Required: Yes
+Type: OfflinePackProgressListener
 
-   // Enable offline mode
-   NetworkManager.setConnected(false);
-   // Re-enable network requests
-   NetworkManager.setConnected(true);
-   OfflineManager
-   OfflineManager implements a singleton (shared object) that manages offline packs. All of this class's instance methods are
-   asynchronous, reflecting the fact that offline resources are stored in a database. The shared object maintains a canonical
-   collection of offline packs.
+Required: Yes
 
-   Methods
-   createPack(options, progressListener, errorListener)
-   Creates and registers an offline pack that downloads the resources needed to use the given region offline.
+errorListener
+Callback that listens for status events while downloading the offline resource.
 
-   options
-   Create options for offline pack that specifies zoom levels, style url, and the region to download.
+Type: OfflinePackErrorListener
 
-   Type: OfflinePackCreateOptions
+Required: Yes
 
-   Required: Yes
+Returns: Promise<OfflinePack> — The created offline pack with its generated ID.
 
-   progressListener
-   Callback that listens for status events while downloading the offline resource.
+const progressListener = (offlineRegion, status) =>
+console.log(offlineRegion, status);
+const errorListener = (offlineRegion, error) =>
+console.log(offlineRegion, error);
 
-   Type: OfflinePackProgressListener
+const offlinePack = await OfflineManager.createPack(
+{
+mapStyle: "https://demotiles.maplibre.org/tiles/tiles.json",
+minZoom: 14,
+maxZoom: 20,
+bounds: [west, south, east, north],
+metadata: { customValue: "myValue" },
+},
+progressListener,
+errorListener,
+);
 
-   Required: Yes
+invalidatePack(id)
+Invalidates the specified offline pack. This method checks that the tiles in the specified offline pack match those from
+the server. Local tiles that do not match the latest version on the server are updated. This is more efficient than
+deleting the offline pack and downloading it again. If the data stored locally matches that on the server, new data will
+not be downloaded.
 
-   errorListener
-   Callback that listens for status events while downloading the offline resource.
+id
+ID of the OfflinePack.
 
-   Type: OfflinePackErrorListener
+Type: string
 
-   Required: Yes
+Required: Yes
 
-   Returns: Promise<OfflinePack> — The created offline pack with its generated ID.
+Returns: Promise<void>
 
-   const progressListener = (offlineRegion, status) =>
-     console.log(offlineRegion, status);
-   const errorListener = (offlineRegion, error) =>
-     console.log(offlineRegion, error);
+await OfflineManager.invalidatePack(pack.id);
 
-   const offlinePack = await OfflineManager.createPack(
-     {
-       mapStyle: "https://demotiles.maplibre.org/tiles/tiles.json",
-       minZoom: 14,
-       maxZoom: 20,
-       bounds: [west, south, east, north],
-       metadata: { customValue: "myValue" },
-     },
-     progressListener,
-     errorListener,
-   );
+deletePack(id)
+Unregisters the given OfflinePack and allows resources that are no longer required by any remaining packs to be
+potentially freed.
 
-   invalidatePack(id)
-   Invalidates the specified offline pack. This method checks that the tiles in the specified offline pack match those from
-   the server. Local tiles that do not match the latest version on the server are updated. This is more efficient than
-   deleting the offline pack and downloading it again. If the data stored locally matches that on the server, new data will
-   not be downloaded.
+id
+ID of the OfflinePack.
 
-   id
-   ID of the OfflinePack.
+Type: string
 
-   Type: string
+Required: Yes
 
-   Required: Yes
+Returns: Promise<void>
 
-   Returns: Promise<void>
+await OfflineManager.deletePack(pack.id);
 
-   await OfflineManager.invalidatePack(pack.id);
+invalidateAmbientCache()
+Forces a revalidation of the tiles in the ambient cache and downloads a fresh version of the tiles from the tile server.
+This is the recommend method for clearing the cache. This is the most efficient method because tiles in the ambient cache
+are re-downloaded to remove outdated data from a device. It does not erase resources from the ambient cache or delete the
+database, which can be computationally expensive operations that may carry unintended side effects.
 
-   deletePack(id)
-   Unregisters the given OfflinePack and allows resources that are no longer required by any remaining packs to be
-   potentially freed.
+Returns: Promise<void>
 
-   id
-   ID of the OfflinePack.
+await OfflineManager.invalidateAmbientCache();
 
-   Type: string
+clearAmbientCache()
+Erases resources from the ambient cache. This method clears the cache and decreases the amount of space that map resources
+take up on the device.
 
-   Required: Yes
+Returns: Promise<void>
 
-   Returns: Promise<void>
+await OfflineManager.clearAmbientCache();
 
-   await OfflineManager.deletePack(pack.id);
+setMaximumAmbientCacheSize(size)
+Sets the maximum size of the ambient cache in bytes. Disables the ambient cache if set to 0. This method may be
+computationally expensive because it will erase resources from the ambient cache if its size is decreased.
 
-   invalidateAmbientCache()
-   Forces a revalidation of the tiles in the ambient cache and downloads a fresh version of the tiles from the tile server.
-   This is the recommend method for clearing the cache. This is the most efficient method because tiles in the ambient cache
-   are re-downloaded to remove outdated data from a device. It does not erase resources from the ambient cache or delete the
-   database, which can be computationally expensive operations that may carry unintended side effects.
+size
+Size of ambient cache.
 
-   Returns: Promise<void>
+Type: number
 
-   await OfflineManager.invalidateAmbientCache();
+Required: Yes
 
-   clearAmbientCache()
-   Erases resources from the ambient cache. This method clears the cache and decreases the amount of space that map resources
-   take up on the device.
+Returns: Promise<void>
 
-   Returns: Promise<void>
+await OfflineManager.setMaximumAmbientCacheSize(5000000);
 
-   await OfflineManager.clearAmbientCache();
+resetDatabase()
+Deletes the existing database, which includes both the ambient cache and offline packs, then reinitializes it.
 
-   setMaximumAmbientCacheSize(size)
-   Sets the maximum size of the ambient cache in bytes. Disables the ambient cache if set to 0. This method may be
-   computationally expensive because it will erase resources from the ambient cache if its size is decreased.
+Returns: Promise<void>
 
-   size
-   Size of ambient cache.
+await OfflineManager.resetDatabase();
 
-   Type: number
+getPacks()
+Retrieves all the current offline packs that are stored in the database.
 
-   Required: Yes
+Returns: Promise<OfflinePack[]>
 
-   Returns: Promise<void>
+const offlinePacks = await OfflineManager.getPacks();
 
-   await OfflineManager.setMaximumAmbientCacheSize(5000000);
+getPack(id)
+Retrieves an offline pack that is stored in the database by ID.
 
-   resetDatabase()
-   Deletes the existing database, which includes both the ambient cache and offline packs, then reinitializes it.
+id
+Type: string
 
-   Returns: Promise<void>
+Required: Yes
 
-   await OfflineManager.resetDatabase();
+Returns: Promise<OfflinePack>
 
-   getPacks()
-   Retrieves all the current offline packs that are stored in the database.
+const offlinePack = await OfflineManager.getPack(offlinePack.id);
 
-   Returns: Promise<OfflinePack[]>
+mergeOfflineRegions(path)
+Sideloads offline db
 
-   const offlinePacks = await OfflineManager.getPacks();
+path
+Path to offline tile db on file system.
 
-   getPack(id)
-   Retrieves an offline pack that is stored in the database by ID.
+Type: string
 
-   id
-   Type: string
+Required: Yes
 
-   Required: Yes
+Returns: Promise<void>
 
-   Returns: Promise<OfflinePack>
+await OfflineManager.mergeOfflineRegions(path);
 
-   const offlinePack = await OfflineManager.getPack(offlinePack.id);
+setTileCountLimit(limit)
+Sets the maximum number of tiles that may be downloaded and stored on the current device. Consult the Terms of Service for
+your map tile host before changing this value.
 
-   mergeOfflineRegions(path)
-   Sideloads offline db
+limit
+Map tile limit count.
 
-   path
-   Path to offline tile db on file system.
+Type: number
 
-   Type: string
+Required: Yes
 
-   Required: Yes
+OfflineManager.setTileCountLimit(1000);
 
-   Returns: Promise<void>
+setProgressEventThrottle(throttleValue)
+Sets the period at which download status events will be sent over the React Native bridge. The default is 500ms.
 
-   await OfflineManager.mergeOfflineRegions(path);
+throttleValue
+Event throttle value in ms.
 
-   setTileCountLimit(limit)
-   Sets the maximum number of tiles that may be downloaded and stored on the current device. Consult the Terms of Service for
-   your map tile host before changing this value.
+Type: number
 
-   limit
-   Map tile limit count.
+Required: Yes
 
-   Type: number
+OfflineManager.setProgressEventThrottle(500);
 
-   Required: Yes
+addListener(id, progressListener, errorListener)
+Subscribe to download status/error events for the requested offline pack. Note that createPack calls this internally if
+listeners are provided.
 
-   OfflineManager.setTileCountLimit(1000);
+id
+ID of the offline pack.
 
-   setProgressEventThrottle(throttleValue)
-   Sets the period at which download status events will be sent over the React Native bridge. The default is 500ms.
+Type: string
 
-   throttleValue
-   Event throttle value in ms.
+Required: Yes
 
-   Type: number
+progressListener
+Callback that listens for status events while downloading the offline resource.
 
-   Required: Yes
+Type: OfflinePackProgressListener
 
-   OfflineManager.setProgressEventThrottle(500);
+Required: Yes
 
-   addListener(id, progressListener, errorListener)
-   Subscribe to download status/error events for the requested offline pack. Note that createPack calls this internally if
-   listeners are provided.
+errorListener
+Callback that listens for status events while downloading the offline resource.
 
-   id
-   ID of the offline pack.
+Type: OfflinePackErrorListener
 
-   Type: string
+Required: Yes
 
-   Required: Yes
+Returns: Promise<void>
 
-   progressListener
-   Callback that listens for status events while downloading the offline resource.
+const progressListener = (offlinePack, status) =>
+console.log(offlinePack, status);
+const errorListener = (offlinePack, error) => console.log(offlinePack, error);
+OfflineManager.addListener(pack.id, progressListener, errorListener);
 
-   Type: OfflinePackProgressListener
+removeListener(packId)
+Unsubscribes any listeners associated with the offline pack. Should be called when the component unmounts.
 
-   Required: Yes
+packId
+ID of the offline pack.
 
-   errorListener
-   Callback that listens for status events while downloading the offline resource.
+Type: string
 
-   Type: OfflinePackErrorListener
+Required: Yes
 
-   Required: Yes
+useEffect(() => {
+return () => {
+OfflineManager.removeListener(pack.id);
+};
+}, []);
 
-   Returns: Promise<void>
+Types
+OfflinePackDownloadState
+Represents the offline pack download state
 
-   const progressListener = (offlinePack, status) =>
-     console.log(offlinePack, status);
-   const errorListener = (offlinePack, error) => console.log(offlinePack, error);
-   OfflineManager.addListener(pack.id, progressListener, errorListener);
+type OfflinePackDownloadState = "inactive" | "active" | "complete";
+OfflinePack
+Methods
+status()
+Returns: Promise<OfflinePackStatus>
 
+resume()
+Returns: Promise<void>
 
-   removeListener(packId)
-   Unsubscribes any listeners associated with the offline pack. Should be called when the component unmounts.
+pause()
+Returns: Promise<void>
+StaticMapManager
+The StaticMapManager creates static images of a map.
 
-   packId
-   ID of the offline pack.
+Methods
+createImage(options)
+Creates a static image of a map. Images are always in PNG format.
 
-   Type: string
+options
+Type: StaticMapCreateOptions
 
-   Required: Yes
+Required: Yes
 
-   useEffect(() => {
-     return () => {
-       OfflineManager.removeListener(pack.id);
-     };
-   }, []);
+Returns: Promise<string>
 
-   Types
-   OfflinePackDownloadState
-   Represents the offline pack download state
+Create static map with center, returning the URI to the temporary PNG file
 
-   type OfflinePackDownloadState = "inactive" | "active" | "complete";
-   OfflinePack
-   Methods
-   status()
-   Returns: Promise<OfflinePackStatus>
+const uri = await StaticMapManager.createImage({
+center: [-74.12641, 40.797968],
+zoom: 12,
+bearing: 20,
+pitch: 30,
+mapStyle: "https://demotiles.maplibre.org/style.json",
+width: 128,
+height: 64,
+output: "file",
+});
 
-   resume()
-   Returns: Promise<void>
+Create a static map with bounds, returning a base64 encoded PNG
 
-   pause()
-   Returns: Promise<void>
-   StaticMapManager
-   The StaticMapManager creates static images of a map.
+const uri = await StaticMapManager.createImage({
+bounds: [
+[-74.12641, 40.797968],
+[-74.143727, 40.772177],
+],
+mapStyle: "https://demotiles.maplibre.org/style.json",
+width: 128,
+height: 64,
+output: "base64",
+});
+TransformRequestManager
+TransformRequestManager provides methods for managing HTTP requests made by MapLibre. Transformations are possible in
+three ways:
 
-   Methods
-   createImage(options)
-   Creates a static image of a map. Images are always in PNG format.
+Transforming the URL with search and replace
+Adding URL search params
+Adding HTTP headers Transforms are applied in this order. The match conditions are applied to possibly already transformed
+URLs. To gain insight into which transforms are applied set the log level to "debug" via LogManager:
+LogManager.setLogLevel("debug");
 
-   options
-   Type: StaticMapCreateOptions
+Methods
+addUrlTransform(options)
+Adds or updates a URL transform identified by id. Transforms execute in insertion order. Therefore match and find regexes
+are matched against possibly already modified URL by previous transforms. Re-adding an existing id updates the transform
+in-place, preserving its position in the pipeline. This makes it safe to refresh tokens or swap domains without disrupting
+the order of other transforms. URL transforms are applied before addUrlSearchParam and addHeader.
 
-   Required: Yes
+options
+The transform. Set TransformOptions to a stable string to enable in-place updates; if omitted an id is auto-generated and
+returned.
 
-   Returns: Promise<string>
+Type: UrlTransformOptions
 
-   Create static map with center, returning the URI to the temporary PNG file
+Required: Yes
 
-   const uri = await StaticMapManager.createImage({
-     center: [-74.12641, 40.797968],
-     zoom: 12,
-     bearing: 20,
-     pitch: 30,
-     mapStyle: "https://demotiles.maplibre.org/style.json",
-     width: 128,
-     height: 64,
-     output: "file",
-   });
+Returns: string — The id of the transform (the value of transform.id when provided, otherwise the auto-generated one).
+Pass it to removeUrlTransform to remove it later.
 
-   Create a static map with bounds, returning a base64 encoded PNG
+Upgrade all requests to HTTPS
 
-   const uri = await StaticMapManager.createImage({
-     bounds: [
-       [-74.12641, 40.797968],
-       [-74.143727, 40.772177],
-     ],
-     mapStyle: "https://demotiles.maplibre.org/style.json",
-     width: 128,
-     height: 64,
-     output: "base64",
-   });
-   TransformRequestManager
-   TransformRequestManager provides methods for managing HTTP requests made by MapLibre. Transformations are possible in
-   three ways:
+TransformRequestManager.addUrlTransform({
+id: "force-https",
+find: "^http://",
+replace: "https://",
+});
 
-   Transforming the URL with search and replace
-   Adding URL search params
-   Adding HTTP headers Transforms are applied in this order. The match conditions are applied to possibly already transformed
-   URLs. To gain insight into which transforms are applied set the log level to "debug" via LogManager:
-   LogManager.setLogLevel("debug");
+Redirect a specific domain through a proxy
 
-   Methods
-   addUrlTransform(options)
-   Adds or updates a URL transform identified by id. Transforms execute in insertion order. Therefore match and find regexes
-   are matched against possibly already modified URL by previous transforms. Re-adding an existing id updates the transform
-   in-place, preserving its position in the pipeline. This makes it safe to refresh tokens or swap domains without disrupting
-   the order of other transforms. URL transforms are applied before addUrlSearchParam and addHeader.
+TransformRequestManager.addUrlTransform({
+id: "proxy",
+match: "tiles\\.example\\.com",
+find: "tiles\\.example\\.com",
+replace: "proxy.example.com",
+});
 
-   options
-   The transform. Set TransformOptions to a stable string to enable in-place updates; if omitted an id is auto-generated and
-   returned.
+Inject an API key into the path using a capture group
 
-   Type: UrlTransformOptions
+TransformRequestManager.addUrlTransform({
+id: "api-key",
+match: "api\\.example\\.com",
+find: "(https://api\\.example\\.com/)(.\*)",
+replace: "$1mySecretKey/$2",
+});
 
-   Required: Yes
+removeUrlTransform(id)
+Removes the URL transform with the given id . No-op if the id is not registered.
 
-   Returns: string — The id of the transform (the value of transform.id when provided, otherwise the auto-generated one).
-   Pass it to removeUrlTransform to remove it later.
+id
+The identifier passed to/returned from addUrlTransform.
 
-   Upgrade all requests to HTTPS
+Type: string
 
-   TransformRequestManager.addUrlTransform({
-     id: "force-https",
-     find: "^http://",
-     replace: "https://",
-   });
+Required: Yes
 
-   Redirect a specific domain through a proxy
+clearUrlTransforms()
+Removes all registered URL transforms
 
-   TransformRequestManager.addUrlTransform({
-     id: "proxy",
-     match: "tiles\\.example\\.com",
-     find: "tiles\\.example\\.com",
-     replace: "proxy.example.com",
-   });
+addUrlSearchParam(options)
+Adds or updates a URL query parameter identified by id that will be appended to all matching map resource requests.
+Re-adding an existing id updates the param in-place.
 
-   Inject an API key into the path using a capture group
+options
+The options. Set TransformOptions to a stable string to enable in-place updates; if omitted an id is auto-generated and
+returned.
 
-   TransformRequestManager.addUrlTransform({
-     id: "api-key",
-     match: "api\\.example\\.com",
-     find: "(https://api\\.example\\.com/)(.*)",
-     replace: "$1mySecretKey/$2",
-   });
+Type: UrlSearchParamOptions
 
-   removeUrlTransform(id)
-   Removes the URL transform with the given id . No-op if the id is not registered.
+Required: Yes
 
-   id
-   The identifier passed to/returned from addUrlTransform.
+Returns: string — The id of the options. Pass it to removeUrlSearchParam to remove it later.
 
-   Type: string
+Add apiKey to for a specific domain
 
-   Required: Yes
+TransformRequestManager.addUrlSearchParam({
+match: /tiles\.example\.com/,
+name: "apiKey",
+value: "your-api-key",
+});
 
-   clearUrlTransforms()
-   Removes all registered URL transforms
+Add apiKey to all requests (no match = applies to all)
 
-   addUrlSearchParam(options)
-   Adds or updates a URL query parameter identified by id that will be appended to all matching map resource requests.
-   Re-adding an existing id updates the param in-place.
+TransformRequestManager.addUrlSearchParam({
+name: "apiKey",
+value: "your-api-key",
+});
 
-   options
-   The options. Set TransformOptions to a stable string to enable in-place updates; if omitted an id is auto-generated and
-   returned.
+removeUrlSearchParam(id)
+Removes a previously added URL query parameter by its id.
 
-   Type: UrlSearchParamOptions
+id
+The identifier passed to/returned from addUrlSearchParam.
 
-   Required: Yes
+Type: string
 
-   Returns: string — The id of the options. Pass it to removeUrlSearchParam to remove it later.
+Required: Yes
 
-   Add apiKey to for a specific domain
+addHeader(options)
+Adds or updates an HTTP header identified by id that will be sent with all matching map resource requests. Re-adding an
+existing id updates the header in-place.
 
-   TransformRequestManager.addUrlSearchParam({
-     match: /tiles\.example\.com/,
-     name: "apiKey",
-     value: "your-api-key",
-   });
+options
+The options. Set TransformOptions to a stable string to enable in-place updates; if omitted an id is auto-generated and
+returned.
 
-   Add apiKey to all requests (no match = applies to all)
+Type: HeaderOptions
 
-   TransformRequestManager.addUrlSearchParam({
-     name: "apiKey",
-     value: "your-api-key",
-   });
+Required: Yes
 
-   removeUrlSearchParam(id)
-   Removes a previously added URL query parameter by its id.
+Returns: string — The id of the options. Pass it to removeHeader to remove it later.
 
-   id
-   The identifier passed to/returned from addUrlSearchParam.
+Add header to all requests
 
-   Type: string
+TransformRequestManager.addHeader({ name: "Authorization", value: "Bearer token123" });
 
-   Required: Yes
+Add header only to requests matching a pattern
 
-   addHeader(options)
-   Adds or updates an HTTP header identified by id that will be sent with all matching map resource requests. Re-adding an
-   existing id updates the header in-place.
+TransformRequestManager.addHeader({
+name: "X-API-Key",
+value: "key123",
+match: /https:\/\/api\.example\.com\/tiles\//,
+});
 
-   options
-   The options. Set TransformOptions to a stable string to enable in-place updates; if omitted an id is auto-generated and
-   returned.
+clearUrlSearchParams()
+Removes all registered URL search params.
 
-   Type: HeaderOptions
+removeHeader(id)
+Removes a previously added HTTP header by its id.
 
-   Required: Yes
+id
+The identifier passed to/returned from addHeader.
 
-   Returns: string — The id of the options. Pass it to removeHeader to remove it later.
+Type: string
 
-   Add header to all requests
+Required: Yes
 
-   TransformRequestManager.addHeader({ name: "Authorization", value: "Bearer token123" });
+clearHeaders()
+Removes all registered HTTP headers.
 
+clear()
+Removes all registered URL transforms, URL search params and HTTP headers.
 
+Types
+UrlTransformOptions
+A serializable transform for rewriting MapLibre request URLs. Transforms are applied as a pipeline in the order they were
+added: transform N+1 sees the URL after transform N has possibly changed it.
 
-   Add header only to requests matching a pattern
+interface UrlTransformOptions {
+find: RegExp | string;
+replace: string;
+}
 
-   TransformRequestManager.addHeader({
-     name: "X-API-Key",
-     value: "key123",
-     match: /https:\/\/api\.example\.com\/tiles\//,
-   });
+UrlSearchParamOptions
+A URL query parameter to append to matching map resource requests.
 
-   clearUrlSearchParams()
-   Removes all registered URL search params.
+interface UrlSearchParamOptions {
+name: string;
+value: string;
+}
 
-   removeHeader(id)
-   Removes a previously added HTTP header by its id.
+HeaderOptions
+A HTTP header to send with matching map resource requests.
 
-   id
-   The identifier passed to/returned from addHeader.
+interface HeaderOptions {
+name: string;
+value: string;
+}
+Anchor
+Position anchor for markers and annotations. Follows MapLibre GL JS PositionAnchor format.
 
-   Type: string
+Type
+| "center"
+| "top"
+| "bottom"
+| "left"
+| "right"
+| "top-left"
+| "top-right"
+| "bottom-left"
+| "bottom-right"
+BaseProps
+Base props supported by all components.
 
-   Required: Yes
+Type
+{
+testID?: string;
+}
+LngLatBounds
+Represents bounds in geographic coordinates Uses order of south-west and north-east corners in flat style per GeoJSON RFC.
 
-   clearHeaders()
-   Removes all registered HTTP headers.
+Type
+[
+west: number,
+south: number,
+east: number,
+north: number,
+]
 
-   clear()
-   Removes all registered URL transforms, URL search params and HTTP headers.
+LngLat
+Geographic coordinates
 
-   Types
-   UrlTransformOptions
-   A serializable transform for rewriting MapLibre request URLs. Transforms are applied as a pipeline in the order they were
-   added: transform N+1 sees the URL after transform N has possibly changed it.
+Type
+[longitude: number, latitude: number]
+PixelPointBounds
+Bounds in pixel coordinates Uses common order of top-left and bottom-right corners.
 
-   interface UrlTransformOptions {
-     find: RegExp | string;
-     replace: string;
-   }
+Type
+[
+topLeft: [left: number, top: number],
+bottomRight: [right: number, bottom: number],
+]
+PixelPoint
+Pixel coordinates
 
-   UrlSearchParamOptions
-   A URL query parameter to append to matching map resource requests.
+Type
+[x: number, y: number]
+PressEventWithFeatures
+Press event data enriched with GeoJSON features at the pressed location.
 
-   interface UrlSearchParamOptions {
-     name: string;
-     value: string;
-   }
+Type
+interface PressEventWithFeatures extends PressEvent {
+features: GeoJSON.Feature[];
+}
+PressEvent
+Event data for map press interactions.
 
-   HeaderOptions
-   A HTTP header to send with matching map resource requests.
+Type
+{
+lngLat: LngLat;
+point: PixelPoint;
+}
+PressableSourceProps
+Props shared by source components that support press interactions.
 
-   interface HeaderOptions {
-     name: string;
-     value: string;
-   }
-   Anchor
-   Position anchor for markers and annotations. Follows MapLibre GL JS PositionAnchor format.
+Type
+{
+onPress?: (event: NativeSyntheticEvent<PressEventWithFeatures>) => void;
+hitbox?: ViewPadding;
+}
+ViewPadding
+Pixel insets used for view padding.
 
-   Type
-   | "center"
-     | "top"
-     | "bottom"
-     | "left"
-     | "right"
-     | "top-left"
-     | "top-right"
-     | "bottom-left"
-     | "bottom-right"
-   BaseProps
-   Base props supported by all components.
-
-   Type
-   {
-     testID?: string;
-   }
-   LngLatBounds
-   Represents bounds in geographic coordinates Uses order of south-west and north-east corners in flat style per GeoJSON RFC.
-
-   Type
-   [
-     west: number,
-     south: number,
-     east: number,
-     north: number,
-   ]
-
-
-   LngLat
-   Geographic coordinates
-
-   Type
-   [longitude: number, latitude: number]
-   PixelPointBounds
-   Bounds in pixel coordinates Uses common order of top-left and bottom-right corners.
-
-   Type
-   [
-     topLeft: [left: number, top: number],
-     bottomRight: [right: number, bottom: number],
-   ]
-   PixelPoint
-   Pixel coordinates
-
-   Type
-   [x: number, y: number]
-   PressEventWithFeatures
-   Press event data enriched with GeoJSON features at the pressed location.
-
-   Type
-   interface PressEventWithFeatures extends PressEvent {
-     features: GeoJSON.Feature[];
-   }
-   PressEvent
-   Event data for map press interactions.
-
-   Type
-   {
-     lngLat: LngLat;
-     point: PixelPoint;
-   }
-   PressableSourceProps
-   Props shared by source components that support press interactions.
-
-   Type
-   {
-     onPress?: (event: NativeSyntheticEvent<PressEventWithFeatures>) => void;
-     hitbox?: ViewPadding;
-   }
-   ViewPadding
-   Pixel insets used for view padding.
-
-   Type
-   {
-     top?: number;
-     right?: number;
-     bottom?: number;
-     left?: number;
-   }
+Type
+{
+top?: number;
+right?: number;
+bottom?: number;
+left?: number;
+}

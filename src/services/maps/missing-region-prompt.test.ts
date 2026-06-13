@@ -35,9 +35,7 @@ describe('missing region prompt logic', () => {
       latitude: 38.5,
       longitude: -9.5,
       regions: [lisbon],
-      downloadedRegions: [
-        { manifestRegionId: 'pt-lisbon', status: 'downloaded', name: 'Lisbon' },
-      ],
+      downloadedRegions: [{ manifestRegionId: 'pt-lisbon', status: 'downloaded', name: 'Lisbon' }],
       zoom: 10,
     });
 

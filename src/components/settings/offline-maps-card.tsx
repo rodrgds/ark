@@ -62,16 +62,14 @@ function buildMapCountryGroups(presets: MapPreset[], regions: MapRegion[]): MapC
     if (isStructuralMapPreset(preset)) continue;
     const countryName = countryNameForPreset(preset);
     const key = countryName.toLowerCase();
-    const group =
-      groups.get(key) ??
-      {
-        key,
-        name: countryName,
-        letter: countryName.charAt(0).toUpperCase(),
-        presets: [],
-        regions: [],
-        downloadedRegions: [],
-      };
+    const group = groups.get(key) ?? {
+      key,
+      name: countryName,
+      letter: countryName.charAt(0).toUpperCase(),
+      presets: [],
+      regions: [],
+      downloadedRegions: [],
+    };
     group.presets.push(preset);
     groups.set(key, group);
   }
@@ -106,9 +104,11 @@ function findRegionForPreset(preset: MapPreset, regions: MapRegion[]) {
 }
 
 function findPresetForRegion(region: MapRegion, presets: MapPreset[]) {
-  return presets.find(
-    (preset) => preset.id === region.manifestRegionId || preset.name === region.name
-  ) ?? null;
+  return (
+    presets.find(
+      (preset) => preset.id === region.manifestRegionId || preset.name === region.name
+    ) ?? null
+  );
 }
 
 function mapPresetMatches(preset: MapPreset, searchText: string, countryName: string) {
@@ -118,7 +118,8 @@ function mapPresetMatches(preset: MapPreset, searchText: string, countryName: st
 }
 
 function countryNameForPreset(preset: MapPreset) {
-  if (preset.countryCode && COUNTRY_NAMES[preset.countryCode]) return COUNTRY_NAMES[preset.countryCode];
+  if (preset.countryCode && COUNTRY_NAMES[preset.countryCode])
+    return COUNTRY_NAMES[preset.countryCode];
   const tagCountry = preset.tags.find((tag) => Object.values(COUNTRY_NAMES).includes(tag));
   if (tagCountry) return tagCountry;
   if (preset.tags.includes('Iberia')) return 'Iberia';
@@ -136,12 +137,7 @@ function levelSort(preset: MapPreset) {
 }
 
 function regionBoundsLabel(region: MapRegion) {
-  if (
-    region.north == null ||
-    region.south == null ||
-    region.east == null ||
-    region.west == null
-  ) {
+  if (region.north == null || region.south == null || region.east == null || region.west == null) {
     return null;
   }
   return `${region.south.toFixed(2)}, ${region.west.toFixed(2)} to ${region.north.toFixed(2)}, ${region.east.toFixed(2)}`;
@@ -249,13 +245,7 @@ function MapPresetRow({
   );
 }
 
-function MapDownloadedRegionRow({
-  region,
-  onOpen,
-}: {
-  region: MapRegion;
-  onOpen: () => void;
-}) {
+function MapDownloadedRegionRow({ region, onOpen }: { region: MapRegion; onOpen: () => void }) {
   return (
     <View className="border-border flex-row items-center gap-3 border-b px-3 py-3 last:border-b-0">
       <View className="bg-primary/15 size-10 items-center justify-center rounded-full">
@@ -302,7 +292,7 @@ function MapRegionDetailsSheet({
             <Text>
               {preset
                 ? preset.description
-                : regionBoundsLabel(region) ?? 'Custom saved map region.'}
+                : (regionBoundsLabel(region) ?? 'Custom saved map region.')}
             </Text>
             {preset?.tags.length ? (
               <Text variant="small" className="text-muted-foreground">
@@ -340,7 +330,10 @@ export function OfflineMapsCard({
   const presets = React.useMemo(() => MapPresetsService.listPresets(), []);
   const searchText = search.trim().toLowerCase();
   const showingCatalog = browseMode || searchText.length > 0;
-  const groups = React.useMemo(() => buildMapCountryGroups(presets, mapRegions), [mapRegions, presets]);
+  const groups = React.useMemo(
+    () => buildMapCountryGroups(presets, mapRegions),
+    [mapRegions, presets]
+  );
 
   const visibleGroups = React.useMemo(() => {
     let nextGroups = groups;
@@ -364,13 +357,17 @@ export function OfflineMapsCard({
   }, [groups, searchText, showingCatalog]);
 
   const selectedGroup = selectedCountryKey
-    ? groups.find((group) => group.key === selectedCountryKey) ?? null
+    ? (groups.find((group) => group.key === selectedCountryKey) ?? null)
     : null;
-  const detailRegions = selectedGroup ? getGroupRows(selectedGroup, showingCatalog, searchText) : [];
+  const detailRegions = selectedGroup
+    ? getGroupRows(selectedGroup, showingCatalog, searchText)
+    : [];
   const customDownloadedRegions = mapRegions.filter(
     (region) =>
       region.status === 'downloaded' &&
-      !presets.some((preset) => preset.id === region.manifestRegionId || preset.name === region.name)
+      !presets.some(
+        (preset) => preset.id === region.manifestRegionId || preset.name === region.name
+      )
   );
   const visibleCustomRegions = customDownloadedRegions.filter(
     (region) => !searchText || region.name.toLowerCase().includes(searchText)

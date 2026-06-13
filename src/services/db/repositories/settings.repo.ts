@@ -22,7 +22,10 @@ function parseLabelList(value: string | null) {
     if (!Array.isArray(parsed)) return [];
     return Array.from(
       new Set(
-        parsed.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean)
+        parsed
+          .filter((item): item is string => typeof item === 'string')
+          .map((item) => item.trim())
+          .filter(Boolean)
       )
     ).sort((a, b) => a.localeCompare(b));
   } catch {
@@ -68,7 +71,9 @@ export class SettingsRepository {
 
   static async addLabel(label: string) {
     const labels = await this.getLabels();
-    const next = Array.from(new Set([...labels, label.trim()].filter(Boolean))).sort((a, b) => a.localeCompare(b));
+    const next = Array.from(new Set([...labels, label.trim()].filter(Boolean))).sort((a, b) =>
+      a.localeCompare(b)
+    );
     await this.set('label.registry', JSON.stringify(next));
     return next;
   }

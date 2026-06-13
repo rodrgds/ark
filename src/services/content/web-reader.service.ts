@@ -68,9 +68,7 @@ function htmlToReadableText(value: string) {
   const html = value.trim();
   if (!html) return '';
   const parsed = parseHTML(html);
-  return (
-    parsed.document.body?.textContent ?? parsed.document.documentElement?.textContent ?? html
-  )
+  return (parsed.document.body?.textContent ?? parsed.document.documentElement?.textContent ?? html)
     .replace(/\s+/g, ' ')
     .trim();
 }

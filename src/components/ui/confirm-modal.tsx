@@ -28,11 +28,7 @@ export function ConfirmModal({
   if (!visible) return null;
 
   return (
-    <ArkBottomSheet
-      visible={visible}
-      title={title}
-      description={description}
-      onDismiss={onCancel}>
+    <ArkBottomSheet visible={visible} title={title} description={description} onDismiss={onCancel}>
       <View className="w-full gap-2">
         <Button
           className="w-full"

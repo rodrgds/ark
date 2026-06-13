@@ -22,8 +22,10 @@ export function utf8ByteLength(str: string): number {
     const code = str.charCodeAt(i);
     if (code <= 0x7f) length += 1;
     else if (code <= 0x7ff) length += 2;
-    else if (code >= 0xd800 && code <= 0xdfff) { length += 4; i++; }
-    else length += 3;
+    else if (code >= 0xd800 && code <= 0xdfff) {
+      length += 4;
+      i++;
+    } else length += 3;
   }
   return length;
 }

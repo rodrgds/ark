@@ -6,7 +6,7 @@ import { marked } from 'marked';
 export class GuidePdfService {
   static async export(pack: ContentPack) {
     if (!pack.localUri) throw new Error('This guide is not available offline.');
-    
+
     const content = await FileSystem.readAsStringAsync(pack.localUri, {
       encoding: FileSystem.EncodingType.UTF8,
     });

@@ -19,7 +19,7 @@ Transformations are possible in three ways:
   `"debug"` via `LogManager`:
 
 ```ts
-LogManager.setLogLevel("debug");
+LogManager.setLogLevel('debug');
 ```
 
 ## Methods
@@ -49,9 +49,9 @@ in-place updates; if omitted an id is auto-generated and returned.
 
 ```ts
 TransformRequestManager.addUrlTransform({
-  id: "force-https",
-  find: "^http://",
-  replace: "https://",
+  id: 'force-https',
+  find: '^http://',
+  replace: 'https://',
 });
 ```
 
@@ -59,10 +59,10 @@ TransformRequestManager.addUrlTransform({
 
 ```ts
 TransformRequestManager.addUrlTransform({
-  id: "proxy",
-  match: "tiles\\.example\\.com",
-  find: "tiles\\.example\\.com",
-  replace: "proxy.example.com",
+  id: 'proxy',
+  match: 'tiles\\.example\\.com',
+  find: 'tiles\\.example\\.com',
+  replace: 'proxy.example.com',
 });
 ```
 
@@ -70,10 +70,10 @@ TransformRequestManager.addUrlTransform({
 
 ```ts
 TransformRequestManager.addUrlTransform({
-  id: "api-key",
-  match: "api\\.example\\.com",
-  find: "(https://api\\.example\\.com/)(.*)",
-  replace: "$1mySecretKey/$2",
+  id: 'api-key',
+  match: 'api\\.example\\.com',
+  find: '(https://api\\.example\\.com/)(.*)',
+  replace: '$1mySecretKey/$2',
 });
 ```
 
@@ -116,8 +116,8 @@ in-place updates; if omitted an id is auto-generated and returned.
 ```ts
 TransformRequestManager.addUrlSearchParam({
   match: /tiles\.example\.com/,
-  name: "apiKey",
-  value: "your-api-key",
+  name: 'apiKey',
+  value: 'your-api-key',
 });
 ```
 
@@ -125,8 +125,8 @@ TransformRequestManager.addUrlSearchParam({
 
 ```ts
 TransformRequestManager.addUrlSearchParam({
-  name: "apiKey",
-  value: "your-api-key",
+  name: 'apiKey',
+  value: 'your-api-key',
 });
 ```
 
@@ -170,8 +170,8 @@ TransformRequestManager.addHeader({ name: "Authorization", value: "Bearer token1
 
 ```ts
 TransformRequestManager.addHeader({
-  name: "X-API-Key",
-  value: "key123",
+  name: 'X-API-Key',
+  value: 'key123',
   match: /https:\/\/api\.example\.com\/tiles\//,
 });
 ```

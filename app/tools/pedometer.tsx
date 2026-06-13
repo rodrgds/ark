@@ -14,12 +14,12 @@ type Status = 'idle' | 'requesting' | 'denied' | 'unavailable' | 'ready';
 export default function PedometerTool() {
   const theme = useThemeStore((state) => state.effectiveTheme);
   const palette = NAV_COLORS[theme];
-  const [status, setStatus]       = React.useState<Status>('idle');
+  const [status, setStatus] = React.useState<Status>('idle');
   const [baseSteps, setBaseSteps] = React.useState(0);
-  const [session, setSession]     = React.useState(0);
-  const setStoreSteps             = useSensorStore((state) => state.setSteps);
-  const baseRef                   = React.useRef(0);
-  const stopRef                   = React.useRef<(() => void) | null>(null);
+  const [session, setSession] = React.useState(0);
+  const setStoreSteps = useSensorStore((state) => state.setSteps);
+  const baseRef = React.useRef(0);
+  const stopRef = React.useRef<(() => void) | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -29,11 +29,17 @@ export default function PedometerTool() {
 
       const granted = await PedometerService.requestPermission();
       if (cancelled) return;
-      if (!granted) { setStatus('denied'); return; }
+      if (!granted) {
+        setStatus('denied');
+        return;
+      }
 
       const available = await PedometerService.isAvailable();
       if (cancelled) return;
-      if (!available) { setStatus('unavailable'); return; }
+      if (!available) {
+        setStatus('unavailable');
+        return;
+      }
 
       // iOS: get historical steps since midnight as baseline
       // Android: getTodaySteps now works via getStepCountAsync with date range
@@ -63,7 +69,7 @@ export default function PedometerTool() {
       stopRef.current = null;
       setStoreSteps(null);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const retryAfterDenied = React.useCallback(async () => {
@@ -71,9 +77,15 @@ export default function PedometerTool() {
     stopRef.current?.();
     stopRef.current = null;
     const granted = await PedometerService.requestPermission();
-    if (!granted) { setStatus('denied'); return; }
+    if (!granted) {
+      setStatus('denied');
+      return;
+    }
     const available = await PedometerService.isAvailable();
-    if (!available) { setStatus('unavailable'); return; }
+    if (!available) {
+      setStatus('unavailable');
+      return;
+    }
     const { steps: base } = await PedometerService.getTodaySteps();
     baseRef.current = base;
     setBaseSteps(base);
@@ -85,16 +97,13 @@ export default function PedometerTool() {
     setStatus('ready');
   }, [setStoreSteps]);
 
-  const total      = baseSteps + session;
-  const goal       = 10_000;
-  const progress   = Math.min(total / goal, 1);
+  const total = baseSteps + session;
+  const goal = 10_000;
+  const progress = Math.min(total / goal, 1);
   const distanceKm = (total * 0.000762).toFixed(2);
-  const calories   = Math.round(total * 0.04);
+  const calories = Math.round(total * 0.04);
   const success = '#22c55e';
-  const cardStyle = [
-    styles.card,
-    { backgroundColor: palette.card, borderColor: palette.border },
-  ];
+  const cardStyle = [styles.card, { backgroundColor: palette.card, borderColor: palette.border }];
 
   if (status === 'denied') {
     return (
@@ -146,7 +155,6 @@ export default function PedometerTool() {
   return (
     <Screen style={[styles.screen, { backgroundColor: palette.background }]}>
       <Card style={cardStyle}>
-
         <View style={styles.stepsRow}>
           <Text style={[styles.stepsNum, { color: palette.foreground }]}>
             {total.toLocaleString()}
@@ -154,7 +162,8 @@ export default function PedometerTool() {
           <Text style={[styles.stepsLabel, { color: palette.mutedForeground }]}>steps today</Text>
         </View>
 
-        <View style={[styles.progressTrack, { backgroundColor: hexToRgba(palette.foreground, 0.14) }]}>
+        <View
+          style={[styles.progressTrack, { backgroundColor: hexToRgba(palette.foreground, 0.14) }]}>
           <View
             style={[
               styles.progressFill,
@@ -185,7 +194,6 @@ export default function PedometerTool() {
             <Text style={[styles.statLabel, { color: palette.mutedForeground }]}>session</Text>
           </View>
         </View>
-
       </Card>
     </Screen>
   );

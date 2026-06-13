@@ -52,8 +52,8 @@ the guide corresponding to your app setup:
 After completing the installation and rebuilding the app, you can start using the library:
 
 ```tsx
-import React from "react";
-import { Map } from "@maplibre/maplibre-react-native";
+import React from 'react';
+import { Map } from '@maplibre/maplibre-react-native';
 
 function App() {
   return <Map mapStyle="https://demotiles.maplibre.org/style.json" />;

@@ -80,11 +80,7 @@ export class MapPresetsService {
   }
 
   static getRegionUpdateState(region: MapRegion) {
-    return getMapRegionUpdateState(
-      region,
-      this.findPresetForRegion(region),
-      activeCatalog.version
-    );
+    return getMapRegionUpdateState(region, this.findPresetForRegion(region), activeCatalog.version);
   }
 
   static recommendedForLocation(location?: { latitude: number; longitude: number } | null) {
@@ -106,7 +102,11 @@ export class MapPresetsService {
         .concat(regions.filter((preset) => !containing.includes(preset)))
         .slice(0, 6);
     }
-    return sortRegionsByDistanceFromCoordinate(regions, location.latitude, location.longitude).slice(0, 6);
+    return sortRegionsByDistanceFromCoordinate(
+      regions,
+      location.latitude,
+      location.longitude
+    ).slice(0, 6);
   }
 }
 

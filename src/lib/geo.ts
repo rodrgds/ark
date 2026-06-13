@@ -4,12 +4,7 @@ export function toRadians(degrees: number) {
   return (degrees * Math.PI) / 180;
 }
 
-export function haversineMeters(
-  latA: number,
-  lonA: number,
-  latB: number,
-  lonB: number
-) {
+export function haversineMeters(latA: number, lonA: number, latB: number, lonB: number) {
   const deltaLat = toRadians(latB - latA);
   const deltaLon = toRadians(lonB - lonA);
   const a =

@@ -44,11 +44,7 @@ describe('map region utilities', () => {
   });
 
   test('finds regions that intersect a viewed bounding box', () => {
-    const matches = getRegionsForBoundingBox([-9.4, 38.55, -8.9, 38.9], [
-      portugal,
-      lisbon,
-      porto,
-    ]);
+    const matches = getRegionsForBoundingBox([-9.4, 38.55, -8.9, 38.9], [portugal, lisbon, porto]);
 
     expect(matches.map((match) => match.id)).toEqual(['pt-lisbon', 'pt']);
   });

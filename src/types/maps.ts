@@ -1,8 +1,4 @@
-export type MapRegionPackFormat =
-  | 'maplibre_offline_pack'
-  | 'pmtiles'
-  | 'mbtiles'
-  | 'vector_tiles';
+export type MapRegionPackFormat = 'maplibre_offline_pack' | 'pmtiles' | 'mbtiles' | 'vector_tiles';
 
 export type MapManifestRegion = {
   id: string;

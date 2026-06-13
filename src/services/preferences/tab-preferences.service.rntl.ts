@@ -22,7 +22,8 @@ describe('TabPreferencesService', () => {
     settings.set('tabs.order', JSON.stringify(['tools', 'map', 'ghost', 'chat', 'map']));
     settings.set('tabs.enabled', JSON.stringify(['map', 'library', 'ghost', 'map']));
 
-    const { TabPreferencesService } = await import('@/services/preferences/tab-preferences.service');
+    const { TabPreferencesService } =
+      await import('@/services/preferences/tab-preferences.service');
 
     await expect(TabPreferencesService.getPreferences()).resolves.toEqual({
       order: ['tools', 'map', 'chat', 'library', 'notes', 'settings'],
@@ -31,18 +32,14 @@ describe('TabPreferencesService', () => {
   });
 
   test('persists normalized order and refuses to disable locked tabs', async () => {
-    const { TabPreferencesService } = await import('@/services/preferences/tab-preferences.service');
+    const { TabPreferencesService } =
+      await import('@/services/preferences/tab-preferences.service');
     const listener = mock(() => undefined);
     const unsubscribe = TabPreferencesService.subscribe(listener);
 
-    await expect(TabPreferencesService.setOrder(['notes', 'map', 'notes'] as never)).resolves.toEqual([
-      'notes',
-      'map',
-      'chat',
-      'library',
-      'tools',
-      'settings',
-    ]);
+    await expect(
+      TabPreferencesService.setOrder(['notes', 'map', 'notes'] as never)
+    ).resolves.toEqual(['notes', 'map', 'chat', 'library', 'tools', 'settings']);
     expect(JSON.parse(settings.get('tabs.order') ?? '[]')).toEqual([
       'notes',
       'map',

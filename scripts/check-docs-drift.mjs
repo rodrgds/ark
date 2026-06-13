@@ -23,13 +23,17 @@ const checks = [
   {
     name: 'lib modules',
     expected: 10,
-    actual: await countFiles('src/lib', (name) => name.endsWith('.ts') && !name.endsWith('.test.ts')),
+    actual: await countFiles(
+      'src/lib',
+      (name) => name.endsWith('.ts') && !name.endsWith('.test.ts')
+    ),
   },
   {
     name: 'ui primitives',
     expected: 11,
-    actual: await countFiles('src/components/ui', (name) =>
-      name.endsWith('.tsx') && !name.endsWith('.test.tsx')
+    actual: await countFiles(
+      'src/components/ui',
+      (name) => name.endsWith('.tsx') && !name.endsWith('.test.tsx')
     ),
   },
   {
@@ -97,20 +101,14 @@ async function countDirs(dir) {
 }
 
 async function findLatestPragmaVersion() {
-  const text = await readFile(
-    resolve(repoRoot, 'src/services/db/migrations.ts'),
-    'utf8'
-  );
+  const text = await readFile(resolve(repoRoot, 'src/services/db/migrations.ts'), 'utf8');
   const matches = [...text.matchAll(/PRAGMA user_version = (\d+)/g)];
   if (!matches.length) return null;
   return Math.max(...matches.map((m) => Number(m[1])));
 }
 
 async function countMigrations(predicate) {
-  const text = await readFile(
-    resolve(repoRoot, 'src/services/db/migrations.ts'),
-    'utf8'
-  );
+  const text = await readFile(resolve(repoRoot, 'src/services/db/migrations.ts'), 'utf8');
   const lines = text.split('\n');
   const dedup = new Set();
   for (const line of lines) {

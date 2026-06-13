@@ -508,8 +508,8 @@ Query rendered features at a point
 
 ```ts
 await mapRef.current?.queryRenderedFeatures([240, 640], {
-  filter: ["==", "type", "Point"],
-  layers: ["restaurants", "shops"],
+  filter: ['==', 'type', 'Point'],
+  layers: ['restaurants', 'shops'],
 });
 ```
 
@@ -533,8 +533,8 @@ Query rendered features within pixel bounds
 
 ```ts
 await mapRef.current?.queryRenderedFeatures([100, 100, 400, 400], {
-  filter: ["==", "type", "Point"],
-  layers: ["restaurants", "shops"],
+  filter: ['==', 'type', 'Point'],
+  layers: ['restaurants', 'shops'],
 });
 ```
 
@@ -552,8 +552,8 @@ Query rendered features within the current viewport
 
 ```ts
 await mapRef.current?.queryRenderedFeatures({
-  filter: ["==", "type", "Point"],
-  layers: ["restaurants", "shops"],
+  filter: ['==', 'type', 'Point'],
+  layers: ['restaurants', 'shops'],
 });
 ```
 
@@ -601,7 +601,7 @@ Identifier of the target source-layer (e.g. 'building')
 **Returns:** `Promise<void>`
 
 ```ts
-await mapRef.current?.setSourceVisibility(false, "composite", "building");
+await mapRef.current?.setSourceVisibility(false, 'composite', 'building');
 ```
 
 ### `showAttribution()`

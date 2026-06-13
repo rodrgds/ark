@@ -121,7 +121,7 @@ export class GeocodingService {
       const dataStr = await SettingsRepository.get(GEOCODE_CACHE_KEY);
       if (!dataStr) return [];
       const cache: GeocodeCache = JSON.parse(dataStr);
-      
+
       // Match exact or prefix
       for (const cachedQuery of Object.keys(cache)) {
         if (cachedQuery.includes(query) || query.includes(cachedQuery)) {
@@ -138,15 +138,15 @@ export class GeocodingService {
     try {
       const dataStr = await SettingsRepository.get(GEOCODE_CACHE_KEY);
       const cache: GeocodeCache = dataStr ? JSON.parse(dataStr) : {};
-      
+
       cache[query] = results;
-      
+
       // Keep cache small
       const keys = Object.keys(cache);
       if (keys.length > 50) {
         delete cache[keys[0]];
       }
-      
+
       await SettingsRepository.set(GEOCODE_CACHE_KEY, JSON.stringify(cache));
     } catch {
       // Best effort
@@ -155,24 +155,26 @@ export class GeocodingService {
 
   private static parsePhotonResponse(data: any): OfflineMapSearchResult[] {
     if (!data || !data.features || !Array.isArray(data.features)) return [];
-    
-    return data.features.map((feature: any) => {
-      const { properties, geometry } = feature;
-      const [longitude, latitude] = geometry.coordinates;
-      
-      let subtitle = properties.city || properties.state || properties.country || '';
-      if (properties.street) {
-        subtitle = `${properties.street}, ${subtitle}`;
-      }
 
-      return {
-        id: `photon-${properties.osm_id || Math.random().toString()}`,
-        kind: 'spot',
-        title: properties.name || properties.street || 'Unknown place',
-        subtitle: subtitle.replace(/^, /, '').trim() || 'Location',
-        latitude,
-        longitude,
-      };
-    }).filter((r: any) => r.title !== 'Unknown place');
+    return data.features
+      .map((feature: any) => {
+        const { properties, geometry } = feature;
+        const [longitude, latitude] = geometry.coordinates;
+
+        let subtitle = properties.city || properties.state || properties.country || '';
+        if (properties.street) {
+          subtitle = `${properties.street}, ${subtitle}`;
+        }
+
+        return {
+          id: `photon-${properties.osm_id || Math.random().toString()}`,
+          kind: 'spot',
+          title: properties.name || properties.street || 'Unknown place',
+          subtitle: subtitle.replace(/^, /, '').trim() || 'Location',
+          latitude,
+          longitude,
+        };
+      })
+      .filter((r: any) => r.title !== 'Unknown place');
   }
 }

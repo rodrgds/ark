@@ -19,9 +19,7 @@ describe('ark-ocr native module packaging', () => {
       platforms: string[];
       android: { modules: string[] };
       apple: { modules: string[] };
-    }>(
-      join(moduleRoot, 'expo-module.config.json')
-    );
+    }>(join(moduleRoot, 'expo-module.config.json'));
 
     expect(appPackage.dependencies['ark-ocr']).toBe('./modules/ark-ocr');
     expect(modulePackage.name).toBe('ark-ocr');

@@ -149,8 +149,8 @@ export function AiSection({
         <View className="gap-1">
           <Text variant="large">Source search model</Text>
           <Text variant="muted">
-            These ExecuTorch models retrieve local sources. Changing models downloads the
-            selected model and rebuilds vectors as sources are indexed.
+            These ExecuTorch models retrieve local sources. Changing models downloads the selected
+            model and rebuilds vectors as sources are indexed.
           </Text>
         </View>
         <View className="gap-2">

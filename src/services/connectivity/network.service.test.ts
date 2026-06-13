@@ -23,9 +23,7 @@ describe('NetworkService', () => {
     const { NetworkService } = await import('@/services/connectivity/network.service');
 
     expect(
-      NetworkService.isOnline(
-        netState({ type: 'vpn' as NetInfoState['type'], isConnected: true })
-      )
+      NetworkService.isOnline(netState({ type: 'vpn' as NetInfoState['type'], isConnected: true }))
     ).toBe(false);
   });
 

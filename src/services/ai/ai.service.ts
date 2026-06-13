@@ -239,10 +239,7 @@ export class AIService {
         request.threadId = threadId;
         activeRequests.set(threadId, request);
       }
-      if (
-        'selectedModelId' in validated ||
-        typeof validated.chatModelDisabled === 'boolean'
-      ) {
+      if ('selectedModelId' in validated || typeof validated.chatModelDisabled === 'boolean') {
         await this.updateThreadModelSettings(threadId, {
           selectedModelId: validated.selectedModelId ?? null,
           chatModelDisabled: validated.chatModelDisabled ?? null,

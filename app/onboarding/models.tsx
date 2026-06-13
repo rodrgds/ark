@@ -216,10 +216,7 @@ function getFriendlyModelPresentation(pack: ContentPackManifest) {
       };
     default:
       return {
-        title:
-          pack.modelRole === 'embedding'
-            ? 'Offline source search'
-            : 'Offline answer writer',
+        title: pack.modelRole === 'embedding' ? 'Offline source search' : 'Offline answer writer',
         description: pack.description,
       };
   }

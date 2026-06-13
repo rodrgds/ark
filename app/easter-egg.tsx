@@ -337,7 +337,11 @@ export default function EasterEggRunnerScreen() {
                 },
                 sunRotationStyle,
               ]}>
-              <Image source={SUN_SPRITE} style={{ width: sunSize, height: sunSize }} resizeMode="contain" />
+              <Image
+                source={SUN_SPRITE}
+                style={{ width: sunSize, height: sunSize }}
+                resizeMode="contain"
+              />
             </Animated.View>
             <Image
               source={CLOUD_SPRITE}
@@ -498,7 +502,7 @@ export default function EasterEggRunnerScreen() {
           ))}
 
           {running ? (
-            <View className="absolute left-3 top-3 rounded-md bg-black/35 px-2 py-1">
+            <View className="absolute top-3 left-3 rounded-md bg-black/35 px-2 py-1">
               <Text className="text-sm text-[#E5E7EB]">{`Score: ${score}`}</Text>
             </View>
           ) : (

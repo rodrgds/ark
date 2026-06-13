@@ -19,8 +19,7 @@ export type ReaderContent = {
 
 function getReaderThemeCss(theme: ThemePreference) {
   const colors = NAV_COLORS[theme];
-  const selection =
-    theme === 'light' ? 'rgba(74, 87, 66, 0.18)' : 'rgba(149, 167, 139, 0.28)';
+  const selection = theme === 'light' ? 'rgba(74, 87, 66, 0.18)' : 'rgba(149, 167, 139, 0.28)';
 
   return `
   :root {
@@ -154,7 +153,7 @@ export class GuideReaderService {
 
       // Configure marked to add IDs to headers
       const renderer = new marked.Renderer();
-      renderer.heading = function({ text, depth }) {
+      renderer.heading = function ({ text, depth }) {
         const id = slugify(text);
         return `<h${depth} id="${id}">${text}</h${depth}>`;
       };

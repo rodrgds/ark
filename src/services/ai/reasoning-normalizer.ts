@@ -4,8 +4,7 @@ export type NormalizedReasoningOutput = {
 };
 
 const CHANNEL_TOKEN_PATTERN = /<\|channel\|>|<\|channel>|<channel\|>/gi;
-const FINAL_MARKER_PATTERN =
-  /(?:^|\n)\s*(?:final|final answer|answer|assistant)\s*[:\n-]\s*/i;
+const FINAL_MARKER_PATTERN = /(?:^|\n)\s*(?:final|final answer|answer|assistant)\s*[:\n-]\s*/i;
 
 type NormalizeOptions = {
   recoverFinalFromUnclosedReasoning?: boolean;

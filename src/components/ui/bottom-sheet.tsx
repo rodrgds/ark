@@ -110,14 +110,11 @@ export function ArkBottomSheet({
     [detents.length]
   );
 
-  const handleIndexChange = React.useCallback(
-    (nextIndex: number) => {
-      setSheetState((current) =>
-        current.index === nextIndex ? current : { ...current, index: nextIndex }
-      );
-    },
-    []
-  );
+  const handleIndexChange = React.useCallback((nextIndex: number) => {
+    setSheetState((current) =>
+      current.index === nextIndex ? current : { ...current, index: nextIndex }
+    );
+  }, []);
 
   const handleSettle = React.useCallback(
     (nextIndex: number) => {

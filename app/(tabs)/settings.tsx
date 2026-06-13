@@ -656,7 +656,6 @@ export default function SettingsScreen() {
           <AboutSection version="1.0.0 MVP" onBuildTap={handleBuildTap} />
         </>
       ) : null}
-
     </Screen>
   );
 }

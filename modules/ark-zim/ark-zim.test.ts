@@ -40,7 +40,17 @@ describe('ArkZim local module', () => {
   test('compiles Android through the Expo module Gradle plugin and libzim binding', () => {
     const gradle = readFileSync(join(moduleRoot, 'android', 'build.gradle'), 'utf8');
     const kotlin = readFileSync(
-      join(moduleRoot, 'android', 'src', 'main', 'java', 'expo', 'modules', 'arkzim', 'ArkZimModule.kt'),
+      join(
+        moduleRoot,
+        'android',
+        'src',
+        'main',
+        'java',
+        'expo',
+        'modules',
+        'arkzim',
+        'ArkZimModule.kt'
+      ),
       'utf8'
     );
 

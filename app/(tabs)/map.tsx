@@ -14,7 +14,10 @@ import { formatPoint } from '@/lib/geo';
 import { FileSystemService } from '@/services/files/filesystem.service';
 import { MapService, type MapLibreModule } from '@/services/maps/map.service';
 import { MapLocationService, type MapLocationIssue } from '@/services/maps/map-location.service';
-import { getMapPackFormatLabel, getUnsupportedMapPackReason } from '@/services/maps/map-pack-format';
+import {
+  getMapPackFormatLabel,
+  getUnsupportedMapPackReason,
+} from '@/services/maps/map-pack-format';
 import { startPresetRegionDownload } from '@/services/maps/map-region-downloads';
 import { MapPresetsService } from '@/services/maps/map-presets.service';
 import { formatMapRegionStorage } from '@/services/maps/map-storage';
@@ -685,8 +688,10 @@ export default function MapScreen() {
         const shouldMoveToFreshPosition =
           shouldCenterMap ||
           !resolution.lastKnown ||
-          centerDistance(locationToCenter(resolution.lastKnown), locationToCenter(resolution.current)) >
-            CENTER_UPDATE_EPSILON_DEGREES;
+          centerDistance(
+            locationToCenter(resolution.lastKnown),
+            locationToCenter(resolution.current)
+          ) > CENTER_UPDATE_EPSILON_DEGREES;
         applyUserPosition(resolution.current, shouldMoveToFreshPosition, 15, showBusy ? 260 : 420);
       } else if (resolution.issue) {
         setLocationIssue(resolution.issue);
@@ -989,9 +994,7 @@ export default function MapScreen() {
       ) : null}
 
       {!isPlacing ? (
-        <View
-          className="absolute right-3 gap-2"
-          style={{ bottom: bottomControlOffset }}>
+        <View className="absolute right-3 gap-2" style={{ bottom: bottomControlOffset }}>
           <MapFab label="Locate me" loading={busy === 'locate'} onPress={locateMe} text="Me" />
           <MapFab
             icon={MapPin}
@@ -1010,9 +1013,7 @@ export default function MapScreen() {
         </View>
       ) : null}
 
-      <View
-        className="absolute left-3 w-72 gap-2"
-        style={{ bottom: bottomControlOffset }}>
+      <View className="absolute left-3 w-72 gap-2" style={{ bottom: bottomControlOffset }}>
         {locationIssue && !userLocation ? (
           <LocationNoticeCard
             issue={locationIssue}
@@ -1121,13 +1122,15 @@ export default function MapScreen() {
 
       <MissingRegionPromptModal
         visible={Boolean(visibleMissingRegionPrompt && netInfo.isConnected)}
-        busy={Boolean(visibleMissingRegionPrompt && busy === `download:${visibleMissingRegionPrompt.id}`)}
+        busy={Boolean(
+          visibleMissingRegionPrompt && busy === `download:${visibleMissingRegionPrompt.id}`
+        )}
         region={visibleMissingRegionPrompt}
         downloadingRegion={
           activeDownloadingRegion &&
           visibleMissingRegionPrompt &&
           (activeDownloadingRegion.manifestRegionId === visibleMissingRegionPrompt.id ||
-           activeDownloadingRegion.name === visibleMissingRegionPrompt.name)
+            activeDownloadingRegion.name === visibleMissingRegionPrompt.name)
             ? activeDownloadingRegion
             : null
         }
@@ -1261,7 +1264,10 @@ function MapCanvas({
         onCenterChange(event.nativeEvent.center);
         onBoundsChange(normalizeMapEventBounds(event.nativeEvent.bounds));
         onBearingChange(event.nativeEvent.bearing ?? 0);
-        const nextZoom = event.nativeEvent.zoom ?? event.nativeEvent.zoomLevel ?? event.nativeEvent.properties?.zoomLevel;
+        const nextZoom =
+          event.nativeEvent.zoom ??
+          event.nativeEvent.zoomLevel ??
+          event.nativeEvent.properties?.zoomLevel;
         if (nextZoom != null) {
           onZoomChange?.(nextZoom);
         }
@@ -1488,15 +1494,19 @@ function MissingRegionPromptModal({
       className="absolute inset-0 items-center justify-center p-4"
       pointerEvents="box-none">
       <View className="w-full max-w-xs" pointerEvents="box-none">
-        <Card className="border-primary/35 bg-background/95 gap-4 p-5 shadow-2xl" pointerEvents="auto">
+        <Card
+          className="border-primary/35 bg-background/95 gap-4 p-5 shadow-2xl"
+          pointerEvents="auto">
           <View className="items-center gap-1">
-            <Text variant="h3" className="text-center">{name}</Text>
+            <Text variant="h3" className="text-center">
+              {name}
+            </Text>
             {downloadingRegion ? (
-              <Text className="text-muted-foreground font-medium text-sm">
+              <Text className="text-muted-foreground text-sm font-medium">
                 Downloading... {Math.round((downloadingRegion.progress || 0) * 100)}%
               </Text>
             ) : (
-              <Text className="text-muted-foreground font-medium text-sm">{size}</Text>
+              <Text className="text-muted-foreground text-sm font-medium">{size}</Text>
             )}
           </View>
           {downloadingRegion ? (
@@ -1509,7 +1519,11 @@ function MissingRegionPromptModal({
               size="default"
               onPress={() => onDownload(activeRegion || undefined)}
               className="mt-2">
-              {busy ? <ActivityIndicator size="small" /> : <Icon as={Download} className="size-4" />}
+              {busy ? (
+                <ActivityIndicator size="small" />
+              ) : (
+                <Icon as={Download} className="size-4" />
+              )}
               <Text>{unsupported ? 'Planned' : 'Download Map'}</Text>
             </Button>
           )}
@@ -1636,7 +1650,13 @@ function WorldOverviewFallback({ status }: { status: string }) {
   );
 }
 
-const MarkerDot = React.memo(function MarkerDot({ marker, selected }: { marker: MapMarker; selected: boolean }) {
+const MarkerDot = React.memo(function MarkerDot({
+  marker,
+  selected,
+}: {
+  marker: MapMarker;
+  selected: boolean;
+}) {
   const color = marker.color || getMapPinMeta(marker.pinType).color;
   const PinIcon = iconForPinType(marker.pinType);
   return (
@@ -1674,10 +1694,7 @@ function UserLocationDot({ mapBearing }: { mapBearing: number }) {
           className="absolute"
           style={{ transform: [{ rotate: `${heading - mapBearing}deg` }] }}>
           <Svg width={100} height={100} viewBox="0 0 100 100">
-            <Path
-              d="M50 50 L75 5 A 40 40 0 0 0 25 5 Z"
-              fill="rgba(149, 167, 139, 0.45)"
-            />
+            <Path d="M50 50 L75 5 A 40 40 0 0 0 25 5 Z" fill="rgba(149, 167, 139, 0.45)" />
           </Svg>
         </View>
       ) : null}
@@ -1924,18 +1941,12 @@ const OfflineSearchResultRow = React.memo(function OfflineSearchResultRow({
       className="h-auto min-h-14 items-start justify-start px-2 py-2"
       variant="ghost"
       onPress={onOpen}>
-      <Icon
-        as={iconForSearchResult(result.kind)}
-        className="text-primary mt-0.5 size-4"
-      />
+      <Icon as={iconForSearchResult(result.kind)} className="text-primary mt-0.5 size-4" />
       <View className="min-w-0 flex-1 items-start gap-1">
         <Text className="text-sm leading-5" numberOfLines={1}>
           {result.title}
         </Text>
-        <Text
-          variant="small"
-          className="text-muted-foreground leading-4"
-          numberOfLines={2}>
+        <Text variant="small" className="text-muted-foreground leading-4" numberOfLines={2}>
           {labelForSearchResult(result.kind)} · {result.subtitle}
         </Text>
       </View>

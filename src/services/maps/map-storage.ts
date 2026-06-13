@@ -18,7 +18,9 @@ export function formatMapRegionStorage(region: Pick<MapRegion, 'estimatedSizeMb'
   return 'Size pending';
 }
 
-export function summarizeMapRegionStorage(regions: Array<Pick<MapRegion, 'estimatedSizeMb' | 'sizeBytes'>>) {
+export function summarizeMapRegionStorage(
+  regions: Array<Pick<MapRegion, 'estimatedSizeMb' | 'sizeBytes'>>
+) {
   const actualBytes = regions.reduce((total, region) => total + (region.sizeBytes ?? 0), 0);
   const estimatedPendingBytes = regions.reduce((total, region) => {
     if (region.sizeBytes && region.sizeBytes > 0) return total;

@@ -8,4 +8,3 @@ export function circularSpreadDeg(angles: number[]): number {
   }
   return 360 - largestGap;
 }
-

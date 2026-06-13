@@ -13,13 +13,7 @@ import type { Note } from '@/types/db';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { ChevronLeft, Check, TriangleAlert } from 'lucide-react-native';
 import * as React from 'react';
-import {
-  ActivityIndicator,
-  Platform,
-  TextInput,
-  useWindowDimensions,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Platform, TextInput, useWindowDimensions, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -341,13 +335,13 @@ export default function NoteEditorScreen() {
                 color={noteTheme.foreground}
                 hintColor={noteTheme.mutedForeground}
               />
-              <View className="flex-row items-center gap-1 -mt-1">
+              <View className="-mt-1 flex-row items-center gap-1">
                 {saveState === 'saving' || saving ? (
                   <ActivityIndicator size={10} color={noteTheme.mutedForeground} />
                 ) : saveState === 'saved' ? (
                   <Icon as={Check} className="size-2.5" color={noteTheme.mutedForeground} />
                 ) : saveState === 'error' ? (
-                  <Icon as={TriangleAlert} className="size-2.5 text-destructive" />
+                  <Icon as={TriangleAlert} className="text-destructive size-2.5" />
                 ) : null}
                 {saveState !== 'idle' && (
                   <Text

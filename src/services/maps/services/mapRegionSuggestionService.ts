@@ -71,7 +71,8 @@ export function sortCandidateRegionsForSuggestion(
 export function getBestMissingRegionSuggestion(
   input: RegionSuggestionInput
 ): MapCatalogRegion | null {
-  const { viewport, regions, downloadedRegionIds, dismissedRegionIds, activeDownloadRegionIds } = input;
+  const { viewport, regions, downloadedRegionIds, dismissedRegionIds, activeDownloadRegionIds } =
+    input;
   const { center, zoom } = viewport;
 
   // 1. Find all downloadable regions whose bbox contains the viewport center.

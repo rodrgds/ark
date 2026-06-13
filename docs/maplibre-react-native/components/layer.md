@@ -19,8 +19,8 @@ definitions.
   type="fill"
   id="parks"
   source="parks-source"
-  paint={{ "fill-color": "green", "fill-opacity": 0.5 }}
-  layout={{ visibility: "visible" }}
+  paint={{ 'fill-color': 'green', 'fill-opacity': 0.5 }}
+  layout={{ visibility: 'visible' }}
 />
 ```
 
@@ -32,15 +32,7 @@ definitions.
   id="parks"
   source="parks-source"
   paint={{
-    "fill-color": [
-      "interpolate",
-      ["linear"],
-      ["get", "elevation"],
-      0,
-      "blue",
-      100,
-      "red",
-    ],
+    'fill-color': ['interpolate', ['linear'], ['get', 'elevation'], 0, 'blue', 100, 'red'],
   }}
 />
 ```

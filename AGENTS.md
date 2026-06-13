@@ -3,6 +3,7 @@
 > Source of truth for any agent working on this codebase. Read this first.
 
 ## Recent changes
+
 - Tab reorganization: `NativeTabs` from `expo-router/unstable-native-tabs` with `TabPreferencesService` for user-configurable tab order/visibility. Tools tab hidden by default; chat + settings locked. `FunctionSearch` filters entries by enabled tabs.
 - `app/(tabs)/settings.tsx` refactored from 1982 → 679 lines. Each tab section now lives in `src/components/settings/`. `AppearanceSection`, `SecuritySection`, `BackupSection`, `AboutSection` (smallest), then `AiSection`, `OfflineMapsCard`, `DownloadsCard`, `DiagnosticsCard`, `EmbeddingIndexCard`, `ModelSection` (bigger). Local state (password inputs, model title/url/checksum, map search/browse) moved into the owning section.
 - Vault security: rate-limit with exponential backoff (5→30s, 10→5min, 15→1hr), autolock rewrite with background/active lifecycle, boot mutex idempotency, vault gates on editor save.
@@ -29,19 +30,19 @@
 
 ## Tech Stack
 
-| Layer           | Choice                             | Notes                                                                                       |
-| --------------- | ---------------------------------- | ------------------------------------------------------------------------------------------- |
-| Framework       | Expo SDK 55 + React Native 0.83    | Expo Go for MVP; dev builds for native features                                             |
-| Routing         | Expo Router (file-based)           | `app/` directory                                                                            |
-| Styling         | Tailwind CSS v4 + Uniwind v1.6     | `global.css` defines OLED/dark/light themes                                                 |
-| UI primitives   | shadcn-style (CVA + RN Primitives) | 11 components in `src/components/ui/` (Button, Text, Input, Card, Icon, plus Sheet, Skeleton, Markdown, Progress, ConfirmModal, BottomSheet) |
-| State           | Zustand v5                         | 4 stores in `src/stores/` (app, auth, theme, sensor)                                       |
-| Database        | expo-sqlite + custom migrations    | `PRAGMA user_version` pattern, FTS5 virtual tables, versioned to 18                          |
-| Icons           | lucide-react-native                | Wrapped via `src/components/ui/icon.tsx`                                                    |
-| Date handling   | date-fns v4                        |                                                                                             |
-| Validation      | zod v4                             | Installed but barely used                                                                   |
+| Layer           | Choice                             | Notes                                                                                                                                                                             |
+| --------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Framework       | Expo SDK 55 + React Native 0.83    | Expo Go for MVP; dev builds for native features                                                                                                                                   |
+| Routing         | Expo Router (file-based)           | `app/` directory                                                                                                                                                                  |
+| Styling         | Tailwind CSS v4 + Uniwind v1.6     | `global.css` defines OLED/dark/light themes                                                                                                                                       |
+| UI primitives   | shadcn-style (CVA + RN Primitives) | 11 components in `src/components/ui/` (Button, Text, Input, Card, Icon, plus Sheet, Skeleton, Markdown, Progress, ConfirmModal, BottomSheet)                                      |
+| State           | Zustand v5                         | 4 stores in `src/stores/` (app, auth, theme, sensor)                                                                                                                              |
+| Database        | expo-sqlite + custom migrations    | `PRAGMA user_version` pattern, FTS5 virtual tables, versioned to 18                                                                                                               |
+| Icons           | lucide-react-native                | Wrapped via `src/components/ui/icon.tsx`                                                                                                                                          |
+| Date handling   | date-fns v4                        |                                                                                                                                                                                   |
+| Validation      | zod v4                             | Installed but barely used                                                                                                                                                         |
 | Keyboard        | react-native-keyboard-controller   | Used by `src/components/layout/keyboard-controller.tsx` (ArkKeyboardProvider/AwareScrollView/AvoidingView) — Screen and OnboardingFrame upgrade to native controller when present |
-| Package manager | bun                                | Lockfile is `bun.lock`                                                                      |
+| Package manager | bun                                | Lockfile is `bun.lock`                                                                                                                                                            |
 
 ## Project Structure
 
@@ -241,15 +242,15 @@ Boot → index.tsx
 
 ### MOCK / STUB / PLACEHOLDER:
 
-| Feature                 | Status  | What's missing                                                                                                                                                                                      |
-| ----------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Map rendering           | PARTIAL | MapLibre is installed and dynamically loaded; native map rendering needs on-device dev-build verification and a production style URL.                                                               |
-| Offline map downloading | PARTIAL | MapLibre `OfflineManager.createPack()` is wired when native MapLibre exists; still needs real-device validation, drawn bounds, and offline geocoder/PMTiles index.                                  |
-| Local LLM inference     | PARTIAL | llama.rn is installed and dynamically loads installed GGUF models; still needs device memory tuning and runtime verification.                                                                       |
-| DB encryption           | PARTIAL | SecureStore SQLCipher key path is wired; still needs fresh encrypted DB proof, plaintext migration, and final vault-passphrase/device-key decision.                                                 |
-| Password KDF            | PARTIAL | v3 SHA-512 stretching is in place with legacy upgrades; still needs a custom Expo native libsodium Argon2id `ark-kdf` module before production.                                                     |
-| ZIM reader              | PARTIAL | Android ArkZim module compiles with libkiwix/libzim and the UI can search/open articles when native is available; iOS CoreKiwix binding and real-archive device testing remain.                     |
-| OCR/PDF indexing        | PARTIAL | Android `ark-ocr` compiles with ML Kit and PDFBox, images use on-device OCR, PDFs use text-layer extraction before OCR fallback; still needs real-device verification with scanned/searchable PDFs. |
+| Feature                 | Status  | What's missing                                                                                                                                                                                                 |
+| ----------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Map rendering           | PARTIAL | MapLibre is installed and dynamically loaded; native map rendering needs on-device dev-build verification and a production style URL.                                                                          |
+| Offline map downloading | PARTIAL | MapLibre `OfflineManager.createPack()` is wired when native MapLibre exists; still needs real-device validation, drawn bounds, and offline geocoder/PMTiles index.                                             |
+| Local LLM inference     | PARTIAL | llama.rn is installed and dynamically loads installed GGUF models; still needs device memory tuning and runtime verification.                                                                                  |
+| DB encryption           | PARTIAL | SecureStore SQLCipher key path is wired; still needs fresh encrypted DB proof, plaintext migration, and final vault-passphrase/device-key decision.                                                            |
+| Password KDF            | PARTIAL | v3 SHA-512 stretching is in place with legacy upgrades; still needs a custom Expo native libsodium Argon2id `ark-kdf` module before production.                                                                |
+| ZIM reader              | PARTIAL | Android ArkZim module compiles with libkiwix/libzim and the UI can search/open articles when native is available; iOS CoreKiwix binding and real-archive device testing remain.                                |
+| OCR/PDF indexing        | PARTIAL | Android `ark-ocr` compiles with ML Kit and PDFBox, images use on-device OCR, PDFs use text-layer extraction before OCR fallback; still needs real-device verification with scanned/searchable PDFs.            |
 | Component tests         | PARTIAL | 6 RNTL screen tests added (tab preferences, function search, chat index, tabs layout, note editor autosave); broader mounted coverage still growing. Detox onboarding coverage is intentionally deprioritized. |
 
 ## Theme System

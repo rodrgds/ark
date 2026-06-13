@@ -41,8 +41,7 @@ function canPreviewInWebView(document: ArkDocument) {
 
 function documentThemeScript(theme: ThemePreference) {
   const colors = NAV_COLORS[theme];
-  const selection =
-    theme === 'light' ? 'rgba(74, 87, 66, 0.18)' : 'rgba(149, 167, 139, 0.28)';
+  const selection = theme === 'light' ? 'rgba(74, 87, 66, 0.18)' : 'rgba(149, 167, 139, 0.28)';
 
   return `
 (function() {

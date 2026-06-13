@@ -105,7 +105,9 @@ function loadRuntime<T extends VoiceRuntimeModule>(
   if (!state.promise) {
     state.error = null;
     publishProgress(state, 0);
-    state.promise = loadWithTransientRetry(() => factory((progress) => publishProgress(state, progress)))
+    state.promise = loadWithTransientRetry(() =>
+      factory((progress) => publishProgress(state, progress))
+    )
       .then((moduleInstance) => {
         state.module = moduleInstance;
         state.error = null;

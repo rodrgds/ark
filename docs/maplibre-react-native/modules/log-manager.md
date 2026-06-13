@@ -41,5 +41,5 @@ Minimum log level
 Log levels in decreasing order of severity
 
 ```ts
-type LogLevel = "error" | "warn" | "info" | "debug" | "verbose";
+type LogLevel = 'error' | 'warn' | 'info' | 'debug' | 'verbose';
 ```

@@ -28,7 +28,9 @@ export function useArkSpeechToText() {
         })
         .catch((loadError) => {
           const nextError =
-            loadError instanceof Error ? loadError : new Error('Unable to load voice transcription.');
+            loadError instanceof Error
+              ? loadError
+              : new Error('Unable to load voice transcription.');
           setError(nextError);
           setIsReady(false);
           throw nextError;

@@ -142,5 +142,5 @@ function does not check tiles outside the visible viewport.
 **Returns:** `Promise<GeoJSON.Feature[]>`
 
 ```ts
-vectorSource.querySourceFeatures({ sourceLayer: "some-source-layer" });
+vectorSource.querySourceFeatures({ sourceLayer: 'some-source-layer' });
 ```

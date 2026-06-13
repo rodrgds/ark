@@ -299,151 +299,151 @@ export default function ContentDetailScreen() {
 
         {/* Status / Action Card */}
         {!(isZim && pack.installed) ? (
-        <Card className="border-border bg-card gap-4">
-          <View className="flex-row items-center justify-between">
-            <View className="flex-row flex-wrap gap-x-3 gap-y-1">
-              <Text
-                variant="small"
-                className="text-muted-foreground text-xs tracking-widest uppercase">
-                {pack.category}
-              </Text>
-              <Text variant="small" className="text-muted-foreground">
-                •
-              </Text>
-              <Text
-                variant="small"
-                className="text-muted-foreground text-xs tracking-widest uppercase">
-                {pack.estimatedSize}
-              </Text>
-            </View>
-            {pack.sourceLabel ? (
-              <Text variant="small" className="text-muted-foreground text-xs">
-                {pack.sourceLabel}
-              </Text>
-            ) : null}
-          </View>
-
-          {/* Download status / progress bar */}
-          {!pack.installed && !isLocalOnly && (
-            <View className="gap-2">
-              <Progress value={pack.progress} />
-              <View className="flex-row justify-between">
+          <Card className="border-border bg-card gap-4">
+            <View className="flex-row items-center justify-between">
+              <View className="flex-row flex-wrap gap-x-3 gap-y-1">
+                <Text
+                  variant="small"
+                  className="text-muted-foreground text-xs tracking-widest uppercase">
+                  {pack.category}
+                </Text>
                 <Text variant="small" className="text-muted-foreground">
-                  {pack.installStatus === 'downloading'
-                    ? `Downloading: ${Math.round(pack.progress * 100)}%`
-                    : pack.installStatus === 'verifying'
-                      ? 'Verifying file before installing'
-                      : pack.installStatus.replace('_', ' ')}
+                  •
+                </Text>
+                <Text
+                  variant="small"
+                  className="text-muted-foreground text-xs tracking-widest uppercase">
+                  {pack.estimatedSize}
                 </Text>
               </View>
+              {pack.sourceLabel ? (
+                <Text variant="small" className="text-muted-foreground text-xs">
+                  {pack.sourceLabel}
+                </Text>
+              ) : null}
             </View>
-          )}
 
-          {error ? <Text className="text-destructive text-sm">{error}</Text> : null}
+            {/* Download status / progress bar */}
+            {!pack.installed && !isLocalOnly && (
+              <View className="gap-2">
+                <Progress value={pack.progress} />
+                <View className="flex-row justify-between">
+                  <Text variant="small" className="text-muted-foreground">
+                    {pack.installStatus === 'downloading'
+                      ? `Downloading: ${Math.round(pack.progress * 100)}%`
+                      : pack.installStatus === 'verifying'
+                        ? 'Verifying file before installing'
+                        : pack.installStatus.replace('_', ' ')}
+                  </Text>
+                </View>
+              </View>
+            )}
 
-          {/* Primary Action Buttons */}
-          <View className="mt-1 flex-row gap-2">
-            {pack.installed ? (
-              <>
-                {!isZim ? (
-                  <Button
-                    className="bg-primary active:bg-primary/90 flex-1"
-                    disabled={busy}
-                    onPress={() => handleReadGuide()}>
-                    <Icon as={BookOpen} className="size-5" />
-                    <Text className="text-primary-foreground font-bold">Read Guide</Text>
+            {error ? <Text className="text-destructive text-sm">{error}</Text> : null}
+
+            {/* Primary Action Buttons */}
+            <View className="mt-1 flex-row gap-2">
+              {pack.installed ? (
+                <>
+                  {!isZim ? (
+                    <Button
+                      className="bg-primary active:bg-primary/90 flex-1"
+                      disabled={busy}
+                      onPress={() => handleReadGuide()}>
+                      <Icon as={BookOpen} className="size-5" />
+                      <Text className="text-primary-foreground font-bold">Read Guide</Text>
+                    </Button>
+                  ) : null}
+
+                  {!isZim && !isLocalOnly && (
+                    <Button
+                      variant="outline"
+                      className={
+                        isZim
+                          ? 'border-border active:bg-muted flex-1'
+                          : 'border-border active:bg-muted'
+                      }
+                      disabled={busy}
+                      onPress={() =>
+                        confirmDestructive({
+                          title: 'Remove Pack?',
+                          message: `Delete ${pack.title} from offline storage?`,
+                          confirmLabel: 'Remove',
+                          onConfirm: () => runAction(() => ContentPackService.removePack(pack.id)),
+                        })
+                      }>
+                      <Icon as={Trash2} className="text-destructive size-4" />
+                      <Text className="text-destructive">Remove</Text>
+                    </Button>
+                  )}
+                </>
+              ) : pack.installStatus === 'downloading' ||
+                pack.installStatus === 'queued' ||
+                pack.installStatus === 'verifying' ? (
+                <View className="flex-1 flex-row gap-2">
+                  <Button className="flex-1" disabled>
+                    <ActivityIndicator size="small" />
+                    <Text className="text-primary-foreground font-bold">
+                      {pack.installStatus === 'verifying' ? 'Verifying' : 'Downloading'}
+                    </Text>
                   </Button>
-                ) : null}
-
-                {!isZim && !isLocalOnly && (
                   <Button
+                    size="icon"
                     variant="outline"
-                    className={
-                      isZim
-                        ? 'border-border active:bg-muted flex-1'
-                        : 'border-border active:bg-muted'
-                    }
+                    className="border-border active:bg-muted"
                     disabled={busy}
                     onPress={() =>
                       confirmDestructive({
-                        title: 'Remove Pack?',
-                        message: `Delete ${pack.title} from offline storage?`,
-                        confirmLabel: 'Remove',
-                        onConfirm: () => runAction(() => ContentPackService.removePack(pack.id)),
+                        title: 'Cancel download?',
+                        message: pack.title,
+                        cancelLabel: 'Keep',
+                        confirmLabel: 'Cancel',
+                        onConfirm: () =>
+                          runAction(() => ContentPackService.cancelPackDownload(pack.id)),
                       })
                     }>
                     <Icon as={Trash2} className="text-destructive size-4" />
-                    <Text className="text-destructive">Remove</Text>
                   </Button>
-                )}
-              </>
-            ) : pack.installStatus === 'downloading' ||
-              pack.installStatus === 'queued' ||
-              pack.installStatus === 'verifying' ? (
-              <View className="flex-1 flex-row gap-2">
-                <Button className="flex-1" disabled>
-                  <ActivityIndicator size="small" />
-                  <Text className="text-primary-foreground font-bold">
-                    {pack.installStatus === 'verifying' ? 'Verifying' : 'Downloading'}
-                  </Text>
-                </Button>
+                </View>
+              ) : pack.installStatus === 'paused' ? (
                 <Button
-                  size="icon"
-                  variant="outline"
-                  className="border-border active:bg-muted"
+                  className="bg-primary active:bg-primary/90 flex-1"
                   disabled={busy}
-                  onPress={() =>
-                    confirmDestructive({
-                      title: 'Cancel download?',
-                      message: pack.title,
-                      cancelLabel: 'Keep',
-                      confirmLabel: 'Cancel',
-                      onConfirm: () =>
-                        runAction(() => ContentPackService.cancelPackDownload(pack.id)),
-                    })
-                  }>
-                  <Icon as={Trash2} className="text-destructive size-4" />
+                  onPress={() => runAction(() => ContentPackService.resumePackDownload(pack.id))}>
+                  {busy ? (
+                    <ActivityIndicator size="small" />
+                  ) : (
+                    <Icon as={Download} className="size-5" />
+                  )}
+                  <Text className="text-primary-foreground font-bold">Resume Download</Text>
                 </Button>
-              </View>
-            ) : pack.installStatus === 'paused' ? (
-              <Button
-                className="bg-primary active:bg-primary/90 flex-1"
-                disabled={busy}
-                onPress={() => runAction(() => ContentPackService.resumePackDownload(pack.id))}>
-                {busy ? (
-                  <ActivityIndicator size="small" />
-                ) : (
-                  <Icon as={Download} className="size-5" />
-                )}
-                <Text className="text-primary-foreground font-bold">Resume Download</Text>
-              </Button>
-            ) : isLocalOnly ? (
-              <Button
-                className="bg-primary active:bg-primary/90 flex-1"
-                disabled={busy}
-                onPress={() => runAction(() => ContentPackService.installPack(pack.id))}>
-                {busy ? (
-                  <ActivityIndicator size="small" />
-                ) : (
-                  <Icon as={Download} className="size-5" />
-                )}
-                <Text className="text-primary-foreground font-bold">Restore Guide</Text>
-              </Button>
-            ) : (
-              <Button
-                className="bg-primary active:bg-primary/90 flex-1"
-                disabled={busy}
-                onPress={() => runAction(() => ContentPackService.installPack(pack.id))}>
-                {busy ? (
-                  <ActivityIndicator size="small" />
-                ) : (
-                  <Icon as={Download} className="size-5" />
-                )}
-                <Text className="text-primary-foreground font-bold">Download Offline Pack</Text>
-              </Button>
-            )}
-          </View>
-        </Card>
+              ) : isLocalOnly ? (
+                <Button
+                  className="bg-primary active:bg-primary/90 flex-1"
+                  disabled={busy}
+                  onPress={() => runAction(() => ContentPackService.installPack(pack.id))}>
+                  {busy ? (
+                    <ActivityIndicator size="small" />
+                  ) : (
+                    <Icon as={Download} className="size-5" />
+                  )}
+                  <Text className="text-primary-foreground font-bold">Restore Guide</Text>
+                </Button>
+              ) : (
+                <Button
+                  className="bg-primary active:bg-primary/90 flex-1"
+                  disabled={busy}
+                  onPress={() => runAction(() => ContentPackService.installPack(pack.id))}>
+                  {busy ? (
+                    <ActivityIndicator size="small" />
+                  ) : (
+                    <Icon as={Download} className="size-5" />
+                  )}
+                  <Text className="text-primary-foreground font-bold">Download Offline Pack</Text>
+                </Button>
+              )}
+            </View>
+          </Card>
         ) : null}
 
         {/* Disclaimer / Safety Copy if any */}

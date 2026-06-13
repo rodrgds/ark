@@ -14,7 +14,7 @@ export const LOCAL_MAP_REGION_MANIFEST: MapCatalogRegion[] = [
     autoSuggest: false, // Too large/vague to auto-suggest
     downloadable: false, // Structural base map only
     tags: ['Europe', 'overview', 'low detail'],
-    description: 'Low zoom continental context for long-range route planning.'
+    description: 'Low zoom continental context for long-range route planning.',
   },
   {
     id: 'ib-iberia-low-detail',
@@ -30,7 +30,7 @@ export const LOCAL_MAP_REGION_MANIFEST: MapCatalogRegion[] = [
     autoSuggest: false, // Too vague for offline emergency use
     downloadable: false, // Structural parent
     tags: ['Portugal', 'Spain', 'Iberia', 'overview'],
-    description: 'Wide-area planning fallback for Portugal and Spain.'
+    description: 'Wide-area planning fallback for Portugal and Spain.',
   },
   {
     id: 'pt-portugal-overview',
@@ -47,7 +47,7 @@ export const LOCAL_MAP_REGION_MANIFEST: MapCatalogRegion[] = [
     downloadable: true,
     priority: 2,
     tags: ['Portugal', 'Iberia', 'overview', 'recommended'],
-    description: 'Country-scale roads, towns, coast, and fallback navigation.'
+    description: 'Country-scale roads, towns, coast, and fallback navigation.',
   },
   {
     id: 'pt-porto-north',
@@ -64,7 +64,7 @@ export const LOCAL_MAP_REGION_MANIFEST: MapCatalogRegion[] = [
     downloadable: true,
     priority: 5,
     tags: ['Portugal', 'Porto', 'north'],
-    description: 'Northern Portugal corridor from Porto toward Braga, Guimaraes, and the Minho.'
+    description: 'Northern Portugal corridor from Porto toward Braga, Guimaraes, and the Minho.',
   },
   {
     id: 'pt-lisbon-field-area',
@@ -81,7 +81,8 @@ export const LOCAL_MAP_REGION_MANIFEST: MapCatalogRegion[] = [
     downloadable: true,
     priority: 5,
     tags: ['Portugal', 'Lisbon', 'urban', 'recommended'],
-    description: 'Compact operating area for Lisbon, Cascais, Sintra, Setubal, and the Tejo approaches.'
+    description:
+      'Compact operating area for Lisbon, Cascais, Sintra, Setubal, and the Tejo approaches.',
   },
   {
     id: 'pt-algarve-coast',
@@ -98,7 +99,7 @@ export const LOCAL_MAP_REGION_MANIFEST: MapCatalogRegion[] = [
     downloadable: true,
     priority: 4,
     tags: ['Portugal', 'Algarve', 'coast'],
-    description: 'Southern coastal navigation from Sagres to Vila Real de Santo Antonio.'
+    description: 'Southern coastal navigation from Sagres to Vila Real de Santo Antonio.',
   },
   {
     id: 'pt-madeira',
@@ -115,7 +116,7 @@ export const LOCAL_MAP_REGION_MANIFEST: MapCatalogRegion[] = [
     downloadable: true,
     priority: 4,
     tags: ['Portugal', 'Madeira', 'island'],
-    description: 'Island roads, settlements, coastal access, and mountain routes.'
+    description: 'Island roads, settlements, coastal access, and mountain routes.',
   },
   {
     id: 'pt-azores-central',
@@ -132,7 +133,7 @@ export const LOCAL_MAP_REGION_MANIFEST: MapCatalogRegion[] = [
     downloadable: true,
     priority: 4,
     tags: ['Portugal', 'Azores', 'island'],
-    description: 'Faial, Pico, Sao Jorge, Graciosa, and Terceira regional coverage.'
+    description: 'Faial, Pico, Sao Jorge, Graciosa, and Terceira regional coverage.',
   },
   {
     id: 'es-galicia-northwest',
@@ -149,7 +150,8 @@ export const LOCAL_MAP_REGION_MANIFEST: MapCatalogRegion[] = [
     downloadable: true,
     priority: 3,
     tags: ['Spain', 'Galicia', 'Portugal', 'border'],
-    description: 'Cross-border fallback for Galicia, Asturias west, and northern Portugal approaches.'
+    description:
+      'Cross-border fallback for Galicia, Asturias west, and northern Portugal approaches.',
   },
   {
     id: 'es-madrid-central',
@@ -166,7 +168,7 @@ export const LOCAL_MAP_REGION_MANIFEST: MapCatalogRegion[] = [
     downloadable: true,
     priority: 3,
     tags: ['Spain', 'Madrid', 'urban'],
-    description: 'Madrid metro area and central plateau road network.'
+    description: 'Madrid metro area and central plateau road network.',
   },
   {
     id: 'es-catalonia',
@@ -183,6 +185,6 @@ export const LOCAL_MAP_REGION_MANIFEST: MapCatalogRegion[] = [
     downloadable: true,
     priority: 3,
     tags: ['Spain', 'Catalonia', 'Barcelona'],
-    description: 'Barcelona, Girona, Tarragona, Lleida, and Pyrenees approaches.'
-  }
+    description: 'Barcelona, Girona, Tarragona, Lleida, and Pyrenees approaches.',
+  },
 ];

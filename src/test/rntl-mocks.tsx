@@ -55,13 +55,12 @@ export function installCommonRntlMocks(mockApi: MockApi) {
 
   const Host = (name: string) => {
     const Component = React.forwardRef<unknown, HostProps>(({ children, ...props }, ref) => {
-        React.useImperativeHandle(ref, () => ({
-          blur: () => undefined,
-          focus: () => undefined,
-        }));
-        return React.createElement(name, { ...props, ref }, children as React.ReactNode);
-      }
-    );
+      React.useImperativeHandle(ref, () => ({
+        blur: () => undefined,
+        focus: () => undefined,
+      }));
+      return React.createElement(name, { ...props, ref }, children as React.ReactNode);
+    });
     Component.displayName = `Mock${name}`;
     return Component;
   };
@@ -102,7 +101,11 @@ export function installCommonRntlMocks(mockApi: MockApi) {
       addListener: () => ({ remove: () => undefined }),
       dismiss: () => undefined,
     },
-    Modal: ({ visible = true, children, ...props }: React.PropsWithChildren<{ visible?: boolean }>) =>
+    Modal: ({
+      visible = true,
+      children,
+      ...props
+    }: React.PropsWithChildren<{ visible?: boolean }>) =>
       visible ? React.createElement('Modal', props, children) : null,
     Platform: {
       OS: 'ios',

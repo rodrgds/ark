@@ -23,7 +23,10 @@ export const ARK_TABS: ArkTabDefinition[] = [
     label: 'Arky',
     description: 'Local AI chat and source-grounded answers.',
     locked: true,
-    sfSymbol: { default: 'bubble.left.and.bubble.right', selected: 'bubble.left.and.bubble.right.fill' },
+    sfSymbol: {
+      default: 'bubble.left.and.bubble.right',
+      selected: 'bubble.left.and.bubble.right.fill',
+    },
     materialIcon: { default: 'message-outline', selected: 'message' },
   },
   {

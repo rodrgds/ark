@@ -18,8 +18,8 @@ export default function MapsOnboardingScreen() {
   const [presets, setPresets] = React.useState<MapPreset[]>(() =>
     MapPresetsService.recommendedForLocation(null)
   );
-  const [selected, setSelected] = React.useState(
-    () => defaultSelectedPresetIds(MapPresetsService.recommendedForLocation(null))
+  const [selected, setSelected] = React.useState(() =>
+    defaultSelectedPresetIds(MapPresetsService.recommendedForLocation(null))
   );
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -151,11 +151,7 @@ function MapPresetCard({
     <Pressable disabled={!!unsupportedReason} onPress={onToggle}>
       <Card
         className={`flex-row items-center gap-3 p-4 ${
-          selected
-            ? 'border-primary/50 bg-primary/5'
-            : unsupportedReason
-              ? 'opacity-70'
-              : ''
+          selected ? 'border-primary/50 bg-primary/5' : unsupportedReason ? 'opacity-70' : ''
         }`}>
         <View
           className={`h-10 w-10 items-center justify-center rounded-xl ${

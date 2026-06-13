@@ -29,10 +29,7 @@ export function OnboardingFeature({
   return (
     <View className={cn('flex-row items-center gap-3', className)}>
       <View
-        className={cn(
-          'bg-muted size-9 items-center justify-center rounded-lg',
-          iconTileClassName
-        )}>
+        className={cn('bg-muted size-9 items-center justify-center rounded-lg', iconTileClassName)}>
         <Icon as={icon} className={cn('text-primary size-4', iconClassName)} />
       </View>
       <View className="min-w-0 flex-1 gap-0.5">

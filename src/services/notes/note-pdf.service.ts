@@ -126,11 +126,12 @@ export class TextPdfService {
   static async export(input: { title: string; body: string; fallbackFileName?: string }) {
     await FileSystemService.ensureAppDirectories();
     const title = input.title.trim() || input.fallbackFileName || 'Document';
-    
+
     // For raw text, we wrap it in a pre tag or simple paragraphs
-    const htmlContent = input.body.includes('<') && input.body.includes('>') 
-      ? input.body 
-      : `<div style="white-space: pre-wrap;">${input.body}</div>`;
+    const htmlContent =
+      input.body.includes('<') && input.body.includes('>')
+        ? input.body
+        : `<div style="white-space: pre-wrap;">${input.body}</div>`;
 
     const fullHtml = wrapInPrintShell(htmlContent, title);
 
@@ -141,7 +142,7 @@ export class TextPdfService {
 
     const safeName = FileSystemService.safeFileName(title);
     const destinationUri = `${FileSystemService.dir('cache')}${safeName}.pdf`;
-    
+
     await FileSystem.moveAsync({
       from: uri,
       to: destinationUri,
@@ -154,7 +155,7 @@ export class TextPdfService {
 export class NotePdfService {
   static async export(note: Note) {
     await FileSystemService.ensureAppDirectories();
-    
+
     const title = note.title.trim() || 'Untitled Note';
     const dateStr = new Date(note.updatedAt).toLocaleDateString(undefined, {
       dateStyle: 'long',
@@ -178,7 +179,7 @@ export class NotePdfService {
 
     const safeName = FileSystemService.safeFileName(title);
     const destinationUri = `${FileSystemService.dir('cache')}${safeName}.pdf`;
-    
+
     await FileSystem.moveAsync({
       from: uri,
       to: destinationUri,

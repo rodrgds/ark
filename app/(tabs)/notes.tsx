@@ -132,7 +132,9 @@ export default function NotesScreen() {
     const unsub = NotesRepository.subscribe(() => {
       void load(query, sortMode);
     });
-    return () => { unsub(); };
+    return () => {
+      unsub();
+    };
   }, [unlocked, query, sortMode]);
 
   React.useEffect(() => {

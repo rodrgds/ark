@@ -203,7 +203,7 @@ Map camera transitions to fit provided bounds
 cameraRef.current?.fitBounds(
   [west, south, east, north],
   { top: 20, right: 20, bottom: 20, left: 20 },
-  1000,
+  1000
 );
 ```
 
@@ -282,7 +282,7 @@ interface CameraOptions {
 Easing function used for camera animations.
 
 ```ts
-type CameraEasing = undefined | "linear" | "ease" | "fly";
+type CameraEasing = undefined | 'linear' | 'ease' | 'fly';
 ```
 
 ### `CameraAnimationOptions`
@@ -321,9 +321,7 @@ interface CameraBoundsOptions {
 Camera animation stop positioned by a center coordinate.
 
 ```ts
-type CameraCenterStop = CameraOptions &
-  CameraAnimationOptions &
-  CameraCenterOptions;
+type CameraCenterStop = CameraOptions & CameraAnimationOptions & CameraCenterOptions;
 ```
 
 ### `CameraBoundsStop`
@@ -331,9 +329,7 @@ type CameraCenterStop = CameraOptions &
 Camera animation stop positioned by geographic bounds.
 
 ```ts
-type CameraBoundsStop = CameraOptions &
-  CameraAnimationOptions &
-  CameraBoundsOptions;
+type CameraBoundsStop = CameraOptions & CameraAnimationOptions & CameraBoundsOptions;
 ```
 
 ### `CameraStop`
@@ -371,7 +367,7 @@ type InitialViewState =
 User location tracking mode.
 
 ```ts
-type TrackUserLocation = "default" | "heading" | "course";
+type TrackUserLocation = 'default' | 'heading' | 'course';
 ```
 
 ### `TrackUserLocationChangeEvent`

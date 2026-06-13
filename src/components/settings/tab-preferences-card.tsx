@@ -68,7 +68,12 @@ export function TabPreferencesCard() {
 
   function moveTab(tabId: ArkTabId, targetIndex: number) {
     const index = preferences.order.indexOf(tabId);
-    if (index < 0 || targetIndex < 0 || targetIndex >= preferences.order.length || index === targetIndex) {
+    if (
+      index < 0 ||
+      targetIndex < 0 ||
+      targetIndex >= preferences.order.length ||
+      index === targetIndex
+    ) {
       return;
     }
 
@@ -133,7 +138,7 @@ export function TabPreferencesCard() {
           ))}
           {hasChanges ? (
             <Button
-              className="mt-2 flex-row justify-center items-center gap-2"
+              className="mt-2 flex-row items-center justify-center gap-2"
               disabled={applying}
               onPress={applyChanges}>
               {applying ? <ActivityIndicator size="small" color="#fff" /> : null}

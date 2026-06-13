@@ -670,15 +670,13 @@ beforeAll(async () => {
   ({ OcrService } = await import('@/services/ocr/ocr.service'));
   ({ resetLlamaAdapterForTests } = await import('@/services/ai/llama-adapter'));
   ({ resetEmbeddingServiceForTests } = await import('@/services/ai/embedding.service'));
-  ({ VoiceRuntimeService, resetVoiceRuntimeForTests } = await import(
-    '@/services/ai/voice-runtime.service'
-  ));
+  ({ VoiceRuntimeService, resetVoiceRuntimeForTests } =
+    await import('@/services/ai/voice-runtime.service'));
   ({ RAG_HASH_EMBEDDING_MODEL_ID, RAG_HASH_EMBEDDING_DIMENSIONS } =
     await import('@/services/ai/rag-embedding'));
   ({ useAppStore } = await import('@/stores/app-store'));
-  ({ ContentRepository, resetStarterPacksSeedFlagForTests } = await import(
-    '@/services/db/repositories/content.repo'
-  ));
+  ({ ContentRepository, resetStarterPacksSeedFlagForTests } =
+    await import('@/services/db/repositories/content.repo'));
   ({ SettingsRepository } = await import('@/services/db/repositories/settings.repo'));
   ({ NotesRepository } = await import('@/services/db/repositories/notes.repo'));
   ({ DownloadsRepository } = await import('@/services/db/repositories/downloads.repo'));
@@ -1198,7 +1196,9 @@ describe('service integration', () => {
 
     await waitFor(async () => (await DownloadsRepository.get(id))?.status === 'completed');
     await waitFor(async () =>
-      mockScheduledNotifications.some((notification) => notification.title === 'Ark download complete')
+      mockScheduledNotifications.some(
+        (notification) => notification.title === 'Ark download complete'
+      )
     );
 
     expect(
@@ -1425,12 +1425,7 @@ describe('service integration', () => {
     expect(downloadedRegion?.status).toBe('downloaded');
     expect(downloadedRegion?.offlinePackId).toBe('native-pack-pt-overview');
     expect(createPackOptions).toMatchObject({
-      bounds: [
-        preset.bounds.west,
-        preset.bounds.south,
-        preset.bounds.east,
-        preset.bounds.north,
-      ],
+      bounds: [preset.bounds.west, preset.bounds.south, preset.bounds.east, preset.bounds.north],
       metadata: {
         manifestRegionId: preset.id,
         name: preset.name,
@@ -2187,10 +2182,8 @@ describe('service integration', () => {
     await RagService.indexNote(note.id);
     mockLlamaCompletionResults = [
       {
-        content:
-          '<think>private tool planning</think>Boil the water, then store it sealed.',
-        stream:
-          '<think>private tool planning</think>Boil the water, then store it sealed.',
+        content: '<think>private tool planning</think>Boil the water, then store it sealed.',
+        stream: '<think>private tool planning</think>Boil the water, then store it sealed.',
         tool_calls: [
           {
             type: 'function',
@@ -2508,12 +2501,14 @@ describe('service integration', () => {
   });
 
   test('custom search model URLs are rejected because ExecuTorch owns source search', async () => {
-    await expect(ContentPackService.addModelUrl({
-      title: 'Custom Nomic Search',
-      sourceUrl: 'https://example.test/custom-nomic.gguf',
-      modelRole: 'embedding',
-      checksum: '1111111111111111111111111111111111111111111111111111111111111111',
-    })).rejects.toThrow('built-in ExecuTorch embeddings');
+    await expect(
+      ContentPackService.addModelUrl({
+        title: 'Custom Nomic Search',
+        sourceUrl: 'https://example.test/custom-nomic.gguf',
+        modelRole: 'embedding',
+        checksum: '1111111111111111111111111111111111111111111111111111111111111111',
+      })
+    ).rejects.toThrow('built-in ExecuTorch embeddings');
     const customChatModel = await ContentPackService.addModelUrl({
       title: 'Custom Field Chat',
       sourceUrl: 'https://example.test/custom-chat.gguf',

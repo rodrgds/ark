@@ -94,7 +94,9 @@ describe('map and chat UI contracts', () => {
     expect(chat).toContain('voiceProgress');
     expect(chat).toContain('splitProgress');
     expect(chat).toContain('keyboardProgress.value');
-    expect(chat).toContain('waveformSamples.value = [...waveformSamples.value.slice(1), nextLevel]');
+    expect(chat).toContain(
+      'waveformSamples.value = [...waveformSamples.value.slice(1), nextLevel]'
+    );
     expect(chat).toContain('VoiceWaveform');
     expect(chat).not.toContain('withRepeat(withTiming');
     expect(chat).toContain('cancelVoiceRecording');

@@ -9,6 +9,268 @@ type AuthoredGuide = {
 };
 
 export const AUTHORED_GUIDES: Record<string, AuthoredGuide> = {
+  'household-readiness': {
+    title: 'Household Readiness & Go-Bag',
+    description: 'A practical baseline for normal people: water, food, documents, power, medicine, and exits.',
+    category: 'Preparedness',
+    format: 'markdown',
+    content: `A practical baseline for normal people: water, food, documents, power, medicine, and exits.
+
+## The 72-hour baseline
+Start with three days of self-reliance for each person. This is not a bunker plan; it is the minimum buffer for outages, storms, transport failures, floods, fires, and short evacuations.
+
+Prioritize:
+
+1. Drinking water
+2. Medication and first aid
+3. Phone power and light
+4. Shelf-stable food
+5. Documents and cash
+6. Warmth, rain protection, and clean clothing
+7. Communication plan
+
+Do not build a kit full of gadgets before solving water, medication, documents, and power.
+
+## Home kit
+Keep these in one known place:
+
+- Water for drinking and basic hygiene
+- Food that needs little or no cooking
+- Manual can opener
+- Flashlights or headlamps, not candles as the main light source
+- Power banks and charging cables
+- Basic first aid supplies and personal medication
+- Copies of ID, insurance, prescriptions, contacts, and key documents
+- Cash in small notes
+- Hygiene supplies, toilet paper, bags, soap, and disinfecting wipes
+- N95 or similar masks for smoke, dust, and cleanup
+- Pet, baby, accessibility, or elder-care supplies if relevant
+
+Review it twice a year. Replace expired food, medication, batteries, and water.
+
+## Go-bag
+A go-bag is for leaving fast. Keep it lighter than you think:
+
+- Water bottle and purification backup
+- One day of no-cook food
+- Phone cable, small power bank, and wall plug
+- Headlamp
+- Copies of critical documents
+- Medication list and at least a short medication buffer if possible
+- Basic first aid
+- Warm layer, rain layer, socks
+- Whistle and small notebook
+
+A bag that is too heavy to grab and carry is not useful.
+
+## Household roles
+Before an emergency, decide who does what:
+
+- Who checks people and pets
+- Who shuts off stove, water, electricity, or gas if needed
+- Who grabs documents and medication
+- Who contacts the outside fallback person
+- Where everyone meets if separated
+
+Write the plan down. During stress, memory gets worse.
+
+## Maintenance rhythm
+Once per month: charge power banks and test flashlights.
+
+Twice per year: rotate food and water, review documents, update contacts, check medication expiry, and confirm meeting points.
+
+After every real incident: write what failed and fix only the highest-impact gap first.
+`,
+  },
+
+  'emergency-water': {
+    title: 'Emergency Water: Store, Find, Treat',
+    description: 'Water priorities for outages, boil advisories, damaged pipes, and evacuation.',
+    category: 'Water',
+    format: 'markdown',
+    content: `Water priorities for outages, boil advisories, damaged pipes, and evacuation.
+
+## Priorities
+In most short emergencies, stored water beats improvised water. Your order of preference is:
+
+1. Sealed bottled water
+2. Water stored before the event in clean containers
+3. Water from a safe household source before pipes are contaminated
+4. Treated clear water
+5. Treated cloudy water
+6. Untreated natural water only as a last resort
+
+Floodwater is never safe drinking water. Do not treat water contaminated by fuel, sewage, industrial chemicals, pesticides, or saltwater with normal household methods and assume it is safe.
+
+## Storage
+Store water in clean, food-grade containers. Keep it sealed, cool, dark, and away from fuel, solvents, pesticides, and strong-smelling chemicals.
+
+A practical minimum is enough drinking water for three days. Add more for heat, illness, pets, infants, cooking, and hygiene.
+
+Label containers with the fill date. Rotate if the container is not commercially sealed.
+
+## Finding water at home
+Before pipes are damaged or contaminated, safe sources may include:
+
+- Water heater tank, if safe to access
+- Melted ice cubes
+- Toilet tank water only if the tank is clean and has no chemical cleaners
+- Canned food liquid
+- Rainwater collected in clean containers, after treatment
+
+Do not use water from radiators, boilers, swimming pools, floodwater, or chemical-contaminated sources for drinking.
+
+## Treatment methods
+Treatment depends on the risk:
+
+- Boiling is the most reliable household method for biological contamination.
+- Filtering can remove sediment and improve taste, but many filters do not remove viruses or chemicals.
+- Disinfection tablets or unscented household bleach can help when used exactly as directed.
+- Solar disinfection is a last-resort method for clear water and strong sunlight, not a first choice.
+
+If water is cloudy, let it settle and filter through clean cloth before boiling or disinfecting. Sediment protects microbes from disinfectant.
+
+## Rationing
+Do not stop drinking water to preserve supplies. Dehydration breaks judgment quickly.
+
+Reduce water use by:
+
+- Eating no-cook food
+- Using disposable plates if available
+- Cleaning hands with soap and minimal water or sanitizer when hands are not visibly dirty
+- Saving gray water for flushing, never for drinking
+
+Use Ark's notes to track water inventory by container, date, and estimated days remaining.
+`,
+  },
+
+  'shelter-evacuation': {
+    title: 'Shelter, Evacuation & Exposure',
+    description: 'Decide whether to stay, leave, or shelter in place, then control heat, cold, and smoke exposure.',
+    category: 'Survival',
+    format: 'markdown',
+    content: `Decide whether to stay, leave, or shelter in place, then control heat, cold, and smoke exposure.
+
+## Stay or leave
+Do not treat evacuation as failure. Leaving early is often safer than improvising later.
+
+Leave early when:
+
+- Authorities tell you to evacuate
+- Fire, flood, chemical release, violence, or structural damage is nearby
+- Medical equipment, medication, heat, cold, or oxygen needs cannot be maintained
+- Roads may close soon
+- You have children, elderly people, pets, or mobility constraints that make late evacuation harder
+
+Shelter in place when leaving would put you directly into the hazard and the building is still safe.
+
+## Shelter in place
+Choose an interior room if wind, debris, or civil danger is outside. Choose higher ground for flooding unless the building itself is unsafe. Choose a cleaner-air room for smoke or chemical risk.
+
+Set up:
+
+- Water, food, medication, first aid
+- Charged phone and power bank
+- Flashlight
+- Radio or saved information source
+- Shoes and gloves
+- Waste bags and hygiene supplies
+- Door or window control based on the hazard
+
+Do not tape yourself into a room without understanding the hazard. Fire smoke, heat, carbon monoxide, and chemical fumes require different responses.
+
+## Evacuation route
+Plan two routes: the obvious route and the route that avoids the obvious bottleneck.
+
+Before leaving:
+
+- Tell one trusted person where you are going
+- Take documents, medication, phone power, water, cash, and keys
+- Dress for walking, not just driving
+- Avoid flooded roads, smoke plumes, unstable buildings, and downed power lines
+
+If driving, leave earlier than feels necessary. Late evacuation turns roads into traps.
+
+## Cold exposure
+Cold injuries happen faster with wind, wet clothing, exhaustion, and alcohol.
+
+Priorities:
+
+1. Stay dry
+2. Block wind
+3. Insulate from the ground
+4. Keep head, hands, and feet warm
+5. Eat and drink enough
+
+Warm people slowly. Do not rub frostbitten skin. Do not place a severely hypothermic person in a hot shower.
+
+## Heat and smoke
+Heat illness and smoke exposure are common in outages, fires, and summer disasters.
+
+For heat: rest, shade, airflow, wet cloths, light clothing, and regular drinking. Heat stroke is an emergency: confusion, collapse, very high body temperature, or stopped sweating require urgent cooling and help.
+
+For smoke: close windows and doors, use the cleanest room, reduce exertion, and use a well-fitting respirator if you must move through smoke. Cloth masks do not protect well against fine smoke particles.
+`,
+  },
+
+  'emergency-power': {
+    title: 'Emergency Power & Battery Discipline',
+    description: 'Keep phones, lights, radios, medical devices, and critical information alive during outages.',
+    category: 'Preparedness',
+    format: 'markdown',
+    content: `Keep phones, lights, radios, medical devices, and critical information alive during outages.
+
+## Power priorities
+Rank devices before the outage:
+
+1. Medical devices
+2. Phone or radio communication
+3. Light
+4. Navigation and stored documents
+5. Small comfort devices
+
+Do not spend battery on entertainment until medical, communication, and lighting needs are stable.
+
+## Phone discipline
+Your phone is a radio, map, document wallet, flashlight, camera, notebook, and AI reference. Treat it like critical equipment.
+
+Use:
+
+- Airplane mode most of the time
+- Low brightness
+- Battery saver
+- OLED dark mode
+- Downloaded maps and references before the outage
+- Short scheduled check-ins instead of constant signal searching
+
+Searching for weak cellular signal can drain a battery fast.
+
+## Power banks
+Keep at least one charged power bank. Larger households should label banks by role: medical, phones, lights, spare.
+
+Every month:
+
+- Recharge power banks
+- Test cables
+- Check USB-C, Lightning, and adapter needs
+- Confirm medical-device connectors
+
+A full power bank with the wrong cable is dead weight.
+
+## Generators and combustion
+Generators, grills, camping stoves, and charcoal produce carbon monoxide.
+
+Never run them indoors, in garages, on balconies, under windows, or near doors. Keep them outside and far from openings. Use a battery-powered carbon monoxide detector.
+
+If someone has headache, dizziness, weakness, confusion, vomiting, or chest pain near combustion equipment, move to fresh air immediately and seek emergency help.
+
+## Solar and vehicle charging
+Solar chargers are useful but slow and weather-dependent. Use them to top up power banks, not as your only plan.
+
+Vehicle charging can help, but avoid carbon monoxide risk from idling near enclosed spaces. Watch fuel level and local safety conditions.
+`,
+  },
+
   'emergency-cooking': {
     title: 'Emergency Cooking Without Power',
     description: 'Cook safely, conserve fuel, and avoid food poisoning when the grid is down.',
@@ -16,131 +278,109 @@ export const AUTHORED_GUIDES: Record<string, AuthoredGuide> = {
     format: 'markdown',
     content: `Cook safely, conserve fuel, and avoid food poisoning when the grid is down.
 
-## Cook safely without power
-**Carbon monoxide (CO) is the silent killer.** Never use camping stoves, charcoal grills, hibachis, or gasoline generators indoors or in enclosed spaces such as garages, basements, or tents. CO is odorless, colorless, and deadly.
+## Safety first
+Carbon monoxide is the main cooking danger during outages. Never use camping stoves, charcoal grills, hibachis, gasoline generators, or propane grills indoors, in garages, under balconies, or beside open windows.
 
-**Approved indoor options:** A fireplace with proper ventilation, a wood stove, or a fondue/canned-heat burner in a very well-ventilated room. Keep a battery-powered CO detector nearby.
+If you cannot ventilate safely, switch to no-cook meals.
 
-**Fuel choices:** Butane canisters work well in camp stoves but require ventilation. Propane is common for outdoor grills. White gas and kerosene are efficient but flammable; store away from heat sources. Alcohol (denatured or HEET) is safer indoors in small amounts with cross-ventilation.
+Keep a fire extinguisher nearby. Keep flames away from curtains, walls, plastic, bedding, and children. Never leave a flame unattended.
 
-**Fire safety:** Keep a fire extinguisher or baking soda nearby. Never leave an open flame unattended. Place stoves on stable, non-flammable surfaces away from walls and curtains.
+## Food order
+Use food in this order:
 
-## Use food before it spoils
-**Refrigerator:** Keep the door closed. A full fridge stays cold about 4 hours; a half-full one about 2–3 hours. Use a thermometer: discard perishables above 40°F (4°C) for more than 2 hours.
+1. Food that is already open or perishable
+2. Refrigerator food while still cold
+3. Freezer food while still frozen or partly frozen
+4. Shelf-stable food
+5. Emergency no-cook reserve
 
-**Freezer:** A full freezer holds temperature ~48 hours if unopened; a half-full one ~24 hours. Group frozen items together. If ice crystals remain, the food is usually safe to refreeze or cook.
+Do not taste questionable food to test it. Smell, taste, and appearance are not reliable safety checks.
 
-**Pantry triage:** Eat perishables first, then refrigerated, then frozen, then shelf-stable. "When in doubt, throw it out" is the safest rule for meat, dairy, eggs, and prepared foods.
+## Low-fuel cooking
+Fuel is usually scarcer than ingredients. Save it by:
 
-**Signs of spoilage:** Unusual odor, color, texture, or swelling in cans. Do not taste questionable food.
+- Cooking one-pot meals
+- Soaking beans, lentils, oats, and grains before heating
+- Cutting food smaller
+- Keeping lids on pots
+- Using retained heat: bring to boil, cover, insulate, and wait
+- Making hot drinks and soup in the same heating cycle
+
+Avoid recipes that need long simmering unless you have a safe, abundant fuel source.
 
 ## Low-water cooking
-Water may be scarce. Conserve it with these methods:
+When water is limited:
 
-- **One-pot meals:** Combine grains, legumes, and vegetables in a single pot to reduce water and fuel use.
-- **Steaming:** Uses less water than boiling and preserves more nutrients.
-- **Soaking:** Soak dried beans and lentils for several hours before cooking to reduce boiling time.
-- **Pasta water reuse:** If you boil pasta, reuse the starchy water to start soups or cook rice.
-- **Sun cooking:** A solar oven or reflective cooker can pasteurize water and cook grains on sunny days with no fuel.
+- Use canned food liquid in soups or rice
+- Steam instead of boil when possible
+- Reuse pasta or potato water in soups
+- Choose couscous, oats, tortillas, crackers, and canned food over long-boil grains
+- Wipe dishes before washing
+
+Never conserve water by undercooking risky food.
 
 ## No-cook meals
-When fire is unsafe or fuel is gone, these combinations require no heat:
+Keep some meals that need no electricity, flame, or clean dishes:
 
-- Canned tuna or chicken with crackers
-- Peanut butter on tortillas or bread
-- Dried fruits, nuts, and granola
-- Ready-to-eat canned beans (rinse to reduce sodium)
-- Protein bars, jerky, and shelf-stable cheese
-- Overnight oats soaked in safe drinking water
+- Nut butter with crackers or tortillas
+- Canned tuna, chicken, beans, or lentils
+- Dried fruit and nuts
+- Protein bars
+- Shelf-stable milk or meal drinks
+- Ready-to-eat soups or meals that are safe cold
 
-Keep a 3-day supply of no-cook options as your last-resort food layer.
+Keep a manual can opener with the food, not somewhere else.
 `,
   },
 
   'foraging-basics': {
-    title: 'Foraging Basics & Poison Avoidance',
-    description: 'Principles and risks of gathering wild food in emergencies.',
+    title: 'Foraging Risk & Poison Avoidance',
+    description: 'A conservative guide to why wild-food identification is usually the wrong emergency plan.',
     category: 'Food',
     format: 'markdown',
-    content: `Principles and risks of gathering wild food in emergencies.
+    content: `A conservative guide to why wild-food identification is usually the wrong emergency plan.
 
 ## Do not guess
-Plant and mushroom misidentification can be fatal. **Never consume a wild plant or fungus based on a single photo, app description, or memory.** Local experts, regional field guides, and long-term community knowledge are the only safe sources of identification.
+Plant and mushroom misidentification can be fatal. Never eat a wild plant or fungus based on a single photo, app result, vague memory, or AI answer.
 
-Ark provides general principles only. It cannot positively identify plants or mushrooms for your specific region, season, or growing conditions.
+Ark can store references. It cannot prove a plant is safe in your specific region, season, growth stage, or contamination context.
 
-## Universal edibility test is not enough
-The classic "universal edibility test" (contact, lip, chew, swallow in small increments over 24 hours) does not protect against:
+## Why apps are not enough
+Wild-food safety depends on details that are easy to miss:
 
-- Delayed toxins that appear days later
-- Cumulative poisons that build with repeated meals
-- Individual allergic reactions
-- Contaminants absorbed from polluted soil or water
+- Exact species, not just common name
+- Season and growth stage
+- Plant part: leaf, root, seed, berry, flower, bark
+- Preparation method
+- Lookalikes in the same area
+- Soil, road, pesticide, sewage, or industrial contamination
+- Individual allergy or medication interactions
 
-It is a last-resort framework for absolute starvation scenarios, not a safety guarantee.
+A confident-looking answer is not the same as field identification.
 
-## High-risk lookalikes
-Some of the most dangerous groups include:
+## Better emergency food order
+Use this order instead:
 
-- **Mushrooms:** Deadly amanitas can resemble edible puffballs or meadow mushrooms when young.
-- **Berries:** Elderberries are safe cooked but toxic raw; they resemble other red/purple berries.
-- **Roots and bulbs:** Water hemlock (deadly) and wild carrot (edible) have similar white flowers and root shapes.
-- **Leaves:** Foxglove leaves look like comfrey or sage; foxglove is deadly.
-- **Polluted areas:** Plants near roads, industrial sites, or pesticide runoff can concentrate heavy metals and chemicals.
+1. Stored food
+2. Community food distribution or shops if available
+3. Known local food sources you already use
+4. Fishing only if legal, safe, and already familiar
+5. Wild plants only with local expert confirmation
+6. Unknown wild plants only in absolute starvation conditions
 
-## Safer food priorities
-In an emergency, use this hierarchy to minimize risk:
+Going hungry for one more meal is safer than poisoning your group.
 
-1. **Stored food** — shelf-stable, known, and safe
-2. **Fishing** — fish are usually easier to identify than plants
-3. **Known local plants** — ones you have positively identified with local experts before the emergency
-4. **Community knowledge** — experienced foragers in your area
-5. **Wild plants as a last resort** — only when all other options are exhausted
+## High-risk groups
+Avoid these unless you already have strong local expertise:
 
-When in doubt, go hungry for one more meal rather than risk poisoning.
-`,
-  },
+- Mushrooms
+- Umbrella-shaped white-flower plants
+- Unknown berries
+- Bulbs and roots
+- Wild greens near roads or polluted water
+- Plants with milky sap, bitter almond smell, or unknown seeds
 
-  'food-procurement-basics': {
-    title: 'Fishing, Hunting & Food Procurement Basics',
-    description: 'Legal, ethical, and safe approaches to acquiring food in the field.',
-    category: 'Food',
-    format: 'markdown',
-    content: `Legal, ethical, and safe approaches to acquiring food in the field.
-
-## Before hunting or fishing
-Check local laws, licenses, and seasonal limits. In a declared emergency some rules may be suspended, but until then, poaching carries legal penalties and conservation harm. Know your weapon or tackle thoroughly before you rely on it for food.
-
-**Energy cost:** Hunting large game burns thousands of calories. Unless you are experienced and equipped, fishing and trapping are usually more energy-efficient.
-
-## Fishing first
-Fishing is generally safer and more efficient than hunting for unprepared individuals. Effective passive methods include:
-
-- Bank lines left overnight
-- Minnow traps made from bottles or wire
-- Handlines with hooks and bait (worms, insects, scraps)
-- Spearfishing in very clear, shallow water
-
-Harvest only what you can eat or safely preserve. Release spawning fish when possible.
-
-## Animal handling risks
-Wild game carries risks that supermarket meat does not:
-
-- **Parasites:** Trichinosis in wild pigs and bears; tapeworms in ungulates. Freeze or cook thoroughly.
-- **Spoilage:** Warm temperatures spoil meat within hours. Field dress immediately and cool the carcass.
-- **Disease:** Rabies, tularemia, and chronic wasting disease (CWD) exist in some regions. Wear gloves when gutting; avoid nervous tissue if CWD is present locally.
-- **Safe cooking:** Cook all wild game to an internal temperature of 160°F (71°C). Bring stews and braises to a rolling boil.
-
-## When not to hunt
-Avoid hunting when:
-
-- You lack proper equipment or ammunition
-- You are injured, ill, or alone without rescue backup
-- Weapon noise would reveal your position in an unsafe area
-- You do not know how to field dress, cool, and preserve the meat
-- Local regulations prohibit it
-
-Scavenging already-dead animals is extremely risky due to spoilage and disease. Do not attempt it.
+Do not give unknown wild food to children, pregnant people, sick people, or pets.
 `,
   },
 
@@ -152,39 +392,56 @@ Scavenging already-dead animals is extremely risky due to spoilage and disease. 
     content: `Avoid danger, de-escalate conflict, and plan safe exits.
 
 ## Avoid becoming a target
-Most confrontations can be prevented by reducing your visibility as a victim:
+Most safety work happens before confrontation.
 
-- **Situational awareness:** Keep your head up, scan exits, and notice who is around you. Avoid staring at your phone in public.
-- **Predictability:** Vary your routes and times if traveling in uncertain areas.
-- **Valuables:** Keep expensive gear, jewelry, and electronics concealed.
-- **Groups:** Travel with others when possible; isolation increases risk.
-- **Low profile:** Dress neutrally, avoid loud conversations about supplies or plans, and do not display weapons.
+Reduce risk by:
+
+- Moving with purpose
+- Keeping valuables and supplies out of sight
+- Avoiding arguments around queues, fuel, water, transport, and damaged property
+- Staying near light, witnesses, and exits when possible
+- Leaving early when the atmosphere changes
+- Keeping your phone available but not visibly distracting
+
+Do not advertise supplies, routes, money, generator fuel, medication, or tools.
 
 ## De-escalation
-If a confrontation begins, your goal is to exit safely, not to win. Techniques:
+If a confrontation starts, the goal is to leave safely, not to win.
 
-- **Distance:** Increase physical distance immediately. Do not let someone close your exit.
-- **Calm speech:** Speak slowly and softly. Acknowledge the other person's emotion without agreeing to demands that put you at risk.
-- **Open hands:** Keep palms visible and avoid sudden movements.
-- **Exits:** Point yourself toward an exit, not a corner. Look for witnesses or well-lit areas.
-- **Non-provocation:** Do not insult, challenge, or threaten. Humiliation often triggers violence.
+Use:
 
-## Escape planning
-Plan before you need it:
+- Distance
+- Calm, short sentences
+- Open hands
+- Non-threatening posture
+- Exit-focused movement
+- No insults, sarcasm, or challenges
 
-- Identify at least two exits from every room or building you enter.
-- Choose a safe room in your home: solid door, lock, phone or radio, and a planned secondary exit.
-- Set up improvised alarms: cans on a string, door wedges, or battery-powered motion sensors.
-- Agree on rally points with your group: one nearby, one farther away.
-- Keep a small "go-bag" near exits with ID, keys, phone, flashlight, and basic first aid.
+You can acknowledge emotion without agreeing to unsafe demands: "I hear you. I am leaving now."
 
-## After an incident
-Your safety continues after the immediate threat ends:
+## Home and shelter exits
+Know two ways out of any home, shelter, room, or building. Avoid letting furniture, boxes, or locked gates block them.
 
-- **Medical check:** Adrenaline can mask injuries. Inspect yourself and others for wounds, sprains, or shock signs.
-- **Documentation:** Write down what happened, when, where, and descriptions while memory is fresh.
-- **Authorities:** Contact local emergency services if available and safe to do so.
-- **Mental recovery:** Acute stress reactions are normal. Talk to someone you trust, rest, and hydrate. Seek professional support if symptoms persist.
+At night, keep shoes, light, phone, keys, and glasses in the same place.
+
+If staying with others, agree on a rally point outside the building and another farther away.
+
+## Documentation
+After an incident, write down:
+
+- Time and place
+- Who was involved
+- What was said and done
+- Injuries or damage
+- Witnesses
+- Photos if safe
+
+Do not risk a second confrontation to collect evidence.
+
+## When to seek help
+Use emergency services, building security, shelter staff, local authorities, medical help, or trusted community contacts when available and safe.
+
+After acute stress, check for injuries, drink water, rest, and avoid major decisions until the adrenaline crash passes.
 `,
   },
 
@@ -195,39 +452,47 @@ Your safety continues after the immediate threat ends:
     format: 'markdown',
     content: `Preserve battery, use low-bandwidth channels, and signal when networks fail.
 
-## First rule: preserve battery
-Your phone is your most versatile tool. Extend its life:
+## Before networks fail
+Write down the plan while everything works:
 
-- Switch to airplane mode and only toggle radios on briefly to send or check messages.
-- Reduce screen brightness to the minimum usable level.
-- Use OLED black themes where possible (every black pixel saves power on OLED screens).
-- Disable vibration, Bluetooth, and location services when not needed.
-- Carry a fully charged power bank and a solar charger if available.
-- Duty-cycle: turn the phone on for 5 minutes every hour rather than leaving it on continuously.
+- Main contact person outside the affected area
+- Local meeting point
+- Distant fallback meeting point
+- School, work, elder-care, and pet pickup plan
+- Medical and pharmacy contacts
+- Radio channel or messaging fallback if your group uses one
 
-## SMS, radio, and meeting points
-When voice calls fail, try these lower-bandwidth channels:
+Store it in Ark and on paper.
 
-- **SMS text:** Often succeeds when voice networks are overloaded because it needs only a moment of signal.
-- **FRS/GMRS radios:** Inexpensive, no license required in many regions for FRS. Range is short (1–2 km), but useful for group coordination.
-- **Amateur (ham) radio:** Requires a license in normal times, but emergency traffic is usually permitted. Much longer range with repeaters.
-- **Pre-agreed plans:** Designate primary and fallback meeting points with times. If no contact by the set time, proceed to the fallback.
+## Battery discipline
+Do not leave the phone hunting for signal.
 
-## Signal methods
-When electronic communication is impossible, use physical signals:
+Use airplane mode, low brightness, battery saver, and short check-in windows. Example: turn radios on for five minutes each hour, send/receive, then turn them off again.
 
-- **Whistle:** Three blasts is a universal distress call. A loud whistle carries farther than a voice.
-- **Mirror:** A signaling mirror can flash sunlight toward aircraft or search teams many kilometers away.
-- **Flashlight:** Three short flashes = distress (SOS). At night, a flashlight is highly visible.
-- **Ground markers:** Lay out bright fabric or reflective material in open areas. Use large geometric shapes: X = unable to proceed, V = need assistance, arrow = direction of travel.
+Text messages often work when calls fail. Keep messages short and factual.
+
+## Message format
+Useful emergency messages answer:
+
+- Who is safe or injured
+- Where you are
+- Where you are going
+- What you need
+- When you will check again
+
+Example: "All safe. At north school entrance. Going to aunt's house by 18:00 if roads open. Need insulin pickup. Next check 19:00."
+
+## Physical signaling
+Carry a whistle. Three blasts is a distress signal.
+
+At night, use repeated flashlight signals. In daylight, use bright fabric, mirrors, or large ground markers only when safe and visible.
+
+Make signals simple. A confused signal wastes time.
 
 ## Information hygiene
-Rumors spread faster than facts in emergencies. Protect yourself:
+Rumors become dangerous during emergencies. Treat unverified messages as leads, not facts.
 
-- **Verify before acting:** Do not move toward or away from an area based on one unconfirmed message.
-- **Trusted sources:** Prioritize official emergency broadcasts (NOAA, local radio) over social chains.
-- **Record updates:** Keep a written log of what you heard, from whom, and when. This prevents repeated panic over old news.
-- **Avoid amplification:** Do not forward unverified warnings. It clogs channels and causes dangerous stampedes.
+Record source and time: who said it, when, and how they know. Do not forward warnings unless they are official, firsthand, or clearly labeled as unverified.
 `,
   },
 
@@ -238,17 +503,100 @@ Rumors spread faster than facts in emergencies. Protect yourself:
     format: 'markdown',
     content: `Prevent disease when water and sewer systems are offline.
 
-## The Two-Bucket System
-When water-flush toilets are not working, separate liquid and solid waste.
+## Priorities
+Sanitation is not comfort; it prevents disease.
 
-1. **Pee Bucket:** Liquids only. Dilute with water and pour into a safe disposal area.
-2. **Poo Bucket:** Solids only. Cover with dry material (sawdust, peat moss, or dry soil) after each use to control odors and flies.
+Focus on:
 
-## Handwashing
-Handwashing is your best defense against disease. Use a "tippy tap" or a squeeze bottle to conserve water. Always use soap.
+1. Clean hands
+2. Safe drinking water
+3. Separating waste from living areas and water
+4. Safe food handling
+5. Controlling flies, rodents, and contaminated surfaces
 
-## Waste Disposal
-Bury solid waste at least 6 inches deep, at least 100 feet from any water source. If burial is not possible, seal in heavy-duty bags and store away from living areas.
+## Hand hygiene
+Use soap and safe water whenever possible. If water is scarce, use a small bottle, tippy tap, or controlled pour.
+
+Hand sanitizer helps when hands are not visibly dirty, but it does not replace washing after toilet use, cleanup, diapers, raw food, or contact with waste.
+
+## Toilet failure
+If toilets cannot flush, separate liquid and solid waste when possible.
+
+- Liquids: collect separately and dispose where they will not enter drinking water, living areas, or food areas.
+- Solids: use a lined bucket, cover after each use with dry material, seal full bags, and store away from people and animals until proper disposal is possible.
+
+Keep toilet areas downwind and away from food preparation.
+
+## Cleaning
+Clean first, disinfect second. Dirt and organic material weaken disinfectants.
+
+Use gloves if available. Keep cleanup tools separate from kitchen tools. Wash hands after removing gloves.
+
+For floodwater, sewage, vomit, blood, or animal waste, assume contamination and protect skin, eyes, and wounds.
+
+## Waste zones
+Create three zones:
+
+- Clean zone: sleeping, eating, medical supplies, drinking water
+- Dirty zone: toilet, trash, contaminated clothes, cleanup tools
+- Transition zone: handwashing, shoe removal, disinfecting supplies
+
+Do not let dirty tools migrate into clean areas.
+`,
+  },
+
+  'health-continuity': {
+    title: 'Medication & Health Continuity',
+    description: 'Keep critical care, medication, devices, and medical information usable during disruption.',
+    category: 'Health',
+    format: 'markdown',
+    content: `Keep critical care, medication, devices, and medical information usable during disruption.
+
+## Personal medical card
+Create a short medical card for each person:
+
+- Name and date of birth
+- Emergency contacts
+- Conditions
+- Allergies
+- Medication names, doses, and timing
+- Prescribing clinician or clinic
+- Pharmacy
+- Insurance or health-system number if relevant
+- Assistive devices and accessibility needs
+
+Store it in Ark and on paper.
+
+## Medication buffer
+When possible, keep a small buffer of critical medication. Rotate it so the oldest is used first.
+
+Ask a pharmacist or clinician how to handle missed doses before an emergency. Do not improvise dose changes for blood pressure, seizure, insulin, anticoagulant, psychiatric, heart, or steroid medication unless you have medical guidance.
+
+## Cold-chain medication
+Some medication needs refrigeration. Plan for:
+
+- A small cooler
+- Gel packs or frozen water bottles
+- A thermometer
+- Written safe temperature range
+- Backup pickup location if evacuation is likely
+
+Do not freeze medication unless the label says it can be frozen.
+
+## Devices and power
+List devices that need electricity: CPAP, nebulizer, oxygen concentrator, mobility equipment, hearing aids, glucose monitor, phone-based medical apps.
+
+Match each device to a backup: battery, inverter, generator, clinic, shelter, neighbor, or evacuation destination.
+
+## Wounds and infection
+Clean wounds with safe water. Cover with clean dressings. Seek help for deep wounds, animal bites, dirty punctures, burns, spreading redness, pus, fever, numbness, or loss of function.
+
+Do not close a dirty deep wound yourself.
+
+## Mental load
+Emergencies worsen sleep, pain, anxiety, addiction risk, conflict, and decision fatigue. Use routines: hydration, food, medication, rest shifts, check-ins, and written plans.
+
+A calm checklist is not overkill. It protects people when judgment is degraded.
 `,
   },
 };

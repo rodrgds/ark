@@ -44,6 +44,7 @@ jobs:
             app:
               - 'app/**'
               - 'src/**'
+              - 'lib/**'
               - 'assets/**'
               - 'modules/**'
               - 'components.json'

@@ -31,3 +31,5 @@ bun.lockb
 
 # Per-project .devenv shell state
 .devenv/
+
+*.d.ts

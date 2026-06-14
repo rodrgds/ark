@@ -11,7 +11,8 @@ type AuthoredGuide = {
 export const AUTHORED_GUIDES: Record<string, AuthoredGuide> = {
   'household-readiness': {
     title: 'Household Readiness & Go-Bag',
-    description: 'A practical baseline for normal people: water, food, documents, power, medicine, and exits.',
+    description:
+      'A practical baseline for normal people: water, food, documents, power, medicine, and exits.',
     category: 'Preparedness',
     format: 'markdown',
     content: `A practical baseline for normal people: water, food, documents, power, medicine, and exits.
@@ -146,7 +147,8 @@ Use Ark's notes to track water inventory by container, date, and estimated days 
 
   'shelter-evacuation': {
     title: 'Shelter, Evacuation & Exposure',
-    description: 'Decide whether to stay, leave, or shelter in place, then control heat, cold, and smoke exposure.',
+    description:
+      'Decide whether to stay, leave, or shelter in place, then control heat, cold, and smoke exposure.',
     category: 'Survival',
     format: 'markdown',
     content: `Decide whether to stay, leave, or shelter in place, then control heat, cold, and smoke exposure.
@@ -215,7 +217,8 @@ For smoke: close windows and doors, use the cleanest room, reduce exertion, and 
 
   'emergency-power': {
     title: 'Emergency Power & Battery Discipline',
-    description: 'Keep phones, lights, radios, medical devices, and critical information alive during outages.',
+    description:
+      'Keep phones, lights, radios, medical devices, and critical information alive during outages.',
     category: 'Preparedness',
     format: 'markdown',
     content: `Keep phones, lights, radios, medical devices, and critical information alive during outages.
@@ -335,7 +338,8 @@ Keep a manual can opener with the food, not somewhere else.
 
   'foraging-basics': {
     title: 'Foraging Risk & Poison Avoidance',
-    description: 'A conservative guide to why wild-food identification is usually the wrong emergency plan.',
+    description:
+      'A conservative guide to why wild-food identification is usually the wrong emergency plan.',
     category: 'Food',
     format: 'markdown',
     content: `A conservative guide to why wild-food identification is usually the wrong emergency plan.
@@ -547,7 +551,8 @@ Do not let dirty tools migrate into clean areas.
 
   'health-continuity': {
     title: 'Medication & Health Continuity',
-    description: 'Keep critical care, medication, devices, and medical information usable during disruption.',
+    description:
+      'Keep critical care, medication, devices, and medical information usable during disruption.',
     category: 'Health',
     format: 'markdown',
     content: `Keep critical care, medication, devices, and medical information usable during disruption.

@@ -49,18 +49,14 @@ describe('starter content packs', () => {
     expect(chatModels.every((model) => model.modelRole === 'chat')).toBe(true);
   });
 
-  test('includes plant safety guidance without mushroom identification claims', () => {
-    const plantSafety = STARTER_PACKS.find(
-      (pack) => pack.id === 'usda-special-forest-products-harvest'
-    );
+  test('includes an FDA/USDA-grade food safety reference for power outages', () => {
+    const foodSafety = STARTER_PACKS.find((pack) => pack.id === 'food-preservation-usda');
 
-    expect(plantSafety?.sourceUrl).toBe(
-      'https://research.fs.usda.gov/download/treesearch/45826.pdf'
+    expect(foodSafety?.sourceUrl).toBe(
+      'https://www.foodsafety.gov/food-safety-charts/food-safety-during-power-outage'
     );
-    expect(plantSafety?.sourceLabel).toBe('USDA Forest Service');
-    expect(`${plantSafety?.title} ${plantSafety?.description}`.toLowerCase()).not.toContain(
-      'mushroom identification'
-    );
+    expect(foodSafety?.sourceLabel).toBe('FoodSafety.gov (USDA/FDA)');
+    expect(foodSafety?.category).toBe('Food');
   });
 
   test('official web guides use offline snapshot downloads and are organized by category', () => {

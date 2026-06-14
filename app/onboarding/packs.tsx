@@ -16,9 +16,11 @@ import * as React from 'react';
 import { Pressable, View } from 'react-native';
 
 const RECOMMENDED_PACK_IDS = [
-  'where-there-is-no-doctor-first-aid',
+  'hesperian-first-aid',
   'us-army-survival-fm-21-76',
   'disaster-power-outage',
+  'disaster-winter-weather',
+  'food-preservation-usda',
 ];
 
 export default function PacksScreen() {

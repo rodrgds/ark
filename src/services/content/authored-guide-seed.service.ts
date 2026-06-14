@@ -1,9 +1,14 @@
+import * as Crypto from 'expo-crypto';
 import * as FileSystem from 'expo-file-system/legacy';
 import { FileSystemService } from '@/services/files/filesystem.service';
 import { ContentRepository } from '@/services/db/repositories/content.repo';
 import { RagService } from '@/services/ai/rag.service';
 import { AUTHORED_GUIDES } from '@/services/content/authored-guides';
 import { utf8ByteLength } from '@/lib/format';
+
+async function sha256(value: string) {
+  return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, value);
+}
 
 export class AuthoredGuideSeedService {
   static async seed() {
@@ -15,26 +20,23 @@ export class AuthoredGuideSeedService {
       const ext = guide.format === 'markdown' ? 'md' : 'html';
       const fileName = `${id}.${ext}`;
       const localUri = `${contentDir}${fileName}`;
-      const info = await FileSystem.getInfoAsync(localUri);
-      if (!info.exists) {
+      const sizeBytes = utf8ByteLength(guide.content);
+      const contentSha256 = await sha256(guide.content);
+      const existing = existingPacks.find((pack) => pack.id === id);
+      const contentChanged = !existing?.checksumSha256 || existing.checksumSha256 !== contentSha256;
+      const metadataChanged =
+        existing?.installed !== true ||
+        existing.localUri !== localUri ||
+        existing.sizeBytes !== sizeBytes ||
+        existing.title !== guide.title ||
+        existing.description !== guide.description ||
+        existing.category !== guide.category ||
+        existing.format !== guide.format;
+
+      if (contentChanged || metadataChanged) {
         await FileSystem.writeAsStringAsync(localUri, guide.content, {
           encoding: FileSystem.EncodingType.UTF8,
         });
-      }
-
-      const sizeBytes = utf8ByteLength(guide.content);
-      const existing = existingPacks.find((pack) => pack.id === id);
-      const unchanged =
-        existing?.installed &&
-        existing.installStatus === 'installed' &&
-        existing.localUri === localUri &&
-        existing.sizeBytes === sizeBytes &&
-        existing.title === guide.title &&
-        existing.description === guide.description &&
-        existing.category === guide.category &&
-        existing.format === guide.format;
-
-      if (!unchanged) {
         await ContentRepository.createPack({
           id,
           title: guide.title,
@@ -43,13 +45,17 @@ export class AuthoredGuideSeedService {
           format: guide.format,
           localUri,
           sizeBytes,
+          checksumSha256: contentSha256,
           installed: true,
           installStatus: 'installed',
           progress: 1,
         });
       }
 
-      await RagService.indexContentPack(id).catch(() => undefined);
+      if (contentChanged) {
+        await RagService.removeSourcesByRef(id).catch(() => undefined);
+        await RagService.indexContentPack(id).catch(() => undefined);
+      }
     }
   }
 }

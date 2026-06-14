@@ -1,7 +1,6 @@
 import type { ContentCategory, ContentPack, ContentPackManifest } from '@/types/content';
 import type { LucideIcon } from 'lucide-react-native';
 import {
-  BookHeart,
   BookMarked,
   BookOpen,
   Bot,
@@ -21,6 +20,7 @@ import {
   PillBottle,
   Plane,
   ShieldAlert,
+  Snowflake,
   SoapDispenserDroplet,
   Stethoscope,
   SunMedium,
@@ -34,12 +34,8 @@ import {
 type PackLike = Pick<ContentPackManifest, 'id' | 'category' | 'modelRole'>;
 
 const PACK_ICONS: Record<string, LucideIcon> = {
-  'preparedness-emergency-kit': HandPlatter,
-  'preparedness-family-plan': House,
-  'where-there-is-no-doctor-first-aid': BookHeart,
   'us-army-survival-fm-21-76': TentTree,
-  'food-safety-power-outage': UtensilsCrossed,
-  'food-preservation-usda': ChefHat,
+  'food-preservation-usda': UtensilsCrossed,
   'wikipedia-simple-en-nopic': Library,
   'wikipedia-simple-en-mini': BookMarked,
   'medical-wikipedia-en-nopic': PillBottle,
@@ -53,9 +49,7 @@ const PACK_ICONS: Record<string, LucideIcon> = {
   'disaster-earthquakes': House,
   'disaster-wildfires': FlameKindling,
   'disaster-extreme-heat': SunMedium,
-  'disaster-winter-weather': HousePlug,
-  'disaster-hurricanes': Waves,
-  'disaster-thunderstorms-lightning': TriangleAlert,
+  'disaster-winter-weather': Snowflake,
   'sanitation-hygiene': SoapDispenserDroplet,
   'household-readiness': HandPlatter,
   'emergency-water': Waves,

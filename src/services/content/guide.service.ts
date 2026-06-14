@@ -44,39 +44,6 @@ const GUIDE_SECTIONS: Record<string, GuideSection[]> = {
     },
   ],
 
-  'where-there-is-no-doctor-first-aid': [
-    {
-      title: 'Emergency order',
-      detail: 'Immediate priorities for loss of consciousness and breathing.',
-      page: 4,
-    },
-    {
-      title: 'Bleeding',
-      detail: 'Pressure, bandaging, and shock warning signs.',
-      page: 8,
-    },
-    {
-      title: 'Burns',
-      detail: 'Cooling, infection prevention, and when to seek help.',
-      page: 22,
-    },
-    {
-      title: 'Wounds',
-      detail: 'Cleaning wounds, covering them, and watching for infection.',
-      page: 10,
-    },
-    {
-      title: 'Animal bites',
-      detail: 'Wash immediately, control bleeding, and understand rabies risk.',
-      page: 15,
-    },
-    {
-      title: 'Transport',
-      detail: 'Stabilize before moving and protect neck/back injuries.',
-      page: 26,
-    },
-  ],
-
   'us-army-survival-fm-21-76': [
     {
       title: 'Introduction and survival actions',
@@ -172,39 +139,6 @@ const GUIDE_SECTIONS: Record<string, GuideSection[]> = {
       title: 'Signaling',
       detail: 'Ground-to-air signals, mirrors, fires, markers, radios, and improvised signals.',
       page: 223,
-    },
-  ],
-
-  'usda-special-forest-products-harvest': [
-    {
-      title: 'Why restraint matters',
-      detail:
-        'Wild foods can be a safety net, but gathering pressure can damage local plant populations.',
-      page: 14,
-    },
-    {
-      title: 'General harvest rules',
-      detail:
-        'Gather where plants are abundant, take only a little, rotate sites, and leave enough for wildlife and other people.',
-      page: 20,
-    },
-    {
-      title: 'Know what you gather',
-      detail:
-        'Use a regional field guide, avoid threatened plants, and do not rely on Ark for positive plant or mushroom identification.',
-      page: 20,
-    },
-    {
-      title: 'Do not ship mushroom ID',
-      detail:
-        'The report discusses mushrooms as forest products, but Ark treats mushroom identification as out of scope without expert local sources.',
-      page: 51,
-    },
-    {
-      title: 'Appendix guidelines',
-      detail:
-        'Harvest norms from field guides and gatherer research: minimize impact, gather selectively, rotate areas, and avoid fragile habitats.',
-      page: 54,
     },
   ],
 
@@ -345,23 +279,49 @@ const GUIDE_SECTIONS: Record<string, GuideSection[]> = {
     },
   ],
 
+  'disaster-winter-weather': [
+    {
+      title: 'Understand the alert',
+      detail:
+        'Know the difference between a winter storm watch, advisory, and warning, and act before the worst hits.',
+    },
+    {
+      title: 'Prepare your home',
+      detail:
+        'Insulate pipes, test CO and smoke detectors, gather supplies, and protect pets and people with medical needs.',
+    },
+    {
+      title: 'Stay safe during the storm',
+      detail:
+        'Stay off roads, limit time outside, watch for frostbite and hypothermia, and avoid overexertion when shoveling.',
+    },
+    {
+      title: 'Generator and CO safety',
+      detail:
+        'Run generators outdoors at least 20 feet from windows, and never heat your home with a gas stovetop or oven.',
+    },
+    {
+      title: 'Recovering after',
+      detail:
+        'Watch for ice, damaged power lines, and pipes; clear snow safely; and check on neighbors.',
+    },
+  ],
+
   'food-preservation-usda': [
     {
-      title: 'Principles of Home Canning',
+      title: 'Key principles',
       detail:
-        'Understand acidity, heat penetration, and the role of pressure canners vs water baths.',
+        'A full fridge holds 4 hours, a full freezer holds 48 hours, a half-full freezer holds 24 hours, and never taste food to test safety.',
     },
     {
-      title: 'Selecting and Preparing Food',
-      detail: 'Use fresh, high-quality produce and follow tested recipes precisely.',
+      title: 'Refrigerated food: save or discard',
+      detail:
+        'Perishable meat, dairy, and cut produce go after 2 hours above 40°F. Hard cheese, butter, uncut fruit, and condiments often keep.',
     },
     {
-      title: 'Fruits and Fruit Products',
-      detail: 'Jams, jellies, and canned fruits with proper sugar and pH levels.',
-    },
-    {
-      title: 'Tomatoes, Vegetables, and Meats',
-      detail: 'Low-acid foods require pressure canning to destroy botulism spores.',
+      title: 'Frozen food: refreeze or discard',
+      detail:
+        'Items with ice crystals and a fridge-like temperature are safe to refreeze, with quality loss; otherwise discard.',
     },
   ],
 
@@ -386,25 +346,167 @@ const GUIDE_SECTIONS: Record<string, GuideSection[]> = {
   ],
 
   // Authored guides — no page numbers because source is authored HTML
-  'emergency-cooking': [
+  'household-readiness': [
     {
-      title: 'Cook safely without power',
-      detail: 'Gas, camping stoves, fire, ventilation, and carbon monoxide risks.',
-      htmlTargets: ['#cook-safely-without-power'],
+      title: 'The 72-hour baseline',
+      detail:
+        'Start with three days of self-reliance per person, focused on water, medication, power, food, documents, warmth, and communication.',
+      htmlTargets: ['#the-72-hour-baseline'],
     },
     {
-      title: 'Use food before it spoils',
-      detail: 'Fridge, freezer, pantry order, and when to discard food.',
-      htmlTargets: ['#use-food-before-it-spoils'],
+      title: 'Home kit',
+      detail:
+        'The core supplies to keep in one place, and why the kit should be checked twice a year.',
+      htmlTargets: ['#home-kit'],
+    },
+    {
+      title: 'Go-bag',
+      detail:
+        'A lighter, grab-and-go set: documents, water, food, medication, power, layers, and a whistle.',
+      htmlTargets: ['#go-bag'],
+    },
+    {
+      title: 'Household roles',
+      detail:
+        'Decide who shuts off utilities, grabs documents, checks people, and contacts the outside fallback contact.',
+      htmlTargets: ['#household-roles'],
+    },
+    {
+      title: 'Maintenance rhythm',
+      detail:
+        'Monthly battery and flashlight checks, twice-yearly rotation, and a post-incident review.',
+      htmlTargets: ['#maintenance-rhythm'],
+    },
+  ],
+
+  'emergency-water': [
+    {
+      title: 'Priorities',
+      detail:
+        'Order of preference: sealed water, stored water, safe household water, treated clear water, then treated cloudy water.',
+      htmlTargets: ['#priorities'],
+    },
+    {
+      title: 'Storage',
+      detail:
+        'Clean food-grade containers, cool and dark, away from fuel and chemicals, and labelled with the fill date.',
+      htmlTargets: ['#storage'],
+    },
+    {
+      title: 'Finding water at home',
+      detail:
+        'Water heater, ice cubes, toilet tank (no cleaners), canned food liquid, and rainwater (after treatment).',
+      htmlTargets: ['#finding-water-at-home'],
+    },
+    {
+      title: 'Treatment methods',
+      detail:
+        'Boiling is the most reliable, with filtration, household bleach, and solar disinfection as backups.',
+      htmlTargets: ['#treatment-methods'],
+    },
+    {
+      title: 'Rationing',
+      detail:
+        'Drink enough to think clearly: no-cook food, disposable plates, hand sanitizer for clean hands, and gray water for flushing only.',
+      htmlTargets: ['#rationing'],
+    },
+  ],
+
+  'shelter-evacuation': [
+    {
+      title: 'Stay or leave',
+      detail:
+        'Decide whether to shelter in place or evacuate based on hazard type, mobility, medical needs, and road time.',
+      htmlTargets: ['#stay-or-leave'],
+    },
+    {
+      title: 'Shelter in place',
+      detail:
+        'Choose interior, higher ground, or clean-air rooms based on the hazard, and control doors and windows deliberately.',
+      htmlTargets: ['#shelter-in-place'],
+    },
+    {
+      title: 'Evacuation route',
+      detail:
+        'Plan two routes, tell a trusted contact, take documents and medication, and leave early.',
+      htmlTargets: ['#evacuation-route'],
+    },
+    {
+      title: 'Cold exposure',
+      detail:
+        'Stay dry, block wind, insulate from the ground, and warm severely hypothermic people slowly.',
+      htmlTargets: ['#cold-exposure'],
+    },
+    {
+      title: 'Heat and smoke',
+      detail:
+        'Heat stroke is an emergency; for smoke, close up, reduce exertion, and use a well-fitting respirator.',
+      htmlTargets: ['#heat-and-smoke'],
+    },
+  ],
+
+  'emergency-power': [
+    {
+      title: 'Power priorities',
+      detail:
+        'Rank devices before the outage: medical, communication, light, navigation, then comfort.',
+      htmlTargets: ['#power-priorities'],
+    },
+    {
+      title: 'Phone discipline',
+      detail:
+        'Airplane mode, low brightness, battery saver, and short scheduled check-ins instead of constant signal searching.',
+      htmlTargets: ['#phone-discipline'],
+    },
+    {
+      title: 'Power banks',
+      detail:
+        'Label banks by role, recharge monthly, and confirm cables match every device you depend on.',
+      htmlTargets: ['#power-banks'],
+    },
+    {
+      title: 'Generators and combustion',
+      detail:
+        'Outdoors only, away from openings, and use a battery CO detector; headache or confusion means move to fresh air.',
+      htmlTargets: ['#generators-and-combustion'],
+    },
+    {
+      title: 'Solar and vehicle charging',
+      detail:
+        'Solar tops up banks slowly; vehicle charging is useful but watch fuel level and CO risk.',
+      htmlTargets: ['#solar-and-vehicle-charging'],
+    },
+  ],
+
+  'emergency-cooking': [
+    {
+      title: 'Safety first',
+      detail:
+        'Carbon monoxide is the main cooking danger; keep flames and generators outdoors and away from openings.',
+      htmlTargets: ['#safety-first'],
+    },
+    {
+      title: 'Food order',
+      detail:
+        'Open, then fridge, then freezer, then pantry, then emergency reserve; never taste to test safety.',
+      htmlTargets: ['#food-order'],
+    },
+    {
+      title: 'Low-fuel cooking',
+      detail:
+        'One-pot meals, soaked grains, smaller cuts, lids, and retained-heat cooking all save fuel.',
+      htmlTargets: ['#low-fuel-cooking'],
     },
     {
       title: 'Low-water cooking',
-      detail: 'Meals that conserve water and fuel.',
+      detail:
+        'Reuse pasta or potato water, steam when you can, and choose couscous, oats, and canned food over long-boil grains.',
       htmlTargets: ['#low-water-cooking'],
     },
     {
       title: 'No-cook meals',
-      detail: 'Shelf-stable combinations when fire is unsafe.',
+      detail:
+        'Shelf-stable combinations: nut butter, canned protein, dried fruit, bars, and ready-to-eat soups safe cold.',
       htmlTargets: ['#no-cook-meals'],
     },
   ],
@@ -412,92 +514,165 @@ const GUIDE_SECTIONS: Record<string, GuideSection[]> = {
   'foraging-basics': [
     {
       title: 'Do not guess',
-      detail: 'Why uncertain plant ID is dangerous and when not to forage.',
+      detail:
+        'A confident app result is not field ID; never eat a wild plant or mushroom on a single photo or vague memory.',
       htmlTargets: ['#do-not-guess'],
     },
     {
-      title: 'Universal edibility test is not enough',
-      detail: 'Why slow testing does not make unknown plants safe.',
-      htmlTargets: ['#universal-edibility-test-is-not-enough'],
+      title: 'Why apps are not enough',
+      detail:
+        'Safety depends on species, season, plant part, lookalikes, soil, contamination, and individual allergies.',
+      htmlTargets: ['#why-apps-are-not-enough'],
     },
     {
-      title: 'High-risk lookalikes',
-      detail: 'Mushrooms, berries, bulbs, hemlock-like plants, and polluted areas.',
-      htmlTargets: ['#high-risk-lookalikes'],
+      title: 'Better emergency food order',
+      detail:
+        'Stored food, community food, known local sources, familiar fishing, expert-confirmed wild plants, then last-resort unknowns.',
+      htmlTargets: ['#better-emergency-food-order'],
     },
     {
-      title: 'Safer food priorities',
-      detail: 'Prefer stored food, known local plants, fishing, and community knowledge.',
-      htmlTargets: ['#safer-food-priorities'],
-    },
-  ],
-
-  'food-procurement-basics': [
-    {
-      title: 'Before hunting or fishing',
-      detail: 'Legal limits, safety, contamination, humane handling, and energy cost.',
-      htmlTargets: ['#before-hunting-or-fishing'],
-    },
-    {
-      title: 'Fishing first',
-      detail: 'Why fishing is often safer and more efficient than hunting.',
-      htmlTargets: ['#fishing-first'],
-    },
-    {
-      title: 'Animal handling risks',
-      detail: 'Parasites, spoilage, bites, disease, and safe cooking temperatures.',
-      htmlTargets: ['#animal-handling-risks'],
-    },
-    {
-      title: 'When not to hunt',
-      detail: 'Injury risk, ammunition scarcity, noise, legality, and community safety.',
-      htmlTargets: ['#when-not-to-hunt'],
+      title: 'High-risk groups',
+      detail:
+        'Avoid mushrooms, unknown berries, bulbs, milky-sap plants, bitter-almond smells, and road-side greens.',
+      htmlTargets: ['#high-risk-groups'],
     },
   ],
 
   'personal-safety-conflict': [
     {
       title: 'Avoid becoming a target',
-      detail: 'Movement, visibility, valuables, groups, and low-profile behavior.',
+      detail:
+        'Move with purpose, keep valuables hidden, and leave early when the atmosphere changes.',
       htmlTargets: ['#avoid-becoming-a-target'],
     },
     {
       title: 'De-escalation',
-      detail: 'Distance, calm speech, exits, witnesses, and non-provocation.',
+      detail:
+        'The goal is to leave safely: distance, calm short sentences, open hands, and no insults or challenges.',
       htmlTargets: ['#de-escalation'],
     },
     {
-      title: 'Escape planning',
-      detail: 'Routes, barriers, safe rooms, alarms, and regroup points.',
-      htmlTargets: ['#escape-planning'],
+      title: 'Home and shelter exits',
+      detail:
+        'Two ways out of every room, shoes and keys by the bed, and a rally point outside the building.',
+      htmlTargets: ['#home-and-shelter-exits'],
     },
     {
-      title: 'After an incident',
-      detail: 'Medical check, documentation, police/contact options, and mental recovery.',
-      htmlTargets: ['#after-an-incident'],
+      title: 'Documentation',
+      detail:
+        'Time, place, people, statements, injuries, witnesses, and photos only if safe; do not chase a second confrontation.',
+      htmlTargets: ['#documentation'],
+    },
+    {
+      title: 'When to seek help',
+      detail:
+        'Use emergency services, shelter staff, and trusted contacts when safe, and check for injuries after the adrenaline crash.',
+      htmlTargets: ['#when-to-seek-help'],
     },
   ],
 
   'offline-communications': [
     {
-      title: 'First rule: preserve battery',
-      detail: 'Airplane mode, low brightness, OLED black UI, power banks, and duty cycles.',
-      htmlTargets: ['#first-rule-preserve-battery'],
+      title: 'Before networks fail',
+      detail:
+        'Write the plan: outside contact, meeting points, pickup plan, medical contacts, and a messaging fallback.',
+      htmlTargets: ['#before-networks-fail'],
     },
     {
-      title: 'SMS, radio, and meeting points',
-      detail: 'Use low-bandwidth channels and pre-agreed physical fallback plans.',
-      htmlTargets: ['#sms-radio-and-meeting-points'],
+      title: 'Battery discipline',
+      detail:
+        'Airplane mode, low brightness, scheduled check-in windows, and short text messages over voice calls.',
+      htmlTargets: ['#battery-discipline'],
     },
     {
-      title: 'Signal methods',
-      detail: 'Whistles, mirrors, flashlights, flags, and ground markers.',
-      htmlTargets: ['#signal-methods'],
+      title: 'Message format',
+      detail:
+        'Answer who is safe, where you are, where you are going, what you need, and when you will check again.',
+      htmlTargets: ['#message-format'],
+    },
+    {
+      title: 'Physical signaling',
+      detail:
+        'Whistle, flashlight patterns at night, bright fabric and mirrors in daylight, and only when safe and visible.',
+      htmlTargets: ['#physical-signaling'],
     },
     {
       title: 'Information hygiene',
-      detail: 'Avoid rumors, verify before moving, and record trusted updates.',
+      detail:
+        'Treat unverified messages as leads; record source and time, and do not forward warnings you cannot verify.',
       htmlTargets: ['#information-hygiene'],
+    },
+  ],
+
+  'sanitation-principles': [
+    {
+      title: 'Priorities',
+      detail:
+        'Clean hands, safe drinking water, separated waste, safe food handling, and pest control in that order.',
+      htmlTargets: ['#priorities'],
+    },
+    {
+      title: 'Hand hygiene',
+      detail:
+        'Soap and water when possible; sanitizer only when hands are not visibly dirty, and always after toilet or waste contact.',
+      htmlTargets: ['#hand-hygiene'],
+    },
+    {
+      title: 'Toilet failure',
+      detail:
+        'Separate liquids and solids, cover solids with dry material, seal full bags, and keep waste zones downwind of food.',
+      htmlTargets: ['#toilet-failure'],
+    },
+    {
+      title: 'Cleaning',
+      detail:
+        'Clean first, disinfect second; use gloves and separate tools for kitchen and cleanup; assume floodwater is contaminated.',
+      htmlTargets: ['#cleaning'],
+    },
+    {
+      title: 'Waste zones',
+      detail:
+        'Clean, dirty, and transition zones; do not let dirty tools, shoes, or hands migrate into clean areas.',
+      htmlTargets: ['#waste-zones'],
+    },
+  ],
+
+  'health-continuity': [
+    {
+      title: 'Personal medical card',
+      detail:
+        'A short card per person: conditions, allergies, medications, doses, prescribers, pharmacy, and accessibility needs.',
+      htmlTargets: ['#personal-medical-card'],
+    },
+    {
+      title: 'Medication buffer',
+      detail:
+        'A small rotating buffer of critical medication, and a clinician plan for missed doses.',
+      htmlTargets: ['#medication-buffer'],
+    },
+    {
+      title: 'Cold-chain medication',
+      detail:
+        'A small cooler, gel packs, a thermometer, and a written safe range; do not freeze unless the label allows it.',
+      htmlTargets: ['#cold-chain-medication'],
+    },
+    {
+      title: 'Devices and power',
+      detail:
+        'CPAP, nebulizer, oxygen, mobility, hearing, glucose, and phone medical apps — each needs a real backup plan.',
+      htmlTargets: ['#devices-and-power'],
+    },
+    {
+      title: 'Wounds and infection',
+      detail:
+        'Clean with safe water, cover with clean dressings, and seek help for deep wounds, bites, dirty punctures, or spreading infection.',
+      htmlTargets: ['#wounds-and-infection'],
+    },
+    {
+      title: 'Mental load',
+      detail:
+        'Use routines: hydration, food, medication, rest shifts, check-ins, and written plans protect people when judgment is degraded.',
+      htmlTargets: ['#mental-load'],
     },
   ],
 };

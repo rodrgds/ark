@@ -2,9 +2,10 @@ import { NAV_COLORS } from '@/constants/theme';
 import { useThemeStore } from '@/stores/theme-store';
 import { ModalBottomSheet, type Detent } from '@swmansion/react-native-bottom-sheet';
 import * as React from 'react';
-import { Keyboard, Platform, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Keyboard, Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '@/components/ui/text';
+import { ArkKeyboardAwareScrollView } from '@/components/layout/keyboard-controller';
 import { resolveKeyboardOffset } from '@/components/ui/bottom-sheet-keyboard';
 
 export type ArkBottomSheetRef = {
@@ -163,7 +164,7 @@ export function ArkBottomSheet({
         <View style={[styles.handle, { backgroundColor: colors.mutedForeground }]} />
       </View>
       {scrollable ? (
-        <ScrollView
+        <ArkKeyboardAwareScrollView
           style={styles.scrollView}
           contentContainerStyle={{
             paddingHorizontal: 16,
@@ -175,7 +176,7 @@ export function ArkBottomSheet({
             {header}
             {children}
           </View>
-        </ScrollView>
+        </ArkKeyboardAwareScrollView>
       ) : (
         <View
           style={{

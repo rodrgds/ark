@@ -707,7 +707,8 @@ function SaveWebPageSheet({
       visible={visible}
       title="Save web page"
       description="Paste a URL to fetch, clean, and cache it offline. RAG-indexed automatically."
-      onDismiss={onDismiss}>
+      onDismiss={onDismiss}
+      scrollable>
       <View className="w-full gap-3">
         <Input
           autoCapitalize="none"

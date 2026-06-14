@@ -149,6 +149,7 @@ function parentDirectory(uri: string) {
 }
 
 import { escapeHtml, utf8ByteLength } from '@/lib/format';
+import { filterSnapshotChrome } from '@/services/files/snapshot-image-filter';
 
 function isNavigableUrl(value: string) {
   return !/^(#|mailto:|tel:|javascript:|data:)/i.test(value);
@@ -739,7 +740,7 @@ export class DownloadManagerService {
       if (!response.ok) throw new Error(`Download failed with HTTP ${response.status}.`);
 
       const rawHtml = await response.text();
-      const readableBody = extractReadableBody(rawHtml);
+      const readableBody = filterSnapshotChrome(extractReadableBody(rawHtml), input.sourceUrl);
       const pageTitle = extractTitle(rawHtml, input.title);
       const imageUrls = collectImageUrls(readableBody, input.sourceUrl);
       const imageMap = new Map<string, string>();

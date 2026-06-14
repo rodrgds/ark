@@ -151,13 +151,9 @@ jobs:
           # App/ci changes -> run everything; ci-only changes also run
           # the full suite so a workflow tweak never lands without the
           # checks actually being valid.
-          set -x
           if [[ "$APP_CHANGED" == "true" || "$CI_CHANGED" == "true" ]]; then
-            format-check || true
-            typecheck || true
-            lint 2>&1 | tee /tmp/eslint-out.log
-            lint_rc=${PIPESTATUS[0]}
-            echo "=== eslint raw output above; exit=$lint_rc ==="
-            cat /tmp/eslint-out.log
-            test || true
+            format-check
+            typecheck
+            lint
+            test
           fi

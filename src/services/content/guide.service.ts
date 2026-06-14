@@ -44,6 +44,124 @@ const GUIDE_SECTIONS: Record<string, GuideSection[]> = {
     },
   ],
 
+  'where-there-is-no-doctor-first-aid': [
+    {
+      title: 'Home Cures and Popular Beliefs',
+      detail: 'When home remedies help, when they harm, and how to test them.',
+      page: 48,
+    },
+    {
+      title: 'Sicknesses That Are Often Confused',
+      detail: 'Distinguishing between sicknesses with similar signs.',
+      page: 64,
+    },
+    {
+      title: 'How to Examine a Sick Person',
+      detail: 'Questions, observation, pulse, temperature, and the physical exam.',
+      page: 76,
+    },
+    {
+      title: 'How to Take Care of a Sick Person',
+      detail: 'Comfort, fluids, food, cleanliness, and when to seek help.',
+      page: 86,
+    },
+    {
+      title: 'Healing Without Medicines',
+      detail: 'Water therapy and the limits of medicine-free treatment.',
+      page: 92,
+    },
+    {
+      title: 'Right and Wrong Use of Modern Medicines',
+      detail: 'Guidelines for when and when not to use modern drugs.',
+      page: 96,
+    },
+    {
+      title: 'Antibiotics: What They Are and How to Use Them',
+      detail: 'Appropriate use, resistance, and limits of antibiotics.',
+      page: 102,
+    },
+    {
+      title: 'How to Measure and Give Medicine',
+      detail: 'Liquid dosing, children, and how often to take medicines.',
+      page: 106,
+    },
+    {
+      title: 'Instructions and Precautions for Injections',
+      detail: 'When to inject, dangerous reactions, and sterilising equipment.',
+      page: 112,
+    },
+    {
+      title: 'First Aid',
+      detail: 'Bleeding, shock, drowning, burns, fractures, poisoning, and snakebite.',
+      page: 122,
+    },
+    {
+      title: 'Nutrition: What to Eat to Be Healthy',
+      detail: 'Main and helper foods, malnutrition, and diet for specific problems.',
+      page: 154,
+    },
+    {
+      title: 'Prevention: How to Avoid Many Sicknesses',
+      detail: 'Cleanliness, sanitation, worm prevention, and vaccines.',
+      page: 178,
+    },
+    {
+      title: 'Some Very Common Sicknesses',
+      detail: 'Dehydration, diarrhea, colds, asthma, headaches, and seizures.',
+      page: 198,
+    },
+    {
+      title: 'Serious Illnesses That Need Special Attention',
+      detail: 'TB, rabies, tetanus, malaria, dengue, typhoid, and leprosy.',
+      page: 226,
+    },
+    {
+      title: 'Skin Problems',
+      detail: 'Identification, scabies, lice, fungal infections, ulcers, and eczema.',
+      page: 240,
+    },
+    {
+      title: 'The Eyes',
+      detail: 'Injuries, infections, cataracts, and vitamin A deficiency.',
+      page: 264,
+    },
+    {
+      title: 'The Teeth, Gums, and Mouth',
+      detail: 'Cavities, abscesses, pyorrhea, and oral hygiene.',
+      page: 276,
+    },
+    {
+      title: 'The Urinary System and the Genitals',
+      detail: 'UTIs, kidney stones, STIs, and discharge in women and men.',
+      page: 280,
+    },
+    {
+      title: 'Information for Mothers and Midwives',
+      detail: 'Pregnancy, birth, and care of the mother after delivery.',
+      page: 292,
+    },
+    {
+      title: 'Family Planning',
+      detail: 'Methods, effectiveness, side effects, and choosing what fits.',
+      page: 330,
+    },
+    {
+      title: 'Health and Sicknesses of Children',
+      detail: 'Common childhood diseases, growth, and care of the sick child.',
+      page: 342,
+    },
+    {
+      title: 'Health and Sicknesses of Older People',
+      detail: 'Chronic disease, dementia, and care at the end of life.',
+      page: 370,
+    },
+    {
+      title: 'The Medicine Kit',
+      detail: 'Recommended medicines, supplies, and how to use each one.',
+      page: 378,
+    },
+  ],
+
   'us-army-survival-fm-21-76': [
     {
       title: 'Introduction and survival actions',

@@ -33,11 +33,11 @@ memory at once.
 Direct PDF downloads. The reader renders pages on device, supports
 section jumps, and feeds extracted page text into RAG.
 
-| ID                                   | Title                                                             | URL                                                                                         | Source                  |
-| ------------------------------------ | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ----------------------- |
-| `hesperian-first-aid`                | Hesperian First Aid (chapter from _New Where There Is No Doctor_) | `https://hesperian.org/wp-content/uploads/pdf/en_nwtnd_2011/en_nwtnd_2014_03g.pdf`          | Hesperian Health Guides |
-| `where-there-is-no-doctor-first-aid` | _Where There Is No Doctor_ (2025 edition, full book)              | `https://hesperian.org/wp-content/uploads/pdf/en_wtnd_2025/en_wtnd_2025_bm.pdf`             | Hesperian Health Guides |
-| `us-army-survival-fm-21-76`          | US Army FM 21-76 Survival Manual                                  | `https://ia601604.us.archive.org/28/items/Fm21-76SurvivalManual/FM21-76_SurvivalManual.pdf` | Internet Archive        |
+| ID                                   | Title                                                             | URL                                                                                                             | Source                                |
+| ------------------------------------ | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `hesperian-first-aid`                | Hesperian First Aid (chapter from _New Where There Is No Doctor_) | `https://hesperian.org/wp-content/uploads/pdf/en_nwtnd_2011/en_nwtnd_2014_03g.pdf`                              | Hesperian Health Guides               |
+| `where-there-is-no-doctor-first-aid` | _Where There Is No Doctor_ (2011 edition, full book)              | `https://archive.org/download/WhereThereIsNoDoctor-English-DavidWerner/14.DavidWerner-WhereThereIsNoDoctor.pdf` | Internet Archive (Hesperian original) |
+| `us-army-survival-fm-21-76`          | US Army FM 21-76 Survival Manual                                  | `https://ia601604.us.archive.org/28/items/Fm21-76SurvivalManual/FM21-76_SurvivalManual.pdf`                     | Internet Archive                      |
 
 ## HTML Snapshots (defuddle-extracted)
 

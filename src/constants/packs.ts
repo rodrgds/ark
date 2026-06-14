@@ -21,14 +21,15 @@ export const STARTER_PACKS: ContentPackManifest[] = [
   },
   {
     id: 'where-there-is-no-doctor-first-aid',
-    title: 'Where There Is No Doctor',
+    title: 'Where There Is No Doctor (2011)',
     description:
-      'Classic village healthcare reference covering first aid, common illnesses, and prevention.',
+      'Classic village healthcare reference covering first aid, common illnesses, prevention, and basic medical care. Useful as a comprehensive companion to the focused Hesperian First Aid chapter.',
     category: 'Medical',
     format: 'pdf',
-    estimatedSize: 'PDF, ~40 MB',
-    sourceUrl: 'https://hesperian.org/wp-content/uploads/pdf/en_wtnd_2025/en_wtnd_2025_bm.pdf',
-    sourceLabel: 'Hesperian Health Guides',
+    estimatedSize: '8.3 MB',
+    sourceUrl:
+      'https://archive.org/download/WhereThereIsNoDoctor-English-DavidWerner/14.DavidWerner-WhereThereIsNoDoctor.pdf',
+    sourceLabel: 'Internet Archive (Hesperian 2011)',
     fileName: 'where-there-is-no-doctor.pdf',
     installed: false,
     disclaimer: SAFETY_COPY.medical,

@@ -5,6 +5,7 @@ import * as React from 'react';
 import { Keyboard, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '@/components/ui/text';
+import { resolveKeyboardOffset } from '@/components/ui/bottom-sheet-keyboard';
 
 export type ArkBottomSheetRef = {
   close: () => void;
@@ -235,10 +236,11 @@ function resolveSnapPoint(point: string | number, height: number): Detent {
 
 function useKeyboardOffset() {
   const [offset, setOffset] = React.useState(0);
+  const { height: windowHeight } = useWindowDimensions();
 
   React.useEffect(() => {
-    const handleShow = (event: { endCoordinates: { height: number } }) => {
-      setOffset(event.endCoordinates.height);
+    const handleShow = (event?: { endCoordinates?: { height?: number; screenY?: number } }) => {
+      setOffset(resolveKeyboardOffset(event, windowHeight));
     };
     const handleHide = () => setOffset(0);
 
@@ -255,7 +257,7 @@ function useKeyboardOffset() {
       willHide.remove();
       didHide.remove();
     };
-  }, []);
+  }, [windowHeight]);
 
   return offset;
 }

@@ -228,7 +228,7 @@ Boot → index.tsx
 - Onboarding wizard: 8-step flow with state persistence
 - Vault service: versioned stretched SHA-512 verifier with legacy upgrade, password change, biometric unlock via LocalAuthentication, auto-lock lifecycle enforcement
 - AI chat: messages stored to DB, mock fallback adapter, llama.rn adapter in dev builds when a GGUF model is installed, streaming tokens, Stop action
-- RAG: hybrid FTS plus embeddings, deterministic offline `ark-hash-v2` fallback, llama.rn embedding contexts for installed Nomic/Qwen embedding packs, installed guide chunks, note indexing, imported document text, PDF page text, imported image OCR text, section/page/document citations, and lazy ZIM paragraph citations when ArkZim is available
+- RAG: hybrid FTS plus embeddings, deterministic offline `ark-hash-v2` fallback, ExecuTorch (`react-native-executorch`) text-embedding contexts for the registered `executorch-multi-qa-minilm-l6-cos-v1` (default) and `executorch-multi-qa-mpnet-base-dot-v1` models, installed guide chunks, note indexing, imported document text, PDF page text, imported image OCR text, section/page/document citations, and lazy ZIM paragraph citations when ArkZim is available
 - Pressure trend: rising/stable/falling from barometer snapshot history
 - Network monitoring: NetInfo wrapper
 - App filesystem directories: created at boot
@@ -290,7 +290,7 @@ of hardcoding `#F2B84B` (or any other theme color) in new code. Applied via
 1. **Native verification remains the main risk:** SQLCipher, MapLibre offline packs, ArkZim, ArkOcr, and llama.rn all need real-device verification in development builds.
 2. **iOS ZIM support is still missing:** Android ArkZim compiles; iOS still needs CoreKiwix.xcframework integration.
 3. **Password KDF is improved but not production-grade:** v3 SHA-512 stretching replaced the old weak verifier path, but a native libsodium Argon2id module is still required.
-4. **RAG embeddings need device validation:** Nomic/Qwen llama.rn embedding-pack support is implemented with an `ark-hash-v2` fallback, but real-device quality, memory, and sqlite-vec KNN behavior still need verification.
+4. **RAG embeddings need device validation:** ExecuTorch (`react-native-executorch`) text-embedding contexts for the `executorch-multi-qa-minilm-l6-cos-v1` (default) and `executorch-multi-qa-mpnet-base-dot-v1` models are wired with an `ark-hash-v2` fallback, but real-device quality, memory, and sqlite-vec KNN behavior still need verification.
 5. **Mounted UI tests are still absent:** current coverage is route/static/service-level, not React Native render tests. E2E onboarding coverage is intentionally deprioritized for now.
 6. **Big screens:** `app/(tabs)/map.tsx`, `app/(tabs)/chat/[threadId].tsx`, and `src/services/ai/rag.service.ts` are each over 1k lines and should be split before further feature work. `app/(tabs)/settings.tsx` was extracted to 679 lines via `src/components/settings/`.
 

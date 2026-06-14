@@ -66,6 +66,26 @@ describe('filterSnapshotChrome', () => {
     expect(filtered).toContain('big-photo.png');
   });
 
+  test('keeps CDC-style featured images with empty alt and role=presentation when not in chrome', () => {
+    const html = `
+      <main>
+        <figure class="dfe-curated-link__image dfe-image__featured">
+          <div class="image-container aspect-ratio-fluid">
+            <a href="/water-emergency/communication-resources/fact-sheet-wash-your-hands.html" title="Fact Sheet: Wash Your Hands">
+              <img src="/water-emergency/media/images/Wash-Your-Hands.JPG" alt="" role="presentation" width="593" height="769" />
+            </a>
+          </div>
+        </figure>
+        <h2>Wash your hands</h2>
+      </main>
+    `;
+    const filtered = filterSnapshotChrome(
+      html,
+      'https://www.cdc.gov/water-emergency/safety/guidelines-for-personal-hygiene-during-an-emergency.html'
+    );
+    expect(filtered).toContain('Wash-Your-Hands.JPG');
+  });
+
   test('keeps article images with the Ready.gov static path pattern only when non-icon', () => {
     const html = `
       <main>

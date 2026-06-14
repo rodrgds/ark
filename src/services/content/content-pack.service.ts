@@ -159,7 +159,8 @@ export class ContentPackService {
       packId.startsWith('custom-model-') ||
       packId.startsWith('custom-chat-model-') ||
       packId.startsWith('custom-embedding-model-') ||
-      packId.startsWith('custom-voice-model-')
+      packId.startsWith('custom-voice-model-') ||
+      packId.startsWith('user-web-')
     ) {
       await ContentRepository.delete(packId);
     } else {

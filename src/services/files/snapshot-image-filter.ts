@@ -50,7 +50,7 @@ function isUiClass(value: string): boolean {
 
 function isUiAlt(value: string): boolean {
   const trimmed = value.trim();
-  if (!trimmed) return true;
+  if (!trimmed) return false;
   return UI_ALT_PATTERNS.some((pattern) => pattern.test(trimmed));
 }
 

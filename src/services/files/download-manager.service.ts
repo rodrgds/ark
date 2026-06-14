@@ -228,6 +228,21 @@ function rewriteSnapshotContent(html: string, baseUrl: string, imageMap: Map<str
   );
 }
 
+function stripFailedImageTags(html: string, baseUrl: string, failedUrls: Set<string>): string {
+  if (!failedUrls.size) return html;
+  return html.replace(/<img\b[^>]*>/gi, (full) => {
+    const srcMatch = full.match(/\bsrc=(["'])(.*?)\1/i);
+    if (!srcMatch) return full;
+    const absoluteUrl = toAbsoluteUrl(srcMatch[2] ?? '', baseUrl);
+    if (absoluteUrl && failedUrls.has(absoluteUrl)) {
+      return '';
+    }
+    return full;
+  });
+}
+
+export const __test__ = { stripFailedImageTags };
+
 function wrapSnapshotHtml(input: { title: string; sourceUrl: string; body: string }) {
   return `<!doctype html>
 <html lang="en">
@@ -779,6 +794,7 @@ export class DownloadManagerService {
       const pageTitle = extractTitle(rawHtml, input.title);
       const imageUrls = collectImageUrls(readableBody, input.sourceUrl);
       const imageMap = new Map<string, string>();
+      const failedImageUrls = new Set<string>();
       const downloadedAssetUris: string[] = [];
 
       if (imageUrls.length) {
@@ -809,11 +825,13 @@ export class DownloadManagerService {
             imageMap.set(imageUrl, `assets/${assetFileName}`);
             downloadedAssetUris.push(result.uri);
           } else {
+            failedImageUrls.add(imageUrl);
             await FileSystem.deleteAsync(destinationUri, { idempotent: true }).catch(
               () => undefined
             );
           }
-        } catch {
+        } catch (downloadError) {
+          failedImageUrls.add(imageUrl);
           await FileSystem.deleteAsync(destinationUri, { idempotent: true }).catch(() => undefined);
         } finally {
           currentAssetDownload = null;
@@ -829,10 +847,11 @@ export class DownloadManagerService {
         );
       }
 
+      const strippedBody = stripFailedImageTags(readableBody, input.sourceUrl, failedImageUrls);
       const snapshotHtml = wrapSnapshotHtml({
         title: pageTitle,
         sourceUrl: input.sourceUrl,
-        body: rewriteSnapshotContent(readableBody, input.sourceUrl, imageMap),
+        body: rewriteSnapshotContent(strippedBody, input.sourceUrl, imageMap),
       });
       await FileSystem.writeAsStringAsync(input.localUri, snapshotHtml, {
         encoding: FileSystem.EncodingType.UTF8,
@@ -993,6 +1012,7 @@ export class DownloadManagerService {
       const readableBody = filterSnapshotChrome(defuddleHtml, input.sourceUrl);
       const imageUrls = collectImageUrls(readableBody, input.sourceUrl);
       const imageMap = new Map<string, string>();
+      const failedImageUrls = new Set<string>();
       const downloadedAssetUris: string[] = [];
 
       if (imageUrls.length) {
@@ -1023,11 +1043,13 @@ export class DownloadManagerService {
             imageMap.set(imageUrl, `assets/${assetFileName}`);
             downloadedAssetUris.push(result.uri);
           } else {
+            failedImageUrls.add(imageUrl);
             await FileSystem.deleteAsync(destinationUri, { idempotent: true }).catch(
               () => undefined
             );
           }
-        } catch {
+        } catch (downloadError) {
+          failedImageUrls.add(imageUrl);
           await FileSystem.deleteAsync(destinationUri, { idempotent: true }).catch(() => undefined);
         } finally {
           currentAssetDownload = null;
@@ -1043,10 +1065,11 @@ export class DownloadManagerService {
         );
       }
 
+      const strippedBody = stripFailedImageTags(readableBody, input.sourceUrl, failedImageUrls);
       const snapshotHtml = wrapSnapshotHtml({
         title: pageTitle,
         sourceUrl: input.sourceUrl,
-        body: rewriteSnapshotContent(readableBody, input.sourceUrl, imageMap),
+        body: rewriteSnapshotContent(strippedBody, input.sourceUrl, imageMap),
       });
       await FileSystem.writeAsStringAsync(input.localUri, snapshotHtml, {
         encoding: FileSystem.EncodingType.UTF8,
@@ -1065,7 +1088,7 @@ export class DownloadManagerService {
       await this.finalizeDownloadedFile({
         id: input.id,
         kind: input.kind,
-        title: pageTitle,
+        title: input.title,
         packId: input.packId,
         resultUri: input.localUri,
         resolvedSizeBytes: totalBytes,

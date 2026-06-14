@@ -2,14 +2,7 @@ import { NAV_COLORS } from '@/constants/theme';
 import { useThemeStore } from '@/stores/theme-store';
 import { ModalBottomSheet, type Detent } from '@swmansion/react-native-bottom-sheet';
 import * as React from 'react';
-import {
-  Keyboard,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  useWindowDimensions,
-  View,
-} from 'react-native';
+import { Keyboard, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '@/components/ui/text';
 
@@ -244,10 +237,6 @@ function useKeyboardOffset() {
   const [offset, setOffset] = React.useState(0);
 
   React.useEffect(() => {
-    if (Platform.OS !== 'ios') {
-      return undefined;
-    }
-
     const handleShow = (event: { endCoordinates: { height: number } }) => {
       setOffset(event.endCoordinates.height);
     };

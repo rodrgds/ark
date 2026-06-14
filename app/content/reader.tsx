@@ -301,7 +301,6 @@ function guideReaderReducer(state: GuideReaderState, action: GuideReaderAction):
               page: action.page ?? state.content.page,
             }
           : null,
-        initialPage: action.page ?? state.initialPage,
       };
     case 'exportingPdfChanged':
       return { ...state, exportingPdf: action.exporting };

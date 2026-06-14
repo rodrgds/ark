@@ -20,6 +20,20 @@ export const STARTER_PACKS: ContentPackManifest[] = [
     disclaimer: SAFETY_COPY.medical,
   },
   {
+    id: 'where-there-is-no-doctor-first-aid',
+    title: 'Where There Is No Doctor',
+    description:
+      'Classic village healthcare reference covering first aid, common illnesses, and prevention.',
+    category: 'Medical',
+    format: 'pdf',
+    estimatedSize: 'PDF, ~40 MB',
+    sourceUrl: 'https://hesperian.org/wp-content/uploads/pdf/en_wtnd_2025/en_wtnd_2025_bm.pdf',
+    sourceLabel: 'Hesperian Health Guides',
+    fileName: 'where-there-is-no-doctor.pdf',
+    installed: false,
+    disclaimer: SAFETY_COPY.medical,
+  },
+  {
     id: 'us-army-survival-fm-21-76',
     title: 'US Army Survival Manual',
     description:

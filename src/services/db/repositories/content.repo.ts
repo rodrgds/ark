@@ -19,7 +19,6 @@ const REMOVED_STARTER_PACK_IDS = [
   'model-gemma3-1b-it-q4-0',
   'embedding-nomic-v15-q4-k-m',
   'embedding-qwen3-06b-q8',
-  'where-there-is-no-doctor-first-aid',
   'usda-special-forest-products-harvest',
 ];
 

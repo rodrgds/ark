@@ -14,6 +14,10 @@ describe('resolveKeyboardOffset', () => {
     expect(resolveKeyboardOffset({ endCoordinates: { height: 320 } }, 800)).toBe(320);
   });
 
+  test('uses event.height when Android reports screenY as 0', () => {
+    expect(resolveKeyboardOffset({ endCoordinates: { height: 320, screenY: 0 } }, 800)).toBe(320);
+  });
+
   test('uses windowHeight - screenY when screenY is provided (iOS path)', () => {
     // iOS reports the keyboard top as screenY; the offset is the space below it.
     expect(resolveKeyboardOffset({ endCoordinates: { height: 336, screenY: 464 } }, 800)).toBe(

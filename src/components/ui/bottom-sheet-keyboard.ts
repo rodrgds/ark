@@ -8,9 +8,9 @@
  *     window coordinates) and `endCoordinates.height`. We prefer screenY
  *     because it stays correct even when the device has a non-rectangular
  *     keyboard (e.g. iPad split keyboard). The offset is windowHeight - screenY.
- *   - Android 11+ reports `endCoordinates.height` only and only fires after
- *     the keyboard is actually shown. Older Androids may omit endCoordinates
- *     entirely.
+ *   - Android 11+ may report `endCoordinates.height` with `screenY: 0`, so a
+ *     numeric screenY is only trusted when it is inside the visible window.
+ *     Older Androids may omit endCoordinates entirely.
  *
  * The function is defensive: a missing or malformed event resolves to 0
  * instead of throwing, so a bad native event cannot crash the JS thread.
@@ -25,5 +25,8 @@ export function resolveKeyboardOffset(
 ): number {
   const screenY = event?.endCoordinates?.screenY;
   const eventHeight = event?.endCoordinates?.height ?? 0;
-  return typeof screenY === 'number' ? Math.max(0, windowHeight - screenY) : eventHeight;
+  if (typeof screenY === 'number' && screenY > 0 && screenY <= windowHeight) {
+    return Math.max(0, windowHeight - screenY);
+  }
+  return eventHeight;
 }

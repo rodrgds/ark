@@ -15,7 +15,11 @@ import { Check } from 'lucide-react-native';
 import * as React from 'react';
 import { Pressable, View } from 'react-native';
 
-const RECOMMENDED_PACK_IDS = ['hesperian-first-aid', 'us-army-survival-fm-21-76'];
+const RECOMMENDED_PACK_IDS = [
+  'preparedness-emergency-kit',
+  'where-there-is-no-doctor-first-aid',
+  'food-safety-power-outage',
+];
 
 export default function PacksScreen() {
   const [selected, setSelected] = React.useState(() => new Set(RECOMMENDED_PACK_IDS));

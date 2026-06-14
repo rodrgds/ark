@@ -71,7 +71,16 @@ in
     # file instead of rewriting in place.
     format-check.exec = "${lib.getExe prettier-check-wrapper}";
     typecheck.exec = "bunx tsc --noEmit";
-    lint.exec = "bun run lint";
+    # Call eslint directly to avoid the `bun run lint` indirection. Inside
+    # `devenv shell bash -- -e {0}` on GitHub Actions, the `bun run` wrapper
+    # has a buffering trap that drops the upstream tool's stdout/stderr
+    # while still propagating the exit code — producing a CI failure with
+    # zero diagnostic output. The skill at
+    # ~/.hermes/skills/devops/devenv-github-actions-ci/ documents this
+    # as pitfall 2 and recommends calling the tool directly as the
+    # preferred fix. typecheck/test don't go through `bun run` so they
+    # don't hit the same trap; only lint needed the bypass.
+    lint.exec = "bunx eslint . --quiet";
     test.exec = "bun test";
   };
 

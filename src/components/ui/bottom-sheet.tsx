@@ -24,6 +24,13 @@ export type ArkBottomSheetProps = {
   scrollable?: boolean;
   contentClassName?: string;
   maxDynamicContentSize?: number;
+  /**
+   * When `scrollable` is true, disable the auto-scroll-into-view behavior of
+   * the inner keyboard-aware scroll view. Use this when the focused input is
+   * pinned to the top of the sheet (or otherwise guaranteed-visible) and the
+   * native auto-scroll would otherwise yank the input out of view.
+   */
+  enableKeyboardAwareScroll?: boolean;
 };
 
 type SheetState = {
@@ -44,6 +51,7 @@ export function ArkBottomSheet({
   scrollable = false,
   contentClassName,
   maxDynamicContentSize,
+  enableKeyboardAwareScroll = true,
 }: ArkBottomSheetProps) {
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
@@ -165,6 +173,7 @@ export function ArkBottomSheet({
       </View>
       {scrollable ? (
         <ArkKeyboardAwareScrollView
+          enabled={enableKeyboardAwareScroll}
           style={styles.scrollView}
           contentContainerStyle={{
             paddingHorizontal: 16,

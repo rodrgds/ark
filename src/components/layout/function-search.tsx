@@ -292,6 +292,7 @@ export function FunctionSearchButton() {
         onDismiss={closeSearch}
         scrollable
         snapPoints={['82%']}
+        enableKeyboardAwareScroll={false}
         contentClassName="gap-3">
         <Pressable
           accessibilityRole="none"

@@ -155,5 +155,9 @@ jobs:
             format-check
             typecheck
             lint
-            test
+            # `test` is a Bash builtin; with no args it returns 1 and
+            # would short-circuit `set -e` before bun test runs. Use
+            # `bun run test` to go through package.json's script and
+            # pick up the project's rntl-suite wiring.
+            bun run test
           fi

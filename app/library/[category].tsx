@@ -1,9 +1,11 @@
 import { Arky } from '@/components/brand/ark-logo';
-import { Screen } from '@/components/layout/screen';
+import { ArkBottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
+import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
+import { Screen } from '@/components/layout/screen';
 import { confirmDestructive } from '@/components/ui/sheet-alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
@@ -15,7 +17,7 @@ import type { ContentCategory, ContentPack } from '@/types/content';
 import type { ArkDocument } from '@/types/db';
 import { formatDistanceToNow } from 'date-fns';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { Check, Download, FileText, Pause, Play, Trash2 } from 'lucide-react-native';
+import { Check, Download, FileText, Globe, Pause, Play, Trash2 } from 'lucide-react-native';
 import * as React from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, View } from 'react-native';
 
@@ -49,6 +51,9 @@ export default function LibraryCategoryScreen() {
   const [error, setError] = React.useState<string | null>(null);
   const [refreshing, setRefreshing] = React.useState(false);
   const [initialLoading, setInitialLoading] = React.useState(true);
+  const [webPageSheetOpen, setWebPageSheetOpen] = React.useState(false);
+  const [webPageUrl, setWebPageUrl] = React.useState('');
+  const [webPageSubmitting, setWebPageSubmitting] = React.useState(false);
 
   const libraryPacks = React.useMemo(
     () => packs.filter((pack) => pack.category !== 'AI Models' && pack.category !== 'RSS'),
@@ -58,6 +63,10 @@ export default function LibraryCategoryScreen() {
     () =>
       category === 'Documents' ? [] : libraryPacks.filter((pack) => pack.category === category),
     [category, libraryPacks]
+  );
+  const userWebPages = React.useMemo(
+    () => libraryPacks.filter((pack) => pack.category === 'Personal Documents'),
+    [libraryPacks]
   );
   const showDocuments = category === 'Documents';
   const materialCount = showDocuments ? documents.length : visiblePacks.length;
@@ -125,8 +134,20 @@ export default function LibraryCategoryScreen() {
           <Card className="gap-3">
             <View className="flex-row items-center gap-3">
               <Text variant="small" className="text-muted-foreground min-w-0 flex-1">
-                Import files into Ark storage for offline reading and search.
+                Import files or cache a web page for offline reading and search.
               </Text>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={webPageSubmitting}
+                onPress={() => {
+                  setWebPageUrl('');
+                  setError(null);
+                  setWebPageSheetOpen(true);
+                }}>
+                <Icon as={Globe} className="size-4" />
+                <Text>Web</Text>
+              </Button>
               <Button
                 size="sm"
                 variant="secondary"
@@ -156,6 +177,34 @@ export default function LibraryCategoryScreen() {
           </Card>
         ) : null}
 
+        <SaveWebPageSheet
+          visible={webPageSheetOpen}
+          url={webPageUrl}
+          setUrl={setWebPageUrl}
+          submitting={webPageSubmitting}
+          onDismiss={() => {
+            if (!webPageSubmitting) setWebPageSheetOpen(false);
+          }}
+          onSubmit={async () => {
+            const trimmed = webPageUrl.trim();
+            if (!trimmed) return;
+            setWebPageSubmitting(true);
+            setError(null);
+            try {
+              await ImportService.cacheWebPage(trimmed);
+              setWebPageSheetOpen(false);
+              setWebPageUrl('');
+              await load();
+            } catch (cacheError) {
+              setError(
+                cacheError instanceof Error ? cacheError.message : 'Unable to cache web page.'
+              );
+            } finally {
+              setWebPageSubmitting(false);
+            }
+          }}
+        />
+
         {error ? (
           <Card className="border-destructive/50 gap-2">
             <Text className="text-destructive">{error}</Text>
@@ -172,6 +221,16 @@ export default function LibraryCategoryScreen() {
         {!initialLoading && showDocuments ? (
           <DocumentList
             documents={documents}
+            workingId={workingId}
+            setWorkingId={setWorkingId}
+            setError={setError}
+            reload={load}
+          />
+        ) : null}
+
+        {!initialLoading && showDocuments && userWebPages.length > 0 ? (
+          <UserWebPageList
+            pages={userWebPages}
             workingId={workingId}
             setWorkingId={setWorkingId}
             setError={setError}
@@ -624,4 +683,161 @@ function documentSearchStatus(document: ArkDocument) {
   if (document.ocrStatus === 'unavailable') return 'OCR available on supported Android builds';
   if (document.ocrStatus === 'failed') return 'OCR needs attention';
   return 'Stored offline';
+}
+
+function SaveWebPageSheet({
+  visible,
+  url,
+  setUrl,
+  submitting,
+  onDismiss,
+  onSubmit,
+}: {
+  visible: boolean;
+  url: string;
+  setUrl: (value: string) => void;
+  submitting: boolean;
+  onDismiss: () => void;
+  onSubmit: () => void;
+}) {
+  const trimmed = url.trim();
+  const canSubmit = trimmed.length > 0 && /^https?:\/\//i.test(trimmed) && !submitting;
+  return (
+    <ArkBottomSheet
+      visible={visible}
+      title="Save web page"
+      description="Paste a URL to fetch, clean, and cache it offline. RAG-indexed automatically."
+      onDismiss={onDismiss}>
+      <View className="w-full gap-3">
+        <Input
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="off"
+          keyboardType="url"
+          placeholder="https://example.com/article"
+          value={url}
+          onChangeText={setUrl}
+          editable={!submitting}
+        />
+        <View className="flex-row gap-2">
+          <Button
+            className="flex-1"
+            style={{ alignSelf: 'stretch' }}
+            variant="outline"
+            disabled={submitting}
+            onPress={onDismiss}>
+            <Text>Cancel</Text>
+          </Button>
+          <Button
+            className="flex-1"
+            style={{ alignSelf: 'stretch' }}
+            variant="default"
+            disabled={!canSubmit}
+            onPress={onSubmit}>
+            {submitting ? <ActivityIndicator /> : <Icon as={Download} className="size-4" />}
+            <Text>{submitting ? 'Caching…' : 'Save'}</Text>
+          </Button>
+        </View>
+      </View>
+    </ArkBottomSheet>
+  );
+}
+
+function UserWebPageList({
+  pages,
+  workingId,
+  setWorkingId,
+  setError,
+  reload,
+}: {
+  pages: ContentPack[];
+  workingId: string | null;
+  setWorkingId: (id: string | null) => void;
+  setError: (error: string | null) => void;
+  reload: () => Promise<void>;
+}) {
+  if (!pages.length) return null;
+  return (
+    <View className="gap-3">
+      <View className="flex-row items-center gap-2 pt-2">
+        <Icon as={Globe} className="text-muted-foreground size-4" />
+        <Text variant="small" className="text-muted-foreground">
+          Cached web pages
+        </Text>
+      </View>
+      {pages.map((page) => {
+        const isWorking = workingId === page.id;
+        return (
+          <Card key={page.id} className="gap-3">
+            <View className="flex-row gap-3">
+              <View className="bg-primary/15 size-11 items-center justify-center rounded-md">
+                <Icon as={Globe} className="text-primary size-6" />
+              </View>
+              <View className="min-w-0 flex-1 gap-1">
+                <Text variant="large" className="min-w-0" numberOfLines={2}>
+                  {page.title}
+                </Text>
+                {page.sourceUrl ? (
+                  <Text variant="muted" numberOfLines={1}>
+                    {page.sourceUrl}
+                  </Text>
+                ) : null}
+                <Text variant="small" className="text-muted-foreground">
+                  {page.installStatus === 'downloading'
+                    ? `Caching ${Math.round(page.progress * 100)}%`
+                    : page.installStatus === 'verifying'
+                      ? 'Verifying'
+                      : page.installed
+                        ? 'Available offline'
+                        : 'Not downloaded'}
+                </Text>
+              </View>
+            </View>
+            <View className="flex-row gap-2">
+              <Button
+                className="flex-1"
+                variant="secondary"
+                disabled={!page.installed || isWorking}
+                onPress={() =>
+                  router.push({
+                    pathname: '/content/reader',
+                    params: { packId: page.id },
+                  } as never)
+                }>
+                <Text>Open</Text>
+              </Button>
+              <Button
+                size="icon"
+                variant="outline"
+                disabled={isWorking}
+                onPress={() => {
+                  confirmDestructive({
+                    title: 'Delete cached page?',
+                    message: page.title,
+                    onConfirm: async () => {
+                      setWorkingId(page.id);
+                      setError(null);
+                      try {
+                        await ContentPackService.removePack(page.id);
+                        await reload();
+                      } catch (deleteError) {
+                        setError(
+                          deleteError instanceof Error
+                            ? deleteError.message
+                            : 'Unable to delete cached page.'
+                        );
+                      } finally {
+                        setWorkingId(null);
+                      }
+                    },
+                  });
+                }}>
+                <Icon as={Trash2} className="size-4" />
+              </Button>
+            </View>
+          </Card>
+        );
+      })}
+    </View>
+  );
 }

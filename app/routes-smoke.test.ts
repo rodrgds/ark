@@ -257,6 +257,7 @@ describe('app route contracts', () => {
       'app/notes/labels.tsx',
       'src/components/ui/input.tsx',
       'app/content/[id].tsx',
+      'app/library/[category].tsx',
     ]);
     const offenders = ROUTE_FILES.filter((file) => {
       const rel = relative(process.cwd(), file);

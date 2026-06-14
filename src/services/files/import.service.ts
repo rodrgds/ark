@@ -3,8 +3,10 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { Linking } from 'react-native';
+import { ContentRepository } from '@/services/db/repositories/content.repo';
 import { DocumentsRepository } from '@/services/db/repositories/documents.repo';
 import { DocumentPagesRepository } from '@/services/db/repositories/document-pages.repo';
+import { DownloadManagerService } from '@/services/files/download-manager.service';
 import { RagService } from '@/services/ai/rag.service';
 import {
   DocumentTextService,
@@ -12,6 +14,24 @@ import {
   isPdfDocument,
 } from '@/services/files/document-text.service';
 import { FileSystemService } from '@/services/files/filesystem.service';
+import type { ContentPack } from '@/types/content';
+
+function normalizeAndValidateWebUrl(rawUrl: string) {
+  const value = rawUrl.trim();
+  if (!value) throw new Error('Enter a URL to save.');
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error('Enter a valid http(s) URL.');
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error('Only http(s) URLs are supported.');
+  }
+  return parsed.toString();
+}
+
+export { normalizeAndValidateWebUrl };
 
 export class ImportService {
   static async pickDocument() {
@@ -72,6 +92,43 @@ export class ImportService {
 
   static async reprocessDocument(id: string) {
     return DocumentTextService.reprocessDocument(id);
+  }
+
+  static async cacheWebPage(rawUrl: string): Promise<ContentPack> {
+    const url = normalizeAndValidateWebUrl(rawUrl);
+    await FileSystemService.ensureAppDirectories();
+    const id = `user-web-${randomUUID()}`;
+    const displayDate = new Date().toLocaleDateString();
+    const title = `Web page - ${displayDate}`;
+    const pack = await ContentRepository.list({ includeTestOnly: true });
+    const existing = pack.find((item) => item.id === id);
+    if (existing) {
+      throw new Error('A cached page with that id already exists. Try again.');
+    }
+    await ContentRepository.createPack({
+      id,
+      title,
+      description: `Cached from ${url}`,
+      category: 'Personal Documents',
+      format: 'html',
+      sourceUrl: url,
+      installed: false,
+      installStatus: 'queued',
+      progress: 0,
+    });
+    await DownloadManagerService.queueDownload({
+      kind: 'guide',
+      title,
+      packId: id,
+      sourceUrl: url,
+      snapshotHtml: true,
+    });
+    const refreshed = await ContentRepository.list({ includeTestOnly: true });
+    const created = refreshed.find((item) => item.id === id);
+    if (!created) {
+      throw new Error('Failed to create cached web page.');
+    }
+    return created;
   }
 
   static async runDocumentOcr(id: string) {

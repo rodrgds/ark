@@ -123,32 +123,32 @@ export default function LibraryCategoryScreen() {
             }}
           />
         }>
-        <View className="gap-2">
-          <Text variant="h1">{title}</Text>
-          <Text variant="muted">
-            {materialCount} {materialCount === 1 ? 'material' : 'materials'} available in this
-            category.
-          </Text>
+        <View className="flex-row items-center gap-3">
+          <View className="min-w-0 flex-1 gap-2">
+            <Text variant="h1">{title}</Text>
+            <Text variant="muted">
+              {materialCount} {materialCount === 1 ? 'material' : 'materials'} available in this
+              category.
+            </Text>
+          </View>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={webPageSubmitting || workingId === 'import'}
+            onPress={() => {
+              setError(null);
+              setAddSheetOpen(true);
+            }}>
+            <Icon as={Plus} className="size-4" />
+            <Text>Add</Text>
+          </Button>
         </View>
 
         {showDocuments ? (
           <Card className="gap-3">
-            <View className="flex-row items-center gap-3">
-              <Text variant="small" className="text-muted-foreground min-w-0 flex-1">
-                Import files or cache a web page for offline reading and search.
-              </Text>
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={webPageSubmitting || workingId === 'import'}
-                onPress={() => {
-                  setError(null);
-                  setAddSheetOpen(true);
-                }}>
-                <Icon as={Plus} className="size-4" />
-                <Text>Add</Text>
-              </Button>
-            </View>
+            <Text variant="small" className="text-muted-foreground">
+              Import files or cache a web page for offline reading and search.
+            </Text>
           </Card>
         ) : null}
 

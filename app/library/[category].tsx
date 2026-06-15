@@ -17,7 +17,7 @@ import type { ContentCategory, ContentPack } from '@/types/content';
 import type { ArkDocument } from '@/types/db';
 import { formatDistanceToNow } from 'date-fns';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { Check, Download, FileText, Globe, Pause, Play, Trash2 } from 'lucide-react-native';
+import { Check, Download, FileText, Globe, Pause, Play, Plus, Trash2 } from 'lucide-react-native';
 import * as React from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, View } from 'react-native';
 
@@ -54,6 +54,7 @@ export default function LibraryCategoryScreen() {
   const [webPageSheetOpen, setWebPageSheetOpen] = React.useState(false);
   const [webPageUrl, setWebPageUrl] = React.useState('');
   const [webPageSubmitting, setWebPageSubmitting] = React.useState(false);
+  const [addSheetOpen, setAddSheetOpen] = React.useState(false);
 
   const libraryPacks = React.useMemo(
     () => packs.filter((pack) => pack.category !== 'AI Models' && pack.category !== 'RSS'),
@@ -138,44 +139,46 @@ export default function LibraryCategoryScreen() {
               </Text>
               <Button
                 size="sm"
-                variant="outline"
-                disabled={webPageSubmitting}
-                onPress={() => {
-                  setWebPageUrl('');
-                  setError(null);
-                  setWebPageSheetOpen(true);
-                }}>
-                <Icon as={Globe} className="size-4" />
-                <Text>Web</Text>
-              </Button>
-              <Button
-                size="sm"
                 variant="secondary"
-                disabled={workingId === 'import'}
-                onPress={async () => {
-                  setWorkingId('import');
+                disabled={webPageSubmitting || workingId === 'import'}
+                onPress={() => {
                   setError(null);
-                  try {
-                    await ImportService.importDocument();
-                    await load();
-                  } catch (importError) {
-                    setError(
-                      importError instanceof Error ? importError.message : 'Unable to import file.'
-                    );
-                  } finally {
-                    setWorkingId(null);
-                  }
+                  setAddSheetOpen(true);
                 }}>
-                {workingId === 'import' ? (
-                  <ActivityIndicator />
-                ) : (
-                  <Icon as={FileText} className="size-4" />
-                )}
-                <Text>Import</Text>
+                <Icon as={Plus} className="size-4" />
+                <Text>Add</Text>
               </Button>
             </View>
           </Card>
         ) : null}
+
+        <AddDocumentSheet
+          visible={addSheetOpen}
+          webPageSubmitting={webPageSubmitting}
+          importWorking={workingId === 'import'}
+          onDismiss={() => setAddSheetOpen(false)}
+          onChooseWeb={() => {
+            setAddSheetOpen(false);
+            setWebPageUrl('');
+            setError(null);
+            setWebPageSheetOpen(true);
+          }}
+          onChooseDocument={async () => {
+            setAddSheetOpen(false);
+            setWorkingId('import');
+            setError(null);
+            try {
+              await ImportService.importDocument();
+              await load();
+            } catch (importError) {
+              setError(
+                importError instanceof Error ? importError.message : 'Unable to import file.'
+              );
+            } finally {
+              setWorkingId(null);
+            }
+          }}
+        />
 
         <SaveWebPageSheet
           visible={webPageSheetOpen}
@@ -740,6 +743,65 @@ function SaveWebPageSheet({
             <Text>{submitting ? 'Caching…' : 'Save'}</Text>
           </Button>
         </View>
+      </View>
+    </ArkBottomSheet>
+  );
+}
+
+function AddDocumentSheet({
+  visible,
+  webPageSubmitting,
+  importWorking,
+  onDismiss,
+  onChooseWeb,
+  onChooseDocument,
+}: {
+  visible: boolean;
+  webPageSubmitting: boolean;
+  importWorking: boolean;
+  onDismiss: () => void;
+  onChooseWeb: () => void;
+  onChooseDocument: () => void;
+}) {
+  return (
+    <ArkBottomSheet
+      visible={visible}
+      title="Add to Documents"
+      description="Cache a web page for offline reading, or import a file from your device."
+      onDismiss={onDismiss}>
+      <View className="w-full gap-2">
+        <Pressable
+          onPress={onChooseWeb}
+          disabled={webPageSubmitting}
+          className="flex-row items-center gap-3 rounded-lg border border-border bg-card p-4 active:opacity-70">
+          <View className="size-10 items-center justify-center rounded-md bg-muted">
+            <Icon as={Globe} className="size-5 text-foreground" />
+          </View>
+          <View className="min-w-0 flex-1 gap-0.5">
+            <Text>Web page</Text>
+            <Text variant="muted" className="text-xs">
+              Cache a URL for offline reading and RAG search.
+            </Text>
+          </View>
+        </Pressable>
+        <Pressable
+          onPress={onChooseDocument}
+          disabled={importWorking}
+          className="flex-row items-center gap-3 rounded-lg border border-border bg-card p-4 active:opacity-70">
+          <View className="size-10 items-center justify-center rounded-md bg-muted">
+            {importWorking ? (
+              <ActivityIndicator />
+            ) : (
+              <Icon as={FileText} className="size-5 text-foreground" />
+            )}
+          </View>
+          <View className="min-w-0 flex-1 gap-0.5">
+            <Text>Document</Text>
+            <Text variant="muted" className="text-xs">
+              Import a file (PDF, EPUB, TXT, MD, HTML) from your device.
+            </Text>
+          </View>
+        </Pressable>
       </View>
     </ArkBottomSheet>
   );

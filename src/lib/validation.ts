@@ -29,12 +29,40 @@ export const vaultPasswordSchema = z
   .min(8, 'Use at least 8 characters for the vault passphrase.')
   .max(256, 'Passphrase is too long.');
 
+const textAttachmentSchema = z.object({
+  title: z.string().trim().min(1).max(180),
+  content: z.string().trim().min(1).max(24_000),
+  sourceId: z.string().trim().min(1).max(180).optional(),
+});
+
+const imageAttachmentSchema = z.object({
+  type: z.literal('image'),
+  title: z.string().trim().min(1).max(180),
+  uri: z.string().trim().min(1).max(2048),
+  mimeType: z
+    .string()
+    .trim()
+    .regex(/^image\//i)
+    .max(80),
+});
+
 export const chatMessageSchema = z.object({
   threadId: z.string().min(1).optional(),
   content: z.string().trim().min(1, 'Message cannot be empty.').max(12_000),
   useRag: z.boolean().default(true),
   selectedModelId: z.string().min(1).nullable().optional(),
   chatModelDisabled: z.boolean().optional(),
+  attachments: z
+    .array(
+      z.discriminatedUnion('type', [
+        textAttachmentSchema.extend({ type: z.literal('note') }),
+        textAttachmentSchema.extend({ type: z.literal('library') }),
+        textAttachmentSchema.extend({ type: z.literal('document') }),
+        imageAttachmentSchema,
+      ])
+    )
+    .max(6)
+    .optional(),
 });
 
 export const contentPackIdSchema = z.string().trim().min(1).max(160);

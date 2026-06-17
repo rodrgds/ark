@@ -111,6 +111,7 @@ export function getPackModelRoleLabel(pack: Pick<ContentPackManifest, 'category'
   if (pack.modelRole === 'chat') return 'Chat';
   if (pack.modelRole === 'voice') return 'Voice';
   if (pack.modelRole === 'voiceProjector') return 'Voice projector';
+  if (pack.modelRole === 'visionProjector') return 'Vision projector';
   return 'AI';
 }
 

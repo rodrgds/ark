@@ -14,7 +14,11 @@ import { Pressable, View } from 'react-native';
 
 const RECOMMENDED_MODEL_IDS = ['model-qwen25-15b-q4-0'];
 const MODEL_PACKS = STARTER_PACKS.filter(
-  (pack) => !pack.testOnly && pack.category === 'AI Models' && pack.modelRole !== 'voiceProjector'
+  (pack) =>
+    !pack.testOnly &&
+    pack.category === 'AI Models' &&
+    pack.modelRole !== 'voiceProjector' &&
+    pack.modelRole !== 'visionProjector'
 );
 
 export default function ModelsScreen() {

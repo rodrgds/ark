@@ -170,7 +170,7 @@ function TabsLayoutContent() {
   }
 
   return (
-    <View className="bg-background flex-1">
+    <View className="bg-background flex-1" style={{ backgroundColor: colors.background }}>
       <AppHeaderActionsProvider>
         {chromeHidden ? null : <LockStateBar />}
         <NativeTabs
@@ -188,6 +188,8 @@ function TabsLayoutContent() {
           tintColor={colors.primary}>
           {visibleTabs.map((tab) => {
             const isActive = activeRouteName === tab.routeName;
+            const tabContentBackground =
+              tab.routeName === 'map' ? navColors.background : colors.background;
             const androidIconName = isActive ? tab.materialIcon.selected : tab.materialIcon.default;
             const androidIconSize =
               isActive && poppingRouteName === tab.routeName
@@ -199,7 +201,10 @@ function TabsLayoutContent() {
               materialIconSources[getMaterialIconSourceKey(androidIconName, androidIconSize)];
 
             return (
-              <NativeTabs.Trigger key={tab.id} name={tab.routeName}>
+              <NativeTabs.Trigger
+                key={tab.id}
+                name={tab.routeName}
+                contentStyle={{ backgroundColor: tabContentBackground }}>
                 <NativeTabs.Trigger.Icon
                   src={
                     androidIconSource ?? (

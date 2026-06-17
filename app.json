@@ -20,8 +20,8 @@
         "NSMotionUsageDescription": "Allow Ark to use motion sensors for compass, level, and survival tools.",
         "NSLocationWhenInUseUsageDescription": "Allow Ark to save your position and offline map regions.",
         "NSMicrophoneUsageDescription": "Allow Ark to record short voice prompts for offline transcription.",
-        "NSCameraUsageDescription": "Allow Ark to attach spot photos from the camera to saved map locations.",
-        "NSPhotoLibraryUsageDescription": "Allow Ark to choose spot photos from your library for saved map locations."
+        "NSCameraUsageDescription": "Allow Ark to attach photos to saved map locations and Ask Arky chats.",
+        "NSPhotoLibraryUsageDescription": "Allow Ark to choose photos for saved map locations and Ask Arky chats."
       },
       "bundleIdentifier": "app.ark.offline"
     },
@@ -90,8 +90,8 @@
       [
         "expo-image-picker",
         {
-          "cameraPermission": "Allow Ark to attach spot photos from the camera to saved map locations.",
-          "photosPermission": "Allow Ark to choose spot photos from your library for saved map locations.",
+          "cameraPermission": "Allow Ark to attach photos to saved map locations and Ask Arky chats.",
+          "photosPermission": "Allow Ark to choose photos for saved map locations and Ask Arky chats.",
           "microphonePermission": "Allow Ark to record short voice prompts for offline transcription."
         }
       ],
@@ -129,7 +129,7 @@
             "enableMinifyInReleaseBuilds": true,
             "enableShrinkResourcesInReleaseBuilds": true,
             "useLegacyPackaging": true,
-            "extraProguardRules": "# React Native ExecuTorch reaches these Java classes from native JNI code.\n# R8 cannot see those references and otherwise removes or renames the runtime.\n-keep class org.pytorch.executorch.** { *; }\n-keep class com.swmansion.rnexecutorch.** { *; }\n\n# PDFBox can reference the optional Gemalto JPEG2000 decoder when parsing PDFs.\n# Ark does not bundle that decoder; OCR/text extraction paths handle failures.\n-dontwarn com.gemalto.jp2.JP2Decoder"
+            "extraProguardRules": "# React Native ExecuTorch reaches these Java classes from native JNI code.\n# R8 cannot see those references and otherwise removes or renames the runtime.\n-keep class org.pytorch.executorch.** { *; }\n-keep class com.swmansion.rnexecutorch.** { *; }\n\n# ArkZim reaches libkiwix/libzim Java classes and native methods from JNI.\n# Release R8 minification can otherwise rename symbols that debug builds keep.\n-keep class org.kiwix.** { *; }\n-keep class org.kiwix.libzim.** { *; }\n-keepclasseswithmembernames class org.kiwix.** { native <methods>; }\n-dontwarn org.kiwix.**\n\n# PDFBox can reference the optional Gemalto JPEG2000 decoder when parsing PDFs.\n# Ark does not bundle that decoder; OCR/text extraction paths handle failures.\n-dontwarn com.gemalto.jp2.JP2Decoder"
           },
           "ios": {
             "deploymentTarget": "17.0"

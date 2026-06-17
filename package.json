@@ -17,6 +17,8 @@
     "clean": "rm -rf .expo node_modules",
     "android:build:dev": "expo prebuild --platform android --no-install && cd android && ./gradlew assembleDebug",
     "android:build:prod": "expo prebuild --platform android --no-install && cd android && ./gradlew assembleRelease",
+    "build-send": "node scripts/build-send.mjs",
+    "build-send:dev": "node scripts/build-send.mjs --dev",
     "android:install": "adb install android/app/build/outputs/apk/debug/app-debug.apk",
     "doctor": "npx react-doctor@latest"
   },
@@ -96,6 +98,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.26.0",
+    "@expo/ngrok": "^4.1.0",
     "@react-native-community/cli": "^20.1.3",
     "@testing-library/react-native": "14.0.0",
     "@types/react": "~19.2.10",

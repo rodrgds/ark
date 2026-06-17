@@ -5,6 +5,10 @@ node_modules/
 .devenv/
 .direnv/
 
+# devenv/git-hooks generated files
+.githooks/
+.pre-commit-config.yaml
+
 # Expo
 .expo/
 dist/

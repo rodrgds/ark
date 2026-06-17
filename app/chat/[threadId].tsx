@@ -18,20 +18,35 @@ import { NAV_THEME } from '@/lib/theme';
 import { AIService, isAiRequestCancelledError } from '@/services/ai/ai.service';
 import { ModelManagerService } from '@/services/ai/model-manager.service';
 import { normalizeReasoningOutput } from '@/services/ai/reasoning-normalizer';
+import { isVisionCapableChatModel } from '@/services/ai/vision-models';
 import { SpeechRecordingService } from '@/services/audio/speech-recording.service';
+import { ContentPackService } from '@/services/content/content-pack.service';
+import { NotesRepository } from '@/services/db/repositories/notes.repo';
+import { ImportService } from '@/services/files/import.service';
+import { useAuthStore } from '@/stores/auth-store';
 import { useThemeStore } from '@/stores/theme-store';
-import type { AiCitation, AiMessage, AiProgressEvent } from '@/types/ai';
+import type {
+  AiAttachment,
+  AiCitation,
+  AiMessage,
+  AiMessageAttachment,
+  AiProgressEvent,
+} from '@/types/ai';
 import type { ContentPack } from '@/types/content';
+import type { ArkDocument, Note } from '@/types/db';
 import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import {
   Brain,
   BookOpen,
   Bot,
+  Camera,
   ChevronDown,
   ChevronLeft,
   Check,
   CircleX,
   ExternalLink,
+  FileText,
+  Image as ImageIcon,
   Mic,
   NotebookPen,
   Plus,
@@ -40,13 +55,17 @@ import {
   Square,
   StopCircle,
   Trash2,
+  type LucideIcon,
   Volume2,
   VolumeX,
+  X,
 } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
 import * as React from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Image as RNImage,
   Keyboard,
   type LayoutChangeEvent,
   Platform,
@@ -82,6 +101,8 @@ const WAVEFORM_MIN_SAMPLES = 18;
 const WAVEFORM_MAX_SAMPLES = 64;
 const WAVEFORM_BAR_WIDTH = 3;
 const WAVEFORM_TARGET_STEP = 6;
+const MAX_CHAT_ATTACHMENTS = 6;
+const ATTACHMENT_CONTEXT_CHARS = 1400;
 const EMPTY_THREAD_PROMPTS = [
   'Create a survival checklist for tonight',
   'Write or edit a field note',
@@ -90,6 +111,10 @@ const EMPTY_THREAD_PROMPTS = [
 const EMPTY_CITATIONS: AiCitation[] = [];
 const EMPTY_ACTIVITY_MESSAGES: AiMessage[] = [];
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+type ComposerAttachment = AiAttachment & {
+  localId: string;
+};
 
 function makeWaveformSamples(count: number) {
   return Array.from({ length: count }, () => 0.12);
@@ -313,7 +338,7 @@ function ModelChoice({
   title: string;
   description: string;
   active: boolean;
-  icon: typeof Bot;
+  icon: LucideIcon;
   onPress: () => void;
 }) {
   return (
@@ -333,6 +358,75 @@ function ModelChoice({
       </View>
       {active ? <Icon as={Check} className="size-4" /> : null}
     </Button>
+  );
+}
+
+function ContextChoice({
+  title,
+  description,
+  icon,
+  onPress,
+}: {
+  title: string;
+  description: string;
+  icon: LucideIcon;
+  onPress: () => void;
+}) {
+  return (
+    <Button className="h-auto min-h-14 justify-start py-3" variant="outline" onPress={onPress}>
+      <Icon as={icon} className="size-4" />
+      <View className="min-w-0 flex-1 items-start gap-1">
+        <Text numberOfLines={1}>{title}</Text>
+        <Text variant="small" className="text-muted-foreground" numberOfLines={2}>
+          {description}
+        </Text>
+      </View>
+    </Button>
+  );
+}
+
+function attachmentIconForType(type: AiMessageAttachment['type']) {
+  if (type === 'image') return ImageIcon;
+  if (type === 'note') return NotebookPen;
+  if (type === 'library') return BookOpen;
+  return FileText;
+}
+
+function MessageAttachments({ attachments }: { attachments?: AiMessageAttachment[] }) {
+  if (!attachments?.length) return null;
+
+  return (
+    <View className="mt-1 gap-2">
+      <Text
+        variant="small"
+        className="text-primary-foreground/70 font-semibold tracking-normal uppercase">
+        Attached context
+      </Text>
+      <View className="flex-row flex-wrap gap-2">
+        {attachments.map((attachment, index) => {
+          const AttachmentIcon = attachmentIconForType(attachment.type);
+          return (
+            <View
+              key={`${attachment.type}-${attachment.sourceId ?? attachment.uri ?? index}`}
+              style={styles.messageAttachmentChip}>
+              {attachment.type === 'image' && attachment.uri ? (
+                <RNImage source={{ uri: attachment.uri }} style={styles.messageAttachmentImage} />
+              ) : (
+                <View style={styles.messageAttachmentIcon}>
+                  <Icon as={AttachmentIcon} className="text-primary-foreground size-3.5" />
+                </View>
+              )}
+              <Text
+                variant="small"
+                numberOfLines={1}
+                className="text-primary-foreground max-w-[170px]">
+                {attachment.title}
+              </Text>
+            </View>
+          );
+        })}
+      </View>
+    </View>
   );
 }
 
@@ -360,6 +454,7 @@ function MessageBubble({
   const displayContent = normalized?.content || message.content;
   const displayReasoning = joinReasoning(message.reasoning ?? '', normalized?.reasoning ?? '');
   const actions = actionsFromToolMessages(activityMessages);
+  const messageAttachments = message.metadata?.attachments;
 
   const bubble = (
     <Card
@@ -392,9 +487,12 @@ function MessageBubble({
           <SourceMentions content={displayContent} citations={message.citations} />
         </>
       ) : (
-        <Text selectable className="text-primary-foreground">
-          {message.content}
-        </Text>
+        <>
+          <Text selectable className="text-primary-foreground">
+            {message.content}
+          </Text>
+          <MessageAttachments attachments={messageAttachments} />
+        </>
       )}
       {assistant ? (
         <ProcessPanel
@@ -513,10 +611,12 @@ function FloatingComposer({
   value,
   disabled,
   errorMessage,
+  attachments,
   keyboardVisible,
   showPrompts,
   onChangeText,
   onDismissError,
+  onRemoveAttachment,
   onVoiceError,
   onKeyboardVisibleChange,
   onAddContextPress,
@@ -526,10 +626,12 @@ function FloatingComposer({
   value: string;
   disabled: boolean;
   errorMessage?: string | null;
+  attachments: ComposerAttachment[];
   keyboardVisible: boolean;
   showPrompts: boolean;
   onChangeText: (text: string) => void;
   onDismissError: () => void;
+  onRemoveAttachment: (id: string) => void;
   onVoiceError: (message: string) => void;
   onKeyboardVisibleChange: (visible: boolean) => void;
   onAddContextPress: () => void;
@@ -558,7 +660,9 @@ function FloatingComposer({
   const recordingLevel = useSharedValue(0);
   const waveformSamples = useSharedValue(makeWaveformSamples(WAVEFORM_INITIAL_SAMPLES));
   const hasText = value.length > 0;
+  const hasAttachments = attachments.length > 0;
   const voiceActive = voiceState !== 'idle';
+  const inputExpanded = inputHeight > COMPOSER_HEIGHT;
   const isFocusedRef = React.useRef(false);
   const splitProgress = useDerivedValue(() =>
     Math.max(keyboardProgress.value, voiceProgress.value)
@@ -892,6 +996,37 @@ function FloatingComposer({
         </Pressable>
       ) : null}
 
+      {hasAttachments ? (
+        <View style={styles.attachmentTray}>
+          {attachments.map((attachment) => (
+            <Pressable
+              key={attachment.localId}
+              accessibilityRole="button"
+              accessibilityLabel={`Remove ${attachment.title}`}
+              onPress={() => onRemoveAttachment(attachment.localId)}
+              style={[
+                styles.attachmentChip,
+                { borderColor: colors.border, backgroundColor: colors.card },
+              ]}>
+              <Icon
+                as={
+                  attachment.type === 'image'
+                    ? ImageIcon
+                    : attachment.type === 'note'
+                      ? NotebookPen
+                      : FileText
+                }
+                className="text-primary size-3.5"
+              />
+              <Text variant="small" numberOfLines={1} className="max-w-[190px]">
+                {attachment.title}
+              </Text>
+              <Icon as={X} className="text-muted-foreground size-3.5" />
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+
       <View style={styles.composerRow}>
         <AnimatedPressable
           accessibilityRole="button"
@@ -967,11 +1102,11 @@ function FloatingComposer({
                   styles.composerInput,
                   {
                     color: colors.text,
-                    paddingBottom: 14,
-                    paddingTop: 14,
+                    paddingBottom: inputExpanded ? 14 : 0,
+                    paddingTop: inputExpanded ? 14 : 0,
                   },
                 ]}
-                textAlignVertical="top"
+                textAlignVertical={inputExpanded ? 'top' : 'center'}
               />
             </Animated.View>
             <Animated.View pointerEvents="none" style={[styles.waveformLayer, waveformLayerStyle]}>
@@ -1007,7 +1142,7 @@ function FloatingComposer({
 
           <AnimatedPressable
             accessibilityRole="button"
-            disabled={disabled || (!value.trim() && !voiceActive)}
+            disabled={disabled || (!value.trim() && !voiceActive && !hasAttachments)}
             onPress={() => {
               if (voiceState === 'recording') {
                 void stopVoiceRecording({ submit: true });
@@ -1020,7 +1155,7 @@ function FloatingComposer({
               normalSendStyle,
               {
                 backgroundColor: colors.primary,
-                opacity: disabled || (!value.trim() && !voiceActive) ? 0.54 : 1,
+                opacity: disabled || (!value.trim() && !voiceActive && !hasAttachments) ? 0.54 : 1,
               },
             ]}>
             {disabled || voiceState === 'transcribing' ? (
@@ -1180,17 +1315,28 @@ export default function ChatScreen() {
   const insets = useSafeAreaInsets();
   const reduceModeEnabled = useBatteryReduceMode();
   const speechPlayback = useArkTextToSpeech();
+  const vaultUnlocked = useAuthStore((state) => state.unlocked);
   const initialThreadId = routeThreadId && routeThreadId !== 'new' ? routeThreadId : undefined;
   const [threadId, setThreadId] = React.useState<string | undefined>(initialThreadId);
   const [messages, setMessages] = React.useState<AiMessage[]>([]);
   const [content, setContent] = React.useState('');
   const [installedModels, setInstalledModels] = React.useState<ContentPack[]>([]);
   const [activeModel, setActiveModel] = React.useState<ContentPack | null>(null);
+  const [activeVisionProjector, setActiveVisionProjector] = React.useState<ContentPack | null>(
+    null
+  );
   const [modelDisabled, setModelDisabled] = React.useState(false);
   const [modelInfoOpen, setModelInfoOpen] = React.useState(false);
   const [contextSheetOpen, setContextSheetOpen] = React.useState(false);
+  const [librarySheetOpen, setLibrarySheetOpen] = React.useState(false);
+  const [notesSheetOpen, setNotesSheetOpen] = React.useState(false);
   const [clearConfirmOpen, setClearConfirmOpen] = React.useState(false);
   const [deleteConfirmMessage, setDeleteConfirmMessage] = React.useState<AiMessage | null>(null);
+  const [attachments, setAttachments] = React.useState<ComposerAttachment[]>([]);
+  const [libraryPacks, setLibraryPacks] = React.useState<ContentPack[]>([]);
+  const [documents, setDocuments] = React.useState<ArkDocument[]>([]);
+  const [notes, setNotes] = React.useState<Note[]>([]);
+  const [contextLoading, setContextLoading] = React.useState(false);
   const [sending, setSending] = React.useState(false);
   const [streamingText, setStreamingText] = React.useState('');
   const [streamingReasoning, setStreamingReasoning] = React.useState('');
@@ -1249,9 +1395,13 @@ export default function ChatScreen() {
         nextModel = models.find((model) => model.id === settings.selectedModelId) ?? globalModel;
       }
     }
+    const nextVisionProjector = nextDisabled
+      ? null
+      : await ModelManagerService.getInstalledVisionProjectorForModel(nextModel?.id);
     setInstalledModels(models);
     if (!threadId && modelChoiceDirtyRef.current) return;
     setActiveModel(nextModel);
+    setActiveVisionProjector(nextVisionProjector);
     setModelDisabled(nextDisabled);
   }, [threadId]);
 
@@ -1323,18 +1473,186 @@ export default function ChatScreen() {
     };
   }, [scrollToBottom]);
 
+  const imageAttachmentsReady =
+    !modelDisabled &&
+    !!activeModel &&
+    isVisionCapableChatModel(activeModel) &&
+    !!activeVisionProjector;
+  const imageAttachmentReason = modelDisabled
+    ? 'Enable an answer model to attach images.'
+    : !activeModel
+      ? 'Download a vision-capable answer model first.'
+      : !isVisionCapableChatModel(activeModel)
+        ? `${activeModel.title} is text-only.`
+        : !activeVisionProjector
+          ? 'Download the matching Gemma vision projector in Settings.'
+          : null;
+
+  React.useEffect(() => {
+    if (imageAttachmentsReady) return;
+    setAttachments((current) => current.filter((attachment) => attachment.type !== 'image'));
+  }, [imageAttachmentsReady]);
+
+  function addAttachment(attachment: AiAttachment) {
+    setAttachments((current) => {
+      if (current.length >= MAX_CHAT_ATTACHMENTS) {
+        setError(`Attach up to ${MAX_CHAT_ATTACHMENTS} items at a time.`);
+        return current;
+      }
+      if (
+        'sourceId' in attachment &&
+        attachment.sourceId &&
+        current.some((item) => 'sourceId' in item && item.sourceId === attachment.sourceId)
+      ) {
+        return current;
+      }
+      if (
+        attachment.type === 'image' &&
+        current.some((item) => item.type === 'image' && item.uri === attachment.uri)
+      ) {
+        return current;
+      }
+      return [
+        ...current,
+        { ...attachment, localId: `${attachment.type}-${Date.now()}-${current.length}` },
+      ];
+    });
+  }
+
+  function removeAttachment(id: string) {
+    setAttachments((current) => current.filter((attachment) => attachment.localId !== id));
+  }
+
+  async function openLibraryPicker() {
+    setContextSheetOpen(false);
+    setLibrarySheetOpen(true);
+    setContextLoading(true);
+    setError(null);
+    try {
+      const [packs, docs] = await Promise.all([
+        ContentPackService.listPacks(),
+        ImportService.listDocuments(),
+      ]);
+      setLibraryPacks(
+        packs.filter((pack) => pack.installed && pack.category !== 'AI Models').slice(0, 24)
+      );
+      setDocuments(docs.slice(0, 24));
+    } catch (contextError) {
+      setError(contextError instanceof Error ? contextError.message : 'Unable to load library.');
+    } finally {
+      setContextLoading(false);
+    }
+  }
+
+  async function openNotesPicker() {
+    setContextSheetOpen(false);
+    if (!vaultUnlocked) {
+      setError('Unlock the vault before attaching secure notes.');
+      return;
+    }
+    setNotesSheetOpen(true);
+    setContextLoading(true);
+    setError(null);
+    try {
+      setNotes((await NotesRepository.list()).slice(0, 32));
+    } catch (contextError) {
+      setError(contextError instanceof Error ? contextError.message : 'Unable to load notes.');
+    } finally {
+      setContextLoading(false);
+    }
+  }
+
+  async function pickImage(source: 'camera' | 'library') {
+    if (!imageAttachmentsReady) {
+      setError(imageAttachmentReason ?? 'Image attachments are unavailable.');
+      return;
+    }
+    setContextSheetOpen(false);
+    setError(null);
+    const permission =
+      source === 'camera'
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      setError(
+        source === 'camera' ? 'Camera permission is required.' : 'Photo access is required.'
+      );
+      return;
+    }
+    const result =
+      source === 'camera'
+        ? await ImagePicker.launchCameraAsync({
+            allowsEditing: false,
+            exif: false,
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            quality: 0.72,
+          })
+        : await ImagePicker.launchImageLibraryAsync({
+            allowsEditing: false,
+            exif: false,
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            quality: 0.72,
+          });
+    if (result.canceled) return;
+    const asset = result.assets[0];
+    if (!asset?.uri) return;
+    addAttachment({
+      type: 'image',
+      title: asset.fileName ?? (source === 'camera' ? 'Camera photo' : 'Library image'),
+      uri: asset.uri,
+      mimeType: inferImageMimeType(asset.uri, asset.mimeType ?? null),
+    });
+  }
+
+  function attachLibraryPack(pack: ContentPack) {
+    addAttachment({
+      type: 'library',
+      title: pack.title,
+      sourceId: pack.id,
+      content: describeLibraryPack(pack),
+    });
+    setLibrarySheetOpen(false);
+  }
+
+  function attachDocument(document: ArkDocument) {
+    addAttachment({
+      type: 'document',
+      title: document.title,
+      sourceId: document.id,
+      content: describeDocumentAttachment(document),
+    });
+    setLibrarySheetOpen(false);
+  }
+
+  function attachNote(note: Note) {
+    addAttachment({
+      type: 'note',
+      title: note.title,
+      sourceId: note.id,
+      content: note.body.slice(0, ATTACHMENT_CONTEXT_CHARS),
+    });
+    setNotesSheetOpen(false);
+  }
+
   async function send(textOverride?: string) {
     const trimmed = (textOverride ?? content).trim();
-    if (!trimmed || sending) return;
+    if ((!trimmed && !attachments.length) || sending) return;
+    const messageText = trimmed || promptForAttachments(attachments);
+    const composerAttachments = attachments;
+    const sendAttachments = attachments.map(({ localId: _localId, ...attachment }) => attachment);
     const runId = sendRunIdRef.current + 1;
     sendRunIdRef.current = runId;
     setSending(true);
+    setAttachments([]);
     setPendingUserMessage({
       id: `pending-user-${runId}`,
       threadId: threadId ?? 'pending-thread',
       role: 'user',
-      content: trimmed,
+      content: messageText,
       citations: [],
+      metadata: sendAttachments.length
+        ? { attachments: messageAttachmentsFromAttachments(sendAttachments) }
+        : undefined,
       createdAt: Date.now(),
     });
     setStreamingText('');
@@ -1346,10 +1664,11 @@ export default function ChatScreen() {
       const sendMessagePromise = AIService.sendMessage(
         {
           threadId,
-          content: trimmed,
+          content: messageText,
           useRag: true,
           selectedModelId: activeModel?.id ?? null,
           chatModelDisabled: modelDisabled,
+          attachments: sendAttachments,
         },
         {
           onProgress: (progress) => {
@@ -1374,6 +1693,7 @@ export default function ChatScreen() {
       setThreadId(result.threadId);
       setPendingUserMessage(null);
       setMessages((current) => [...current, ...result.messages]);
+      setAttachments([]);
       scrollToBottom(true);
       if (!threadId) {
         router.replace(`/chat/${result.threadId}` as never);
@@ -1382,6 +1702,7 @@ export default function ChatScreen() {
       if (isAiRequestCancelledError(sendError)) return;
       setPendingUserMessage(null);
       setContent(trimmed);
+      setAttachments(composerAttachments);
       setError(sendError instanceof Error ? sendError.message : 'Unable to send message.');
     } finally {
       if (sendRunIdRef.current === runId) {
@@ -1426,6 +1747,9 @@ export default function ChatScreen() {
       });
     }
     setActiveModel(model);
+    setActiveVisionProjector(
+      await ModelManagerService.getInstalledVisionProjectorForModel(model.id)
+    );
     setModelDisabled(false);
   }
 
@@ -1438,7 +1762,9 @@ export default function ChatScreen() {
       });
     }
     setActiveModel(null);
+    setActiveVisionProjector(null);
     setModelDisabled(true);
+    setAttachments((current) => current.filter((attachment) => attachment.type !== 'image'));
   }
 
   const speakAssistantMessage = React.useCallback(
@@ -1644,10 +1970,12 @@ export default function ChatScreen() {
         value={content}
         disabled={sending}
         errorMessage={error}
+        attachments={attachments}
         keyboardVisible={keyboardVisible}
         showPrompts={emptyThread && !keyboardVisible}
         onChangeText={setContent}
         onDismissError={() => setError(null)}
+        onRemoveAttachment={removeAttachment}
         onVoiceError={setError}
         onKeyboardVisibleChange={setKeyboardVisible}
         onAddContextPress={() => setContextSheetOpen(true)}
@@ -1662,23 +1990,117 @@ export default function ChatScreen() {
         <Button
           variant="ghost"
           className="h-11 justify-start px-2"
-          onPress={() => {
-            setContextSheetOpen(false);
-            router.push('/(tabs)/library' as never);
-          }}>
+          onPress={() => void openLibraryPicker()}>
           <Icon as={BookOpen} className="size-4" />
           <Text>Library</Text>
         </Button>
         <Button
           variant="ghost"
           className="h-11 justify-start px-2"
-          onPress={() => {
-            setContextSheetOpen(false);
-            router.push('/(tabs)/notes' as never);
-          }}>
+          disabled={!vaultUnlocked}
+          onPress={() => void openNotesPicker()}>
           <Icon as={NotebookPen} className="size-4" />
           <Text>Notes</Text>
         </Button>
+        <Button
+          variant="ghost"
+          className="h-11 justify-start px-2"
+          disabled={!imageAttachmentsReady}
+          onPress={() => void pickImage('library')}>
+          <Icon as={ImageIcon} className="size-4" />
+          <Text>Choose picture</Text>
+        </Button>
+        <Button
+          variant="ghost"
+          className="h-11 justify-start px-2"
+          disabled={!imageAttachmentsReady}
+          onPress={() => void pickImage('camera')}>
+          <Icon as={Camera} className="size-4" />
+          <Text>Take picture</Text>
+        </Button>
+        {!vaultUnlocked ? (
+          <Text variant="small" className="text-muted-foreground px-2">
+            Unlock the vault to attach notes.
+          </Text>
+        ) : null}
+        {!imageAttachmentsReady && imageAttachmentReason ? (
+          <Text variant="small" className="text-muted-foreground px-2">
+            {imageAttachmentReason}
+          </Text>
+        ) : null}
+      </ArkBottomSheet>
+
+      <ArkBottomSheet
+        visible={librarySheetOpen}
+        title="Attach from Library"
+        onDismiss={() => setLibrarySheetOpen(false)}
+        scrollable
+        maxDynamicContentSize={620}>
+        {contextLoading ? (
+          <View className="items-center py-6">
+            <ActivityIndicator />
+          </View>
+        ) : (
+          <View className="gap-2">
+            {[...libraryPacks, ...documents].length ? null : (
+              <Text variant="muted" className="px-1 py-2">
+                No installed library items or imported documents are available yet.
+              </Text>
+            )}
+            {libraryPacks.map((item) => (
+              <ContextChoice
+                key={item.id}
+                icon={BookOpen}
+                title={item.title}
+                description={`${item.category} / ${item.format.toUpperCase()}`}
+                onPress={() => attachLibraryPack(item)}
+              />
+            ))}
+            {documents.map((document) => (
+              <ContextChoice
+                key={document.id}
+                icon={FileText}
+                title={document.title}
+                description={
+                  document.ocrText || document.extractedText
+                    ? 'Extracted text available'
+                    : 'Imported document'
+                }
+                onPress={() => attachDocument(document)}
+              />
+            ))}
+          </View>
+        )}
+      </ArkBottomSheet>
+
+      <ArkBottomSheet
+        visible={notesSheetOpen}
+        title="Attach Note"
+        onDismiss={() => setNotesSheetOpen(false)}
+        scrollable
+        maxDynamicContentSize={620}>
+        {contextLoading ? (
+          <View className="items-center py-6">
+            <ActivityIndicator />
+          </View>
+        ) : (
+          <View className="gap-2">
+            {notes.length ? null : (
+              <Text variant="muted" className="px-1 py-2">
+                No secure notes are available.
+              </Text>
+            )}
+            {notes.map((note) => (
+              <ContextChoice
+                key={note.id}
+                icon={NotebookPen}
+                title={note.title}
+                description={note.body || 'Empty note'}
+                onPress={() => attachNote(note)}
+              />
+            ))}
+          </View>
+        )}
       </ArkBottomSheet>
 
       <ConfirmModal
@@ -1758,6 +2180,60 @@ async function loadMessagePage(threadId: string, before?: number) {
     messages: rows.length > PAGE_SIZE ? rows.slice(rows.length - PAGE_SIZE) : rows,
     hasOlder: rows.length > PAGE_SIZE,
   };
+}
+
+function promptForAttachments(attachments: ComposerAttachment[]) {
+  const labels = attachments.map((attachment) => attachment.title).join(', ');
+  return labels ? `Review the attached context: ${labels}.` : 'Review the attached context.';
+}
+
+function messageAttachmentsFromAttachments(attachments: AiAttachment[]): AiMessageAttachment[] {
+  return attachments.map((attachment) => {
+    if (attachment.type === 'image') {
+      return {
+        type: attachment.type,
+        title: attachment.title,
+        uri: attachment.uri,
+        mimeType: attachment.mimeType,
+      };
+    }
+    return {
+      type: attachment.type,
+      title: attachment.title,
+      sourceId: attachment.sourceId,
+    };
+  });
+}
+
+function describeLibraryPack(pack: ContentPack) {
+  return [
+    `${pack.title} (${pack.category}, ${pack.format.toUpperCase()})`,
+    pack.description,
+    pack.sourceLabel ? `Source: ${pack.sourceLabel}` : '',
+    pack.installed ? 'This item is stored in Ark for offline use.' : '',
+  ]
+    .filter(Boolean)
+    .join('\n')
+    .slice(0, ATTACHMENT_CONTEXT_CHARS);
+}
+
+function describeDocumentAttachment(document: ArkDocument) {
+  const text = document.ocrText || document.extractedText || '';
+  return [
+    `${document.title}${document.mimeType ? ` (${document.mimeType})` : ''}`,
+    text ? text.slice(0, ATTACHMENT_CONTEXT_CHARS) : 'Imported document selected from Ark Library.',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+function inferImageMimeType(uri: string, reportedMimeType: string | null) {
+  if (reportedMimeType?.startsWith('image/')) return reportedMimeType;
+  const normalized = uri.split('?')[0]?.toLowerCase() ?? '';
+  if (normalized.endsWith('.png')) return 'image/png';
+  if (normalized.endsWith('.webp')) return 'image/webp';
+  if (normalized.endsWith('.gif')) return 'image/gif';
+  return 'image/jpeg';
 }
 
 const styles = StyleSheet.create({
@@ -1870,6 +2346,47 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
+  },
+  attachmentTray: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8,
+  },
+  attachmentChip: {
+    alignItems: 'center',
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    gap: 6,
+    maxWidth: '100%',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  messageAttachmentChip: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(10, 10, 10, 0.16)',
+    borderRadius: 999,
+    flexDirection: 'row',
+    gap: 7,
+    maxWidth: '100%',
+    minHeight: 30,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  messageAttachmentIcon: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(10, 10, 10, 0.18)',
+    borderRadius: 999,
+    height: 20,
+    justifyContent: 'center',
+    width: 20,
+  },
+  messageAttachmentImage: {
+    backgroundColor: 'rgba(10, 10, 10, 0.18)',
+    borderRadius: 10,
+    height: 24,
+    width: 24,
   },
   promptChip: {
     borderRadius: 999,

@@ -73,10 +73,7 @@ function restoreGlobalValue(globalObject: MutableGlobal, key: string, value: unk
  * Install them only for the duration of the extraction and always restore
  * the previous runtime globals afterwards.
  */
-async function runWithDefuddleDomGlobals<T>(
-  dom: LinkedomDom,
-  callback: () => Promise<T> | T
-) {
+async function runWithDefuddleDomGlobals<T>(dom: LinkedomDom, callback: () => Promise<T> | T) {
   const globalObject = globalThis as MutableGlobal;
   const document = dom.document as MutableDocument;
   const previousDocument = globalObject.document;

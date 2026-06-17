@@ -22,11 +22,20 @@ export type AiThread = {
 
 export type AiMessageRole = 'user' | 'assistant' | 'system' | 'tool';
 
+export type AiMessageAttachment = {
+  type: AiAttachment['type'];
+  title: string;
+  sourceId?: string;
+  uri?: string;
+  mimeType?: string;
+};
+
 type AiMessageMetadata = {
   actions?: Array<{
     tool?: string;
     summary: string;
   }>;
+  attachments?: AiMessageAttachment[];
 };
 
 export type AiMessage = {
@@ -40,12 +49,39 @@ export type AiMessage = {
   createdAt: number;
 };
 
+export type AiAttachment =
+  | {
+      type: 'note';
+      title: string;
+      content: string;
+      sourceId?: string;
+    }
+  | {
+      type: 'library';
+      title: string;
+      content: string;
+      sourceId?: string;
+    }
+  | {
+      type: 'document';
+      title: string;
+      content: string;
+      sourceId?: string;
+    }
+  | {
+      type: 'image';
+      title: string;
+      uri: string;
+      mimeType: string;
+    };
+
 export type AiSendMessageInput = {
   threadId?: string;
   content: string;
   useRag: boolean;
   selectedModelId?: string | null;
   chatModelDisabled?: boolean;
+  attachments?: AiAttachment[];
 };
 
 export type AiSendMessageOptions = {
@@ -83,6 +119,7 @@ export type AiAdapterSendInput = {
   selectedModelId?: string | null;
   history?: Array<Pick<AiMessage, 'role' | 'content'>>;
   citations: AiCitation[];
+  attachments?: AiAttachment[];
   sourceContext?: Array<{
     sourceId: string;
     title: string;

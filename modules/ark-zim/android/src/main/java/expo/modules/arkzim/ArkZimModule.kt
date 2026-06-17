@@ -57,8 +57,13 @@ class ArkZimModule : Module() {
       try {
         currentArchive = Archive(cleanPath)
         currentArchivePath = cleanPath
-        currentSearcher = buildSearcher(currentArchive!!)
-        currentSuggestionSearcher = buildSuggestionSearcher(currentArchive!!)
+        val archive = currentArchive ?: throw Exception("Archive did not initialize")
+        if (archive.hasFulltextIndex()) {
+          currentSearcher = Searcher(archive)
+        }
+        if (archive.hasTitleIndex()) {
+          currentSuggestionSearcher = SuggestionSearcher(archive)
+        }
         return@AsyncFunction getMetadataMap()
       } catch (e: Exception) {
         disposeCurrentArchive()
@@ -89,7 +94,7 @@ class ArkZimModule : Module() {
     AsyncFunction("search") { query: String, limit: Int ->
       ensureLibrariesLoaded()
       val archive = currentArchive ?: throw Exception("No archive open")
-      if (archive.hasFulltextIndex() && currentSearcher != null) {
+      if (archive.hasFulltextIndex()) {
         return@AsyncFunction searchFullText(query, limit.coerceAtLeast(1))
       }
       return@AsyncFunction suggestTitles(query, limit.coerceAtLeast(1), includeSnippet = true)
@@ -114,7 +119,6 @@ class ArkZimModule : Module() {
       if (archive.hasMainEntry()) {
         val entry = archive.getMainEntry()
         val path = entry.getPath()
-        // Verify the path actually resolves before advertising it
         archive.getEntryByPath(path)
         path
       } else null
@@ -132,15 +136,6 @@ class ArkZimModule : Module() {
     )
   }
 
-  private fun buildSearcher(archive: Archive): Searcher? {
-    if (!archive.hasFulltextIndex()) return null
-    return try {
-      Searcher(archive)
-    } catch (_: Exception) {
-      null
-    }
-  }
-
   private fun buildSuggestionSearcher(archive: Archive): SuggestionSearcher? {
     if (!archive.hasTitleIndex()) return null
     return try {
@@ -151,7 +146,10 @@ class ArkZimModule : Module() {
   }
 
   private fun searchFullText(queryText: String, limit: Int): List<Map<String, String>> {
-    val searcher = currentSearcher ?: return emptyList()
+    val archive = currentArchive ?: return emptyList()
+    val searcher = currentSearcher ?: Searcher(archive).also {
+      currentSearcher = it
+    }
     val query = Query(queryText)
     val search: Search = searcher.search(query)
     val iterator = search.getResults(0, limit)
@@ -180,7 +178,10 @@ class ArkZimModule : Module() {
     limit: Int,
     includeSnippet: Boolean
   ): List<Map<String, String>> {
-    val suggestionSearcher = currentSuggestionSearcher ?: return emptyList()
+    val archive = currentArchive ?: return emptyList()
+    val suggestionSearcher = currentSuggestionSearcher ?: buildSuggestionSearcher(archive)?.also {
+      currentSuggestionSearcher = it
+    } ?: return emptyList()
     val search: SuggestionSearch = suggestionSearcher.suggest(prefix)
     val iterator = search.getResults(0, limit)
     val results = mutableListOf<Map<String, String>>()

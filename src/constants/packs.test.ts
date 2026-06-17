@@ -33,7 +33,8 @@ describe('starter content packs', () => {
 
   test('curated model packs are answer GGUF files', () => {
     const models = STARTER_PACKS.filter((pack) => pack.category === 'AI Models');
-    const chatModels = models.filter((model) => model.id.startsWith('model-'));
+    const chatModels = models.filter((model) => model.modelRole === 'chat');
+    const visionProjectors = models.filter((model) => model.modelRole === 'visionProjector');
     const embeddingModels = models.filter((model) => model.id.startsWith('embedding-'));
 
     expect(chatModels.length).toBeGreaterThanOrEqual(2);
@@ -46,6 +47,7 @@ describe('starter content packs', () => {
       expect(model.sizeBytes ?? 0).toBeGreaterThan(500 * 1024 * 1024);
       expect(model.checksumSha256).toMatch(/^[a-f0-9]{64}$/);
     }
+    expect(visionProjectors.length).toBeGreaterThanOrEqual(2);
     expect(chatModels.every((model) => model.modelRole === 'chat')).toBe(true);
   });
 

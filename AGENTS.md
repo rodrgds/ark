@@ -306,3 +306,13 @@ bun run check        # typecheck + lint + tests
 ```
 
 TypeScript check: `npx tsc --noEmit`
+
+## Dev Group Delivery
+
+When asked to build and send to the dev group:
+
+1. Run `bun run android:build:prod`.
+2. Use APK `android/app/build/outputs/apk/release/app-release.apk`.
+3. If Beeper is unauthenticated, run `beeper setup --yes`.
+4. Send to `beeper://select-thread/whatsapp/!Hf5OYEW7nA8jd9xaPncq:beeper.local` with:
+   `beeper send file --to '!Hf5OYEW7nA8jd9xaPncq:beeper.local' --file android/app/build/outputs/apk/release/app-release.apk --mime application/vnd.android.package-archive --caption '<short build note + SHA-256>' --wait --wait-timeout 120000 --timeout 5m --json --yes`

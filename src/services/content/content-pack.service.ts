@@ -5,6 +5,7 @@ import * as Sharing from 'expo-sharing';
 import { ContentRepository } from '@/services/db/repositories/content.repo';
 import { RagService } from '@/services/ai/rag.service';
 import { getVoiceProjectorId } from '@/services/ai/voice-models';
+import { getVisionProjectorId } from '@/services/ai/vision-models';
 import { DownloadManagerService } from '@/services/files/download-manager.service';
 import { FileSystemService } from '@/services/files/filesystem.service';
 import { AuthoredGuideSeedService } from '@/services/content/authored-guide-seed.service';
@@ -72,16 +73,21 @@ export class ContentPackService {
 
   static async installPackWithCompanions(id: string) {
     await this.installPack(id);
-    const projectorId = getVoiceProjectorId(id);
-    if (projectorId) {
-      const projector = await this.getPack(projectorId);
-      if (
-        projector &&
-        !projector.installed &&
-        !['queued', 'downloading', 'verifying'].includes(projector.installStatus)
-      ) {
-        await this.installPack(projectorId);
-      }
+    for (const projectorId of [getVoiceProjectorId(id), getVisionProjectorId(id)].filter(
+      Boolean
+    ) as string[]) {
+      await this.installCompanionPack(projectorId);
+    }
+  }
+
+  private static async installCompanionPack(id: string) {
+    const projector = await this.getPack(id);
+    if (
+      projector &&
+      !projector.installed &&
+      !['queued', 'downloading', 'verifying'].includes(projector.installStatus)
+    ) {
+      await this.installPack(projector.id);
     }
   }
 

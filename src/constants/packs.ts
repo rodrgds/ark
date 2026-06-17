@@ -170,6 +170,21 @@ export const STARTER_PACKS: ContentPackManifest[] = [
     disclaimer: SAFETY_COPY.ai,
   },
   {
+    id: 'model-gemma4-e2b-it-mmproj-f16',
+    title: 'Gemma 4 E2B Vision Projector F16',
+    description:
+      'Companion multimodal projector required for Gemma 4 E2B image attachments in Ask Arky.',
+    category: 'AI Models',
+    format: 'gguf',
+    modelRole: 'visionProjector',
+    estimatedSize: 'Vision companion',
+    sourceUrl: 'https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/mmproj-F16.gguf',
+    sourceLabel: 'Hugging Face: Unsloth / Google Gemma 4',
+    fileName: 'gemma-4-E2B-it-mmproj-F16.gguf',
+    installed: false,
+    disclaimer: SAFETY_COPY.ai,
+  },
+  {
     id: 'model-gemma4-e4b-it-q4-k-m',
     title: 'Gemma 4 E4B Instruct Q4_K_M',
     description:
@@ -184,6 +199,21 @@ export const STARTER_PACKS: ContentPackManifest[] = [
     sourceLabel: 'Hugging Face: Unsloth / Google Gemma 4',
     fileName: 'gemma-4-E4B-it-Q4_K_M.gguf',
     checksumSha256: '519b9793ed6ce0ff530f1b7c96e848e08e49e7af4d57bb97f76215963a54146d',
+    installed: false,
+    disclaimer: SAFETY_COPY.ai,
+  },
+  {
+    id: 'model-gemma4-e4b-it-mmproj-f16',
+    title: 'Gemma 4 E4B Vision Projector F16',
+    description:
+      'Companion multimodal projector required for Gemma 4 E4B image attachments in Ask Arky.',
+    category: 'AI Models',
+    format: 'gguf',
+    modelRole: 'visionProjector',
+    estimatedSize: 'Vision companion',
+    sourceUrl: 'https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/mmproj-F16.gguf',
+    sourceLabel: 'Hugging Face: Unsloth / Google Gemma 4',
+    fileName: 'gemma-4-E4B-it-mmproj-F16.gguf',
     installed: false,
     disclaimer: SAFETY_COPY.ai,
   },

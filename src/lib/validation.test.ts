@@ -53,6 +53,30 @@ describe('validation schemas', () => {
     );
   });
 
+  test('accepts bounded chat attachments', () => {
+    const parsed = parseOrThrow(chatMessageSchema, {
+      content: 'Summarize this.',
+      useRag: true,
+      attachments: [
+        {
+          type: 'note',
+          title: '  Water plan  ',
+          content: 'Boil and seal.',
+          sourceId: 'note-1',
+        },
+        {
+          type: 'image',
+          title: 'Filter label',
+          uri: 'file:///ark/filter.jpg',
+          mimeType: 'image/jpeg',
+        },
+      ],
+    });
+
+    expect(parsed.attachments?.[0]).toMatchObject({ title: 'Water plan' });
+    expect(parsed.attachments?.[1]).toMatchObject({ mimeType: 'image/jpeg' });
+  });
+
   test('requires vault passphrases to meet the minimum length', () => {
     expect(() => parseOrThrow(vaultPasswordSchema, 'short')).toThrow(
       'Use at least 8 characters for the vault passphrase.'

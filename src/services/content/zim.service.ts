@@ -154,9 +154,7 @@ export class ZimService {
     const module = await this.openForQuery(pack);
     const normalized = query.trim();
     if (normalized.length < 1) return [];
-    return withTimeout(module.search(normalized, limit), 4500, async () =>
-      module.suggest(normalized, limit)
-    );
+    return module.search(normalized, limit);
   }
 
   static async suggest(pack: ContentPack, prefix: string, limit = 8) {
@@ -266,22 +264,4 @@ function metadataFromHeader(
     hasFulltextIndex: true,
     hasTitleIndex: true,
   };
-}
-
-async function withTimeout<T>(
-  promise: Promise<T>,
-  timeoutMs: number,
-  onTimeout: () => Promise<T>
-): Promise<T> {
-  let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
-  const timeoutPromise = new Promise<T>((resolve) => {
-    timeoutHandle = setTimeout(() => {
-      void onTimeout().then(resolve);
-    }, timeoutMs);
-  });
-  try {
-    return await Promise.race([promise, timeoutPromise]);
-  } finally {
-    if (timeoutHandle) clearTimeout(timeoutHandle);
-  }
 }

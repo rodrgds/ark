@@ -142,6 +142,7 @@ export type OfflineRoute = {
   id?: string;
   profile: RoutingProfile;
   regionId: string;
+  routingMode?: 'routed' | 'direct';
   geometry: RouteCoordinate[];
   distanceMeters: number;
   durationSeconds: number;

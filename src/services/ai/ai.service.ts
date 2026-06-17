@@ -8,7 +8,9 @@ import { MockAIAdapter } from '@/services/ai/mock-ai-adapter';
 import { chatMessageSchema, parseOrThrow } from '@/lib/validation';
 import type {
   AiAdapterResponse,
+  AiAttachment,
   AiCitation,
+  AiMessageAttachment,
   AiMessage,
   AiSendMessageInput,
   AiSendMessageOptions,
@@ -256,6 +258,9 @@ export class AIService {
         role: 'user',
         content: validated.content,
         citations: [],
+        metadata: validated.attachments?.length
+          ? { attachments: messageAttachmentsFromInput(validated.attachments) }
+          : undefined,
         createdAt: timestamp,
       };
       const toolRun = validated.useRag
@@ -279,6 +284,7 @@ export class AIService {
             content: validated.content,
             selectedModelId: modelSettings.selectedModelId,
             history,
+            attachments: validated.attachments,
             toolRun,
             options,
             request,
@@ -356,6 +362,7 @@ export class AIService {
     content,
     selectedModelId,
     history,
+    attachments,
     toolRun,
     options,
     request,
@@ -363,6 +370,7 @@ export class AIService {
     content: string;
     selectedModelId?: string | null;
     history: Array<{ role: 'user' | 'assistant'; content: string }>;
+    attachments?: AiSendMessageInput['attachments'];
     toolRun: AiToolRun;
     options: AiSendMessageOptions;
     request: ActiveAiRequest;
@@ -378,6 +386,7 @@ export class AIService {
       content,
       selectedModelId,
       history,
+      attachments,
       citations: toolRun.citations,
       sourceContext: toolRun.sourceContext,
       toolTrace: toolRun.toolTrace,
@@ -401,6 +410,24 @@ export class AIService {
       chatModelDisabled: threadSettings.chatModelDisabled ?? globalDisabled,
     };
   }
+}
+
+function messageAttachmentsFromInput(attachments: AiAttachment[]): AiMessageAttachment[] {
+  return attachments.map((attachment) => {
+    if (attachment.type === 'image') {
+      return {
+        type: attachment.type,
+        title: attachment.title,
+        uri: attachment.uri,
+        mimeType: attachment.mimeType,
+      };
+    }
+    return {
+      type: attachment.type,
+      title: attachment.title,
+      sourceId: attachment.sourceId,
+    };
+  });
 }
 
 function sourceSearchResponse(citations: AiCitation[]): AiAdapterResponse {

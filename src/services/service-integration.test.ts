@@ -430,15 +430,55 @@ mock.module('react-native-executorch', () => ({
 }));
 
 function createMockAiSdkLanguageModel(modelPath: string, options?: unknown) {
-  let context: { stopCompletion: () => Promise<void> } | null = null;
+  let context: {
+    completion: (
+      params: unknown,
+      callback?: (data: {
+        token?: string;
+        accumulated_text?: string;
+        content?: string;
+        reasoning_content?: string;
+      }) => void
+    ) => Promise<{
+      text?: string;
+      content?: string;
+      reasoning_content?: string;
+      tool_calls?: Array<{
+        type: 'function';
+        id?: string;
+        function: { name: string; arguments: string };
+      }>;
+    }>;
+    stopCompletion: () => Promise<void>;
+  } | null = null;
+  const projectorPath =
+    options && typeof options === 'object' && 'projectorPath' in options
+      ? (options as { projectorPath?: string }).projectorPath
+      : null;
   return {
     specificationVersion: 'v3',
     provider: 'llama',
     modelId: modelPath,
-    supportedUrls: {},
+    supportedUrls: projectorPath ? { 'image/*': [/^file:\/\//, /^data:image\//] } : {},
     prepare: async () => {
       lastLlamaInitModel = modelPath;
       context = {
+        completion: async (params, callback) => {
+          lastLlamaCompletionParams = params;
+          const scripted = mockLlamaCompletionResults.shift();
+          const stream = scripted?.stream ?? scripted?.content ?? '';
+          if (stream || scripted?.reasoning_content) {
+            callback?.({
+              token: stream,
+              accumulated_text: stream,
+              content: scripted?.content ?? stream,
+              reasoning_content: scripted?.reasoning_content,
+            });
+          }
+          llamaCompletionStarted?.();
+          if (llamaCompletionGate) await llamaCompletionGate;
+          return scripted ?? { text: 'Local mocked llama response.', content: stream };
+        },
         stopCompletion: async () => {
           llamaStopCalls += 1;
         },
@@ -567,7 +607,9 @@ function normalizeAiSdkPrompt(prompt: Array<{ role: string; content: unknown }>)
               .map((part) =>
                 part && typeof part === 'object' && 'text' in part
                   ? String((part as { text: string }).text)
-                  : ''
+                  : part && typeof part === 'object' && 'mediaType' in part && 'data' in part
+                    ? `[file:${String((part as { mediaType: string }).mediaType)}:${String((part as { data: string }).data)}]`
+                    : ''
               )
               .join('')
           : '',
@@ -1645,6 +1687,24 @@ describe('service integration', () => {
     }
   });
 
+  test('offline navigation falls back to a direct route when road routing is unavailable', async () => {
+    const session = await OfflineMapService.startNavigation({
+      origin: { latitude: 38.72, longitude: -9.14 },
+      destination: { latitude: 38.73, longitude: -9.12 },
+      destinationTitle: 'North spring',
+      profile: 'pedestrian',
+    });
+
+    expect(session.destinationTitle).toBe('North spring');
+    expect(session.route.routingMode).toBe('direct');
+    expect(session.route.geometry).toHaveLength(2);
+    expect(session.route.distanceMeters).toBeGreaterThan(0);
+    expect(session.route.maneuvers[0]?.instruction).toContain('directly');
+
+    const moved = await OfflineMapService.getActiveNavigationSession();
+    expect(moved?.route.routingMode).toBe('direct');
+  });
+
   test('map location service reports denied permission without reading GPS', async () => {
     mockLocationPermission = { granted: false, status: 'denied', canAskAgain: false };
 
@@ -1730,6 +1790,34 @@ describe('service integration', () => {
     expect(assistant.citations[0]?.sourceRef).toBe(note.id);
     expect(assistant.citations[0]?.targetHref).toBe(`/notes/editor?id=${note.id}`);
     expect(lastLlamaInitModel).toBeNull();
+  });
+
+  test('AI chat persists compact attachment metadata on the user message', async () => {
+    const result = await AIService.sendMessage({
+      content: 'Use this note as context.',
+      useRag: false,
+      chatModelDisabled: true,
+      attachments: [
+        {
+          type: 'note',
+          title: 'Small fishing note',
+          sourceId: 'note-fishing',
+          content: 'A long secure note body should be prompt-only, not copied into chat metadata.',
+        },
+      ],
+    });
+
+    expect(result.messages[0].metadata?.attachments).toEqual([
+      {
+        type: 'note',
+        title: 'Small fishing note',
+        sourceId: 'note-fishing',
+      },
+    ]);
+
+    const stored = await AIService.listMessages(result.threadId);
+    expect(stored[0].metadata?.attachments?.[0]?.title).toBe('Small fishing note');
+    expect(JSON.stringify(stored[0].metadata)).not.toContain('long secure note body');
   });
 
   test('note theme and favorite changes do not rewrite RAG note chunks', async () => {
@@ -2211,7 +2299,7 @@ describe('service integration', () => {
     expect(result.messages[1].reasoning).toBe('private tool planning');
   });
 
-  test('local llama repairs Gemma-style reasoning-only generations into a final answer', async () => {
+  test('local llama disables Gemma thinking and accepts direct final answers', async () => {
     await ContentRepository.createPack({
       id: 'custom-model-gemma-repair-test',
       title: 'Gemma repair model',
@@ -2224,12 +2312,6 @@ describe('service integration', () => {
       progress: 1,
     });
     mockLlamaCompletionResults = [
-      {
-        content: '',
-        stream: '',
-        reasoning_content:
-          'Thinking Process: Analyze the request. The user asks how to make a fishing hook. Source 1 says pins, needles, wire, small nails, wood, bone, thorns, flint, seashell, or shell can be used.',
-      },
       {
         content:
           'Use a small piece of wire, a thorn, bone, or a nail; shape it into a hook, sharpen the point, and add a notch or eye for line. Keep it small enough for the fish you are targeting.',
@@ -2245,10 +2327,98 @@ describe('service integration', () => {
     expect(result.messages[1].content).toContain('shape it into a hook');
     expect(result.messages[1].content).not.toContain('Thinking Process');
     expect(result.messages[1].content).not.toBe('The local model returned an empty response.');
-    expect(result.messages[1].reasoning).toContain('Source 1 says');
+    expect((lastLlamaCompletionParams as { enable_thinking?: boolean }).enable_thinking).toBe(
+      false
+    );
   });
 
-  test('local llama falls back to retrieved source snippets when Gemma never writes final text', async () => {
+  test('Gemma chat runs direct answers without autonomous tool loops', async () => {
+    await ContentRepository.createPack({
+      id: 'model-gemma4-e2b-it-q4-k-m',
+      title: 'Gemma 4 E2B Instruct Q4_K_M',
+      description: 'Installed curated Gemma model.',
+      category: 'AI Models',
+      format: 'gguf',
+      localUri: 'file:///ark/models/gemma-4-e2b.gguf',
+      installed: true,
+      installStatus: 'installed',
+      progress: 1,
+      sizeBytes: Math.round(3.11 * 1024 * 1024 * 1024),
+    });
+    mockLlamaCompletionResults = [{ content: 'Keep water sealed after boiling.' }];
+    resetLlamaAdapterForTests();
+
+    const result = await AIService.sendMessage({
+      content: 'How should I store boiled water?',
+      useRag: false,
+      selectedModelId: 'model-gemma4-e2b-it-q4-k-m',
+    });
+    const completionParams = lastLlamaCompletionParams as {
+      tools?: Array<unknown>;
+      n_predict?: number;
+    };
+
+    expect(result.messages[1].content).toBe('Keep water sealed after boiling.');
+    expect(completionParams.tools).toBeUndefined();
+    expect(completionParams.n_predict).toBeLessThan(1024);
+  });
+
+  test('Gemma image attachments load the matching vision projector', async () => {
+    await ContentRepository.createPack({
+      id: 'model-gemma4-e2b-it-q4-k-m',
+      title: 'Gemma 4 E2B Instruct Q4_K_M',
+      description: 'Installed curated Gemma model.',
+      category: 'AI Models',
+      format: 'gguf',
+      localUri: 'file:///ark/models/gemma-4-e2b.gguf',
+      installed: true,
+      installStatus: 'installed',
+      progress: 1,
+      sizeBytes: Math.round(3.11 * 1024 * 1024 * 1024),
+    });
+    await ContentRepository.createPack({
+      id: 'model-gemma4-e2b-it-mmproj-f16',
+      title: 'Gemma 4 E2B Vision Projector F16',
+      description: 'Installed Gemma projector.',
+      category: 'AI Models',
+      format: 'gguf',
+      localUri: 'file:///ark/models/gemma-4-e2b-mmproj.gguf',
+      installed: true,
+      installStatus: 'installed',
+      progress: 1,
+      sizeBytes: 150 * 1024 * 1024,
+    });
+    mockLlamaCompletionResults = [{ content: 'The label shows a ceramic water filter.' }];
+    resetLlamaAdapterForTests();
+
+    const result = await AIService.sendMessage({
+      content: 'What does this show?',
+      useRag: false,
+      selectedModelId: 'model-gemma4-e2b-it-q4-k-m',
+      attachments: [
+        {
+          type: 'image',
+          title: 'filter.jpg',
+          uri: 'file:///ark/images/filter.jpg',
+          mimeType: 'image/jpeg',
+        },
+      ],
+    });
+    const completionParams = lastLlamaCompletionParams as {
+      contextParams?: { projectorPath?: string };
+      messages?: Array<{ role: string; content: string }>;
+    };
+
+    expect(result.messages[1].content).toContain('ceramic water filter');
+    expect(completionParams.contextParams?.projectorPath).toBe(
+      'file:///ark/models/gemma-4-e2b-mmproj.gguf'
+    );
+    expect(
+      completionParams.messages?.some((message) => message.content.includes('filter.jpg'))
+    ).toBe(true);
+  });
+
+  test('local llama does not fabricate a fallback answer when Gemma never writes final text', async () => {
     await ContentRepository.createPack({
       id: 'custom-model-gemma-fallback-test',
       title: 'Gemma fallback model',
@@ -2273,11 +2443,6 @@ describe('service integration', () => {
         reasoning_content:
           'Thinking Process: The user asks how to make a fishing hook. The retrieved note contains the useful field-expedient materials, but I stopped before writing the final.',
       },
-      {
-        content: '',
-        stream: '',
-        reasoning_content: 'Still analyzing instead of answering.',
-      },
     ];
     resetLlamaAdapterForTests();
 
@@ -2287,10 +2452,10 @@ describe('service integration', () => {
     });
 
     expect(result.messages).toHaveLength(3);
-    expect(result.messages[2].content).toContain('Do this:');
-    expect(result.messages[2].content).toContain('wire, a thorn, bone, or a small nail');
+    expect(result.messages[2].content).toBe(
+      'I could not generate a useful local answer for that message.'
+    );
     expect(result.messages[2].content).not.toContain('Thinking Process');
-    expect(result.messages[2].content).not.toBe('The local model returned an empty response.');
   });
 
   test('local llama receives recent chat history and exposes reasoning separately', async () => {

@@ -25,12 +25,20 @@ describe('release CI contracts', () => {
     // in 5ff6f93; do not reintroduce it.
     const devenvNix = readFileSync(join(process.cwd(), 'devenv.nix'), 'utf8');
 
-    // The prek-installed hook config must drive the same gates as the
+    // The devenv-installed hook config must drive the same gates as the
     // GitHub Actions release workflow: typecheck, lint, test, prettier.
     for (const hook of ['typecheck', 'lint', 'test', 'prettier-check']) {
       expect(devenvNix).toContain(`${hook} = {`);
       expect(devenvNix).toContain(`name = "${hook}-wrapper"`);
     }
+    expect(devenvNix).toContain('bunx prettier --check .');
+    expect(devenvNix).toContain('bunx tsc --noEmit');
+    expect(devenvNix).toContain('bunx eslint . --quiet');
+    expect(devenvNix).toContain('bun test');
+
+    const gitignore = readFileSync(join(process.cwd(), '.gitignore'), 'utf8');
+    expect(gitignore).toContain('.githooks/');
+    expect(gitignore).toContain('.pre-commit-config.yaml');
 
     // The CI workflow must wire the same checks. The current shape calls
     // the dev-shell scripts (format-check / typecheck / lint) directly and
@@ -40,6 +48,12 @@ describe('release CI contracts', () => {
     // refactors don't have to keep the indirection-or-not decision in sync
     // with this contract.
     const workflow = readFileSync(join(process.cwd(), '.github/workflows/ci.yml'), 'utf8');
+    expect(workflow).toContain("'.gitignore'");
+    expect(workflow).toContain("'devenv.nix'");
+    expect(workflow).toContain("'devenv.yaml'");
+    expect(workflow).toContain("'devenv.lock'");
+    expect(workflow).toContain("'scripts/**'");
+
     const devShellName = (name: string) =>
       // Either the dev-shell script name appears in the workflow OR the
       // workflow invokes the package.json script directly via `bun run`.
@@ -106,8 +120,8 @@ describe('release CI contracts', () => {
     expect(audioPlugin?.enableBackgroundRecording).toBe(false);
 
     const imagePickerPlugin = findPlugin(app.expo.plugins, 'expo-image-picker');
-    expect(imagePickerPlugin?.cameraPermission).toContain('spot photos');
-    expect(imagePickerPlugin?.photosPermission).toContain('spot photos');
+    expect(imagePickerPlugin?.cameraPermission).toContain('Ask Arky chats');
+    expect(imagePickerPlugin?.photosPermission).toContain('Ask Arky chats');
   });
 
   test('release readiness notes cover privacy, offline launch, stores, and low-end Android', () => {

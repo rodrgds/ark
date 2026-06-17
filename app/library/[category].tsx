@@ -773,9 +773,9 @@ function AddDocumentSheet({
         <Pressable
           onPress={onChooseWeb}
           disabled={webPageSubmitting}
-          className="flex-row items-center gap-3 rounded-lg border border-border bg-card p-4 active:opacity-70">
-          <View className="size-10 items-center justify-center rounded-md bg-muted">
-            <Icon as={Globe} className="size-5 text-foreground" />
+          className="border-border bg-card flex-row items-center gap-3 rounded-lg border p-4 active:opacity-70">
+          <View className="bg-muted size-10 items-center justify-center rounded-md">
+            <Icon as={Globe} className="text-foreground size-5" />
           </View>
           <View className="min-w-0 flex-1 gap-0.5">
             <Text>Web page</Text>
@@ -787,12 +787,12 @@ function AddDocumentSheet({
         <Pressable
           onPress={onChooseDocument}
           disabled={importWorking}
-          className="flex-row items-center gap-3 rounded-lg border border-border bg-card p-4 active:opacity-70">
-          <View className="size-10 items-center justify-center rounded-md bg-muted">
+          className="border-border bg-card flex-row items-center gap-3 rounded-lg border p-4 active:opacity-70">
+          <View className="bg-muted size-10 items-center justify-center rounded-md">
             {importWorking ? (
               <ActivityIndicator />
             ) : (
-              <Icon as={FileText} className="size-5 text-foreground" />
+              <Icon as={FileText} className="text-foreground size-5" />
             )}
           </View>
           <View className="min-w-0 flex-1 gap-0.5">

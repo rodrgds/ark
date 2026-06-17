@@ -7,6 +7,8 @@ export type ZimMetadata = {
   language?: string;
   articleCount?: number;
   mainPath?: string;
+  hasFulltextIndex?: boolean;
+  hasTitleIndex?: boolean;
 };
 
 export type ZimArticle = {

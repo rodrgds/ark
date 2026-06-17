@@ -282,6 +282,7 @@ export default function MapScreen() {
     }
     return MapService.getOverviewStyle(theme);
   }, [downloadedRegions.length, theme]);
+  const mapBackgroundColor = NAV_COLORS[theme].background;
   const mapInstanceKey =
     downloadedRegions.length > 0 ? 'offline-regions-map' : 'world-overview-map';
   const activeMapKeyRef = React.useRef(mapInstanceKey);
@@ -304,6 +305,15 @@ export default function MapScreen() {
         .includes(query)
     );
   }, [markers, savedSearch, showEmergencyPinsOnly]);
+  const filteredRoutes = React.useMemo(() => {
+    const query = savedSearch.trim().toLowerCase();
+    if (!query) return routes;
+    return routes.filter((route) =>
+      `${route.title} ${route.points.map((point) => point.title ?? '').join(' ')}`
+        .toLowerCase()
+        .includes(query)
+    );
+  }, [routes, savedSearch]);
   const visibleMarkers = React.useMemo(
     () => (showEmergencyPinsOnly ? markers.filter((marker) => marker.isEmergencyPin) : markers),
     [markers, showEmergencyPinsOnly]
@@ -1019,7 +1029,7 @@ export default function MapScreen() {
   );
 
   const mapContent = (
-    <View className="bg-background flex-1">
+    <View className="bg-background flex-1" style={{ backgroundColor: mapBackgroundColor }}>
       <MapCanvas
         cameraRef={cameraRef}
         canMount={canMountMap}
@@ -1029,7 +1039,9 @@ export default function MapScreen() {
         initialZoom={mapViewportZoom}
         isSearchActive={searchFocused || topMode === 'search'}
         mapBearing={mapBearing}
+        mapBackgroundColor={mapBackgroundColor}
         mapKey={mapInstanceKey}
+        mapReady={mapReady}
         mapStyle={mapStyle}
         maplibre={maplibre}
         markers={visibleMarkers}
@@ -1169,7 +1181,7 @@ export default function MapScreen() {
 
       <SavedDataPanel
         markers={filteredMarkers}
-        routes={routes}
+        routes={filteredRoutes}
         search={savedSearch}
         visible={activePanel === 'saved'}
         onChangeSearch={setSavedSearch}
@@ -1278,7 +1290,9 @@ function MapCanvas({
   initialZoom,
   isSearchActive,
   mapBearing,
+  mapBackgroundColor,
   mapKey,
+  mapReady,
   mapStyle,
   maplibre,
   markers,
@@ -1309,7 +1323,9 @@ function MapCanvas({
   initialZoom: number;
   isSearchActive: boolean;
   mapBearing: number;
+  mapBackgroundColor: string;
   mapKey: string;
+  mapReady: boolean;
   mapStyle: unknown;
   maplibre: MapLibreModule | null;
   markers: MapMarker[];
@@ -1348,178 +1364,192 @@ function MapCanvas({
   React.useEffect(() => () => onMapUnmount(mapKey), [mapKey]);
 
   if (!Map || !Camera || !canMount) {
-    return <WorldOverviewFallback status={status} />;
+    return (
+      <View className="flex-1" style={{ backgroundColor: mapBackgroundColor }}>
+        <WorldOverviewFallback status={status} />
+      </View>
+    );
   }
 
   return (
-    <Map
-      key={mapKey}
-      style={{ flex: 1 }}
-      mapStyle={mapStyle as never}
-      logo={false}
-      attribution={false}
-      compass={false}
-      scaleBar={fullscreen}
-      onDidFailLoadingMap={onMapLoadFailed}
-      onDidFinishLoadingMap={() => onMapReady(mapKey)}
-      onPress={() => {
-        if (isSearchActive) onDismissSearch();
-        else Keyboard.dismiss();
-      }}
-      onLongPress={(event: any) => {
-        if (isSearchActive || Date.now() < suppressLongPressUntilRef.current) {
-          onDismissSearch();
-          return;
-        }
-        onLongPress(event.nativeEvent.lngLat);
-      }}
-      onRegionIsChanging={(event: any) => {
-        onBearingChange(event.nativeEvent.bearing ?? 0);
-      }}
-      onRegionDidChange={(event: any) => {
-        onCenterChange(event.nativeEvent.center);
-        onBoundsChange(normalizeMapEventBounds(event.nativeEvent.bounds));
-        onBearingChange(event.nativeEvent.bearing ?? 0);
-        const nextZoom =
-          event.nativeEvent.zoom ??
-          event.nativeEvent.zoomLevel ??
-          event.nativeEvent.properties?.zoomLevel;
-        if (nextZoom != null) {
-          onZoomChange?.(nextZoom);
-        }
-      }}>
-      <Camera
-        ref={cameraRef}
-        initialViewState={{
-          center,
-          zoom: initialZoom,
-          bearing: mapBearing,
+    <View className="flex-1" style={{ backgroundColor: mapBackgroundColor }}>
+      <Map
+        key={mapKey}
+        androidView="texture"
+        style={{ flex: 1, backgroundColor: mapBackgroundColor }}
+        mapStyle={mapStyle as never}
+        logo={false}
+        attribution={false}
+        compass={false}
+        scaleBar={fullscreen}
+        onDidFailLoadingMap={onMapLoadFailed}
+        onDidFinishLoadingMap={() => onMapReady(mapKey)}
+        onPress={() => {
+          if (isSearchActive) onDismissSearch();
+          else Keyboard.dismiss();
         }}
-      />
-      {Marker && userLocation ? (
-        <Marker
-          key="ark-user-location"
-          id="ark-user-location"
-          lngLat={[userLocation.longitude, userLocation.latitude]}
-          anchor="center">
-          <UserLocationDot mapBearing={mapBearing} />
-        </Marker>
+        onLongPress={(event: any) => {
+          if (isSearchActive || Date.now() < suppressLongPressUntilRef.current) {
+            onDismissSearch();
+            return;
+          }
+          onLongPress(event.nativeEvent.lngLat);
+        }}
+        onRegionIsChanging={(event: any) => {
+          onBearingChange(event.nativeEvent.bearing ?? 0);
+        }}
+        onRegionDidChange={(event: any) => {
+          onCenterChange(event.nativeEvent.center);
+          onBoundsChange(normalizeMapEventBounds(event.nativeEvent.bounds));
+          onBearingChange(event.nativeEvent.bearing ?? 0);
+          const nextZoom =
+            event.nativeEvent.zoom ??
+            event.nativeEvent.zoomLevel ??
+            event.nativeEvent.properties?.zoomLevel;
+          if (nextZoom != null) {
+            onZoomChange?.(nextZoom);
+          }
+        }}>
+        <Camera
+          ref={cameraRef}
+          initialViewState={{
+            center,
+            zoom: initialZoom,
+            bearing: mapBearing,
+          }}
+        />
+        {Marker && userLocation ? (
+          <Marker
+            key="ark-user-location"
+            id="ark-user-location"
+            lngLat={[userLocation.longitude, userLocation.latitude]}
+            anchor="center">
+            <UserLocationDot mapBearing={mapBearing} />
+          </Marker>
+        ) : null}
+        {!hasDownloadedRegion && GeoJSONSource && Layer ? (
+          <GeoJSONSource id="ark-world-overview" data={overviewData}>
+            <Layer
+              id="ark-world-land"
+              type="fill"
+              paint={{
+                fillColor: '#2f3a2a',
+                fillOpacity: 0.72,
+              }}
+            />
+            <Layer
+              id="ark-world-coast"
+              type="line"
+              paint={{
+                lineColor: '#95a78b',
+                lineOpacity: 0.75,
+                lineWidth: 1,
+              }}
+            />
+          </GeoJSONSource>
+        ) : null}
+        {GeoJSONSource && Layer && routes.length ? (
+          <GeoJSONSource id="ark-routes" data={routeData}>
+            <Layer
+              id="ark-routes-line"
+              type="line"
+              paint={{
+                lineColor: '#95a78b',
+                lineOpacity: 0.92,
+                lineWidth: 4,
+              }}
+              layout={{
+                lineCap: 'round',
+                lineJoin: 'round',
+              }}
+            />
+          </GeoJSONSource>
+        ) : null}
+        {GeoJSONSource && Layer && navigationSession ? (
+          <GeoJSONSource id="ark-active-navigation-route" data={navigationRouteData}>
+            <Layer
+              id="ark-active-navigation-route-line"
+              type="line"
+              paint={{
+                lineColor: '#F2B84B',
+                lineOpacity: 0.98,
+                lineWidth: 6,
+              }}
+              layout={{
+                lineCap: 'round',
+                lineJoin: 'round',
+              }}
+            />
+          </GeoJSONSource>
+        ) : null}
+        {GeoJSONSource && Layer && markers.length ? (
+          <GeoJSONSource
+            id="ark-markers"
+            data={markerData}
+            hitbox={{ top: 18, right: 18, bottom: 18, left: 18 }}
+            onPress={(event: any) => {
+              const markerId = event.nativeEvent.features?.[0]?.properties?.markerId;
+              const marker = markers.find((item) => item.id === markerId);
+              if (marker) onMarkerPress(marker);
+            }}>
+            <Layer
+              id="ark-marker-halo"
+              type="circle"
+              paint={{
+                circleColor: '#050316',
+                circleOpacity: 0.95,
+                circleRadius: ['interpolate', ['linear'], ['zoom'], 6, 5, 14, 8],
+                circleStrokeColor: '#F2B84B',
+                circleStrokeWidth: 2,
+              }}
+            />
+            <Layer
+              id="ark-marker-core"
+              type="circle"
+              paint={{
+                circleColor: '#F2B84B',
+                circleOpacity: 1,
+                circleRadius: ['interpolate', ['linear'], ['zoom'], 6, 2.5, 14, 4.5],
+              }}
+            />
+          </GeoJSONSource>
+        ) : null}
+        {Marker
+          ? markers.map((marker) => (
+              <Marker
+                key={`ark-marker-${marker.id}`}
+                id={`ark-marker-${marker.id}`}
+                lngLat={[marker.longitude, marker.latitude]}
+                anchor="center"
+                onPress={() => onMarkerPress(marker)}>
+                <MarkerDot marker={marker} selected={selectedMarker?.id === marker.id} />
+              </Marker>
+            ))
+          : null}
+        {Marker && selectedMarker ? (
+          <Marker
+            key={selectedMarker.id}
+            id={`ark-marker-popup-${selectedMarker.id}`}
+            lngLat={[selectedMarker.longitude, selectedMarker.latitude]}
+            anchor="bottom"
+            onPress={onCloseMarkerPopup}
+            offset={[0, -14]}>
+            <MarkerPopup
+              marker={selectedMarker}
+              onClose={onCloseMarkerPopup}
+              onNavigate={() => onNavigateToMarker(selectedMarker)}
+            />
+          </Marker>
+        ) : null}
+      </Map>
+      {!mapReady ? (
+        <View
+          className="absolute inset-0"
+          pointerEvents="none"
+          style={{ backgroundColor: mapBackgroundColor }}
+        />
       ) : null}
-      {!hasDownloadedRegion && GeoJSONSource && Layer ? (
-        <GeoJSONSource id="ark-world-overview" data={overviewData}>
-          <Layer
-            id="ark-world-land"
-            type="fill"
-            paint={{
-              fillColor: '#2f3a2a',
-              fillOpacity: 0.72,
-            }}
-          />
-          <Layer
-            id="ark-world-coast"
-            type="line"
-            paint={{
-              lineColor: '#95a78b',
-              lineOpacity: 0.75,
-              lineWidth: 1,
-            }}
-          />
-        </GeoJSONSource>
-      ) : null}
-      {GeoJSONSource && Layer && routes.length ? (
-        <GeoJSONSource id="ark-routes" data={routeData}>
-          <Layer
-            id="ark-routes-line"
-            type="line"
-            paint={{
-              lineColor: '#95a78b',
-              lineOpacity: 0.92,
-              lineWidth: 4,
-            }}
-            layout={{
-              lineCap: 'round',
-              lineJoin: 'round',
-            }}
-          />
-        </GeoJSONSource>
-      ) : null}
-      {GeoJSONSource && Layer && navigationSession ? (
-        <GeoJSONSource id="ark-active-navigation-route" data={navigationRouteData}>
-          <Layer
-            id="ark-active-navigation-route-line"
-            type="line"
-            paint={{
-              lineColor: '#F2B84B',
-              lineOpacity: 0.98,
-              lineWidth: 6,
-            }}
-            layout={{
-              lineCap: 'round',
-              lineJoin: 'round',
-            }}
-          />
-        </GeoJSONSource>
-      ) : null}
-      {GeoJSONSource && Layer && markers.length ? (
-        <GeoJSONSource
-          id="ark-markers"
-          data={markerData}
-          hitbox={{ top: 18, right: 18, bottom: 18, left: 18 }}
-          onPress={(event: any) => {
-            const markerId = event.nativeEvent.features?.[0]?.properties?.markerId;
-            const marker = markers.find((item) => item.id === markerId);
-            if (marker) onMarkerPress(marker);
-          }}>
-          <Layer
-            id="ark-marker-halo"
-            type="circle"
-            paint={{
-              circleColor: '#050316',
-              circleOpacity: 0.95,
-              circleRadius: ['interpolate', ['linear'], ['zoom'], 6, 5, 14, 8],
-              circleStrokeColor: '#F2B84B',
-              circleStrokeWidth: 2,
-            }}
-          />
-          <Layer
-            id="ark-marker-core"
-            type="circle"
-            paint={{
-              circleColor: '#F2B84B',
-              circleOpacity: 1,
-              circleRadius: ['interpolate', ['linear'], ['zoom'], 6, 2.5, 14, 4.5],
-            }}
-          />
-        </GeoJSONSource>
-      ) : null}
-      {Marker
-        ? markers.map((marker) => (
-            <Marker
-              key={`ark-marker-${marker.id}`}
-              id={`ark-marker-${marker.id}`}
-              lngLat={[marker.longitude, marker.latitude]}
-              anchor="center"
-              onPress={() => onMarkerPress(marker)}>
-              <MarkerDot marker={marker} selected={selectedMarker?.id === marker.id} />
-            </Marker>
-          ))
-        : null}
-      {Marker && selectedMarker ? (
-        <Marker
-          key={selectedMarker.id}
-          id={`ark-marker-popup-${selectedMarker.id}`}
-          lngLat={[selectedMarker.longitude, selectedMarker.latitude]}
-          anchor="bottom"
-          onPress={onCloseMarkerPopup}
-          offset={[0, -14]}>
-          <MarkerPopup
-            marker={selectedMarker}
-            onClose={onCloseMarkerPopup}
-            onNavigate={() => onNavigateToMarker(selectedMarker)}
-          />
-        </Marker>
-      ) : null}
-    </Map>
+    </View>
   );
 }
 
@@ -1830,8 +1860,8 @@ function UserLocationDot({ mapBearing }: { mapBearing: number }) {
         <View
           className="absolute"
           style={{ transform: [{ rotate: `${heading - mapBearing}deg` }] }}>
-          <Svg width={100} height={100} viewBox="0 0 100 100">
-            <Path d="M50 50 L75 5 A 40 40 0 0 0 25 5 Z" fill="rgba(149, 167, 139, 0.45)" />
+          <Svg width={104} height={104} viewBox="0 0 104 104">
+            <Path d="M52 52 L82 8 Q52 -6 22 8 Z" fill="rgba(149, 167, 139, 0.45)" />
           </Svg>
         </View>
       ) : null}
@@ -2001,9 +2031,61 @@ function SavedDataPanel({
               <Text variant="muted">No saved spots match this filter.</Text>
             )}
           </View>
+
+          <View className="gap-2">
+            <Text variant="large">Routes</Text>
+            {routes.length ? (
+              routes.map((route) => (
+                <SavedRouteRow
+                  key={route.id}
+                  route={route}
+                  onDelete={() => onDeleteRoute(route)}
+                  onPress={() => onFocusRoute(route)}
+                />
+              ))
+            ) : (
+              <Text variant="muted">No saved routes match this filter.</Text>
+            )}
+          </View>
         </>
       )}
     </Panel>
+  );
+}
+
+function SavedRouteRow({
+  route,
+  onDelete,
+  onPress,
+}: {
+  route: SavedRoute;
+  onDelete: () => void;
+  onPress: () => void;
+}) {
+  return (
+    <Card className="flex-row items-center gap-3 p-3">
+      <Pressable className="min-w-0 flex-1 flex-row items-center gap-3" onPress={onPress}>
+        <View className="bg-primary/15 size-10 items-center justify-center rounded-md">
+          <Icon as={Route} className="text-primary size-5" />
+        </View>
+        <View className="min-w-0 flex-1">
+          <Text className="min-w-0" numberOfLines={1}>
+            {route.title}
+          </Text>
+          <Text variant="muted" numberOfLines={1}>
+            {route.points.length} points
+            {route.distanceMeters ? ` · ${(route.distanceMeters / 1000).toFixed(1)} km` : ''}
+          </Text>
+        </View>
+      </Pressable>
+      <Button
+        accessibilityLabel={`Delete ${route.title}`}
+        size="icon"
+        variant="outline"
+        onPress={onDelete}>
+        <Icon as={Trash2} className="size-4" />
+      </Button>
+    </Card>
   );
 }
 
@@ -2224,6 +2306,7 @@ function NavigationStatusCard({
 }) {
   const nextManeuver = session.route.maneuvers[session.currentManeuverIndex];
   const remaining = session.remainingDistanceMeters ?? session.route.distanceMeters;
+  const routingModeLabel = session.route.routingMode === 'direct' ? 'Direct line' : 'Offline route';
   return (
     <Card className="border-primary/40 bg-background/95 gap-3 p-3">
       <View className="flex-row items-start gap-2">
@@ -2236,7 +2319,7 @@ function NavigationStatusCard({
             {nextManeuver?.instruction ?? 'Follow the highlighted route.'}
           </Text>
           <Text variant="small" className="text-muted-foreground">
-            {(remaining / 1000).toFixed(1)} km remaining
+            {routingModeLabel} · {(remaining / 1000).toFixed(1)} km remaining
           </Text>
         </View>
       </View>

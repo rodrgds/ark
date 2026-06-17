@@ -11,6 +11,7 @@ import {
   isVoiceModelPack,
   isVoiceProjectorPack,
 } from '@/services/ai/voice-models';
+import { getVisionProjectorId, isVisionProjectorPack } from '@/services/ai/vision-models';
 import { resetVoiceRuntimeContext } from '@/services/ai/voice-transcription.service';
 import {
   RAG_HASH_EMBEDDING_DIMENSIONS,
@@ -31,7 +32,10 @@ export class ModelManagerService {
   static async listAvailableChatModels() {
     return (await this.listAvailableModels()).filter(
       (model) =>
-        !isEmbeddingModelPack(model) && !isVoiceModelPack(model) && !isVoiceProjectorPack(model)
+        !isEmbeddingModelPack(model) &&
+        !isVoiceModelPack(model) &&
+        !isVoiceProjectorPack(model) &&
+        !isVisionProjectorPack(model)
     );
   }
 
@@ -45,6 +49,10 @@ export class ModelManagerService {
 
   static async listAvailableVoiceProjectors() {
     return (await this.listAvailableModels()).filter((model) => isVoiceProjectorPack(model));
+  }
+
+  static async listAvailableVisionProjectors() {
+    return (await this.listAvailableModels()).filter((model) => isVisionProjectorPack(model));
   }
 
   static async listInstalledModels() {
@@ -70,6 +78,12 @@ export class ModelManagerService {
 
   static async listInstalledVoiceProjectors() {
     return (await this.listAvailableVoiceProjectors()).filter(
+      (model) => model.installed && model.localUri
+    );
+  }
+
+  static async listInstalledVisionProjectors() {
+    return (await this.listAvailableVisionProjectors()).filter(
       (model) => model.installed && model.localUri
     );
   }
@@ -102,6 +116,20 @@ export class ModelManagerService {
 
   static async getInstalledVoiceProjectorForModel(modelId: string | null | undefined) {
     const projector = await this.getVoiceProjectorForModel(modelId);
+    return projector?.installed && projector.localUri ? projector : null;
+  }
+
+  static async getVisionProjectorForModel(modelId: string | null | undefined) {
+    if (!modelId) return null;
+    const projectorId = getVisionProjectorId(modelId);
+    if (!projectorId) return null;
+    return (
+      (await this.listAvailableVisionProjectors()).find((model) => model.id === projectorId) ?? null
+    );
+  }
+
+  static async getInstalledVisionProjectorForModel(modelId: string | null | undefined) {
+    const projector = await this.getVisionProjectorForModel(modelId);
     return projector?.installed && projector.localUri ? projector : null;
   }
 

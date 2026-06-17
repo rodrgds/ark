@@ -41,6 +41,22 @@ describe('map and chat UI contracts', () => {
     expect(source).toContain('return;');
   });
 
+  test('map routing stays usable without native road graphs', () => {
+    const mapSource = readFileSync(join(appDir, '(tabs)/map.tsx'), 'utf8');
+    const routingSource = readFileSync(
+      join(process.cwd(), 'src/services/maps/offline-routing.service.ts'),
+      'utf8'
+    );
+
+    expect(mapSource).toContain('SavedRouteRow');
+    expect(mapSource).toContain("session.route.routingMode === 'direct'");
+    expect(mapSource).toContain('Direct line');
+    expect(routingSource).toContain('buildDirectRoute');
+    expect(routingSource).toContain("routingMode: 'direct'");
+    expect(routingSource).toContain("routingMode: 'routed'");
+    expect(routingSource).toContain('routeSegmentProgress');
+  });
+
   test('chat uses a floating split composer that follows the keyboard', () => {
     const source = readFileSync(join(appDir, 'chat/[threadId].tsx'), 'utf8');
 
@@ -58,6 +74,7 @@ describe('map and chat UI contracts', () => {
     expect(source).toContain('backgroundColor: colors.card');
     expect(source).toContain('borderColor: colors.border');
     expect(source).toContain('placeholderTextColor={themeColors.mutedForeground}');
+    expect(source).toContain("textAlignVertical={inputExpanded ? 'top' : 'center'}");
     expect(source).toContain('EMPTY_THREAD_PROMPTS');
     expect(source).toContain('pendingUserMessage');
     expect(source).not.toContain('.reverse()');

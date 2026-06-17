@@ -15,7 +15,7 @@ This checklist tracks store-facing release risk for Ark's offline-first mobile b
 - Location: save current position, center offline maps, and create offline map regions.
 - Motion and activity: compass, level, pedometer, and sensor tools.
 - Microphone: short voice prompts for offline transcription.
-- Camera and photo library: optional saved spot photos.
+- Camera and photo library: optional saved spot photos and Ask Arky image attachments.
 - Biometrics: protect the local vault unlock flow.
 - Background recording, background audio, and background location are not enabled.
 

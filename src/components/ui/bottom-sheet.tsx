@@ -250,7 +250,7 @@ function useKeyboardOffset() {
 
   React.useEffect(() => {
     if (Platform.OS !== 'ios') {
-      return undefined;
+      return;
     }
 
     const handleShow = (event?: { endCoordinates?: { height?: number; screenY?: number } }) => {

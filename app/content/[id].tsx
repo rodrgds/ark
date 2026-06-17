@@ -60,6 +60,27 @@ function cleanZimPreviewText(raw?: string | null): string {
     .trim();
 }
 
+function zimArticleBaseUrl(article: ZimArticle) {
+  return `https://ark.local/${article.finalPath.split('/').map(encodeURIComponent).join('/')}`;
+}
+
+function resolveZimArticleHref(url: string, currentArticle?: ZimArticle | null) {
+  if (!currentArticle) return null;
+  if (!url || url === 'about:blank') return null;
+
+  try {
+    const parsed = new URL(url, zimArticleBaseUrl(currentArticle));
+    if (parsed.hash && !parsed.pathname.replace(/^\/+/, '')) return null;
+    if (parsed.hostname !== 'ark.local') return { externalUrl: parsed.toString() };
+
+    const path = decodeURIComponent(parsed.pathname.replace(/^\/+/, ''));
+    if (!path || path === currentArticle.finalPath) return null;
+    return { articlePath: path };
+  } catch {
+    return null;
+  }
+}
+
 export default function ContentDetailScreen() {
   const { id, article } = useLocalSearchParams<{ id: string; article?: string }>();
   const insets = useSafeAreaInsets();
@@ -78,7 +99,6 @@ export default function ContentDetailScreen() {
   const [zimResults, setZimResults] = React.useState<ZimSearchResult[]>([]);
   const [zimArticle, setZimArticle] = React.useState<ZimArticle | null>(null);
   const [zimSpeaking, setZimSpeaking] = React.useState(false);
-  const [zimPrepared, setZimPrepared] = React.useState(false);
 
   const sections = React.useMemo(() => (pack ? GuideService.getSections(pack.id) : []), [pack]);
 
@@ -91,13 +111,11 @@ export default function ContentDetailScreen() {
       if (loadedPack?.format === 'zim') {
         const plan = await ZimService.getReaderPlan(loadedPack);
         setZimPlan(plan);
-        setZimMetadata(null);
-        setZimPrepared(false);
+        setZimMetadata(plan.metadata);
         setZimResults([]);
       } else {
         setZimPlan(null);
         setZimMetadata(null);
-        setZimPrepared(false);
         setZimResults([]);
       }
     } catch (err) {
@@ -149,15 +167,14 @@ export default function ContentDetailScreen() {
       !pack ||
       pack.format !== 'zim' ||
       !pack.installed ||
-      !zimPlan?.nativeReaderAvailable ||
-      !zimPrepared
+      !zimPlan?.nativeReaderAvailable
     ) {
       return;
     }
 
     openedArticleRef.current = articlePath;
     void openZimArticle(articlePath);
-  }, [article, openZimArticle, pack, zimPlan?.nativeReaderAvailable, zimPrepared]);
+  }, [article, openZimArticle, pack, zimPlan?.nativeReaderAvailable]);
 
   async function runAction(action: () => Promise<void>) {
     setBusy(true);
@@ -177,30 +194,9 @@ export default function ContentDetailScreen() {
     setZimBusy(true);
     setZimError(null);
     try {
-      if (!zimPrepared) {
-        throw new Error('Prepare this archive before searching.');
-      }
       setZimResults(await ZimService.search(pack, zimQuery));
     } catch (searchError) {
       setZimError(searchError instanceof Error ? searchError.message : 'Search failed.');
-    } finally {
-      setZimBusy(false);
-    }
-  }
-
-  async function prepareZimSearch() {
-    if (!pack) return;
-    setZimBusy(true);
-    setZimError(null);
-    try {
-      setZimMetadata(await ZimService.openArchive(pack));
-      setZimPrepared(true);
-      setZimResults([]);
-    } catch (archiveError) {
-      setZimPrepared(false);
-      setZimError(
-        archiveError instanceof Error ? archiveError.message : 'Search could not be prepared.'
-      );
     } finally {
       setZimBusy(false);
     }
@@ -253,6 +249,20 @@ export default function ContentDetailScreen() {
     }
   }
 
+  function handleZimArticleNavigation(url: string) {
+    const target = resolveZimArticleHref(url, zimArticle);
+    if (!target) return true;
+    if ('articlePath' in target) {
+      void openZimArticle(target.articlePath);
+      return false;
+    }
+    if ('externalUrl' in target) {
+      void Linking.openURL(target.externalUrl).catch(() => undefined);
+      return false;
+    }
+    return true;
+  }
+
   if (!pack) {
     return (
       <View className="bg-background flex-1 items-center justify-center p-6">
@@ -266,7 +276,15 @@ export default function ContentDetailScreen() {
 
   const isZim = pack.format === 'zim';
   const canSearchInArk = Boolean(zimPlan?.nativeReaderAvailable);
-  const preparedZimMetadata = canSearchInArk && zimPrepared ? zimMetadata : null;
+  const searchableZimMetadata = canSearchInArk
+    ? (zimMetadata ?? {
+        id: pack.id,
+        title: pack.title,
+        description: pack.description,
+        hasFulltextIndex: true,
+        hasTitleIndex: true,
+      })
+    : null;
   const isLocalOnly = !pack.sourceUrl;
 
   return (
@@ -501,7 +519,7 @@ export default function ContentDetailScreen() {
         {/* ZIM Metadata & Fallbacks (for ZIM packages) */}
         {isZim && pack.installed && (
           <View className="mt-2 gap-4">
-            {preparedZimMetadata ? (
+            {searchableZimMetadata ? (
               <Card className="border-border gap-4">
                 <View className="flex-row items-center justify-between gap-3">
                   <View className="min-w-0 flex-1 gap-1">
@@ -513,12 +531,12 @@ export default function ContentDetailScreen() {
                     </Text>
                   </View>
                   <View className="flex-row gap-1.5">
-                    {preparedZimMetadata.hasFulltextIndex && (
+                    {searchableZimMetadata.hasFulltextIndex && (
                       <View className="bg-primary/10 rounded-full px-2 py-0.5">
                         <Text className="text-primary text-xs">Article text</Text>
                       </View>
                     )}
-                    {preparedZimMetadata.hasTitleIndex && (
+                    {searchableZimMetadata.hasTitleIndex && (
                       <View className="bg-primary/10 rounded-full px-2 py-0.5">
                         <Text className="text-primary text-xs">Titles</Text>
                       </View>
@@ -530,9 +548,9 @@ export default function ContentDetailScreen() {
                   <Input
                     className="flex-1"
                     placeholder={
-                      preparedZimMetadata.hasFulltextIndex
+                      searchableZimMetadata.hasFulltextIndex
                         ? 'Search articles...'
-                        : preparedZimMetadata.hasTitleIndex
+                        : searchableZimMetadata.hasTitleIndex
                           ? 'Search by title...'
                           : 'Search unavailable'
                     }
@@ -541,7 +559,7 @@ export default function ContentDetailScreen() {
                     onSubmitEditing={runZimSearch}
                     returnKeyType="search"
                     editable={
-                      preparedZimMetadata.hasFulltextIndex || preparedZimMetadata.hasTitleIndex
+                      searchableZimMetadata.hasFulltextIndex || searchableZimMetadata.hasTitleIndex
                     }
                   />
                   <Button
@@ -588,35 +606,6 @@ export default function ContentDetailScreen() {
                     ))}
                   </View>
                 )}
-              </Card>
-            ) : canSearchInArk ? (
-              <Card className="border-border gap-4">
-                <View className="gap-1">
-                  <Text variant="large">Prepare in-app search</Text>
-                  <Text variant="muted">
-                    Open the downloaded archive in Ark before searching titles and articles.
-                  </Text>
-                  {zimPlan?.metadata?.articleCount ? (
-                    <Text variant="small" className="text-muted-foreground">
-                      {zimPlan.metadata.articleCount.toLocaleString()} entries detected.
-                    </Text>
-                  ) : null}
-                </View>
-                {zimBusy ? (
-                  <View className="items-center py-2">
-                    <ActivityIndicator />
-                  </View>
-                ) : null}
-                {zimError ? (
-                  <Text className="text-destructive text-center text-sm">{zimError}</Text>
-                ) : null}
-                <Button
-                  className="bg-primary active:bg-primary/90"
-                  disabled={zimBusy}
-                  onPress={() => void prepareZimSearch()}>
-                  <Icon as={Search} className="size-4" />
-                  <Text className="text-primary-foreground font-bold">Prepare Search</Text>
-                </Button>
               </Card>
             ) : (
               <Card className="border-border gap-4">
@@ -676,8 +665,16 @@ export default function ContentDetailScreen() {
             </View>
           </View>
           <WebView
-            originWhitelist={[]}
-            source={{ html: zimArticle ? ZimService.articleHtml(zimArticle) : '' }}
+            originWhitelist={['https://*', 'http://*']}
+            source={
+              zimArticle
+                ? {
+                    html: ZimService.articleHtml(zimArticle),
+                    baseUrl: zimArticleBaseUrl(zimArticle),
+                  }
+                : { html: '' }
+            }
+            onShouldStartLoadWithRequest={(request) => handleZimArticleNavigation(request.url)}
             style={{ flex: 1 }}
           />
         </View>

@@ -58,9 +58,11 @@ jobs:
               - 'tsconfig.json'
               - 'package.json'
               - 'bun.lock'
+              - '.gitignore'
               - 'devenv.nix'
               - 'devenv.yaml'
               - 'devenv.lock'
+              - 'scripts/**'
             ci:
               - '.github/workflows/**'
 

@@ -14,6 +14,12 @@ const OFF_ROUTE_DISTANCE_METERS = 45;
 const OFF_ROUTE_CONFIRMATION_COUNT = 2;
 const ARRIVAL_DISTANCE_METERS = 25;
 const REROUTE_COOLDOWN_MS = 10_000;
+const DIRECT_ROUTE_REGION_ID = 'direct';
+const PROFILE_SPEED_METERS_PER_SECOND: Record<RoutingProfile, number> = {
+  pedestrian: 1.35,
+  bicycle: 4.5,
+  car: 13.9,
+};
 
 type NativeRoutingModule = typeof import('ark-routing').default;
 
@@ -100,32 +106,36 @@ export class OfflineRoutingService {
     const region =
       (input.regionId ? regions.find((candidate) => candidate.id === input.regionId) : null) ??
       getDownloadedRegionForCoordinate(input.origin.latitude, input.origin.longitude, regions);
-    if (!region) {
-      throw new Error('Download this area before calculating an offline route.');
+
+    if (region?.routingStatus === 'ready' && region.routingGraphUri) {
+      try {
+        const routing = await requireNativeRoutingModule();
+        const result = await routing.calculateRoute({
+          profile: input.profile,
+          graphPath: normalizeFilePath(region.routingGraphUri),
+          origin: input.origin,
+          destination: input.destination,
+        });
+
+        if (!result.geometry.length) throw new Error('The routing engine returned an empty route.');
+
+        return {
+          profile: input.profile,
+          regionId: region.id,
+          routingMode: 'routed',
+          geometry: result.geometry,
+          distanceMeters: result.distanceMeters,
+          durationSeconds: result.durationSeconds,
+          maneuvers: result.maneuvers,
+          createdAt: Date.now(),
+        };
+      } catch {
+        // Keep navigation usable when the app build does not have Valhalla
+        // linked yet, or when a downloaded routing graph cannot be read.
+      }
     }
-    if (region.routingStatus !== 'ready' || !region.routingGraphUri) {
-      throw new Error('Download routing data for this map region before navigating.');
-    }
 
-    const routing = await requireNativeRoutingModule();
-    const result = await routing.calculateRoute({
-      profile: input.profile,
-      graphPath: normalizeFilePath(region.routingGraphUri),
-      origin: input.origin,
-      destination: input.destination,
-    });
-
-    if (!result.geometry.length) throw new Error('The routing engine returned an empty route.');
-
-    return {
-      profile: input.profile,
-      regionId: region.id,
-      geometry: result.geometry,
-      distanceMeters: result.distanceMeters,
-      durationSeconds: result.durationSeconds,
-      maneuvers: result.maneuvers,
-      createdAt: Date.now(),
-    };
+    return buildDirectRoute(input.origin, input.destination, input.profile, region?.id);
   }
 
   static async startNavigation(input: {
@@ -160,16 +170,25 @@ export class OfflineRoutingService {
     session: NavigationSession,
     location: RouteCoordinate
   ): Promise<NavigationLocationUpdate> {
-    const progress = routeProgress(session.route.geometry, location);
+    const directRoute =
+      session.route.routingMode === 'direct'
+        ? buildDirectRoute(location, session.destination, session.profile, session.regionId)
+        : null;
+    const route = directRoute ?? session.route;
+    const progress = routeProgress(route, location);
     const arrived = distanceMeters(location, session.destination) <= ARRIVAL_DISTANCE_METERS;
     const offRouteCount =
-      progress.nearestDistanceMeters > OFF_ROUTE_DISTANCE_METERS ? session.offRouteCount + 1 : 0;
+      route.routingMode !== 'direct' && progress.nearestDistanceMeters > OFF_ROUTE_DISTANCE_METERS
+        ? session.offRouteCount + 1
+        : 0;
     const shouldRecalculate =
+      route.routingMode !== 'direct' &&
       !arrived &&
       offRouteCount >= OFF_ROUTE_CONFIRMATION_COUNT &&
       Date.now() - (session.lastReroutedAt ?? 0) > REROUTE_COOLDOWN_MS;
 
     await MapsRepository.updateNavigationSession(session.id, {
+      route: directRoute ?? undefined,
       status: arrived ? 'arrived' : shouldRecalculate ? 'rerouting' : 'active',
       remainingDistanceMeters: progress.remainingDistanceMeters,
       currentManeuverIndex: progress.currentManeuverIndex,
@@ -179,6 +198,7 @@ export class OfflineRoutingService {
 
     const nextSession = (await MapsRepository.getActiveNavigationSession()) ?? {
       ...session,
+      route,
       status: arrived ? 'arrived' : shouldRecalculate ? 'rerouting' : 'active',
       remainingDistanceMeters: progress.remainingDistanceMeters,
       currentManeuverIndex: progress.currentManeuverIndex,
@@ -217,6 +237,8 @@ export class OfflineRoutingService {
 
 async function loadNativeRoutingModule(): Promise<NativeRoutingModule | null> {
   try {
+    // Local Expo module, resolved by native autolinking in development/release builds.
+    // eslint-disable-next-line import/no-unresolved
     return (await import('ark-routing')).default;
   } catch {
     return null;
@@ -235,8 +257,36 @@ function normalizeFilePath(uri: string) {
   return uri.startsWith('file://') ? uri.slice('file://'.length) : uri;
 }
 
-function routeProgress(route: RouteCoordinate[], location: RouteCoordinate) {
-  if (route.length === 0) {
+function buildDirectRoute(
+  origin: RouteCoordinate,
+  destination: RouteCoordinate,
+  profile: RoutingProfile,
+  regionId?: string | null
+): OfflineRoute {
+  const distance = distanceMeters(origin, destination);
+  const duration = distance / PROFILE_SPEED_METERS_PER_SECOND[profile];
+  return {
+    profile,
+    regionId: regionId ?? DIRECT_ROUTE_REGION_ID,
+    routingMode: 'direct',
+    geometry: [origin, destination],
+    distanceMeters: distance,
+    durationSeconds: duration,
+    maneuvers: [
+      {
+        instruction: 'Head directly toward the destination.',
+        distanceMeters: distance,
+        durationSeconds: duration,
+        beginIndex: 0,
+        endIndex: 1,
+      },
+    ],
+    createdAt: Date.now(),
+  };
+}
+
+function routeProgress(route: OfflineRoute, location: RouteCoordinate) {
+  if (route.geometry.length === 0) {
     return {
       nearestDistanceMeters: Number.POSITIVE_INFINITY,
       remainingDistanceMeters: null,
@@ -244,26 +294,82 @@ function routeProgress(route: RouteCoordinate[], location: RouteCoordinate) {
     };
   }
 
-  let nearestIndex = 0;
+  if (route.geometry.length === 1) {
+    const distance = distanceMeters(location, route.geometry[0]);
+    return {
+      nearestDistanceMeters: distance,
+      remainingDistanceMeters: distance,
+      currentManeuverIndex: 0,
+    };
+  }
+
+  let nearestSegmentIndex = 0;
+  let nearestSegmentProgress = 0;
   let nearestDistanceMeters = Number.POSITIVE_INFINITY;
-  for (const [index, point] of route.entries()) {
-    const distance = distanceMeters(location, point);
-    if (distance < nearestDistanceMeters) {
-      nearestDistanceMeters = distance;
-      nearestIndex = index;
+  const segmentLengths: number[] = [];
+
+  for (let index = 0; index < route.geometry.length - 1; index += 1) {
+    const segment = routeSegmentProgress(
+      route.geometry[index],
+      route.geometry[index + 1],
+      location
+    );
+    segmentLengths.push(segment.lengthMeters);
+    if (segment.distanceMeters < nearestDistanceMeters) {
+      nearestDistanceMeters = segment.distanceMeters;
+      nearestSegmentIndex = index;
+      nearestSegmentProgress = segment.progress;
     }
   }
 
-  let remainingDistanceMeters = 0;
-  for (let index = nearestIndex; index < route.length - 1; index += 1) {
-    remainingDistanceMeters += distanceMeters(route[index], route[index + 1]);
-  }
+  const remainingDistanceMeters = segmentLengths
+    .slice(nearestSegmentIndex + 1)
+    .reduce(
+      (total, length) => total + length,
+      segmentLengths[nearestSegmentIndex] * (1 - nearestSegmentProgress)
+    );
 
   return {
     nearestDistanceMeters,
     remainingDistanceMeters,
-    currentManeuverIndex: nearestIndex,
+    currentManeuverIndex: maneuverIndexForSegment(route, nearestSegmentIndex),
   };
+}
+
+function routeSegmentProgress(
+  start: RouteCoordinate,
+  end: RouteCoordinate,
+  location: RouteCoordinate
+) {
+  const metersPerLatitude = 111_320;
+  const referenceLatitude = toRadians((start.latitude + end.latitude + location.latitude) / 3);
+  const metersPerLongitude = Math.max(1, metersPerLatitude * Math.cos(referenceLatitude));
+  const startX = (start.longitude - location.longitude) * metersPerLongitude;
+  const startY = (start.latitude - location.latitude) * metersPerLatitude;
+  const endX = (end.longitude - location.longitude) * metersPerLongitude;
+  const endY = (end.latitude - location.latitude) * metersPerLatitude;
+  const segmentX = endX - startX;
+  const segmentY = endY - startY;
+  const segmentLengthSquared = segmentX * segmentX + segmentY * segmentY;
+  const progress =
+    segmentLengthSquared > 0
+      ? Math.max(0, Math.min(1, -(startX * segmentX + startY * segmentY) / segmentLengthSquared))
+      : 0;
+  const closestX = startX + segmentX * progress;
+  const closestY = startY + segmentY * progress;
+
+  return {
+    distanceMeters: Math.hypot(closestX, closestY),
+    lengthMeters: distanceMeters(start, end),
+    progress,
+  };
+}
+
+function maneuverIndexForSegment(route: OfflineRoute, segmentIndex: number) {
+  const index = route.maneuvers.findIndex(
+    (maneuver) => segmentIndex >= maneuver.beginIndex && segmentIndex <= maneuver.endIndex
+  );
+  return index >= 0 ? index : 0;
 }
 
 function distanceMeters(a: RouteCoordinate, b: RouteCoordinate) {

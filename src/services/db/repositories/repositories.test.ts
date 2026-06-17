@@ -124,7 +124,7 @@ beforeEach(async () => {
 describe('database migrations', () => {
   test('creates the current schema with FTS and resumable download columns', async () => {
     const version = await testDb.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
-    expect(version?.user_version).toBe(18);
+    expect(version?.user_version).toBe(19);
 
     const noteColumns = await testDb.getAllAsync<{ name: string }>('PRAGMA table_info(notes)');
     expect(noteColumns.map((column) => column.name)).toContain('theme_id');
@@ -160,6 +160,20 @@ describe('database migrations', () => {
     expect(regionColumns.map((column) => column.name)).toContain('manifest_version');
     expect(regionColumns.map((column) => column.name)).toContain('data_version');
     expect(regionColumns.map((column) => column.name)).toContain('checksum_sha256');
+    expect(regionColumns.map((column) => column.name)).toContain('routing_pack_url');
+    expect(regionColumns.map((column) => column.name)).toContain('routing_graph_uri');
+    expect(regionColumns.map((column) => column.name)).toContain('routing_status');
+    expect(regionColumns.map((column) => column.name)).toContain('routing_progress');
+    expect(regionColumns.map((column) => column.name)).toContain('routing_size_bytes');
+    expect(regionColumns.map((column) => column.name)).toContain('routing_data_version');
+    expect(regionColumns.map((column) => column.name)).toContain('routing_checksum_sha256');
+    expect(
+      (
+        await testDb.getFirstAsync<{ name: string }>(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'navigation_sessions'"
+        )
+      )?.name
+    ).toBe('navigation_sessions');
     const chatColumns = await testDb.getAllAsync<{ name: string }>(
       'PRAGMA table_info(chat_messages)'
     );
@@ -240,7 +254,7 @@ describe('database migrations', () => {
       const themeColumn = noteColumns.find((column) => column.name === 'theme_id');
       const sortColumn = noteColumns.find((column) => column.name === 'sort_order');
 
-      expect(version?.user_version).toBe(18);
+      expect(version?.user_version).toBe(19);
       expect(themeColumn?.notnull).toBe(1);
       expect(themeColumn?.dflt_value).toBe("'default'");
       expect(sortColumn?.name).toBe('sort_order');
@@ -283,7 +297,7 @@ describe('database migrations', () => {
         'SELECT id, sort_order FROM notes ORDER BY sort_order ASC'
       );
 
-      expect(version?.user_version).toBe(18);
+      expect(version?.user_version).toBe(19);
       expect(rows).toEqual([
         { id: 'favorite', sort_order: 1000 },
         { id: 'newest', sort_order: 2000 },
@@ -329,7 +343,7 @@ describe('database migrations', () => {
         'plain-note',
       ]);
 
-      expect(version?.user_version).toBe(18);
+      expect(version?.user_version).toBe(19);
       expect(noteColumns.map((column) => column.name)).toContain('content_html');
       expect(noteColumns.map((column) => column.name)).toContain('content_json');
       expect(noteColumns.map((column) => column.name)).toContain('content_format');
@@ -718,6 +732,9 @@ describe('repositories', () => {
       checksumSha256: 'a'.repeat(64),
       checksumSha256Url: 'https://maps.example.test/pt-field-area.pmtiles.sha256',
       regionUpdatedAt: '2026-05-25',
+      routingPackUrl: 'https://maps.example.test/pt-field-area-routing.tar',
+      routingDataVersion: '2026-05-routing',
+      routingChecksumSha256: 'b'.repeat(64),
     });
     await MapsRepository.updateRegionStatus(regionId, {
       status: 'downloaded',
@@ -733,6 +750,22 @@ describe('repositories', () => {
     expect(storedRegion?.packFormat).toBe('pmtiles');
     expect(storedRegion?.dataVersion).toBe('2026-05');
     expect(storedRegion?.checksumSha256).toBe('a'.repeat(64));
+    expect(storedRegion?.routingPackUrl).toBe(
+      'https://maps.example.test/pt-field-area-routing.tar'
+    );
+    expect(storedRegion?.routingStatus).toBe('not_downloaded');
+    expect(storedRegion?.routingDataVersion).toBe('2026-05-routing');
+    expect(storedRegion?.routingChecksumSha256).toBe('b'.repeat(64));
+
+    await MapsRepository.updateRegionRouting(regionId, {
+      routingStatus: 'ready',
+      routingProgress: 1,
+      routingGraphUri: 'file:///ark/maps/pt-field-area-routing.tar',
+      routingSizeBytes: 4096,
+    });
+    const routedRegion = await MapsRepository.getRegion(regionId);
+    expect(routedRegion?.routingStatus).toBe('ready');
+    expect(routedRegion?.routingGraphUri).toBe('file:///ark/maps/pt-field-area-routing.tar');
 
     await MapsRepository.updateRegionManifest(regionId, {
       name: 'Field area refreshed',
@@ -751,6 +784,9 @@ describe('repositories', () => {
       checksumSha256: 'c'.repeat(64),
       checksumSha256Url: 'https://maps.example.test/pt-field-area-v2.pmtiles.sha256',
       regionUpdatedAt: '2026-06-01',
+      routingPackUrl: 'https://maps.example.test/pt-field-area-routing-v2.tar',
+      routingDataVersion: '2026-06-routing',
+      routingChecksumSha256: 'd'.repeat(64),
     });
     const refreshedRegion = await MapsRepository.getRegion(regionId);
     expect(refreshedRegion?.name).toBe('Field area refreshed');
@@ -758,6 +794,9 @@ describe('repositories', () => {
     expect(refreshedRegion?.dataVersion).toBe('2026-06');
     expect(refreshedRegion?.checksumSha256).toBe('c'.repeat(64));
     expect(refreshedRegion?.estimatedSizeMb).toBe(72);
+    expect(refreshedRegion?.routingPackUrl).toBe(
+      'https://maps.example.test/pt-field-area-routing-v2.tar'
+    );
 
     const markerId = await MapsRepository.createMarker({
       title: 'Water source',
@@ -796,6 +835,43 @@ describe('repositories', () => {
       distanceMeters: 1200,
     });
     expect((await MapsRepository.listRoutes())[0]?.id).toBe(routeId);
+
+    const navigationRoute = {
+      profile: 'pedestrian' as const,
+      regionId,
+      geometry: [
+        { latitude: 38.7, longitude: -9.1 },
+        { latitude: 38.8, longitude: -9.2 },
+      ],
+      distanceMeters: 1200,
+      durationSeconds: 900,
+      maneuvers: [
+        {
+          instruction: 'Walk north',
+          distanceMeters: 1200,
+          beginIndex: 0,
+          endIndex: 1,
+        },
+      ],
+    };
+    const sessionId = await MapsRepository.createNavigationSession({
+      destinationTitle: 'Filtered water',
+      destination: { latitude: 38.8, longitude: -9.2 },
+      profile: 'pedestrian',
+      regionId,
+      route: navigationRoute,
+    });
+    await MapsRepository.updateNavigationSession(sessionId, {
+      remainingDistanceMeters: 900,
+      currentManeuverIndex: 0,
+      offRouteCount: 1,
+      lastLocation: { latitude: 38.71, longitude: -9.11 },
+    });
+    const activeNavigation = await MapsRepository.getActiveNavigationSession();
+    expect(activeNavigation?.destinationTitle).toBe('Filtered water');
+    expect(activeNavigation?.route.distanceMeters).toBe(1200);
+    expect(activeNavigation?.remainingDistanceMeters).toBe(900);
+    expect(activeNavigation?.lastLocation?.latitude).toBe(38.71);
   });
 
   test('rss, weather, documents, and sensors persist offline data', async () => {

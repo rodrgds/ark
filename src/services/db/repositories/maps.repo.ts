@@ -2,7 +2,17 @@ import { randomUUID } from 'expo-crypto';
 import { getMapPinMeta, normalizeMapPinType, type MapPinType } from '@/constants/map-pins';
 import { DatabaseClient } from '@/services/db/client';
 import { sqliteBoolean } from '@/services/db/sqlite-values';
-import type { MapMarker, MapRegion, MapRegionPackFormat, SavedRoute } from '@/types/maps';
+import type {
+  MapMarker,
+  MapRegion,
+  MapRegionPackFormat,
+  NavigationSession,
+  OfflineRoute,
+  RouteCoordinate,
+  RoutingPackStatus,
+  RoutingProfile,
+  SavedRoute,
+} from '@/types/maps';
 
 function mapRegion(row: {
   id: string;
@@ -29,6 +39,13 @@ function mapRegion(row: {
   progress: number;
   estimated_size_mb: number | null;
   size_bytes: number | null;
+  routing_pack_url: string | null;
+  routing_graph_uri: string | null;
+  routing_status: string | null;
+  routing_progress: number | null;
+  routing_size_bytes: number | null;
+  routing_data_version: string | null;
+  routing_checksum_sha256: string | null;
   created_at: number;
   updated_at: number;
 }): MapRegion {
@@ -57,6 +74,13 @@ function mapRegion(row: {
     progress: row.progress,
     estimatedSizeMb: row.estimated_size_mb,
     sizeBytes: row.size_bytes,
+    routingPackUrl: row.routing_pack_url,
+    routingGraphUri: row.routing_graph_uri,
+    routingStatus: normalizeRoutingPackStatus(row.routing_status),
+    routingProgress: row.routing_progress ?? 0,
+    routingSizeBytes: row.routing_size_bytes,
+    routingDataVersion: row.routing_data_version,
+    routingChecksumSha256: row.routing_checksum_sha256,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -112,6 +136,44 @@ function mapRoute(row: {
   };
 }
 
+function mapNavigationSession(row: {
+  id: string;
+  destination_title: string;
+  destination_latitude: number;
+  destination_longitude: number;
+  profile: string;
+  region_id: string;
+  route_json: string;
+  status: NavigationSession['status'];
+  remaining_distance_meters: number | null;
+  current_maneuver_index: number;
+  off_route_count: number;
+  last_location_json: string | null;
+  last_rerouted_at: number | null;
+  created_at: number;
+  updated_at: number;
+}): NavigationSession {
+  return {
+    id: row.id,
+    destinationTitle: row.destination_title,
+    destination: {
+      latitude: row.destination_latitude,
+      longitude: row.destination_longitude,
+    },
+    profile: normalizeRoutingProfile(row.profile),
+    regionId: row.region_id,
+    route: JSON.parse(row.route_json),
+    status: row.status,
+    remainingDistanceMeters: row.remaining_distance_meters,
+    currentManeuverIndex: row.current_maneuver_index,
+    offRouteCount: row.off_route_count,
+    lastLocation: row.last_location_json ? JSON.parse(row.last_location_json) : null,
+    lastReroutedAt: row.last_rerouted_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 export class MapsRepository {
   static async listRegions() {
     const db = await DatabaseClient.getDb();
@@ -149,14 +211,17 @@ export class MapsRepository {
     checksumSha256?: string | null;
     checksumSha256Url?: string | null;
     regionUpdatedAt?: string | null;
+    routingPackUrl?: string | null;
+    routingDataVersion?: string | null;
+    routingChecksumSha256?: string | null;
   }) {
     const db = await DatabaseClient.getDb();
     const timestamp = Date.now();
     const id = randomUUID();
     await db.runAsync(
       `INSERT INTO map_regions
-        (id, name, provider, manifest_region_id, manifest_version, style_url, tile_url_template, pack_format, pack_url, data_version, checksum_sha256, checksum_sha256_url, region_updated_at, north, south, east, west, min_zoom, max_zoom, status, progress, estimated_size_mb, created_at, updated_at)
-       VALUES (?, ?, 'maplibre', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', 0, ?, ?, ?)`,
+        (id, name, provider, manifest_region_id, manifest_version, style_url, tile_url_template, pack_format, pack_url, routing_pack_url, routing_data_version, routing_checksum_sha256, data_version, checksum_sha256, checksum_sha256_url, region_updated_at, north, south, east, west, min_zoom, max_zoom, status, progress, estimated_size_mb, created_at, updated_at)
+       VALUES (?, ?, 'maplibre', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', 0, ?, ?, ?)`,
       [
         id,
         region.name,
@@ -166,6 +231,9 @@ export class MapsRepository {
         region.tileUrlTemplate ?? null,
         region.packFormat ?? null,
         region.packUrl ?? null,
+        region.routingPackUrl ?? null,
+        region.routingDataVersion ?? null,
+        region.routingChecksumSha256 ?? null,
         region.dataVersion ?? null,
         region.checksumSha256 ?? null,
         region.checksumSha256Url ?? null,
@@ -210,6 +278,9 @@ export class MapsRepository {
       checksumSha256?: string | null;
       checksumSha256Url?: string | null;
       regionUpdatedAt?: string | null;
+      routingPackUrl?: string | null;
+      routingDataVersion?: string | null;
+      routingChecksumSha256?: string | null;
     }
   ) {
     const db = await DatabaseClient.getDb();
@@ -222,6 +293,9 @@ export class MapsRepository {
            tile_url_template = ?,
            pack_format = ?,
            pack_url = ?,
+           routing_pack_url = ?,
+           routing_data_version = ?,
+           routing_checksum_sha256 = ?,
            data_version = ?,
            checksum_sha256 = ?,
            checksum_sha256_url = ?,
@@ -243,6 +317,9 @@ export class MapsRepository {
         region.tileUrlTemplate ?? null,
         region.packFormat ?? null,
         region.packUrl ?? null,
+        region.routingPackUrl ?? null,
+        region.routingDataVersion ?? null,
+        region.routingChecksumSha256 ?? null,
         region.dataVersion ?? null,
         region.checksumSha256 ?? null,
         region.checksumSha256Url ?? null,
@@ -285,6 +362,44 @@ export class MapsRepository {
       sets.splice(1, 0, 'size_bytes = ?');
       params.splice(1, 0, patch.sizeBytes ?? null);
     }
+    params.push(id);
+
+    await db.runAsync(
+      `UPDATE map_regions
+       SET ${sets.join(',\n           ')}
+       WHERE id = ?`,
+      params
+    );
+  }
+
+  static async updateRegionRouting(
+    id: string,
+    patch: {
+      routingPackUrl?: string | null;
+      routingGraphUri?: string | null;
+      routingStatus?: RoutingPackStatus;
+      routingProgress?: number;
+      routingSizeBytes?: number | null;
+      routingDataVersion?: string | null;
+      routingChecksumSha256?: string | null;
+    }
+  ) {
+    const db = await DatabaseClient.getDb();
+    const sets = ['updated_at = ?'];
+    const params: Array<string | number | null> = [Date.now()];
+    const add = (column: string, value: string | number | null | undefined) => {
+      if (value === undefined) return;
+      sets.unshift(`${column} = ?`);
+      params.unshift(value);
+    };
+
+    add('routing_pack_url', patch.routingPackUrl);
+    add('routing_graph_uri', patch.routingGraphUri);
+    add('routing_status', patch.routingStatus);
+    add('routing_progress', patch.routingProgress);
+    add('routing_size_bytes', patch.routingSizeBytes);
+    add('routing_data_version', patch.routingDataVersion);
+    add('routing_checksum_sha256', patch.routingChecksumSha256);
     params.push(id);
 
     await db.runAsync(
@@ -430,6 +545,87 @@ export class MapsRepository {
     const db = await DatabaseClient.getDb();
     await db.runAsync('DELETE FROM routes WHERE id = ?', [id]);
   }
+
+  static async getActiveNavigationSession() {
+    const db = await DatabaseClient.getDb();
+    const row = await db.getFirstAsync<Parameters<typeof mapNavigationSession>[0]>(
+      `SELECT * FROM navigation_sessions
+       WHERE status IN ('active', 'rerouting')
+       ORDER BY updated_at DESC
+       LIMIT 1`
+    );
+    return row ? mapNavigationSession(row) : null;
+  }
+
+  static async createNavigationSession(input: {
+    destinationTitle: string;
+    destination: RouteCoordinate;
+    profile: RoutingProfile;
+    regionId: string;
+    route: OfflineRoute;
+  }) {
+    const db = await DatabaseClient.getDb();
+    const timestamp = Date.now();
+    const id = randomUUID();
+    await db.runAsync(
+      `INSERT INTO navigation_sessions
+        (id, destination_title, destination_latitude, destination_longitude, profile, region_id, route_json, status, remaining_distance_meters, current_maneuver_index, off_route_count, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, 0, 0, ?, ?)`,
+      [
+        id,
+        input.destinationTitle,
+        input.destination.latitude,
+        input.destination.longitude,
+        input.profile,
+        input.regionId,
+        JSON.stringify(input.route),
+        input.route.distanceMeters,
+        timestamp,
+        timestamp,
+      ]
+    );
+    return id;
+  }
+
+  static async updateNavigationSession(
+    id: string,
+    patch: Partial<{
+      route: OfflineRoute;
+      status: NavigationSession['status'];
+      remainingDistanceMeters: number | null;
+      currentManeuverIndex: number;
+      offRouteCount: number;
+      lastLocation: RouteCoordinate | null;
+      lastReroutedAt: number | null;
+    }>
+  ) {
+    const db = await DatabaseClient.getDb();
+    const sets = ['updated_at = ?'];
+    const params: Array<string | number | null> = [Date.now()];
+    const add = (column: string, value: string | number | null | undefined) => {
+      if (value === undefined) return;
+      sets.unshift(`${column} = ?`);
+      params.unshift(value);
+    };
+
+    add('route_json', patch.route ? JSON.stringify(patch.route) : undefined);
+    add('status', patch.status);
+    add('remaining_distance_meters', patch.remainingDistanceMeters);
+    add('current_maneuver_index', patch.currentManeuverIndex);
+    add('off_route_count', patch.offRouteCount);
+    add(
+      'last_location_json',
+      patch.lastLocation === undefined ? undefined : JSON.stringify(patch.lastLocation)
+    );
+    add('last_rerouted_at', patch.lastReroutedAt);
+    params.push(id);
+    await db.runAsync(
+      `UPDATE navigation_sessions
+       SET ${sets.join(',\n           ')}
+       WHERE id = ?`,
+      params
+    );
+  }
 }
 
 function normalizePackFormat(format?: string | null): MapRegionPackFormat | null {
@@ -442,4 +638,23 @@ function normalizePackFormat(format?: string | null): MapRegionPackFormat | null
     return format;
   }
   return null;
+}
+
+function normalizeRoutingPackStatus(status?: string | null): RoutingPackStatus {
+  if (
+    status === 'not_downloaded' ||
+    status === 'queued' ||
+    status === 'downloading' ||
+    status === 'ready' ||
+    status === 'failed' ||
+    status === 'paused'
+  ) {
+    return status;
+  }
+  return 'not_downloaded';
+}
+
+function normalizeRoutingProfile(profile?: string | null): RoutingProfile {
+  if (profile === 'pedestrian' || profile === 'bicycle' || profile === 'car') return profile;
+  return 'pedestrian';
 }

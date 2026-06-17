@@ -182,6 +182,13 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
           tile_url_template TEXT,
           pack_format TEXT,
           pack_url TEXT,
+          routing_pack_url TEXT,
+          routing_graph_uri TEXT,
+          routing_status TEXT NOT NULL DEFAULT 'not_downloaded',
+          routing_progress REAL NOT NULL DEFAULT 0,
+          routing_size_bytes INTEGER,
+          routing_data_version TEXT,
+          routing_checksum_sha256 TEXT,
           data_version TEXT,
           checksum_sha256 TEXT,
           checksum_sha256_url TEXT,
@@ -223,6 +230,24 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
           distance_meters REAL,
           created_at INTEGER,
           updated_at INTEGER
+        );
+
+        CREATE TABLE IF NOT EXISTS navigation_sessions (
+          id TEXT PRIMARY KEY,
+          destination_title TEXT NOT NULL,
+          destination_latitude REAL NOT NULL,
+          destination_longitude REAL NOT NULL,
+          profile TEXT NOT NULL,
+          region_id TEXT NOT NULL,
+          route_json TEXT NOT NULL,
+          status TEXT NOT NULL,
+          remaining_distance_meters REAL,
+          current_maneuver_index INTEGER NOT NULL DEFAULT 0,
+          off_route_count INTEGER NOT NULL DEFAULT 0,
+          last_location_json TEXT,
+          last_rerouted_at INTEGER,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
         );
 
         CREATE TABLE IF NOT EXISTS rss_feeds (
@@ -752,6 +777,72 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
         await addColumnIfMissing(db, 'vault_state', 'locked_until', 'locked_until INTEGER');
       }
       await db.runAsync('PRAGMA user_version = 18');
+    });
+  }
+
+  if (currentVersion < 19) {
+    await db.withTransactionAsync(async () => {
+      const regionTable = await db.getFirstAsync<{ name: string }>(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'map_regions'"
+      );
+      if (regionTable?.name === 'map_regions') {
+        await addColumnIfMissing(db, 'map_regions', 'routing_pack_url', 'routing_pack_url TEXT');
+        await addColumnIfMissing(db, 'map_regions', 'routing_graph_uri', 'routing_graph_uri TEXT');
+        await addColumnIfMissing(
+          db,
+          'map_regions',
+          'routing_status',
+          "routing_status TEXT NOT NULL DEFAULT 'not_downloaded'"
+        );
+        await addColumnIfMissing(
+          db,
+          'map_regions',
+          'routing_progress',
+          'routing_progress REAL NOT NULL DEFAULT 0'
+        );
+        await addColumnIfMissing(
+          db,
+          'map_regions',
+          'routing_size_bytes',
+          'routing_size_bytes INTEGER'
+        );
+        await addColumnIfMissing(
+          db,
+          'map_regions',
+          'routing_data_version',
+          'routing_data_version TEXT'
+        );
+        await addColumnIfMissing(
+          db,
+          'map_regions',
+          'routing_checksum_sha256',
+          'routing_checksum_sha256 TEXT'
+        );
+      }
+
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS navigation_sessions (
+          id TEXT PRIMARY KEY,
+          destination_title TEXT NOT NULL,
+          destination_latitude REAL NOT NULL,
+          destination_longitude REAL NOT NULL,
+          profile TEXT NOT NULL,
+          region_id TEXT NOT NULL,
+          route_json TEXT NOT NULL,
+          status TEXT NOT NULL,
+          remaining_distance_meters REAL,
+          current_maneuver_index INTEGER NOT NULL DEFAULT 0,
+          off_route_count INTEGER NOT NULL DEFAULT 0,
+          last_location_json TEXT,
+          last_rerouted_at INTEGER,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_navigation_sessions_status_updated
+          ON navigation_sessions(status, updated_at);
+      `);
+      await db.runAsync('PRAGMA user_version = 19');
     });
   }
 }

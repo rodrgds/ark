@@ -28,6 +28,10 @@ export type MapCatalogRegion = {
   tileUrlTemplate?: string;
   packFormat?: MapRegionPackFormat;
   packUrl?: string;
+  routingPackUrl?: string;
+  routingDataVersion?: string;
+  routingChecksumSha256?: string;
+  routingSizeMb?: number;
   checksum?: string;
   version?: string;
   updatedAt?: string;

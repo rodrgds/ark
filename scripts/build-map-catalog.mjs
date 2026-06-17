@@ -102,6 +102,12 @@ function normalizeRegion(region) {
     estimatedSizeMb: positiveNumber(region.estimatedSizeMb),
     packFormat: normalizePackFormat(region.packFormat, region.packUrl),
     packUrl: optionalString(region.packUrl),
+    routingPackUrl: optionalString(region.routingPackUrl),
+    routingDataVersion: optionalString(
+      region.routingDataVersion ?? region.dataVersion ?? region.version
+    ),
+    routingChecksumSha256: normalizeSha256(region.routingChecksumSha256),
+    routingSizeMb: positiveNumber(region.routingSizeMb),
     dataVersion: optionalString(region.dataVersion ?? region.version),
     checksumSha256: normalizeSha256(region.checksumSha256 ?? region.checksum),
     checksumSha256Url: optionalString(region.checksumSha256Url),

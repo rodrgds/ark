@@ -1,5 +1,15 @@
 export type MapRegionPackFormat = 'maplibre_offline_pack' | 'pmtiles' | 'mbtiles' | 'vector_tiles';
 
+export type RoutingProfile = 'pedestrian' | 'bicycle' | 'car';
+
+export type RoutingPackStatus =
+  | 'not_downloaded'
+  | 'queued'
+  | 'downloading'
+  | 'ready'
+  | 'failed'
+  | 'paused';
+
 export type MapManifestRegion = {
   id: string;
   name: string;
@@ -15,6 +25,10 @@ export type MapManifestRegion = {
   tileUrlTemplate?: string;
   packFormat?: MapRegionPackFormat;
   packUrl?: string;
+  routingPackUrl?: string;
+  routingDataVersion?: string;
+  routingChecksumSha256?: string;
+  routingSizeMb?: number;
   dataVersion?: string;
   checksumSha256?: string;
   checksumSha256Url?: string;
@@ -69,6 +83,13 @@ export type MapRegion = {
   progress: number;
   estimatedSizeMb?: number | null;
   sizeBytes?: number | null;
+  routingPackUrl?: string | null;
+  routingGraphUri?: string | null;
+  routingStatus: RoutingPackStatus;
+  routingProgress: number;
+  routingSizeBytes?: number | null;
+  routingDataVersion?: string | null;
+  routingChecksumSha256?: string | null;
   createdAt: number;
   updatedAt: number;
 };
@@ -101,6 +122,57 @@ export type SavedRoute = {
   distanceMeters: number | null;
   createdAt: number;
   updatedAt: number;
+};
+
+export type RouteCoordinate = {
+  latitude: number;
+  longitude: number;
+};
+
+export type NavigationManeuver = {
+  instruction: string;
+  distanceMeters: number;
+  durationSeconds?: number | null;
+  streetName?: string | null;
+  beginIndex: number;
+  endIndex: number;
+};
+
+export type OfflineRoute = {
+  id?: string;
+  profile: RoutingProfile;
+  regionId: string;
+  geometry: RouteCoordinate[];
+  distanceMeters: number;
+  durationSeconds: number;
+  maneuvers: NavigationManeuver[];
+  createdAt?: number;
+};
+
+export type NavigationSessionStatus = 'active' | 'arrived' | 'stopped' | 'rerouting' | 'failed';
+
+export type NavigationSession = {
+  id: string;
+  destinationTitle: string;
+  destination: RouteCoordinate;
+  profile: RoutingProfile;
+  regionId: string;
+  route: OfflineRoute;
+  status: NavigationSessionStatus;
+  remainingDistanceMeters: number | null;
+  currentManeuverIndex: number;
+  offRouteCount: number;
+  lastLocation?: RouteCoordinate | null;
+  lastReroutedAt?: number | null;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type NavigationLocationUpdate = {
+  session: NavigationSession;
+  nearestDistanceMeters: number;
+  shouldRecalculate: boolean;
+  arrived: boolean;
 };
 
 export type OfflineMapSearchResult = {

@@ -23,6 +23,10 @@ export type MapPreset = {
   tileUrlTemplate?: string;
   packFormat?: MapManifestRegion['packFormat'];
   packUrl?: string;
+  routingPackUrl?: string;
+  routingDataVersion?: string;
+  routingChecksumSha256?: string;
+  routingSizeMb?: number;
   dataVersion?: string;
   checksumSha256?: string;
   checksumSha256Url?: string;

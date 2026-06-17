@@ -28,7 +28,13 @@ import { useThemeStore } from '@/stores/theme-store';
 import { useSensorStore } from '@/stores/sensor-store';
 import { CompassService } from '@/services/sensors/compass.service';
 import { useBatteryReduceMode } from '@/hooks/use-battery-reduce-mode';
-import type { MapMarker, MapRegion, OfflineMapSearchResult, SavedRoute } from '@/types/maps';
+import type {
+  MapMarker,
+  MapRegion,
+  NavigationSession,
+  OfflineMapSearchResult,
+  SavedRoute,
+} from '@/types/maps';
 import type { LocationObject } from 'expo-location';
 import { useNetInfo } from '@react-native-community/netinfo';
 import { useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
@@ -198,6 +204,7 @@ export default function MapScreen() {
   const [spotPinType, setSpotPinType] = React.useState<MapPinType>('custom');
   const [spotEmergency, setSpotEmergency] = React.useState(false);
   const [selectedMarkerId, setSelectedMarkerId] = React.useState<string | null>(null);
+  const [navigationSession, setNavigationSession] = React.useState<NavigationSession | null>(null);
   const [editingMarker, setEditingMarker] = React.useState<MapMarker | null>(null);
   const [editTitle, setEditTitle] = React.useState('');
   const [editDescription, setEditDescription] = React.useState('');
@@ -339,6 +346,7 @@ export default function MapScreen() {
 
   React.useEffect(() => {
     void load({ syncNative: true });
+    void OfflineMapService.getActiveNavigationSession().then(setNavigationSession);
     void focusUserLocation({ requestPermission: true, centerMap: true, showBusy: false });
     MapService.loadMapLibre()
       .then(setMaplibre)
@@ -447,6 +455,37 @@ export default function MapScreen() {
       clearTimeout(timeout);
     };
   }, [catalogVersion, markers, regions, routes, search]);
+
+  React.useEffect(() => {
+    if (!navigationSession || !userLocation) return;
+    let canceled = false;
+    import('@/services/maps/offline-routing.service').then(async ({ OfflineRoutingService }) => {
+      const update = await OfflineRoutingService.updateLocation(navigationSession, userLocation);
+      if (canceled) return;
+      if (update.arrived) {
+        setNavigationSession(null);
+        return;
+      }
+      if (!update.shouldRecalculate) {
+        setNavigationSession(update.session);
+        return;
+      }
+      try {
+        const rerouted = await OfflineRoutingService.recalculate(update.session, userLocation);
+        if (!canceled) setNavigationSession(rerouted);
+      } catch (routeError) {
+        if (!canceled) {
+          setNavigationSession(update.session);
+          setError(
+            routeError instanceof Error ? routeError.message : 'Unable to recalculate route.'
+          );
+        }
+      }
+    });
+    return () => {
+      canceled = true;
+    };
+  }, [navigationSession?.id, userLocation?.latitude, userLocation?.longitude]);
 
   // (suggestion is now computed via useMemo — no debounced effect needed)
 
@@ -790,6 +829,53 @@ export default function MapScreen() {
     });
   }
 
+  async function startNavigationToMarker(marker: MapMarker) {
+    let origin = userLocation;
+    if (!origin) {
+      setBusy(`navigate:${marker.id}`);
+      const resolution = await MapLocationService.resolveUserLocation({
+        requestPermission: true,
+        showUserSettingsDialog: true,
+      });
+      if (resolution.current) {
+        origin = {
+          latitude: resolution.current.coords.latitude,
+          longitude: resolution.current.coords.longitude,
+        };
+        setUserLocation(origin);
+      }
+    }
+    if (!origin) {
+      setError('Ark needs your current GPS position before it can calculate a route.');
+      setBusy(null);
+      return;
+    }
+    setBusy(`navigate:${marker.id}`);
+    setError(null);
+    try {
+      const session = await OfflineMapService.startNavigation({
+        origin,
+        destination: { latitude: marker.latitude, longitude: marker.longitude },
+        destinationTitle: marker.title,
+        profile: 'pedestrian',
+      });
+      setNavigationSession(session);
+      setSelectedMarkerId(null);
+      fitNavigationRoute(session);
+    } catch (navigationError) {
+      setError(
+        navigationError instanceof Error ? navigationError.message : 'Unable to start navigation.'
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function stopNavigation() {
+    if (navigationSession) await OfflineMapService.stopNavigation(navigationSession.id);
+    setNavigationSession(null);
+  }
+
   async function downloadMissingRegion(preset: MapPreset) {
     await downloadPreset(preset);
   }
@@ -844,6 +930,19 @@ export default function MapScreen() {
     queueCameraAction({
       type: 'bounds',
       bounds: [west, south, east, north],
+      padding: 64,
+      duration: 650,
+    });
+  }
+
+  function fitNavigationRoute(session: NavigationSession) {
+    const bounds = navigationRouteBounds(session);
+    if (!bounds) return;
+    const [west, south, east, north] = bounds;
+    setCenter([(west + east) / 2, (south + north) / 2]);
+    queueCameraAction({
+      type: 'bounds',
+      bounds,
       padding: 64,
       duration: 650,
     });
@@ -934,6 +1033,7 @@ export default function MapScreen() {
         mapStyle={mapStyle}
         maplibre={maplibre}
         markers={visibleMarkers}
+        navigationSession={navigationSession}
         routes={routes}
         selectedMarker={selectedMarker}
         status={mapStatus}
@@ -944,6 +1044,7 @@ export default function MapScreen() {
         onCenterChange={handleCenterChange}
         onZoomChange={handleZoomChange}
         onCloseMarkerPopup={() => setSelectedMarkerId(null)}
+        onNavigateToMarker={startNavigationToMarker}
         onDismissSearch={closeSearchKeyboard}
         onLongPress={openSpotDialog}
         onMapLoadFailed={() =>
@@ -1014,6 +1115,13 @@ export default function MapScreen() {
       ) : null}
 
       <View className="absolute left-3 w-72 gap-2" style={{ bottom: bottomControlOffset }}>
+        {navigationSession ? (
+          <NavigationStatusCard
+            session={navigationSession}
+            onFocus={() => fitNavigationRoute(navigationSession)}
+            onStop={() => void stopNavigation()}
+          />
+        ) : null}
         {locationIssue && !userLocation ? (
           <LocationNoticeCard
             issue={locationIssue}
@@ -1174,6 +1282,7 @@ function MapCanvas({
   mapStyle,
   maplibre,
   markers,
+  navigationSession,
   routes,
   selectedMarker,
   status,
@@ -1184,6 +1293,7 @@ function MapCanvas({
   onCenterChange,
   onZoomChange,
   onCloseMarkerPopup,
+  onNavigateToMarker,
   onDismissSearch,
   onLongPress,
   onMapLoadFailed,
@@ -1203,6 +1313,7 @@ function MapCanvas({
   mapStyle: unknown;
   maplibre: MapLibreModule | null;
   markers: MapMarker[];
+  navigationSession: NavigationSession | null;
   routes: SavedRoute[];
   selectedMarker: MapMarker | null;
   status: string;
@@ -1213,6 +1324,7 @@ function MapCanvas({
   onCenterChange: (center: LngLat) => void;
   onZoomChange?: (zoom: number) => void;
   onCloseMarkerPopup: () => void;
+  onNavigateToMarker: (marker: MapMarker) => void;
   onDismissSearch: () => void;
   onLongPress: (center: LngLat) => void;
   onMapLoadFailed: () => void;
@@ -1226,6 +1338,10 @@ function MapCanvas({
   const Layer = getLayerComponent(maplibre);
   const Marker = getMarkerComponent(maplibre);
   const routeData = React.useMemo(() => routeFeatureCollection(routes), [routes]);
+  const navigationRouteData = React.useMemo(
+    () => navigationRouteFeatureCollection(navigationSession),
+    [navigationSession]
+  );
   const markerData = React.useMemo(() => markerFeatureCollection(markers), [markers]);
   const overviewData = React.useMemo(() => worldOverviewFeatureCollection(), []);
 
@@ -1327,6 +1443,23 @@ function MapCanvas({
           />
         </GeoJSONSource>
       ) : null}
+      {GeoJSONSource && Layer && navigationSession ? (
+        <GeoJSONSource id="ark-active-navigation-route" data={navigationRouteData}>
+          <Layer
+            id="ark-active-navigation-route-line"
+            type="line"
+            paint={{
+              lineColor: '#F2B84B',
+              lineOpacity: 0.98,
+              lineWidth: 6,
+            }}
+            layout={{
+              lineCap: 'round',
+              lineJoin: 'round',
+            }}
+          />
+        </GeoJSONSource>
+      ) : null}
       {GeoJSONSource && Layer && markers.length ? (
         <GeoJSONSource
           id="ark-markers"
@@ -1379,7 +1512,11 @@ function MapCanvas({
           anchor="bottom"
           onPress={onCloseMarkerPopup}
           offset={[0, -14]}>
-          <MarkerPopup marker={selectedMarker} onClose={onCloseMarkerPopup} />
+          <MarkerPopup
+            marker={selectedMarker}
+            onClose={onCloseMarkerPopup}
+            onNavigate={() => onNavigateToMarker(selectedMarker)}
+          />
         </Marker>
       ) : null}
     </Map>
@@ -1998,7 +2135,15 @@ function PinTypeSelector({
   );
 }
 
-function MarkerPopup({ marker, onClose }: { marker: MapMarker; onClose: () => void }) {
+function MarkerPopup({
+  marker,
+  onClose,
+  onNavigate,
+}: {
+  marker: MapMarker;
+  onClose: () => void;
+  onNavigate: () => void;
+}) {
   const pinMeta = getMapPinMeta(marker.pinType);
   const PinIcon = iconForPinType(marker.pinType);
   return (
@@ -2045,6 +2190,10 @@ function MarkerPopup({ marker, onClose }: { marker: MapMarker; onClose: () => vo
             <Text variant="small" className="text-muted-foreground" numberOfLines={1}>
               {formatPoint(marker.latitude, marker.longitude)}
             </Text>
+            <Button className="mt-1 h-9 self-start" size="sm" onPress={onNavigate}>
+              <Icon as={Route} className="size-4" />
+              <Text>Navigate</Text>
+            </Button>
           </View>
         </View>
       </Card>
@@ -2061,6 +2210,47 @@ function MarkerPopup({ marker, onClose }: { marker: MapMarker; onClose: () => vo
         }}
       />
     </View>
+  );
+}
+
+function NavigationStatusCard({
+  session,
+  onFocus,
+  onStop,
+}: {
+  session: NavigationSession;
+  onFocus: () => void;
+  onStop: () => void;
+}) {
+  const nextManeuver = session.route.maneuvers[session.currentManeuverIndex];
+  const remaining = session.remainingDistanceMeters ?? session.route.distanceMeters;
+  return (
+    <Card className="border-primary/40 bg-background/95 gap-3 p-3">
+      <View className="flex-row items-start gap-2">
+        <Icon as={Route} className="text-primary mt-0.5 size-4" />
+        <View className="min-w-0 flex-1 gap-1">
+          <Text className="text-sm font-semibold" numberOfLines={1}>
+            {session.status === 'rerouting' ? 'Recalculating route' : session.destinationTitle}
+          </Text>
+          <Text className="text-muted-foreground text-xs" numberOfLines={2}>
+            {nextManeuver?.instruction ?? 'Follow the highlighted route.'}
+          </Text>
+          <Text variant="small" className="text-muted-foreground">
+            {(remaining / 1000).toFixed(1)} km remaining
+          </Text>
+        </View>
+      </View>
+      <View className="flex-row gap-2">
+        <Button className="h-9 flex-1" size="sm" variant="outline" onPress={onFocus}>
+          <Icon as={MapIcon} className="size-4" />
+          <Text>Route</Text>
+        </Button>
+        <Button className="h-9 flex-1" size="sm" variant="outline" onPress={onStop}>
+          <Icon as={X} className="size-4" />
+          <Text>Stop</Text>
+        </Button>
+      </View>
+    </Card>
   );
 }
 
@@ -2412,6 +2602,28 @@ function routeFeatureCollection(routes: SavedRoute[]) {
   };
 }
 
+function navigationRouteFeatureCollection(session: NavigationSession | null) {
+  return {
+    type: 'FeatureCollection',
+    features:
+      session && session.route.geometry.length >= 2
+        ? [
+            {
+              type: 'Feature',
+              properties: { id: session.id, title: session.destinationTitle },
+              geometry: {
+                type: 'LineString',
+                coordinates: session.route.geometry.map((point) => [
+                  point.longitude,
+                  point.latitude,
+                ]),
+              },
+            },
+          ]
+        : [],
+  };
+}
+
 function markerFeatureCollection(markers: MapMarker[]) {
   return {
     type: 'FeatureCollection',
@@ -2506,6 +2718,20 @@ function routeBounds(route: SavedRoute): [number, number, number, number] | null
   if (!route.points.length) return null;
   const latitudes = route.points.map((point) => point.latitude);
   const longitudes = route.points.map((point) => point.longitude);
+  return [
+    Math.min(...longitudes),
+    Math.min(...latitudes),
+    Math.max(...longitudes),
+    Math.max(...latitudes),
+  ];
+}
+
+function navigationRouteBounds(
+  session: NavigationSession
+): [number, number, number, number] | null {
+  if (!session.route.geometry.length) return null;
+  const latitudes = session.route.geometry.map((point) => point.latitude);
+  const longitudes = session.route.geometry.map((point) => point.longitude);
   return [
     Math.min(...longitudes),
     Math.min(...latitudes),

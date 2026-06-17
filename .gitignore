@@ -19,10 +19,17 @@ web-build/
 *.mobileprovision
 android/
 ios/
+!modules/*/android/
+!modules/*/android/**
 !modules/*/ios/
 !modules/*/ios/**
+modules/*/android/.cxx/
+modules/*/android/.gradle/
 modules/*/android/build/
 modules/*/ios/CoreKiwix.xcframework/
+modules/ark-routing/native/valhalla/**
+!modules/ark-routing/native/valhalla/
+!modules/ark-routing/native/valhalla/README.md
 
 # Metro
 .metro-health-check*

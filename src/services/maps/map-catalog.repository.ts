@@ -144,6 +144,7 @@ function normalizePreset(
   const level =
     normalizeLevel(preset.level) ?? inferLevel({ bounds, minZoom: preset.minZoom!, tags });
   const packUrl = normalizeUrl(preset.packUrl, baseUrl);
+  const routingPackUrl = normalizeUrl(preset.routingPackUrl, baseUrl);
 
   return {
     ...preset,
@@ -160,6 +161,10 @@ function normalizePreset(
     estimatedSizeMb,
     estimatedSize: normalizeEstimatedSize(preset.estimatedSize, estimatedSizeMb),
     packUrl,
+    routingPackUrl,
+    routingDataVersion: preset.routingDataVersion ?? preset.dataVersion ?? preset.updatedAt,
+    routingChecksumSha256: normalizeSha256(preset.routingChecksumSha256),
+    routingSizeMb: normalizePositiveNumber(preset.routingSizeMb),
     checksumSha256: normalizeSha256(preset.checksumSha256),
     checksumSha256Url: normalizeUrl(preset.checksumSha256Url, baseUrl),
     packFormat: normalizePackFormat(preset.packFormat, packUrl),

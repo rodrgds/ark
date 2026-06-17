@@ -8,8 +8,16 @@ import { getUnsupportedMapPackReason } from '@/services/maps/map-pack-format';
 import { MapPresetsService } from '@/services/maps/map-presets.service';
 import { getDownloadedRegionForCoordinate } from '@/services/maps/map-region-utils';
 import { estimatedMapRegionBytes } from '@/services/maps/map-storage';
+import { OfflineRoutingService } from '@/services/maps/offline-routing.service';
 import type { MapPinType } from '@/constants/map-pins';
-import type { MapMarker, MapRegion, OfflineMapSearchResult, SavedRoutePoint } from '@/types/maps';
+import type {
+  MapMarker,
+  MapRegion,
+  OfflineMapSearchResult,
+  RouteCoordinate,
+  RoutingProfile,
+  SavedRoutePoint,
+} from '@/types/maps';
 import { haversineMeters, toRadians, formatPoint } from '@/lib/geo';
 import { logger } from '@/lib/logger';
 
@@ -44,6 +52,9 @@ export class OfflineMapService {
     checksumSha256?: string | null;
     checksumSha256Url?: string | null;
     regionUpdatedAt?: string | null;
+    routingPackUrl?: string | null;
+    routingDataVersion?: string | null;
+    routingChecksumSha256?: string | null;
   }) {
     return MapsRepository.createRegion({
       name: input.name,
@@ -64,6 +75,9 @@ export class OfflineMapService {
       checksumSha256: input.checksumSha256,
       checksumSha256Url: input.checksumSha256Url,
       regionUpdatedAt: input.regionUpdatedAt,
+      routingPackUrl: input.routingPackUrl,
+      routingDataVersion: input.routingDataVersion,
+      routingChecksumSha256: input.routingChecksumSha256,
     });
   }
 
@@ -253,6 +267,9 @@ export class OfflineMapService {
         checksumSha256: catalogRegion.checksumSha256,
         checksumSha256Url: catalogRegion.checksumSha256Url,
         regionUpdatedAt: catalogRegion.updatedAt,
+        routingPackUrl: catalogRegion.routingPackUrl,
+        routingDataVersion: catalogRegion.routingDataVersion,
+        routingChecksumSha256: catalogRegion.routingChecksumSha256,
       });
       region = (await MapsRepository.getRegion(id)) ?? region;
     }
@@ -488,6 +505,28 @@ export class OfflineMapService {
 
   static listRoutes() {
     return MapsRepository.listRoutes();
+  }
+
+  static downloadRoutingPack(regionId: string) {
+    return OfflineRoutingService.downloadRoutingPack(regionId);
+  }
+
+  static startNavigation(input: {
+    origin: RouteCoordinate;
+    destination: RouteCoordinate;
+    destinationTitle: string;
+    profile: RoutingProfile;
+    regionId?: string | null;
+  }) {
+    return OfflineRoutingService.startNavigation(input);
+  }
+
+  static getActiveNavigationSession() {
+    return OfflineRoutingService.getActiveSession();
+  }
+
+  static stopNavigation(sessionId: string) {
+    return OfflineRoutingService.stopNavigation(sessionId);
   }
 
   static async searchOffline(query: string, limit = 12): Promise<OfflineMapSearchResult[]> {

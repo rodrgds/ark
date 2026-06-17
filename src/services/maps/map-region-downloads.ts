@@ -15,6 +15,9 @@ type RegionDownloadInput = {
   tileUrlTemplate?: string | null;
   packFormat?: MapRegion['packFormat'];
   packUrl?: string | null;
+  routingPackUrl?: string | null;
+  routingDataVersion?: string | null;
+  routingChecksumSha256?: string | null;
   dataVersion?: string | null;
   checksumSha256?: string | null;
   checksumSha256Url?: string | null;
@@ -55,6 +58,9 @@ export function presetToRegionDownloadInput(
     tileUrlTemplate: preset.tileUrlTemplate,
     packFormat: preset.packFormat,
     packUrl: preset.packUrl,
+    routingPackUrl: preset.routingPackUrl,
+    routingDataVersion: preset.routingDataVersion,
+    routingChecksumSha256: preset.routingChecksumSha256,
     dataVersion: preset.dataVersion,
     checksumSha256: preset.checksumSha256,
     checksumSha256Url: preset.checksumSha256Url,

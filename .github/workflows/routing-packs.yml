@@ -40,7 +40,9 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends jq osmium-tool curl ca-certificates
-          valhalla_build_config --version
+          command -v valhalla_build_config
+          command -v valhalla_build_tiles
+          command -v valhalla_build_extract
           osmium --version
           jq --version
 

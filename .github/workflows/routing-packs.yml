@@ -36,13 +36,14 @@ jobs:
       CHECKSUMS_FILE: /tmp/ark-routing/dist/checksums.json
       DEBIAN_FRONTEND: noninteractive
     steps:
-      - name: Install osmium + jq into the container
+      - name: Install osmium + jq + node into the container
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends jq osmium-tool curl ca-certificates
+          apt-get install -y --no-install-recommends jq osmium-tool curl ca-certificates nodejs
           command -v valhalla_build_config
           command -v valhalla_build_tiles
           command -v valhalla_build_extract
+          node --version
           osmium --version
           jq --version
 

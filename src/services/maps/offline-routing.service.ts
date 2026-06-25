@@ -1,6 +1,8 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { MapsRepository } from '@/services/db/repositories/maps.repo';
+import { FileDigestService } from '@/services/files/file-digest.service';
 import { FileSystemService } from '@/services/files/filesystem.service';
+import { DownloadNotificationService } from '@/services/files/download-notifications.service';
 import { getDownloadedRegionForCoordinate } from '@/services/maps/map-region-utils';
 import type {
   NavigationLocationUpdate,
@@ -24,6 +26,8 @@ const PROFILE_SPEED_METERS_PER_SECOND: Record<RoutingProfile, number> = {
 type NativeRoutingModule = typeof import('ark-routing').default;
 
 export class OfflineRoutingService {
+  private static activeRoutingRegionId: string | null = null;
+
   static async getEngineStatus() {
     const routing = await loadNativeRoutingModule();
     if (!routing) {
@@ -47,18 +51,48 @@ export class OfflineRoutingService {
       return { ok: false, reason: 'No routing graph is available for this map region yet.' };
     }
 
-    const destination = `${FileSystemService.dir('maps')}${FileSystemService.safeFileName(
-      `${region.manifestRegionId ?? region.id}-routing.valhalla.tar`
-    )}`;
+    if (region.routingStatus === 'ready' && region.routingGraphUri) {
+      const exists = await FileSystem.getInfoAsync(region.routingGraphUri).catch(() => null);
+      if (exists?.exists) {
+        return { ok: true, regionId };
+      }
+      await MapsRepository.updateRegionRouting(regionId, {
+        routingStatus: 'not_downloaded',
+        routingProgress: 0,
+        routingGraphUri: null,
+      });
+    }
 
+    if (region.routingStatus === 'downloading') {
+      return { ok: false, reason: 'A routing graph download is already in progress.' };
+    }
+    if (this.activeRoutingRegionId === regionId) {
+      return { ok: false, reason: 'A routing graph download is already in progress.' };
+    }
+
+    const destination =
+      region.routingGraphUri ??
+      `${FileSystemService.dir('maps')}${FileSystemService.safeFileName(
+        `${region.manifestRegionId ?? region.id}-routing.valhalla.tar`
+      )}`;
+
+    this.activeRoutingRegionId = regionId;
     await MapsRepository.updateRegionRouting(regionId, {
       routingStatus: 'downloading',
       routingProgress: 0,
       routingGraphUri: destination,
     });
+    void DownloadNotificationService.progress({
+      id: `routing-${regionId}`,
+      kind: 'map',
+      title: `${region.name} navigation`,
+      progress: 0,
+      status: 'downloading',
+    });
 
     try {
       await FileSystemService.ensureAppDirectories();
+      await FileSystemService.ensureSpaceForDownload();
       const download = FileSystem.createDownloadResumable(
         region.routingPackUrl,
         destination,
@@ -77,11 +111,36 @@ export class OfflineRoutingService {
       if (!result?.uri) throw new Error('Routing graph download did not complete.');
       const info = await FileSystem.getInfoAsync(result.uri, { md5: false });
       const sizeBytes = info.exists && 'size' in info ? (info.size ?? null) : null;
+      if (!sizeBytes || sizeBytes <= 0) {
+        await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(() => undefined);
+        throw new Error('Routing graph download is empty.');
+      }
+
+      if (region.routingChecksumSha256) {
+        const digest = await FileDigestService.sha256FileIfReasonable(result.uri, sizeBytes).catch(
+          () => null
+        );
+        if (
+          digest?.checksumSha256 &&
+          digest.checksumSha256.toLowerCase() !== region.routingChecksumSha256.toLowerCase()
+        ) {
+          await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(() => undefined);
+          throw new Error('Routing graph failed SHA-256 verification.');
+        }
+      }
+
       await MapsRepository.updateRegionRouting(regionId, {
         routingStatus: 'ready',
         routingProgress: 1,
         routingGraphUri: result.uri,
         routingSizeBytes: sizeBytes,
+      });
+      void DownloadNotificationService.terminal({
+        id: `routing-${regionId}`,
+        kind: 'map',
+        title: `${region.name} navigation`,
+        progress: 1,
+        status: 'completed',
       });
       return { ok: true, regionId };
     } catch (error) {
@@ -89,10 +148,19 @@ export class OfflineRoutingService {
         routingStatus: 'failed',
         routingProgress: 0,
       });
+      void DownloadNotificationService.terminal({
+        id: `routing-${regionId}`,
+        kind: 'map',
+        title: `${region.name} navigation`,
+        progress: 0,
+        status: 'failed',
+      });
       return {
         ok: false,
         reason: error instanceof Error ? error.message : 'Routing graph download failed.',
       };
+    } finally {
+      if (this.activeRoutingRegionId === regionId) this.activeRoutingRegionId = null;
     }
   }
 
@@ -238,7 +306,6 @@ export class OfflineRoutingService {
 async function loadNativeRoutingModule(): Promise<NativeRoutingModule | null> {
   try {
     // Local Expo module, resolved by native autolinking in development/release builds.
-    // eslint-disable-next-line import/no-unresolved
     return (await import('ark-routing')).default;
   } catch {
     return null;

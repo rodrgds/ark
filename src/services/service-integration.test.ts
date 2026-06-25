@@ -1476,6 +1476,81 @@ describe('service integration', () => {
     MapService.useMapLibreForTests(null);
   });
 
+  test('routing pack downloads mark the region ready and stay idempotent', async () => {
+    const regionId = await OfflineMapService.createRegionDownload({
+      name: 'Lisbon routing test',
+      bounds: { north: 39, south: 38.4, east: -8.7, west: -9.6 },
+      minZoom: 8,
+      maxZoom: 14,
+      estimatedSizeMb: 120,
+      routingPackUrl:
+        'https://github.com/rodrgds/ark/releases/download/routing-v1/pt-lisbon-south.valhalla.tar',
+      routingDataVersion: 'osm-2026-05',
+    });
+
+    const first = await OfflineMapService.downloadRoutingPack(regionId);
+    const regionAfterFirst = (await OfflineMapService.listRegions()).find(
+      (item) => item.id === regionId
+    );
+
+    expect(first.ok).toBe(true);
+    expect(regionAfterFirst?.routingStatus).toBe('ready');
+    expect(regionAfterFirst?.routingProgress).toBe(1);
+    expect(regionAfterFirst?.routingGraphUri).toBeTruthy();
+
+    const second = await OfflineMapService.downloadRoutingPack(regionId);
+    expect(second.ok).toBe(true);
+  });
+
+  test('startPresetRegionDownload skips navigation when includeNavigation is false', async () => {
+    const [{ startPresetRegionDownload }, { MapService }] = await Promise.all([
+      import('@/services/maps/map-region-downloads'),
+      import('@/services/maps/map.service'),
+    ]);
+    const preset = MapCatalogRepository.getBundledCatalog().regions.find(
+      (region) => region.id === 'pt-portugal-overview'
+    );
+    if (!preset) throw new Error('Portugal overview preset missing.');
+    expect(preset.routingPackUrl).toBeTruthy();
+
+    MapService.useMapLibreForTests({
+      OfflineManager: {
+        getPacks: async () => [],
+        deletePack: async () => undefined,
+        addListener: async () => undefined,
+        createPack: async (options) => ({
+          id: 'native-pack-no-nav',
+          metadata: options.metadata,
+          pause: async () => undefined,
+          resume: async () => undefined,
+          status: async () => ({
+            state: 'complete',
+            percentage: 100,
+            completedResourceCount: 1,
+            completedResourceSize: 2048,
+            requiredResourceCount: 1,
+          }),
+        }),
+      },
+    } as never);
+
+    const result = await startPresetRegionDownload(preset, {
+      theme: 'oled',
+      includeNavigation: false,
+    });
+    const region = (await OfflineMapService.listRegions()).find(
+      (item) => item.id === result.regionId
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.navigation).toEqual({
+      ok: false,
+      reason: 'Offline navigation was not selected.',
+    });
+    expect(region?.routingStatus).toBe('not_downloaded');
+    MapService.useMapLibreForTests(null);
+  });
+
   test('map catalog caches remote manifests for offline fallback', async () => {
     process.env.EXPO_PUBLIC_ARK_MAP_CATALOG_URL = 'https://maps.example.test/catalog.json';
     mockFetchText = JSON.stringify({

@@ -1,5 +1,13 @@
 import { FileSystemService } from '@/services/files/filesystem.service';
+import {
+  formatPresetTotalSize,
+  presetIncludesNavigation,
+  presetTotalSizeMb,
+  routingStatusLabel,
+} from '@/services/maps/preset-navigation';
 import type { MapRegion } from '@/types/maps';
+
+export { formatPresetTotalSize, presetIncludesNavigation, presetTotalSizeMb, routingStatusLabel };
 
 const BYTES_PER_MB = 1024 * 1024;
 

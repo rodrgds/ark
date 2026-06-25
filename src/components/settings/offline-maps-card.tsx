@@ -8,7 +8,7 @@ import { Text } from '@/components/ui/text';
 import type { MapPreset } from '@/constants/map-presets';
 import { getUnsupportedMapPackReason } from '@/services/maps/map-pack-format';
 import { MapPresetsService } from '@/services/maps/map-presets.service';
-import { formatMapRegionStorage } from '@/services/maps/map-storage';
+import { formatMapRegionStorage, routingStatusLabel } from '@/services/maps/map-storage';
 import type { MapRegion } from '@/types/maps';
 import {
   CheckCircle2,
@@ -211,8 +211,15 @@ function MapPresetRow({
             {preset.description}
           </Text>
           <Text variant="small" className="text-muted-foreground">
-            {region ? region.status.replace('_', ' ') : preset.estimatedSize}
+            {region
+              ? region.status.replace('_', ' ')
+              : `${preset.estimatedSize}${preset.routingPackUrl ? ' + navigation' : ''}`}
           </Text>
+          {region && preset.routingPackUrl ? (
+            <Text variant="small" className="text-muted-foreground">
+              {routingStatusLabel(region) ?? ''}
+            </Text>
+          ) : null}
         </View>
         {downloaded && region ? (
           <Button size="icon" variant="ghost" onPress={onOpenRegion}>

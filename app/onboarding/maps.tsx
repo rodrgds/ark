@@ -162,7 +162,10 @@ function MapPresetCard({
         <View className="min-w-0 flex-1 gap-0.5">
           <View className="flex-row items-center justify-between gap-2">
             <Text className="flex-1 font-semibold">{preset.name}</Text>
-            <Text className="text-muted-foreground text-xs">{preset.estimatedSize}</Text>
+            <Text className="text-muted-foreground text-xs">
+              {preset.estimatedSize}
+              {preset.routingPackUrl ? ' + navigation' : ''}
+            </Text>
           </View>
           <Text variant="muted" className="text-sm" numberOfLines={1}>
             {unsupportedReason ?? preset.description}

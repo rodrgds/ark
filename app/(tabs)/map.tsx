@@ -20,7 +20,7 @@ import {
 } from '@/services/maps/map-pack-format';
 import { startPresetRegionDownload } from '@/services/maps/map-region-downloads';
 import { MapPresetsService } from '@/services/maps/map-presets.service';
-import { formatMapRegionStorage } from '@/services/maps/map-storage';
+import { formatMapRegionStorage, routingStatusLabel } from '@/services/maps/map-storage';
 import { getMissingRegionPrompt } from '@/services/maps/missing-region-prompt';
 import { OfflineMapService } from '@/services/maps/offline-map.service';
 import { isPresetDownloaded } from '@/services/maps/map-region-utils';
@@ -1649,6 +1649,7 @@ function MissingRegionPromptModal({
     : activeRegion?.estimatedSize;
   const name = activeRegion?.name || downloadingRegion?.name;
   const preset = activeRegion;
+  const routingLabel = downloadingRegion ? routingStatusLabel(downloadingRegion) : null;
   const unsupportedReason = preset ? getUnsupportedMapPackReason(preset) : null;
   const unsupported = Boolean(unsupportedReason);
   const downloaded = downloadingRegion?.status === 'downloaded';
@@ -1671,9 +1672,13 @@ function MissingRegionPromptModal({
             {downloadingRegion ? (
               <Text className="text-muted-foreground text-sm font-medium">
                 Downloading... {Math.round((downloadingRegion.progress || 0) * 100)}%
+                {routingLabel ? ` · ${routingLabel}` : ''}
               </Text>
             ) : (
-              <Text className="text-muted-foreground text-sm font-medium">{size}</Text>
+              <Text className="text-muted-foreground text-sm font-medium">
+                {size}
+                {preset?.routingPackUrl ? ' + navigation' : ''}
+              </Text>
             )}
           </View>
           {downloadingRegion ? (

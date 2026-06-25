@@ -47,14 +47,14 @@ Ark expects downloaded routing packs to contain Valhalla graph tiles produced by
 
 ```json
 {
-  "routingPackUrl": "https://cdn.example/pt-lisbon-valhalla.tar",
+  "routingPackUrl": "https://github.com/rodrgds/ark/releases/download/routing-v1/pt-lisbon-south.valhalla.tar",
   "routingDataVersion": "osm-2026-06",
   "routingChecksumSha256": "...",
   "routingSizeMb": 120
 }
 ```
 
-The runtime downloads the pack to app storage and passes that local path to Valhalla.
+Ark pulls routing packs from GitHub Releases (static hosting, no backend). The runtime downloads the pack to app storage, verifies it when a SHA-256 is advertised, and passes the local path to Valhalla. When `routingPackUrl` is present on a catalog region, `startPresetRegionDownload` downloads both the map tiles and the routing pack as a single user-facing download.
 
 ## Android Build Helper
 

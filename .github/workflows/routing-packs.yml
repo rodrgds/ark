@@ -1,0 +1,140 @@
+name: Routing Packs
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag to publish (e.g. routing-v1)'
+        required: true
+        default: 'routing-v1'
+      regions:
+        description: 'Comma-separated region ids from assets/map-catalog.json (leave empty to use defaults)'
+        required: false
+        default: 'pt-portugal-overview,pt-north-centre,pt-lisbon-south'
+  push:
+    tags:
+      - 'routing-v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: routing-packs-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build & upload Valhalla routing packs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/valhalla/valhalla:latest
+      options: --user root
+    env:
+      PBF_DIR: /tmp/ark-routing/pbf
+      TARBALL_DIR: /tmp/ark-routing/dist
+      CHECKSUMS_FILE: /tmp/ark-routing/dist/checksums.json
+      DEBIAN_FRONTEND: noninteractive
+    steps:
+      - name: Install osmium + jq into the container
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends jq osmium-tool curl ca-certificates
+          valhalla_build_config --version
+          osmium --version
+          jq --version
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache Geofabrik Portugal PBF
+        id: cache-pbf
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PBF_DIR }}/portugal-latest.osm.pbf
+          key: geofabrik-portugal-${{ hashFiles('assets/map-catalog.json') }}
+
+      - name: Download Portugal PBF from Geofabrik
+        if: steps.cache-pbf.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "$PBF_DIR"
+          curl -fL --retry 3 \
+            -o "$PBF_DIR/portugal-latest.osm.pbf" \
+            https://download.geofabrik.de/europe/portugal-latest.osm.pbf
+          ls -lh "$PBF_DIR"
+
+      - name: Build per-region routing packs
+        env:
+          RELEASE_TAG: ${{ github.event.inputs.release_tag || 'routing-v1' }}
+          REGIONS: ${{ github.event.inputs.regions || 'pt-portugal-overview,pt-north-centre,pt-lisbon-south' }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$TARBALL_DIR"
+          rm -f "$CHECKSUMS_FILE"
+          printf '{\n' > "$CHECKSUMS_FILE"
+
+          first=1
+          IFS=',' read -ra REGION_IDS <<< "$REGIONS"
+          for region in "${REGION_IDS[@]}"; do
+            region="$(echo "$region" | xargs)"
+            echo "==> $region"
+            bounds=$(jq -c --arg id "$region" '.regions[] | select(.id == $id) | .bounds' assets/map-catalog.json)
+            routing_pack_url=$(jq -r --arg id "$region" '.regions[] | select(.id == $id) | .routingPackUrl // empty' assets/map-catalog.json)
+            if [[ -z "$routing_pack_url" ]]; then
+              echo "  ! $region has no routingPackUrl; skipping"
+              continue
+            fi
+            asset=$(basename "$routing_pack_url")
+            if [[ -z "$bounds" || "$bounds" == "null" ]]; then
+              echo "  ! $region has no bounds; skipping"
+              continue
+            fi
+            west=$(jq -r '.west' <<< "$bounds")
+            south=$(jq -r '.south' <<< "$bounds")
+            east=$(jq -r '.east' <<< "$bounds")
+            north=$(jq -r '.north' <<< "$bounds")
+            bbox="$west,$south,$east,$north"
+            echo "  bbox=$bbox"
+
+            clipped="$PBF_DIR/${region}.osm.pbf"
+            osmium extract \
+              --strategy=smart \
+              --bbox="$bbox" \
+              -o "$clipped" \
+              "$PBF_DIR/portugal-latest.osm.pbf"
+
+            out="$TARBALL_DIR/${asset}"
+            PBF="$clipped" OUT="$out" WORKDIR="/tmp/ark-routing/build/$region" \
+              node modules/ark-routing/scripts/build-valhalla-routing-pack.mjs
+
+            sha=$(sha256sum "$out" | awk '{print $1}')
+            size=$(stat -c%s "$out")
+            echo "  $asset  sha256=$sha  size=$size"
+            if [[ $first -eq 0 ]]; then printf ',\n' >> "$CHECKSUMS_FILE"; fi
+            first=0
+            printf '  "%s": { "sha256": "%s", "sizeBytes": %d }' \
+              "$region" "$sha" "$size" >> "$CHECKSUMS_FILE"
+          done
+
+          printf '\n}\n' >> "$CHECKSUMS_FILE"
+          cat "$CHECKSUMS_FILE"
+
+      - name: Upload tarballs as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: routing-tarballs
+          path: |
+            ${{ env.TARBALL_DIR }}/*.tar
+            ${{ env.CHECKSUMS_FILE }}
+          if-no-files-found: error
+
+      - name: Publish to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.release_tag || 'routing-v1' }}
+          name: ${{ github.event.inputs.release_tag || 'routing-v1' }} (Valhalla routing packs)
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            ${{ env.TARBALL_DIR }}/*.tar
+            ${{ env.CHECKSUMS_FILE }}

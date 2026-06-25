@@ -14,6 +14,9 @@
       "minZoom": 5,
       "maxZoom": 11,
       "estimatedSize": "120-260 MB",
+      "routingPackUrl": "https://github.com/rodrgds/ark/releases/download/routing-v1/pt-portugal-overview.valhalla.tar",
+      "routingDataVersion": "osm-2026-05",
+      "routingSizeMb": 180,
       "tags": ["Portugal", "Iberia", "overview", "recommended"]
     },
     {
@@ -25,6 +28,9 @@
       "minZoom": 7,
       "maxZoom": 14,
       "estimatedSize": "220-520 MB",
+      "routingPackUrl": "https://github.com/rodrgds/ark/releases/download/routing-v1/pt-north-centre.valhalla.tar",
+      "routingDataVersion": "osm-2026-05",
+      "routingSizeMb": 130,
       "tags": ["Portugal", "Porto", "Coimbra", "north", "centre", "recommended"]
     },
     {
@@ -36,6 +42,9 @@
       "minZoom": 7,
       "maxZoom": 14,
       "estimatedSize": "240-560 MB",
+      "routingPackUrl": "https://github.com/rodrgds/ark/releases/download/routing-v1/pt-lisbon-south.valhalla.tar",
+      "routingDataVersion": "osm-2026-05",
+      "routingSizeMb": 140,
       "tags": ["Portugal", "Lisbon", "Alentejo", "Algarve", "south", "coast", "recommended"]
     },
     {

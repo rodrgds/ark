@@ -94,27 +94,60 @@ export async function startPresetRegionDownload(
     theme: MapTheme;
     catalogVersion?: number;
     regions?: MapRegion[];
+    includeNavigation?: boolean;
   }
 ) {
   const regionId = await ensurePresetRegionDownload(preset, options);
+  const includeNavigation = options.includeNavigation !== false && Boolean(preset.routingPackUrl);
   const { MapService } = await import('@/services/maps/map.service');
   const maplibre = await MapService.loadMapLibre();
+
+  const runNavigationDownload = async () => {
+    if (!includeNavigation) return null;
+    const { OfflineMapService } = await import('@/services/maps/offline-map.service');
+    try {
+      return await OfflineMapService.downloadRoutingPack(regionId);
+    } catch (error) {
+      return {
+        ok: false as const,
+        reason: error instanceof Error ? error.message : 'Navigation data download failed.',
+      };
+    }
+  };
+
   if (!hasNativeOfflineManager(maplibre)) {
+    const navigation = await runNavigationDownload();
     return {
       ok: false,
       queued: true,
       regionId,
       reason:
         'Map download is queued. Install a development build with MapLibre native offline packs to start downloading map tiles.',
+      ...(navigation ? { navigation } : {}),
     };
   }
 
   const { OfflineMapService } = await import('@/services/maps/offline-map.service');
-  const result = await OfflineMapService.refreshRegion(regionId);
+  const mapResult = await OfflineMapService.refreshRegion(regionId);
+  const navigation = await runNavigationDownload();
   return {
-    ...result,
+    ...mapResult,
     queued: false,
     regionId,
+    ...(navigation
+      ? {
+          navigation: navigation.ok
+            ? { ok: true as const }
+            : { ok: false as const, reason: navigation.reason },
+        }
+      : preset.routingPackUrl
+        ? { navigation: { ok: false as const, reason: 'Offline navigation was not selected.' } }
+        : {
+            navigation: {
+              ok: false as const,
+              reason: 'Offline navigation is not available for this region.',
+            },
+          }),
   };
 }
 

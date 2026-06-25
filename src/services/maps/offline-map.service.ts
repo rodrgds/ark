@@ -206,6 +206,9 @@ export class OfflineMapService {
     }
 
     if (this.activeRegionId === id) this.completeRegionDownload(id);
+    if (region.routingGraphUri) {
+      await FileSystemService.deleteByUri(region.routingGraphUri).catch(() => undefined);
+    }
     await RagCleanupService.removeSource(`map-region:${id}`);
     return MapsRepository.deleteRegion(id);
   }

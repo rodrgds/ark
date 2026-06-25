@@ -1551,6 +1551,23 @@ describe('service integration', () => {
     MapService.useMapLibreForTests(null);
   });
 
+  test('bundled map catalog advertises routing checksums for the published Portugal regions', () => {
+    const regions = MapCatalogRepository.getBundledCatalog().regions;
+    const expected = [
+      ['pt-portugal-overview', 523],
+      ['pt-north-centre', 351],
+      ['pt-lisbon-south', 189],
+    ] as const;
+    for (const [id, sizeMb] of expected) {
+      const region = regions.find((r) => r.id === id);
+      expect(region?.routingPackUrl).toBe(
+        `https://github.com/rodrgds/ark/releases/download/routing-v1/${id}.valhalla.tar`
+      );
+      expect(region?.routingChecksumSha256).toMatch(/^[a-f0-9]{64}$/);
+      expect(region?.routingSizeMb).toBe(sizeMb);
+    }
+  });
+
   test('map catalog caches remote manifests for offline fallback', async () => {
     process.env.EXPO_PUBLIC_ARK_MAP_CATALOG_URL = 'https://maps.example.test/catalog.json';
     mockFetchText = JSON.stringify({

@@ -69,6 +69,7 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.event.inputs.release_tag || 'routing-v1' }}
           REGIONS: ${{ github.event.inputs.regions || 'pt-portugal-overview,pt-north-centre,pt-lisbon-south' }}
+        shell: bash
         run: |
           set -euo pipefail
           mkdir -p "$TARBALL_DIR"

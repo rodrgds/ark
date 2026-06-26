@@ -9,6 +9,7 @@ import { LightMeterService } from '@/services/sensors/light.service';
 import { NetworkService } from '@/services/connectivity/network.service';
 import { FileSystemService } from '@/services/files/filesystem.service';
 import { ModelManagerService } from '@/services/ai/model-manager.service';
+import { OfflineRoutingService } from '@/services/maps/offline-routing.service';
 import type { DiagnosticReport } from '@/types/sensors';
 
 export class DiagnosticsService {
@@ -24,6 +25,7 @@ export class DiagnosticsService {
       storage,
       databaseEncryption,
       modelStatus,
+      routingEngineStatus,
     ] = await Promise.all([
       CompassService.isAvailable(),
       BarometerService.isAvailable(),
@@ -35,6 +37,11 @@ export class DiagnosticsService {
       FileSystemService.getStorageSummary(),
       DatabaseEncryptionService.getRuntimeStatus(SQLCIPHER_ACTIVE),
       ModelManagerService.getStatus(),
+      OfflineRoutingService.getEngineStatus().catch(() => ({
+        available: false,
+        engine: 'valhalla',
+        reason: 'Unable to query the routing engine.',
+      })),
     ]);
 
     return {
@@ -53,6 +60,7 @@ export class DiagnosticsService {
       ftsAvailable: true,
       aiAdapter: modelStatus.adapter === 'llama' ? 'llama' : 'mock',
       aiStatusMessage: modelStatus.message,
+      routingEngine: routingEngineStatus,
     };
   }
 }

@@ -27,6 +27,10 @@ export function DiagnosticsCard({ report }: { report: DiagnosticReport | null })
         <Text>AI engine: {report.aiAdapter}</Text>
         <Text variant="muted">{report.aiStatusMessage}</Text>
         <Text variant="muted">{report.databaseEncryption.migrationStatus}</Text>
+        <Text>Routing engine: {report.routingEngine.available ? 'active' : 'not linked'}</Text>
+        {report.routingEngine.reason ? (
+          <Text variant="muted">{report.routingEngine.reason}</Text>
+        ) : null}
       </View>
       <View className="border-border overflow-hidden rounded-md border">
         {Object.entries(report.sensors).map(([name, available]) => (

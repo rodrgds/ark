@@ -20,6 +20,7 @@
 - `services/files/download-manager.service.ts`: queue mutex (`withQueueLock`), 0-byte guard, free-space math subtracts already-on-disk bytes, `MAX_ACTIVE_DOWNLOADS` 1→3, resumeData invalidation after 30 min.
 - `src/components/ui/input.tsx` and `src/services/ai/rag.service.ts` use proper React-subscribed Zustand selectors (no more `getState` outside React).
 - `src/constants/map-pins.ts` exposes `BRAND_AMBER`; literal `#F2B84B` replaced throughout.
+- Valhalla routing linked on Android: `ArkRoutingModule.kt` rewritten to delegate to [valhalla-mobile](https://github.com/Rallista/valhalla-mobile) v0.1.1 (prebuilt `libvalhalla-wrapper.so` from Maven Central). C++ CMake build removed from `modules/ark-routing/android/build.gradle` — no more cross-compilation. `getEngineStatus()` returns `available: true` when `libvalhalla-wrapper.so` loads. iOS stub unchanged.
 
 ## Identity
 
@@ -290,10 +291,11 @@ of hardcoding `#F2B84B` (or any other theme color) in new code. Applied via
 
 1. **Native verification remains the main risk:** SQLCipher, MapLibre offline packs, ArkZim, ArkOcr, and llama.rn all need real-device verification in development builds.
 2. **iOS ZIM support is still missing:** Android ArkZim compiles; iOS still needs CoreKiwix.xcframework integration.
-3. **Password KDF is improved but not production-grade:** v3 SHA-512 stretching replaced the old weak verifier path, but a native libsodium Argon2id module is still required.
-4. **RAG embeddings need device validation:** ExecuTorch (`react-native-executorch`) text-embedding contexts for the `executorch-multi-qa-minilm-l6-cos-v1` (default) and `executorch-multi-qa-mpnet-base-dot-v1` models are wired with an `ark-hash-v2` fallback, but real-device quality, memory, and sqlite-vec KNN behavior still need verification.
-5. **Mounted UI tests are still absent:** current coverage is route/static/service-level, not React Native render tests. E2E onboarding coverage is intentionally deprioritized for now.
-6. **Big screens:** `app/(tabs)/map.tsx`, `app/(tabs)/chat/[threadId].tsx`, and `src/services/ai/rag.service.ts` are each over 1k lines and should be split before further feature work. `app/(tabs)/settings.tsx` was extracted to 679 lines via `src/components/settings/`.
+3. **iOS Valhalla routing is a stub:** Android uses valhalla-mobile from Maven Central; iOS needs the same project's Swift Package integrated into `ios/ArkRoutingModule.swift`.
+4. **Password KDF is improved but not production-grade:** v3 SHA-512 stretching replaced the old weak verifier path, but a native libsodium Argon2id module is still required.
+5. **RAG embeddings need device validation:** ExecuTorch (`react-native-executorch`) text-embedding contexts for the `executorch-multi-qa-minilm-l6-cos-v1` (default) and `executorch-multi-qa-mpnet-base-dot-v1` models are wired with an `ark-hash-v2` fallback, but real-device quality, memory, and sqlite-vec KNN behavior still need verification.
+6. **Mounted UI tests are still absent:** current coverage is route/static/service-level, not React Native render tests. E2E onboarding coverage is intentionally deprioritized for now.
+7. **Big screens:** `app/(tabs)/map.tsx`, `app/(tabs)/chat/[threadId].tsx`, and `src/services/ai/rag.service.ts` are each over 1k lines and should be split before further feature work. `app/(tabs)/settings.tsx` was extracted to 679 lines via `src/components/settings/`.
 
 ## Build / Run Commands
 

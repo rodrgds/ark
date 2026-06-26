@@ -205,6 +205,7 @@ export default function MapScreen() {
   const [spotEmergency, setSpotEmergency] = React.useState(false);
   const [selectedMarkerId, setSelectedMarkerId] = React.useState<string | null>(null);
   const [navigationSession, setNavigationSession] = React.useState<NavigationSession | null>(null);
+  const [routingEngineAvailable, setRoutingEngineAvailable] = React.useState<boolean | null>(null);
   const [editingMarker, setEditingMarker] = React.useState<MapMarker | null>(null);
   const [editTitle, setEditTitle] = React.useState('');
   const [editDescription, setEditDescription] = React.useState('');
@@ -376,6 +377,16 @@ export default function MapScreen() {
   useFocusEffect(
     React.useCallback(() => {
       void load({ syncNative: true });
+    }, [])
+  );
+
+  useFocusEffect(
+    React.useCallback(() => {
+      void import('@/services/maps/offline-routing.service').then(({ OfflineRoutingService }) => {
+        OfflineRoutingService.getEngineStatus()
+          .then((status) => setRoutingEngineAvailable(status.available))
+          .catch(() => setRoutingEngineAvailable(false));
+      });
     }, [])
   );
 
@@ -870,6 +881,12 @@ export default function MapScreen() {
         profile: 'pedestrian',
       });
       setNavigationSession(session);
+      if (session.route.routingMode === 'direct' && routingEngineAvailable === false) {
+        showSheetAlert(
+          'Direct-line route',
+          'The Valhalla routing engine is not linked in this build. Routes will be straight lines until a development build with the native engine is installed.'
+        );
+      }
       setSelectedMarkerId(null);
       fitNavigationRoute(session);
     } catch (navigationError) {
@@ -2311,7 +2328,10 @@ function NavigationStatusCard({
 }) {
   const nextManeuver = session.route.maneuvers[session.currentManeuverIndex];
   const remaining = session.remainingDistanceMeters ?? session.route.distanceMeters;
-  const routingModeLabel = session.route.routingMode === 'direct' ? 'Direct line' : 'Offline route';
+  const routingModeLabel =
+      session.route.routingMode === 'direct'
+        ? 'Direct line · install a dev build for turn-by-turn'
+        : 'Offline route';
   return (
     <Card className="border-primary/40 bg-background/95 gap-3 p-3">
       <View className="flex-row items-start gap-2">

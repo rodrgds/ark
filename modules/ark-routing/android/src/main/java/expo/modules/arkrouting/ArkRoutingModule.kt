@@ -4,17 +4,23 @@ import expo.modules.kotlin.Promise
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import org.json.JSONObject
+import java.io.File
 
 class ArkRoutingModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("ArkRouting")
 
     AsyncFunction("getEngineStatus") {
-      val status = JSONObject(nativeEngineStatusJson())
+      val available = try {
+        loadNativeLibrary()
+        true
+      } catch (_: UnsatisfiedLinkError) {
+        false
+      }
       mapOf(
-        "available" to status.optBoolean("available", false),
-        "engine" to status.optString("engine", "valhalla"),
-        "reason" to status.optString("reason").takeIf { it.isNotBlank() }
+        "available" to available,
+        "engine" to "valhalla",
+        "reason" to if (available) null else "Install a development build with the ArkRouting native module (valhalla-mobile)."
       )
     }
 
@@ -29,19 +35,22 @@ class ArkRoutingModule : Module() {
           return@AsyncFunction
         }
 
-        val routeJson = nativeCalculateRouteJson(
-          graphPath,
-          profile,
-          number(origin["latitude"]),
-          number(origin["longitude"]),
-          number(destination["latitude"]),
-          number(destination["longitude"])
-        )
-        promise.resolve(parseValhallaRoute(routeJson))
+        loadNativeLibrary()
+
+        val originLat = number(origin["latitude"])
+        val originLon = number(origin["longitude"])
+        val destLat = number(destination["latitude"])
+        val destLon = number(destination["longitude"])
+
+        val configPath = writeValhallaConfig(graphPath)
+        val requestJson = buildRouteRequest(profile, originLat, originLon, destLat, destLon)
+        val responseJson = callValhallaNative(requestJson, configPath)
+
+        promise.resolve(parseValhallaRoute(responseJson))
       } catch (error: UnsatisfiedLinkError) {
         promise.reject(
           "E_ROUTING_ENGINE_UNAVAILABLE",
-          "ArkRouting native bridge could not be loaded.",
+          "Valhalla native routing engine could not be loaded.",
           error
         )
       } catch (error: Exception) {
@@ -51,6 +60,103 @@ class ArkRoutingModule : Module() {
           error
         )
       }
+    }
+  }
+
+  private val nativeClass: Class<*> by lazy {
+    Class.forName("com.valhalla.valhalla.ValhallaKotlin")
+  }
+
+  @Throws(UnsatisfiedLinkError::class)
+  private fun loadNativeLibrary() {
+    System.loadLibrary("valhalla-wrapper")
+  }
+
+  private fun callValhallaNative(requestJson: String, configPath: String): String {
+    val instance = nativeClass.getDeclaredConstructor().newInstance()
+    val method = nativeClass.getDeclaredMethod("route", String::class.java, String::class.java)
+    return method.invoke(instance, requestJson, configPath) as String
+  }
+
+  private fun writeValhallaConfig(tileExtractPath: String): String {
+    val config = buildValhallaConfigJson(tileExtractPath)
+    val dir = appContext.reactContext?.filesDir ?: appContext.throwingActivity.filesDir
+    val file = File(dir, "ark_valhalla_config.json")
+    file.writeText(config)
+    return file.absolutePath
+  }
+
+  private fun buildValhallaConfigJson(tileExtractPath: String): String {
+    val escaped = tileExtractPath.replace("\\", "\\\\").replace("\"", "\\\"")
+    return """
+      {
+        "mjolnir": {
+          "tile_dir": "",
+          "tile_extract": "$escaped",
+          "id_table_size": 1300000000,
+          "max_cache_size": 1000000000,
+          "use_lru_mem_cache": false,
+          "use_simple_mem_cache": false,
+          "hierarchy": false,
+          "shortcuts": true,
+          "include_driveways": true,
+          "include_bicycle": true,
+          "include_pedestrian": true,
+          "include_driving": true,
+          "reclassify_links": true,
+          "max_concurrent_reader_users": 1
+        },
+        "loki": {
+          "actions": ["route"],
+          "logging": {"type": "", "color": false},
+          "service": {"proxy": ""}
+        },
+        "thor": {
+          "logging": {"type": "", "color": false},
+          "service": {"proxy": ""}
+        },
+        "odin": {
+          "logging": {"type": "", "color": false},
+          "service": {"proxy": ""},
+          "markup_formatter": {"markup_language": "text/html"}
+        },
+        "service_limits": {
+          "auto": {"max_distance": 500000},
+          "pedestrian": {"max_distance": 250000},
+          "bicycle": {"max_distance": 500000}
+        }
+      }
+    """.trimIndent()
+  }
+
+  private fun buildRouteRequest(
+    profile: String,
+    originLat: Double,
+    originLon: Double,
+    destLat: Double,
+    destLon: Double
+  ): String {
+    return """
+      {
+        "locations": [
+          {"lat": $originLat, "lon": $originLon, "type": "break"},
+          {"lat": $destLat, "lon": $destLon, "type": "break"}
+        ],
+        "costing": "${costingForProfile(profile)}",
+        "directions_options": {
+          "units": "kilometers",
+          "format": "json",
+          "shape_format": "polyline6"
+        }
+      }
+    """.trimIndent()
+  }
+
+  private fun costingForProfile(profile: String): String {
+    return when (profile) {
+      "car" -> "auto"
+      "bicycle" -> "bicycle"
+      else -> "pedestrian"
     }
   }
 
@@ -150,20 +256,4 @@ class ArkRoutingModule : Module() {
   }
 
   private data class PolylineValue(val value: Int, val nextIndex: Int)
-
-  private external fun nativeEngineStatusJson(): String
-  private external fun nativeCalculateRouteJson(
-    graphPath: String,
-    profile: String,
-    originLatitude: Double,
-    originLongitude: Double,
-    destinationLatitude: Double,
-    destinationLongitude: Double
-  ): String
-
-  companion object {
-    init {
-      System.loadLibrary("arkrouting")
-    }
-  }
 }

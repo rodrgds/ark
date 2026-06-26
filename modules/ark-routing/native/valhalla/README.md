@@ -1,22 +1,12 @@
 # Valhalla Native Artifacts
 
-Do not commit compiled Valhalla binaries here.
+**This directory is no longer used.** ArkRouting now consumes Valhalla as a
+prebuilt Maven Central dependency (`io.github.rallista:valhalla-mobile:0.1.1`)
+from [Rallista/valhalla-mobile](https://github.com/Rallista/valhalla-mobile).
 
-Use this directory as a local drop-in target for generated artifacts:
+No CMake cross-compilation, no Valhalla source clone, no Boost/Protobuf setup.
 
-```text
-modules/ark-routing/native/valhalla/
-  include/
-  android/
-    arm64-v8a/
-      lib/
-```
-
-Then build with:
-
-```sh
-cd android
-./gradlew :ark-routing:assembleDebug --no-daemon \
-  -PreactNativeArchitectures=arm64-v8a \
-  -ParkRoutingValhallaDir=$PWD/../modules/ark-routing/native/valhalla
-```
+The previous build flow (cross-compile Valhalla from source and drop `.a`/`.so`
+files into this directory) was removed in favour of the prebuilt AAR. The build
+script at `scripts/build-valhalla-android.mjs` is retained for reference but not
+required for normal development.

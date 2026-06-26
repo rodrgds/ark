@@ -11,18 +11,6 @@ android {
   defaultConfig {
     versionCode 1
     versionName "1.0.0"
-    externalNativeBuild {
-      cmake {
-        arguments "-DARK_ROUTING_VALHALLA_DIR=${findProperty("arkRoutingValhallaDir") ?: ""}"
-        cppFlags "-std=c++17 -fexceptions -frtti"
-      }
-    }
-  }
-  externalNativeBuild {
-    cmake {
-      path "src/main/cpp/CMakeLists.txt"
-      version "3.22.1"
-    }
   }
   lintOptions {
     abortOnError false
@@ -31,4 +19,9 @@ android {
 
 dependencies {
   implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.24"
+
+  // Valhalla routing engine for Android — prebuilt native .so + JNI
+  // Published to Maven Central by Rallista (Archdoog).
+  // https://github.com/Rallista/valhalla-mobile
+  implementation 'io.github.rallista:valhalla-mobile:0.1.1'
 }

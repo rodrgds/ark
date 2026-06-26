@@ -26,4 +26,9 @@ export type DiagnosticReport = {
   ftsAvailable: boolean;
   aiAdapter: 'mock' | 'llama-unavailable' | 'llama';
   aiStatusMessage: string;
+  routingEngine: {
+    available: boolean;
+    engine: string;
+    reason?: string;
+  };
 };

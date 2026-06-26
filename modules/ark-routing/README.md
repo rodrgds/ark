@@ -2,44 +2,19 @@
 
 `ark-routing` is Ark's native offline routing bridge. The JavaScript app calls this module for route calculation; the module calls Valhalla when prebuilt Valhalla mobile artifacts are present.
 
-## Current Modes
+## Current Mode
 
-- **Fallback mode:** always builds and reports `available: false`.
-- **Valhalla mode:** builds when Gradle receives `-ParkRoutingValhallaDir=/absolute/path/to/prebuilt-valhalla`.
+The module now uses **valhalla-mobile** — a prebuilt Valhalla Android library published to Maven Central by [Rallista/Archdoog](https://github.com/Rallista/valhalla-mobile).
 
-The app-side navigation, rerouting, routing-pack metadata, and route rendering can be committed now. Real route calculation starts once the Valhalla artifact directory exists.
+- The Kotlin module loads `libvalhalla-wrapper.so` from the AAR at runtime via `System.loadLibrary("valhalla-wrapper")` and calls its JNI `route()` function through reflection.
+- No C++ cross-compilation is required. The CMake build has been removed.
+- Simply adding `implementation 'io.github.rallista:valhalla-mobile:0.1.1'` to `android/build.gradle` is sufficient.
+- `getEngineStatus()` returns `available: true` when the native library loads successfully.
+- `calculateRoute()` writes a Valhalla JSON config file (with `mjolnir.tile_extract` pointing at the downloaded `.valhalla.tar` graph), builds a route request JSON, delegates to the native engine, and parses the polyline6-encoded response.
 
-## Expected Android Artifact Layout
+### iOS
 
-```text
-prebuilt-valhalla/
-  include/
-    valhalla/
-    boost/
-    ...
-  android/
-    arm64-v8a/
-      lib/
-        libvalhalla*.a
-        libprotobuf*.a
-        libboost*.a
-        ...
-    armeabi-v7a/
-      lib/
-    x86_64/
-      lib/
-```
-
-Build the module with:
-
-```sh
-cd android
-./gradlew :ark-routing:assembleDebug --no-daemon \
-  -PreactNativeArchitectures=arm64-v8a \
-  -ParkRoutingValhallaDir=/absolute/path/to/prebuilt-valhalla
-```
-
-Build the full app only after the targeted module build works.
+ArkRouting on iOS is still a stub (`available: false`). Valhalla for iOS is available as a [Swift Package](https://github.com/Rallista/valhalla-mobile?tab=readme-ov-file#ios) from the same upstream project.
 
 ## Routing Graph Packs
 

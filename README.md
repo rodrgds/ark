@@ -51,7 +51,12 @@ See [Development Build Setup](docs/development-build.md) before treating native-
 
 ## Screenshots
 
-Screenshots are intentionally not linked until real beta screenshots are committed. Use the checklist in [docs/screenshots.md](docs/screenshots.md) before sharing the project publicly on Reddit or app directories.
+<p align="center">
+  <img src="docs/screenshots/library.png" alt="Ark library" width="180" />
+  <img src="docs/screenshots/map.png" alt="Ark offline map" width="180" />
+  <img src="docs/screenshots/chat.png" alt="Ask Arky" width="180" />
+  <img src="docs/screenshots/notes.png" alt="Ark notes" width="180" />
+</p>
 
 ## Stack
 
@@ -73,17 +78,7 @@ bun install
 bun run dev
 ```
 
-Run checks before opening a PR:
-
-```sh
-bun run typecheck
-bun run lint
-bun run test
-# or
-bun run check
-```
-
-For local Android APK builds:
+For a development build instead of Expo Go (required for maps, local AI, and native modules):
 
 ```sh
 bun run android:build:dev
@@ -94,19 +89,14 @@ bun run android:install
 
 - [Architecture](docs/architecture.md)
 - [Development build setup](docs/development-build.md)
+- [Privacy and safety](docs/privacy-and-safety.md)
 - [Content packs and URLs](docs/content-pack-urls.md)
 - [Model downloads](docs/model-downloads.md)
-- [Privacy and safety](docs/privacy-and-safety.md)
-- [Release readiness](docs/release-readiness.md)
-- [Open-source release checklist](docs/open-source-release.md)
-- [Screenshots checklist](docs/screenshots.md)
 - [Native routing module](modules/ark-routing/README.md)
-
-Agent/codebase notes live in [AGENTS.md](AGENTS.md). They are intentionally more detailed and implementation-focused than this README.
 
 ## Project status
 
-Ark is beta-stage software. Core app flows exist, but this is not a polished store release yet. Known release risks are tracked in [Release Readiness](docs/release-readiness.md). The most important ones are native-device verification, security hardening, checksum coverage, and real-world usability testing.
+Ark is beta-stage software. Core app flows exist, but this is not a polished store release yet. The most important remaining work is native-device verification, security hardening, checksum coverage, and real-world usability testing.
 
 ## Contributing
 

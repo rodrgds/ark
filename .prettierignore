@@ -31,3 +31,6 @@ bun.lockb
 
 # Per-project .devenv shell state
 .devenv/
+
+# UniWind — framework-owned generated types that get reformatted on each reset
+uniwind-types.d.ts

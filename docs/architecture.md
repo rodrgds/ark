@@ -4,15 +4,15 @@ Ark is a local-first Expo/React Native app. The architecture is intentionally se
 
 ## Runtime layers
 
-| Layer | Location | Responsibility |
-| --- | --- | --- |
-| Routes/screens | `app/**` | Navigation, screen composition, loading/error states. |
-| UI components | `src/components/**` | Reusable visual primitives and feature cards. |
-| Stores | `src/stores/**` | App boot state, auth/vault state, theme, live sensors. |
-| Services | `src/services/**` | Offline maps, downloads, content, AI, sensors, security, weather, backup, OCR, RSS. |
-| Repositories | `src/services/db/**` | SQLite schema, migrations, and typed data access. |
-| Native modules | `modules/**` | Android/iOS bridges for routing, OCR, and ZIM reading. |
-| Static assets | `assets/**` | App icons, generated brand assets, catalog files, bundled authored content. |
+| Layer          | Location             | Responsibility                                                                      |
+| -------------- | -------------------- | ----------------------------------------------------------------------------------- |
+| Routes/screens | `app/**`             | Navigation, screen composition, loading/error states.                               |
+| UI components  | `src/components/**`  | Reusable visual primitives and feature cards.                                       |
+| Stores         | `src/stores/**`      | App boot state, auth/vault state, theme, live sensors.                              |
+| Services       | `src/services/**`    | Offline maps, downloads, content, AI, sensors, security, weather, backup, OCR, RSS. |
+| Repositories   | `src/services/db/**` | SQLite schema, migrations, and typed data access.                                   |
+| Native modules | `modules/**`         | Android/iOS bridges for routing, OCR, and ZIM reading.                              |
+| Static assets  | `assets/**`          | App icons, generated brand assets, catalog files, bundled authored content.         |
 
 ## App boot
 

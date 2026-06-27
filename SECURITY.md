@@ -6,10 +6,10 @@ Ark is a local-first app that stores sensitive user-created data on device. Trea
 
 Security fixes target the current `main` branch until tagged releases exist.
 
-| Version | Supported |
-| --- | --- |
-| `main` | Yes |
-| Older commits / forks | No |
+| Version               | Supported |
+| --------------------- | --------- |
+| `main`                | Yes       |
+| Older commits / forks | No        |
 
 ## Report a vulnerability
 

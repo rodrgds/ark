@@ -1,6 +1,6 @@
 name: Bug report
 description: Report something broken in Ark
-title: "bug: "
+title: 'bug: '
 labels: [bug]
 body:
   - type: textarea

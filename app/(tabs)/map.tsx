@@ -2329,9 +2329,9 @@ function NavigationStatusCard({
   const nextManeuver = session.route.maneuvers[session.currentManeuverIndex];
   const remaining = session.remainingDistanceMeters ?? session.route.distanceMeters;
   const routingModeLabel =
-      session.route.routingMode === 'direct'
-        ? 'Direct line · install a dev build for turn-by-turn'
-        : 'Offline route';
+    session.route.routingMode === 'direct'
+      ? 'Direct line · install a dev build for turn-by-turn'
+      : 'Offline route';
   return (
     <Card className="border-primary/40 bg-background/95 gap-3 p-3">
       <View className="flex-row items-start gap-2">

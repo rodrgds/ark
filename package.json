@@ -1,7 +1,27 @@
 {
   "name": "ark",
+  "description": "Noé's Ark for the offline age: an offline-first survival computer for mobile.",
   "main": "expo-router/entry",
-  "version": "1.0.0",
+  "version": "1.0.0-beta.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rodrgds/ark.git"
+  },
+  "bugs": {
+    "url": "https://github.com/rodrgds/ark/issues"
+  },
+  "homepage": "https://github.com/rodrgds/ark#readme",
+  "keywords": [
+    "offline-first",
+    "survival",
+    "react-native",
+    "expo",
+    "maps",
+    "local-ai",
+    "rag",
+    "sqlite"
+  ],
   "scripts": {
     "dev": "expo start -c",
     "android": "expo start -c --android",
@@ -111,5 +131,5 @@
   "trustedDependencies": [
     "llama.rn"
   ],
-  "private": true
+  "private": false
 }

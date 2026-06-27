@@ -1,0 +1,40 @@
+name: Feature request
+description: Suggest a focused improvement for Ark
+title: "feat: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user problem does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Keep it concrete and offline-first.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Maps / routing
+        - Library / content packs
+        - Notes / vault
+        - AI / RAG
+        - Sensors / tools
+        - Downloads / storage
+        - UI / onboarding
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: tradeoffs
+    attributes:
+      label: Tradeoffs
+      description: Battery, storage, privacy, safety, complexity, or maintenance costs.

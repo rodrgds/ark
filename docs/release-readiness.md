@@ -1,6 +1,6 @@
 # Ark release readiness
 
-This checklist tracks store-facing release risk for Ark's offline-first mobile build.
+This checklist tracks store-facing and open-source release risk for Ark's offline-first mobile build.
 
 ## Privacy and data safety
 
@@ -30,6 +30,15 @@ This checklist tracks store-facing release risk for Ark's offline-first mobile b
 - Native-heavy features still need real device verification: SQLCipher, MapLibre offline packs, ArkZim, ArkOcr, llama.rn, and embedding packs.
 - Battery Reduce Mode is the default mitigation for low-end devices: reduced polling, reduced motion, quieter haptics, deferred indexing catch-up, and no AI/model preload.
 - Android debug CI must build an APK artifact before release candidates are cut.
+
+## Open-source beta readiness
+
+- README is public-facing and links the core docs.
+- `LICENSE`, `CONTRIBUTING.md`, `SECURITY.md`, and `CODE_OF_CONDUCT.md` exist.
+- Issue and PR templates exist under `.github/`.
+- `package.json` has public project metadata and is marked `1.0.0-beta.0`.
+- Real screenshots are still pending; do not link placeholders from the README.
+- First public release should include an install/build path and a short known-limitations section.
 
 ## Store follow-ups before submission
 

@@ -153,11 +153,7 @@ const ARROW = `${CX},${ARROW_TIP_Y + 12} ${CX - 7},${ARROW_TIP_Y + 22} ${CX + 7}
 
 const Bezel = React.memo(function Bezel({ palette }: { palette: ToolPalette }) {
   return (
-    <Svg
-      width={SIZE}
-      height={SIZE}
-      viewBox={`0 0 ${SIZE} ${SIZE}`}
-      style={StyleSheet.absoluteFillObject}>
+    <Svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} style={StyleSheet.absoluteFill}>
       <Circle
         cx={CX}
         cy={CY}
@@ -199,7 +195,7 @@ const RotatingDial = React.memo(function RotatingDial({
   targetColor: string;
 }) {
   return (
-    <Animated.View style={[StyleSheet.absoluteFillObject, { transform: [{ rotate }] }]}>
+    <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ rotate }] }]}>
       <Svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`}>
         <Defs>
           <LinearGradient id="needleRed" x1="0.5" y1="0" x2="0.5" y2="1">
@@ -310,7 +306,7 @@ const ArcOverlay = React.memo(function ArcOverlay({
       width={SIZE}
       height={SIZE}
       viewBox={`0 0 ${SIZE} ${SIZE}`}
-      style={StyleSheet.absoluteFillObject}
+      style={StyleSheet.absoluteFill}
       pointerEvents="none">
       <Path d={d} fill="none" stroke={palette.primary} strokeWidth={4} strokeLinecap="round" />
 

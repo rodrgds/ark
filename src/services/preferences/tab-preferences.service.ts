@@ -1,4 +1,10 @@
-import { ARK_TABS, DEFAULT_ENABLED_TABS, DEFAULT_TAB_ORDER, type ArkTabId } from '@/constants/tabs';
+import {
+  ARK_TABS,
+  DEFAULT_ENABLED_TABS,
+  DEFAULT_TAB_ORDER,
+  MAX_VISIBLE_NATIVE_TABS,
+  type ArkTabId,
+} from '@/constants/tabs';
 import { SettingsRepository } from '@/services/db/repositories/settings.repo';
 
 const TAB_ORDER_KEY = 'tabs.order';
@@ -36,9 +42,16 @@ function normalizeOrder(value: string | null) {
   return [...stored, ...DEFAULT_TAB_ORDER.filter((id) => !storedSet.has(id))];
 }
 
-function normalizeEnabled(value: string | null) {
+function normalizeEnabled(value: string | null, order: ArkTabId[] = DEFAULT_TAB_ORDER) {
   const stored = parseTabIds(value) ?? DEFAULT_ENABLED_TABS;
-  return Array.from(new Set([...stored, ...lockedTabIds])).filter((id) => tabIds.has(id));
+  const enabled = new Set([...stored, ...lockedTabIds].filter((id) => tabIds.has(id)));
+  const lockedInOrder = order.filter((id) => lockedTabIds.has(id));
+  const optionalLimit = Math.max(0, MAX_VISIBLE_NATIVE_TABS - lockedInOrder.length);
+  const optionalInOrder = order
+    .filter((id) => enabled.has(id) && !lockedTabIds.has(id))
+    .slice(0, optionalLimit);
+  const allowed = new Set([...lockedInOrder, ...optionalInOrder]);
+  return order.filter((id) => allowed.has(id));
 }
 
 function emitChange() {
@@ -58,9 +71,10 @@ export class TabPreferencesService {
       SettingsRepository.get(TAB_ORDER_KEY),
       SettingsRepository.get(ENABLED_TABS_KEY),
     ]);
+    const normalizedOrder = normalizeOrder(order);
     return {
-      order: normalizeOrder(order),
-      enabled: normalizeEnabled(enabled),
+      order: normalizedOrder,
+      enabled: normalizeEnabled(enabled, normalizedOrder),
     };
   }
 
@@ -79,7 +93,7 @@ export class TabPreferencesService {
     } else {
       next.delete(tabId);
     }
-    const normalized = normalizeEnabled(JSON.stringify(Array.from(next)));
+    const normalized = normalizeEnabled(JSON.stringify(Array.from(next)), current.order);
     await SettingsRepository.set(ENABLED_TABS_KEY, JSON.stringify(normalized));
     emitChange();
     return normalized;
@@ -87,7 +101,10 @@ export class TabPreferencesService {
 
   static async savePreferences(preferences: TabPreferences) {
     const normalizedOrder = normalizeOrder(JSON.stringify(preferences.order));
-    const normalizedEnabled = normalizeEnabled(JSON.stringify(preferences.enabled));
+    const normalizedEnabled = normalizeEnabled(
+      JSON.stringify(preferences.enabled),
+      normalizedOrder
+    );
     await Promise.all([
       SettingsRepository.set(TAB_ORDER_KEY, JSON.stringify(normalizedOrder)),
       SettingsRepository.set(ENABLED_TABS_KEY, JSON.stringify(normalizedEnabled)),

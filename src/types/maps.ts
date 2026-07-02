@@ -195,7 +195,7 @@ export type NavigationLocationUpdate = {
 
 export type OfflineMapSearchResult = {
   id: string;
-  kind: 'spot' | 'region' | 'route' | 'place';
+  kind: 'spot' | 'region' | 'route' | 'place' | 'track';
   title: string;
   subtitle: string;
   latitude?: number | null;

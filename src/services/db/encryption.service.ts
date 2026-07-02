@@ -11,8 +11,7 @@ const DATABASE_ROOT_KEY_KEY = 'ark.security.rootKey.v1';
 const DATABASE_ENCRYPTION_PREFERENCE_KEY = 'ark.db.encryptionPreference.v1';
 const KEY_STRATEGY_PURPOSED = 'SecureStore device root key with SQLCipher purpose derivation';
 const KEY_STRATEGY_DISABLED = 'Encryption disabled by user preference';
-const MIGRATION_STATUS =
-  'Database encryption is available as an opt-in SQLCipher export.';
+const MIGRATION_STATUS = 'Database encryption is available as an opt-in SQLCipher export.';
 const DISABLED_MIGRATION_STATUS =
   'Database encryption is off. Enable it in Security when battery budget allows.';
 const EXISTING_DATA_STATUS =
@@ -161,9 +160,7 @@ export class DatabaseEncryptionService {
       );
     } finally {
       if (attached) {
-        await db
-          .execAsync(`DETACH DATABASE ${ENCRYPTED_EXPORT_SCHEMA}`)
-          .catch(() => undefined);
+        await db.execAsync(`DETACH DATABASE ${ENCRYPTED_EXPORT_SCHEMA}`).catch(() => undefined);
       }
     }
 
@@ -483,9 +480,7 @@ export class DatabaseEncryptionService {
     db: SQLiteDatabase,
     schema = ENCRYPTED_EXPORT_SCHEMA
   ) {
-    const row = await db.getFirstAsync<Record<string, string>>(
-      `PRAGMA ${schema}.quick_check`
-    );
+    const row = await db.getFirstAsync<Record<string, string>>(`PRAGMA ${schema}.quick_check`);
     const result = row ? Object.values(row)[0] : null;
     if (result !== 'ok') {
       throw new Error('Encrypted database quick_check failed.');

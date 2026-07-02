@@ -50,6 +50,7 @@ const iconNames = [
   'LocateFixed',
   'LockKeyhole',
   'Map',
+  'MapPinned',
   'MapPin',
   'Maximize2',
   'MessageSquareText',
@@ -63,6 +64,7 @@ const iconNames = [
   'PillBottle',
   'Pencil',
   'Plus',
+  'Play',
   'Plane',
   'Printer',
   'RefreshCw',
@@ -220,7 +222,7 @@ export function installCommonRntlMocks(mockApi: MockApi) {
   mockApi.module('@/stores/theme-store', () => ({
     useThemeStore: <T,>(
       selector: (state: {
-        accentPreference: 'moss';
+        accentPreference: 'system';
         colors: {
           background: '#0D0D0D';
           border: '#313A2C';
@@ -231,12 +233,12 @@ export function installCommonRntlMocks(mockApi: MockApi) {
           primary: '#95A78B';
           primaryForeground: '#0C0F0B';
         };
-        effectiveTheme: 'oled';
-        preference: 'oled';
+        effectiveTheme: 'dark';
+        preference: 'system';
       }) => T
     ) =>
       selector({
-        accentPreference: 'moss',
+        accentPreference: 'system',
         colors: {
           background: '#0D0D0D',
           border: '#313A2C',
@@ -247,8 +249,8 @@ export function installCommonRntlMocks(mockApi: MockApi) {
           primary: '#95A78B',
           primaryForeground: '#0C0F0B',
         },
-        effectiveTheme: 'oled',
-        preference: 'oled',
+        effectiveTheme: 'dark',
+        preference: 'system',
       }),
   }));
 
@@ -266,16 +268,19 @@ export function installCommonRntlMocks(mockApi: MockApi) {
       title,
       description,
       children,
+      footer,
     }: React.PropsWithChildren<{
       visible: boolean;
       title?: string;
       description?: string;
+      footer?: React.ReactNode;
     }>) =>
       visible ? (
         <View accessibilityRole="menu" accessibilityLabel={title ?? 'Bottom sheet'}>
           {title ? <Text>{title}</Text> : null}
           {description ? <Text>{description}</Text> : null}
           {children}
+          {footer}
         </View>
       ) : null,
   }));

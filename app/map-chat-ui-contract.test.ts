@@ -429,9 +429,11 @@ describe('map and chat UI contracts', () => {
 
     expect(source).toContain('MapPresetsService.refreshCatalog');
     expect(source).toContain('MapLocationService.getGrantedLocation');
-    expect(source).toContain('startPresetRegionDownload');
+    expect(source).toContain('queuePresetRegionDownload');
+    expect(source).toContain('DownloadNotificationService.requestPermission');
+    expect(source).toContain('startDelayMs: 0');
     expect(source).toContain('getUnsupportedMapPackReason');
-    expect(source).toContain('if (!result.ok && !result.queued)');
+    expect(source).toContain('Start Downloads');
     expect(source).not.toContain("from 'expo-location'");
     expect(source).not.toContain("new Set(['portugal-overview'])");
   });

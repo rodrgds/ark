@@ -331,11 +331,7 @@ function ReaderHeader({
       style={{ paddingTop: Math.max(8, topInset), zIndex: 100 }}
       className="bg-background border-border border-b">
       <View className="h-12 flex-row items-center justify-between px-3">
-        <Button
-          variant="ghost"
-          size="icon"
-          accessibilityLabel="Back"
-          onPress={() => router.back()}>
+        <Button variant="ghost" size="icon" accessibilityLabel="Back" onPress={() => router.back()}>
           <Icon as={ChevronLeft} className="text-foreground" />
         </Button>
         <View className="mx-2 flex-1">
@@ -345,11 +341,7 @@ function ReaderHeader({
         </View>
         <View className="flex-row gap-1">
           {sectionsAvailable && (
-            <Button
-              variant="ghost"
-              size="icon"
-              accessibilityLabel="Chapters"
-              onPress={onOpenToc}>
+            <Button variant="ghost" size="icon" accessibilityLabel="Chapters" onPress={onOpenToc}>
               <Icon as={List} className="text-foreground" />
             </Button>
           )}
@@ -441,8 +433,8 @@ function ReaderActionsSheet({
 }
 
 function getReaderNavigationPrefixes(content: ReaderContent) {
-  return [content.allowReadAccessToURL, content.uri].filter(
-    (value): value is string => Boolean(value)
+  return [content.allowReadAccessToURL, content.uri].filter((value): value is string =>
+    Boolean(value)
   );
 }
 
@@ -957,9 +949,7 @@ export default function GuideReaderScreen() {
   const reader = useGuideReaderController();
   const [actionsVisible, setActionsVisible] = React.useState(false);
   const readerSpeechPreparing =
-    reader.readerSpeaking &&
-    reader.speechPlayback.isPreparing &&
-    !reader.speechPlayback.isPlaying;
+    reader.readerSpeaking && reader.speechPlayback.isPreparing && !reader.speechPlayback.isPlaying;
 
   if (reader.loading && !reader.content) {
     return (

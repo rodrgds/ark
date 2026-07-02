@@ -2,14 +2,20 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
-import { ARK_TABS, type ArkTabDefinition, type ArkTabId } from '@/constants/tabs';
+import {
+  ARK_TABS,
+  DEFAULT_ENABLED_TABS,
+  MAX_VISIBLE_NATIVE_TABS,
+  type ArkTabDefinition,
+  type ArkTabId,
+} from '@/constants/tabs';
 import {
   TabPreferencesService,
   type TabPreferences,
 } from '@/services/preferences/tab-preferences.service';
 import { GripVertical, LockKeyhole } from 'lucide-react-native';
 import * as React from 'react';
-import { ActivityIndicator, Platform, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { router } from 'expo-router';
 import Animated, {
@@ -23,7 +29,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 const ROW_HEIGHT = 66;
 const defaultPreferences: TabPreferences = {
   order: ARK_TABS.map((tab) => tab.id),
-  enabled: ARK_TABS.map((tab) => tab.id),
+  enabled: DEFAULT_ENABLED_TABS,
 };
 
 const tabById = new Map(ARK_TABS.map((tab) => [tab.id, tab]));
@@ -55,7 +61,7 @@ export function TabPreferencesCard() {
   function toggleTab(tabId: ArkTabId) {
     if (TabPreferencesService.isLocked(tabId)) return;
     const isEnabling = !enabled.has(tabId);
-    if (Platform.OS === 'ios' && isEnabling && enabled.size >= 5) return;
+    if (isEnabling && enabled.size >= MAX_VISIBLE_NATIVE_TABS) return;
 
     const nextEnabled = new Set(preferences.enabled);
     if (nextEnabled.has(tabId)) {
@@ -114,7 +120,9 @@ export function TabPreferencesCard() {
     <Card className="gap-3">
       <View className="gap-1">
         <Text variant="large">Tabs</Text>
-        <Text variant="muted">Choose which sections appear in the native tab bar.</Text>
+        <Text variant="muted">
+          Choose up to {MAX_VISIBLE_NATIVE_TABS} sections for the native tab bar.
+        </Text>
       </View>
 
       {loading ? (
@@ -133,7 +141,7 @@ export function TabPreferencesCard() {
               moving={false}
               tab={tab}
               working={false}
-              toggleDisabled={Platform.OS === 'ios' && !enabled.has(tab.id) && enabled.size >= 5}
+              toggleDisabled={!enabled.has(tab.id) && enabled.size >= MAX_VISIBLE_NATIVE_TABS}
               onMoveToIndex={moveTab}
               onToggle={toggleTab}
             />

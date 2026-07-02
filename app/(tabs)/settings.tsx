@@ -10,6 +10,7 @@ import {
   type DownloadBatchAction,
   type DownloadRowAction,
 } from '@/components/settings/downloads-card';
+import { FieldSection } from '@/components/settings/field-section';
 import { OfflineMapsCard } from '@/components/settings/offline-maps-card';
 import { SecuritySection } from '@/components/settings/security-section';
 import { Button } from '@/components/ui/button';
@@ -30,6 +31,7 @@ import { OfflineMapService } from '@/services/maps/offline-map.service';
 import { startPresetRegionDownload } from '@/services/maps/map-region-downloads';
 import { MapPresetsService } from '@/services/maps/map-presets.service';
 import { PreferencesService } from '@/services/preferences/preferences.service';
+import type { FieldPreferences } from '@/services/preferences/preferences.service';
 import { DiagnosticsService } from '@/services/sensors/diagnostics.service';
 import { VaultService } from '@/services/security/vault.service';
 import { useThemeStore } from '@/stores/theme-store';
@@ -43,15 +45,138 @@ import { HardDrive, Trash2, Upload } from 'lucide-react-native';
 import * as React from 'react';
 import { ActivityIndicator, ScrollView, View } from 'react-native';
 
-type SettingsTab = 'appearance' | 'security' | 'ai' | 'maps' | 'advanced';
+type SettingsTab = 'appearance' | 'field' | 'security' | 'ai' | 'maps' | 'advanced';
 
 const SETTINGS_TABS: Array<{ value: SettingsTab; label: string }> = [
   { value: 'appearance', label: 'Appearance' },
+  { value: 'field', label: 'Field' },
   { value: 'security', label: 'Security' },
   { value: 'ai', label: 'AI' },
   { value: 'maps', label: 'Offline Maps' },
   { value: 'advanced', label: 'Advanced' },
 ];
+
+const SETTINGS_FAST_TIMEOUT_MS = 2_500;
+const SETTINGS_SLOW_TIMEOUT_MS = 5_000;
+
+type SettledProbe<T> =
+  | { ok: true; value: T }
+  | { ok: false; reason: 'timeout' | 'error'; error?: unknown };
+
+function resolveWithin<T>(promise: Promise<T>, timeoutMs: number): Promise<SettledProbe<T>> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const timeout = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      resolve({ ok: false, reason: 'timeout' });
+    }, timeoutMs);
+
+    promise.then(
+      (value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        resolve({ ok: true, value });
+      },
+      (error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        resolve({ ok: false, reason: 'error', error });
+      }
+    );
+  });
+}
+
+async function runProbe<T>(
+  promise: Promise<T>,
+  apply: (value: T) => void,
+  options: {
+    timeoutMs?: number;
+    onFailure?: (result: Exclude<SettledProbe<T>, { ok: true }>) => void;
+  } = {}
+) {
+  const result = await resolveWithin(promise, options.timeoutMs ?? SETTINGS_FAST_TIMEOUT_MS);
+  if (result.ok) {
+    apply(result.value);
+    return;
+  }
+  options.onFailure?.(result);
+}
+
+function createUnavailableModelStatus(): Awaited<ReturnType<typeof ModelManagerService.getStatus>> {
+  return {
+    adapter: 'mock',
+    installedModels: 0,
+    installedChatModels: 0,
+    installedEmbeddingModels: 1,
+    installedVoiceModels: 0,
+    availableModels: 0,
+    availableChatModels: 0,
+    availableEmbeddingModels: 0,
+    availableVoiceModels: 0,
+    selectedModelId: null,
+    selectedEmbeddingModelId: null,
+    selectedVoiceModelId: null,
+    modelPickerEnabled: true,
+    chatModelDisabled: false,
+    activeVoiceModelTitle: '',
+    voiceReady: false,
+    activeModelTitle: '',
+    contextTokens: 0,
+    maxResponseTokens: 0,
+    message:
+      'Model status is taking too long to refresh. Built-in source search is still available.',
+  };
+}
+
+function createUnavailableDiagnosticReport(): DiagnosticReport {
+  return {
+    sensors: {
+      compass: false,
+      barometer: false,
+      level: false,
+      pedometer: false,
+      light: false,
+      location: false,
+    },
+    network: 'unknown',
+    directories: {},
+    sqlCipherActive: false,
+    databaseEncryption: {
+      active: false,
+      runtimeActive: false,
+      databaseState: 'unknown',
+      stateLabel: 'Needs inspection',
+      encryptionEnabled: false,
+      keyStored: false,
+      keyStrategy: 'Unknown',
+      migrationStatus: 'Diagnostics timed out before database encryption could be inspected.',
+      existingDataStatus: 'Restart Ark or open Diagnostics again to inspect existing data.',
+      passphraseRekeyStatus: 'Passphrase rekey status unavailable.',
+      plaintextMigrationImplemented: true,
+      vaultPassphraseRekeyImplemented: true,
+      note: 'Diagnostics timed out.',
+    },
+    ftsAvailable: false,
+    aiAdapter: 'mock',
+    aiStatusMessage: 'Diagnostics timed out before AI status could be inspected.',
+    routingEngine: {
+      available: false,
+      engine: 'valhalla',
+      reason: 'Diagnostics timed out before routing engine status could be inspected.',
+    },
+    routingData: {
+      readyCount: 0,
+      readyRegionNames: [],
+      downloadingCount: 0,
+      failedCount: 0,
+      missingGraphCount: 0,
+      message: 'Diagnostics timed out before navigation data could be inspected.',
+    },
+  };
+}
 
 export default function SettingsScreen() {
   const { tab, downloadId } = useLocalSearchParams<{
@@ -76,6 +201,7 @@ export default function SettingsScreen() {
   const [batteryReduceModeEnabled, setBatteryReduceModeEnabled] = React.useState(false);
   const [wifiOnlyDownloadsEnabled, setWifiOnlyDownloadsEnabled] = React.useState(false);
   const [topHeaderEnabled, setTopHeaderEnabled] = React.useState(true);
+  const [fieldPreferences, setFieldPreferences] = React.useState<FieldPreferences | null>(null);
   const [availableModels, setAvailableModels] = React.useState<ContentPack[]>([]);
   const [installedModels, setInstalledModels] = React.useState<ContentPack[]>([]);
   const [activeModel, setActiveModel] = React.useState<ContentPack | null>(null);
@@ -88,6 +214,7 @@ export default function SettingsScreen() {
   const [storage, setStorage] = React.useState<Awaited<
     ReturnType<typeof FileSystemService.getStorageSummary>
   > | null>(null);
+  const [storageUnavailable, setStorageUnavailable] = React.useState(false);
   const [downloads, setDownloads] = React.useState<DownloadRow[]>([]);
   const [mapRegions, setMapRegions] = React.useState<MapRegion[]>([]);
   const [diagnostics, setDiagnostics] = React.useState<DiagnosticReport | null>(null);
@@ -99,65 +226,91 @@ export default function SettingsScreen() {
   const [backupMessage, setBackupMessage] = React.useState<string | null>(null);
   const [lockSheetOpen, setLockSheetOpen] = React.useState(false);
   const buildTapTimesRef = React.useRef<number[]>([]);
+  const loadInFlightRef = React.useRef<Promise<void> | null>(null);
 
   const chatModels = React.useMemo(
     () => availableModels.filter((model) => model.modelRole === 'chat'),
     [availableModels]
   );
   async function load() {
-    await OfflineMapService.syncNativePacks().catch(() => undefined);
-    const [
-      vault,
-      biometricState,
-      reduceModeState,
-      wifiOnlyDownloadsState,
-      topHeaderState,
-      storageState,
-      downloadRows,
-      regions,
-      diagnosticReport,
-      nextModelStatus,
-      nextAvailableModels,
-      nextInstalledModels,
-      nextActiveModel,
-      nextEmbeddingModels,
-      nextActiveEmbeddingModel,
-      nextEmbeddingIndexStatus,
-    ] = await Promise.all([
-      SettingsRepository.getVaultState(),
-      VaultService.getBiometricsEnabled(),
-      PreferencesService.getBatteryReduceModeEnabled(),
-      PreferencesService.getWifiOnlyDownloadsEnabled(),
-      PreferencesService.getTopHeaderEnabled(),
-      FileSystemService.getStorageSummary(),
-      DownloadManagerService.listDownloads(),
-      OfflineMapService.listRegions(),
-      DiagnosticsService.getReport(),
-      ModelManagerService.getStatus(),
-      ModelManagerService.listAvailableModels(),
-      ModelManagerService.listInstalledChatModels(),
-      ModelManagerService.getActiveModel(),
-      ModelManagerService.listAvailableEmbeddingModels(),
-      ModelManagerService.getActiveEmbeddingModel(),
-      ModelManagerService.getEmbeddingIndexStatus(),
+    if (loadInFlightRef.current) return loadInFlightRef.current;
+    const task = loadSettingsOnce();
+    loadInFlightRef.current = task;
+    try {
+      await task;
+    } finally {
+      if (loadInFlightRef.current === task) loadInFlightRef.current = null;
+    }
+  }
+
+  async function loadSettingsOnce() {
+    const apply = <T,>(setter: (value: T) => void) => setter;
+
+    void resolveWithin(OfflineMapService.syncNativePacks(), SETTINGS_FAST_TIMEOUT_MS).then(
+      (result) => {
+        if (!result.ok) return;
+        void runProbe(OfflineMapService.listRegions(), apply(setMapRegions));
+      }
+    );
+
+    await Promise.all([
+      runProbe(
+        SettingsRepository.getVaultState(),
+        (vault) => {
+          setVaultProtectionEnabled(vault.isInitialized);
+          setAutoLock(vault.autoLockMinutes);
+        },
+        { timeoutMs: SETTINGS_FAST_TIMEOUT_MS }
+      ),
+      runProbe(VaultService.getBiometricsEnabled(), apply(setBiometricsEnabled)),
+      runProbe(
+        PreferencesService.getBatteryReduceModeEnabled(),
+        apply(setBatteryReduceModeEnabled)
+      ),
+      runProbe(
+        PreferencesService.getWifiOnlyDownloadsEnabled(),
+        apply(setWifiOnlyDownloadsEnabled)
+      ),
+      runProbe(PreferencesService.getTopHeaderEnabled(), apply(setTopHeaderEnabled)),
+      runProbe(PreferencesService.getFieldPreferences(), apply(setFieldPreferences)),
+      runProbe(
+        FileSystemService.getStorageSummary(),
+        (storageState) => {
+          setStorage(storageState);
+          setStorageUnavailable(false);
+        },
+        {
+          timeoutMs: SETTINGS_SLOW_TIMEOUT_MS,
+          onFailure: () => setStorageUnavailable(true),
+        }
+      ),
+      runProbe(DownloadManagerService.listDownloads(), apply(setDownloads)),
+      runProbe(OfflineMapService.listRegions(), apply(setMapRegions)),
+      runProbe(DiagnosticsService.getReport(), apply(setDiagnostics), {
+        timeoutMs: SETTINGS_SLOW_TIMEOUT_MS,
+        onFailure: () => setDiagnostics(createUnavailableDiagnosticReport()),
+      }),
+      runProbe(ModelManagerService.getStatus(), apply(setModelStatus), {
+        timeoutMs: SETTINGS_SLOW_TIMEOUT_MS,
+        onFailure: () => setModelStatus(createUnavailableModelStatus()),
+      }),
+      runProbe(ModelManagerService.listAvailableModels(), apply(setAvailableModels), {
+        timeoutMs: SETTINGS_SLOW_TIMEOUT_MS,
+      }),
+      runProbe(ModelManagerService.listInstalledChatModels(), apply(setInstalledModels), {
+        timeoutMs: SETTINGS_SLOW_TIMEOUT_MS,
+      }),
+      runProbe(ModelManagerService.getActiveModel(), apply(setActiveModel), {
+        timeoutMs: SETTINGS_SLOW_TIMEOUT_MS,
+      }),
+      runProbe(ModelManagerService.listAvailableEmbeddingModels(), apply(setEmbeddingModels)),
+      runProbe(ModelManagerService.getActiveEmbeddingModel(), apply(setActiveEmbeddingModel), {
+        timeoutMs: SETTINGS_SLOW_TIMEOUT_MS,
+      }),
+      runProbe(ModelManagerService.getEmbeddingIndexStatus(), apply(setEmbeddingIndexStatus), {
+        timeoutMs: SETTINGS_SLOW_TIMEOUT_MS,
+      }),
     ]);
-    setVaultProtectionEnabled(vault.isInitialized);
-    setAutoLock(vault.autoLockMinutes);
-    setBiometricsEnabled(biometricState);
-    setBatteryReduceModeEnabled(reduceModeState);
-    setWifiOnlyDownloadsEnabled(wifiOnlyDownloadsState);
-    setTopHeaderEnabled(topHeaderState);
-    setStorage(storageState);
-    setDownloads(downloadRows);
-    setMapRegions(regions);
-    setDiagnostics(diagnosticReport);
-    setModelStatus(nextModelStatus);
-    setAvailableModels(nextAvailableModels);
-    setInstalledModels(nextInstalledModels);
-    setActiveModel(nextActiveModel);
-    setEmbeddingModels(nextEmbeddingModels);
-    setActiveEmbeddingModel(nextActiveEmbeddingModel);
-    setEmbeddingIndexStatus(nextEmbeddingIndexStatus);
   }
 
   React.useEffect(() => {
@@ -279,6 +432,11 @@ export default function SettingsScreen() {
     const next = !wifiOnlyDownloadsEnabled;
     setWifiOnlyDownloadsEnabled(next);
     await PreferencesService.setWifiOnlyDownloadsEnabled(next);
+  }
+
+  async function updateFieldPreferences(patch: Partial<FieldPreferences>) {
+    const next = await PreferencesService.setFieldPreferences(patch);
+    setFieldPreferences(next);
   }
 
   function confirmDatabaseMigration() {
@@ -718,6 +876,10 @@ export default function SettingsScreen() {
         />
       ) : null}
 
+      {activeTab === 'field' ? (
+        <FieldSection preferences={fieldPreferences} onChange={updateFieldPreferences} />
+      ) : null}
+
       {activeTab === 'security' ? (
         <SecuritySection
           vaultProtectionEnabled={vaultProtectionEnabled}
@@ -817,11 +979,17 @@ export default function SettingsScreen() {
                 <Text variant="h3">
                   {storage
                     ? `${FileSystemService.formatBytes(displayTotalBytes)} stored offline`
-                    : 'Calculating...'}
+                    : storageUnavailable
+                      ? 'Storage scan unavailable'
+                      : 'Calculating...'}
                 </Text>
                 {storage?.freeBytes != null ? (
                   <Text variant="muted">
                     {FileSystemService.formatBytes(storage.freeBytes)} free on this device
+                  </Text>
+                ) : storageUnavailable ? (
+                  <Text variant="muted">
+                    Ark could not finish the storage scan. Downloads and maps still work.
                   </Text>
                 ) : null}
               </View>

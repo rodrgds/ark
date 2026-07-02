@@ -587,7 +587,8 @@ export class MapsRepository {
     lastSeenAt?: number | null;
   }) {
     const title = place.title.trim();
-    if (!title || !Number.isFinite(place.latitude) || !Number.isFinite(place.longitude)) return null;
+    if (!title || !Number.isFinite(place.latitude) || !Number.isFinite(place.longitude))
+      return null;
 
     const db = await DatabaseClient.getDb();
     const timestamp = Date.now();
@@ -814,7 +815,11 @@ function stablePlaceRef(place: { title: string; latitude: number; longitude: num
 }
 
 function stablePlaceId(source: OfflineMapPlace['source'], sourceRef: string) {
-  return `place-${source}-${sourceRef.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 96)}`;
+  return `place-${source}-${sourceRef
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 96)}`;
 }
 
 function toFtsPrefixQuery(query: string) {

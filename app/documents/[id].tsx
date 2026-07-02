@@ -172,8 +172,7 @@ export default function DocumentReaderScreen() {
     page && Number.isFinite(Number(page)) ? Math.max(1, Number(page)) : 1
   );
   const [actionsVisible, setActionsVisible] = React.useState(false);
-  const speechPreparing =
-    readerSpeaking && speechPlayback.isPreparing && !speechPlayback.isPlaying;
+  const speechPreparing = readerSpeaking && speechPlayback.isPreparing && !speechPlayback.isPlaying;
 
   async function load() {
     if (!id) return;

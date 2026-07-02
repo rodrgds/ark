@@ -1,5 +1,5 @@
 export const DB_NAME = 'ark.db';
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
 
 export type DatabaseEncryptionState = 'unknown' | 'encrypted' | 'plaintext' | 'unenforced';
 

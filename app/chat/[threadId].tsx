@@ -128,7 +128,6 @@ function appendProgressEvent(events: AiProgressEvent[], next: AiProgressEvent) {
   return [...events, next].slice(-8);
 }
 
-
 export default function ChatScreen() {
   const { threadId: routeThreadId } = useLocalSearchParams<{ threadId?: string }>();
   const insets = useSafeAreaInsets();

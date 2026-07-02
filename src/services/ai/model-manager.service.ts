@@ -276,9 +276,9 @@ export class ModelManagerService {
           ? `${runtime.modelTitle ?? 'Local model'} is ready for offline answers.`
           : adapter === 'llama-unavailable'
             ? 'An answer model is downloaded, but the local AI runtime is not available in this build.'
-          : installedChatModels.length
-            ? 'An answer model is downloaded. Use a build with local AI enabled to run it fully offline.'
-            : 'No answer model is installed. Add an answer GGUF in Settings > AI before using offline AI.',
+            : installedChatModels.length
+              ? 'An answer model is downloaded. Use a build with local AI enabled to run it fully offline.'
+              : 'No answer model is installed. Add an answer GGUF in Settings > AI before using offline AI.',
     };
   }
 

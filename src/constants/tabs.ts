@@ -1,4 +1,4 @@
-export type ArkTabId = 'chat' | 'map' | 'library' | 'notes' | 'tools' | 'settings';
+export type ArkTabId = 'chat' | 'tracks' | 'map' | 'library' | 'notes' | 'tools' | 'settings';
 
 export type ArkTabDefinition = {
   id: ArkTabId;
@@ -28,6 +28,14 @@ export const ARK_TABS: ArkTabDefinition[] = [
       selected: 'bubble.left.and.bubble.right.fill',
     },
     materialIcon: { default: 'message-outline', selected: 'message' },
+  },
+  {
+    id: 'tracks',
+    routeName: 'tracks',
+    label: 'Tracks',
+    description: 'Record field movement, photos, markers, charts, and GPX history.',
+    sfSymbol: { default: 'figure.walk', selected: 'figure.walk' },
+    materialIcon: { default: 'map-marker-path', selected: 'map-marker-path' },
   },
   {
     id: 'map',
@@ -76,4 +84,5 @@ export const ARK_TABS: ArkTabDefinition[] = [
 ];
 
 export const DEFAULT_TAB_ORDER = ARK_TABS.map((tab) => tab.id);
-export const DEFAULT_ENABLED_TABS: ArkTabId[] = ['chat', 'map', 'library', 'notes', 'settings'];
+export const DEFAULT_ENABLED_TABS: ArkTabId[] = ['chat', 'tracks', 'map', 'library', 'settings'];
+export const MAX_VISIBLE_NATIVE_TABS = 5;

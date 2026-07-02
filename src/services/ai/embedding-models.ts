@@ -29,7 +29,8 @@ export const EMBEDDING_MODEL_CONFIGS: Record<string, EmbeddingModelConfig> = {
     id: RAG_HASH_EMBEDDING_MODEL_ID,
     family: 'ark-hash',
     title: RAG_HASH_EMBEDDING_TITLE,
-    description: 'No model load. Lower battery use and safer startup with deterministic local search.',
+    description:
+      'No model load. Lower battery use and safer startup with deterministic local search.',
     dimension: RAG_HASH_EMBEDDING_DIMENSIONS,
     distance: 'cosine',
     queryPrefix: '',

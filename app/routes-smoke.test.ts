@@ -20,7 +20,15 @@ describe('app route contracts', () => {
 
   test('root layout registers all top-level route groups', () => {
     const source = readFileSync(join(appDir, '_layout.tsx'), 'utf8');
-    for (const route of ['index', 'onboarding', '(tabs)', 'tools', 'content', 'documents']) {
+    for (const route of [
+      'index',
+      'onboarding',
+      '(tabs)',
+      'tools',
+      'tracks',
+      'content',
+      'documents',
+    ]) {
       expect(source).toContain(`name="${route}"`);
     }
   });
@@ -34,7 +42,7 @@ describe('app route contracts', () => {
       'utf8'
     );
 
-    for (const route of ['chat', 'map', 'library', 'notes', 'tools', 'settings']) {
+    for (const route of ['chat', 'tracks', 'map', 'library', 'notes', 'tools', 'settings']) {
       expect(tabConstants).toContain(`routeName: '${route}'`);
     }
     expect(source).toContain("from 'expo-router/unstable-native-tabs'");
@@ -95,8 +103,19 @@ describe('app route contracts', () => {
     expect(settings).toContain('selectedResourceId={selectedDownloadResourceId}');
     expect(settings).toContain('onRetryRoutingDownload={retryRoutingDownload}');
     expect(settings).toContain("{ value: 'advanced', label: 'Advanced' }");
+    expect(settings).toContain("{ value: 'field', label: 'Field' }");
     expect(settings).toContain("activeTab === 'advanced'");
+    expect(settings).toContain("activeTab === 'field'");
     expect(settings).toContain('<DownloadsCard');
+    expect(settings).toContain('<FieldSection');
+    expect(settings).toContain('resolveWithin(OfflineMapService.syncNativePacks()');
+    expect(settings).toContain('loadInFlightRef');
+    expect(settings).toContain('loadSettingsOnce()');
+    expect(settings).toContain('runProbe(DiagnosticsService.getReport()');
+    expect(settings).toContain('createUnavailableDiagnosticReport()');
+    expect(settings).toContain('createUnavailableModelStatus()');
+    expect(settings).toContain('Storage scan unavailable');
+    expect(settings).not.toContain('await OfflineMapService.syncNativePacks().catch');
     expect(settings).not.toContain("label: 'Internals'");
     expect(settings).not.toContain(
       '<DownloadsCard downloads={downloads} mapRegions={mapRegions} />'
@@ -268,6 +287,7 @@ describe('app route contracts', () => {
       'app/(tabs)/library.tsx',
       'app/(tabs)/map.tsx',
       'app/(tabs)/settings.tsx',
+      'app/(tabs)/tracks.tsx',
       'app/onboarding/security.tsx',
       'app/notes/labels.tsx',
       'src/components/ui/input.tsx',

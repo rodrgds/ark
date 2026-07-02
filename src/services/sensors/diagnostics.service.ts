@@ -82,9 +82,9 @@ async function isFts5Available() {
   try {
     const db = await DatabaseClient.getDb();
     const compileOption = await db
-      .getFirstAsync<{ available: number | string | null }>(
-        "SELECT sqlite_compileoption_used('ENABLE_FTS5') AS available"
-      )
+      .getFirstAsync<{
+        available: number | string | null;
+      }>("SELECT sqlite_compileoption_used('ENABLE_FTS5') AS available")
       .catch(() => null);
     if (Number(compileOption?.available ?? 0) === 1) return true;
 

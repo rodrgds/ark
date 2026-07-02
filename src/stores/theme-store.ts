@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { Uniwind } from 'uniwind';
 import { SettingsRepository } from '@/services/db/repositories/settings.repo';
 import {
+  DEFAULT_ACCENT_PREFERENCE,
+  DEFAULT_THEME_PREFERENCE,
   DEFAULT_SYSTEM_ACCENT_COLORS,
   type AccentColorsByTheme,
   getAccentCssVariables,
@@ -69,23 +71,26 @@ function applyTheme(
 }
 
 let appearanceSubscription: { remove: () => void } | null = null;
+const initialEffectiveTheme = getEffective(DEFAULT_THEME_PREFERENCE);
 
 export const useThemeStore = create<ThemeState>((set) => ({
-  preference: 'oled',
-  effectiveTheme: 'oled',
-  accentPreference: 'moss',
+  preference: DEFAULT_THEME_PREFERENCE,
+  effectiveTheme: initialEffectiveTheme,
+  accentPreference: DEFAULT_ACCENT_PREFERENCE,
   systemAccentAvailable: false,
   systemAccentColors: DEFAULT_SYSTEM_ACCENT_COLORS,
   systemAccentSource: 'fallback',
-  colors: getThemeColors('oled', 'moss'),
+  colors: getThemeColors(initialEffectiveTheme, DEFAULT_ACCENT_PREFERENCE),
   init: async () => {
     const [storedTheme, storedAccent, systemAccent] = await Promise.all([
       SettingsRepository.get('theme.preference'),
       SettingsRepository.get('theme.accentPreference'),
       SystemColorsService.getAccentColors(),
     ]);
-    const preference = isThemePreference(storedTheme) ? storedTheme : 'oled';
-    const accentPreference = isAccentPreference(storedAccent) ? storedAccent : 'moss';
+    const preference = isThemePreference(storedTheme) ? storedTheme : DEFAULT_THEME_PREFERENCE;
+    const accentPreference = isAccentPreference(storedAccent)
+      ? storedAccent
+      : DEFAULT_ACCENT_PREFERENCE;
     const next = applyTheme(preference, accentPreference, systemAccent.colors);
     set({
       preference,

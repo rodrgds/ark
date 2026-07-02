@@ -14,15 +14,17 @@ export type ArkSQLiteDatabase = Omit<SQLiteDatabase, 'withTransactionAsync'> & {
 };
 
 type SQLiteDatabaseWithExclusive = SQLiteDatabase & {
-  withExclusiveTransactionAsync?: (callback: (tx: SQLiteDatabase) => Promise<void>) => Promise<void>;
+  withExclusiveTransactionAsync?: (
+    callback: (tx: SQLiteDatabase) => Promise<void>
+  ) => Promise<void>;
 };
 
 type SQLiteSyncDatabase = SQLiteDatabase & {
   closeSync?: () => void;
   execSync?: (source: string) => void;
-  runSync?: (...args: Parameters<SQLiteDatabase['runAsync']>) => Awaited<
-    ReturnType<SQLiteDatabase['runAsync']>
-  >;
+  runSync?: (
+    ...args: Parameters<SQLiteDatabase['runAsync']>
+  ) => Awaited<ReturnType<SQLiteDatabase['runAsync']>>;
   getFirstSync?: <T>(...args: Parameters<SQLiteDatabase['getFirstAsync']>) => T | null;
   getAllSync?: <T>(...args: Parameters<SQLiteDatabase['getAllAsync']>) => T[];
 };
@@ -82,7 +84,10 @@ async function runRawSyncTransaction(db: SQLiteSyncDatabase, callback: ArkTransa
   }
 }
 
-function wrapSyncDatabase(db: SQLiteSyncDatabase, options?: { useMutex?: boolean }): ArkSQLiteDatabase {
+function wrapSyncDatabase(
+  db: SQLiteSyncDatabase,
+  options?: { useMutex?: boolean }
+): ArkSQLiteDatabase {
   const useMutex = options?.useMutex ?? true;
   const run = <T>(fn: () => T | Promise<T>) =>
     useMutex ? dbMutex.run(async () => fn()) : Promise.resolve(fn());
@@ -155,9 +160,11 @@ export class DatabaseClient {
   static async getDb() {
     if (!dbPromise) {
       dbPromise = Promise.resolve().then(async () => {
-        const rawOpenDatabaseSync = (SQLite as typeof SQLite & {
-          openDatabaseSync?: (databaseName: string) => SQLiteDatabase;
-        }).openDatabaseSync;
+        const rawOpenDatabaseSync = (
+          SQLite as typeof SQLite & {
+            openDatabaseSync?: (databaseName: string) => SQLiteDatabase;
+          }
+        ).openDatabaseSync;
         const db =
           typeof rawOpenDatabaseSync === 'function'
             ? rawOpenDatabaseSync(DB_NAME)

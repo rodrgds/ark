@@ -4,8 +4,9 @@ import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { OnboardingFrame } from '@/components/onboarding/onboarding-frame';
 import type { MapPreset } from '@/constants/map-presets';
+import { DownloadNotificationService } from '@/services/files/download-notifications.service';
 import { getUnsupportedMapPackReason } from '@/services/maps/map-pack-format';
-import { startPresetRegionDownload } from '@/services/maps/map-region-downloads';
+import { queuePresetRegionDownload } from '@/services/maps/map-region-downloads';
 import { MapLocationService } from '@/services/maps/map-location.service';
 import { MapPresetsService } from '@/services/maps/map-presets.service';
 import { useThemeStore } from '@/stores/theme-store';
@@ -60,13 +61,11 @@ export default function MapsOnboardingScreen() {
     setBusy(true);
     setError(null);
     try {
+      await DownloadNotificationService.requestPermission().catch(() => false);
       for (const preset of presets.filter((item) => selected.has(item.id))) {
         const unsupportedReason = getUnsupportedMapPackReason(preset);
         if (unsupportedReason) throw new Error(unsupportedReason);
-        const result = await startPresetRegionDownload(preset, { theme });
-        if (!result.ok && !result.queued) {
-          throw new Error(result.reason ?? 'Unable to start this map download.');
-        }
+        await queuePresetRegionDownload(preset, { theme, startDelayMs: 0 });
       }
       return true;
     } catch (downloadError) {
@@ -85,7 +84,7 @@ export default function MapsOnboardingScreen() {
     <OnboardingFrame
       title="Offline Maps"
       nextHref="/onboarding/power"
-      nextLabel={nothingSelected ? 'Skip Maps' : 'Download'}
+      nextLabel={nothingSelected ? 'Skip Maps' : 'Start Downloads'}
       hideBranding
       arkyPose="navigator"
       step={4}

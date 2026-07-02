@@ -53,6 +53,8 @@ import { startPresetRegionDownload } from '@/services/maps/map-region-downloads'
 import { MapPresetsService } from '@/services/maps/map-presets.service';
 import { getMissingRegionPrompt } from '@/services/maps/missing-region-prompt';
 import { OfflineMapService } from '@/services/maps/offline-map.service';
+import { TracksRepository } from '@/services/db/repositories/tracks.repo';
+import { PreferencesService } from '@/services/preferences/preferences.service';
 import { useThemeStore } from '@/stores/theme-store';
 import { useSensorStore } from '@/stores/sensor-store';
 import { CompassService } from '@/services/sensors/compass.service';
@@ -68,6 +70,7 @@ import type {
   RoutingProfile,
   SavedRoute,
 } from '@/types/maps';
+import type { UnitSystem } from '@/types/tracks';
 import type { LocationObject } from 'expo-location';
 import { useNetInfo } from '@react-native-community/netinfo';
 import { useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
@@ -126,10 +129,12 @@ const BEARING_UPDATE_EPSILON_DEGREES = 0.35;
 const COMPASS_RESET_SUPPRESS_MS = 500;
 const SEARCH_GESTURE_SUPPRESS_MS = 450;
 const FLOATING_CONTROL_BOTTOM = 12;
+const OFFLINE_MAP_BROWSE_INITIAL_LIMIT = 18;
+const OFFLINE_MAP_BROWSE_SEARCH_LIMIT = 48;
 export default function MapScreen() {
   const navigation = useNavigation();
   const { chromeHidden: fullscreen, setChromeHidden } = useTabsChrome();
-  const { markerId } = useLocalSearchParams<{ markerId?: string }>();
+  const { markerId, trackId } = useLocalSearchParams<{ markerId?: string; trackId?: string }>();
   const insets = useSafeAreaInsets();
   const theme = useThemeStore((state) => state.effectiveTheme);
   const colors = useThemeStore((state) => state.colors);
@@ -139,6 +144,8 @@ export default function MapScreen() {
   const [regions, setRegions] = React.useState<MapRegion[]>([]);
   const [markers, setMarkers] = React.useState<MapMarker[]>([]);
   const [routes, setRoutes] = React.useState<SavedRoute[]>([]);
+  const [selectedTrackRoute, setSelectedTrackRoute] = React.useState<SavedRoute | null>(null);
+  const [unitSystem, setUnitSystem] = React.useState<UnitSystem>('metric');
   const [offlineResults, setOfflineResults] = React.useState<OfflineMapSearchResult[]>([]);
   const [maplibre, setMaplibre] = React.useState<MapLibreModule | null>(null);
   const [maplibreChecked, setMaplibreChecked] = React.useState(false);
@@ -281,6 +288,10 @@ export default function MapScreen() {
         .includes(query)
     );
   }, [routes, savedSearch]);
+  const mapRoutes = React.useMemo(
+    () => (selectedTrackRoute ? [selectedTrackRoute, ...routes] : routes),
+    [routes, selectedTrackRoute]
+  );
   const visibleMarkers = React.useMemo(
     () => (showEmergencyPinsOnly ? markers.filter((marker) => marker.isEmergencyPin) : markers),
     [markers, showEmergencyPinsOnly]
@@ -290,9 +301,17 @@ export default function MapScreen() {
     [markers, selectedMarkerId]
   );
   const presetResults = React.useMemo(
-    () => MapPresetsService.search(presetSearch),
+    () =>
+      MapPresetsService.search(
+        presetSearch,
+        presetSearch.trim() ? OFFLINE_MAP_BROWSE_SEARCH_LIMIT : OFFLINE_MAP_BROWSE_INITIAL_LIMIT
+      ),
     [presetSearch, catalogVersion]
   );
+  const hasMorePresetResults =
+    presetResults.length < MapPresetsService.getCatalogMeta().count &&
+    presetResults.length >=
+      (presetSearch.trim() ? OFFLINE_MAP_BROWSE_SEARCH_LIMIT : OFFLINE_MAP_BROWSE_INITIAL_LIMIT);
   // Reactive suggestion: computed on every center/zoom/regions change — no timers.
   const visibleMissingRegionPrompt = React.useMemo(() => {
     if (activePanel || isPlacing) return null;
@@ -334,6 +353,12 @@ export default function MapScreen() {
         setCatalogVersion((version) => version + 1);
       })
       .catch(() => undefined);
+    void PreferencesService.getFieldPreferences()
+      .then((preferences) => setUnitSystem(preferences.unitSystem))
+      .catch(() => undefined);
+    return PreferencesService.subscribeFieldPreferences((preferences) => {
+      setUnitSystem(preferences.unitSystem);
+    });
   }, []);
 
   React.useEffect(() => {
@@ -410,6 +435,15 @@ export default function MapScreen() {
     setSelectedMarkerId(marker.id);
     centerOn([marker.longitude, marker.latitude], 15);
   }, [markerId, markers, mapReady, canMountMap]);
+
+  React.useEffect(() => {
+    const targetTrackId = Array.isArray(trackId) ? trackId[0] : trackId;
+    if (!targetTrackId) {
+      setSelectedTrackRoute(null);
+      return;
+    }
+    void loadTrackRoute(targetTrackId);
+  }, [trackId, mapReady, canMountMap]);
 
   React.useEffect(() => {
     if (!hasActiveMapDownloads && !busy?.startsWith('download:')) return;
@@ -1055,8 +1089,33 @@ export default function MapScreen() {
       }
       return;
     }
+    if (result.kind === 'track') {
+      void loadTrackRoute(result.id, { focus: true });
+      return;
+    }
     const route = routes.find((item) => item.id === result.id);
     if (route) centerOnRoute(route);
+  }
+
+  async function loadTrackRoute(id: string, options?: { focus?: boolean }) {
+    const preview = await TracksRepository.getRoutePreview(id).catch(() => null);
+    if (!preview || preview.coordinates.length < 2) {
+      setSelectedTrackRoute(null);
+      return;
+    }
+    const route: SavedRoute = {
+      id: preview.id,
+      title: preview.title,
+      points: preview.coordinates,
+      distanceMeters: preview.distanceMeters,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    setSelectedTrackRoute(route);
+    const requestedTrackId = Array.isArray(trackId) ? trackId[0] : trackId;
+    if (options?.focus || requestedTrackId === id) {
+      centerOnRoute(route);
+    }
   }
 
   const handleBearingChange = React.useCallback((bearing: number) => {
@@ -1115,7 +1174,7 @@ export default function MapScreen() {
         maplibre={maplibre}
         markers={visibleMarkers}
         navigationSession={navigationSession}
-        routes={routes}
+        routes={mapRoutes}
         selectedMarker={selectedMarker}
         showWorldOverview={!mapHasBaseTiles}
         status={mapStatus}
@@ -1221,6 +1280,7 @@ export default function MapScreen() {
         {navigationSession ? (
           <NavigationStatusCard
             session={navigationSession}
+            unitSystem={unitSystem}
             onFocus={() => fitNavigationRoute(navigationSession)}
             onStop={() => void stopNavigation()}
           />
@@ -1273,6 +1333,7 @@ export default function MapScreen() {
       <SavedDataPanel
         markers={filteredMarkers}
         routes={filteredRoutes}
+        unitSystem={unitSystem}
         search={savedSearch}
         visible={activePanel === 'saved'}
         onChangeSearch={setSavedSearch}
@@ -1296,11 +1357,14 @@ export default function MapScreen() {
         managerTab={managerTab}
         presetResults={presetResults}
         presetSearch={presetSearch}
+        hasMorePresetResults={hasMorePresetResults}
         regions={regions}
         viewedBounds={viewedBounds}
         visible={activePanel === 'offline'}
         onChangePresetSearch={setPresetSearch}
-        onChangeTab={setManagerTab}
+        onChangeTab={(nextTab) => {
+          React.startTransition(() => setManagerTab(nextTab));
+        }}
         onClose={() => setActivePanel(null)}
         onDeleteRegion={deleteRegion}
         onDownloadPreset={downloadPreset}

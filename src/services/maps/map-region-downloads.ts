@@ -151,6 +151,24 @@ export async function startPresetRegionDownload(
   };
 }
 
+export async function queuePresetRegionDownload(
+  preset: MapPreset,
+  options: {
+    theme: MapTheme;
+    catalogVersion?: number;
+    regions?: MapRegion[];
+    includeNavigation?: boolean;
+    startDelayMs?: number;
+  }
+) {
+  const regionId = await ensurePresetRegionDownload(preset, options);
+  const startDelayMs = options.startDelayMs ?? 750;
+  setTimeout(() => {
+    void startPresetRegionDownload(preset, options).catch(() => undefined);
+  }, startDelayMs);
+  return { ok: true as const, queued: true as const, regionId };
+}
+
 function hasNativeOfflineManager(maplibre: MapLibreModule | null) {
   const manager = maplibre?.OfflineManager;
   return Boolean(

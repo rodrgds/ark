@@ -238,6 +238,78 @@ export async function migrateDbIfNeeded(db: ArkSQLiteDatabase) {
         updated_at INTEGER NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS tracks (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        description TEXT,
+        activity_type TEXT NOT NULL,
+        status TEXT NOT NULL,
+        started_at INTEGER NOT NULL,
+        ended_at INTEGER,
+        timezone_offset_minutes INTEGER NOT NULL,
+        distance_meters REAL NOT NULL DEFAULT 0,
+        total_time_seconds REAL NOT NULL DEFAULT 0,
+        moving_time_seconds REAL NOT NULL DEFAULT 0,
+        average_speed_mps REAL,
+        average_moving_speed_mps REAL,
+        max_speed_mps REAL,
+        elevation_gain_meters REAL NOT NULL DEFAULT 0,
+        elevation_loss_meters REAL NOT NULL DEFAULT 0,
+        min_elevation_meters REAL,
+        max_elevation_meters REAL,
+        sample_count INTEGER NOT NULL DEFAULT 0,
+        marker_count INTEGER NOT NULL DEFAULT 0,
+        recording_gap_count INTEGER NOT NULL DEFAULT 0,
+        last_error TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        deleted_at INTEGER
+      );
+
+      CREATE TABLE IF NOT EXISTS track_points (
+        id TEXT PRIMARY KEY,
+        track_id TEXT NOT NULL,
+        segment_index INTEGER NOT NULL,
+        point_index INTEGER NOT NULL,
+        kind TEXT NOT NULL,
+        latitude REAL,
+        longitude REAL,
+        altitude_meters REAL,
+        altitude_source TEXT NOT NULL DEFAULT 'unknown',
+        pressure_hpa REAL,
+        horizontal_accuracy_meters REAL,
+        vertical_accuracy_meters REAL,
+        speed_mps REAL,
+        bearing_degrees REAL,
+        distance_from_previous_meters REAL NOT NULL DEFAULT 0,
+        elapsed_seconds REAL NOT NULL DEFAULT 0,
+        moving_elapsed_seconds REAL NOT NULL DEFAULT 0,
+        recorded_at INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        UNIQUE(track_id, point_index),
+        FOREIGN KEY(track_id) REFERENCES tracks(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS track_markers (
+        id TEXT PRIMARY KEY,
+        track_id TEXT NOT NULL,
+        map_marker_id TEXT,
+        title TEXT NOT NULL,
+        description TEXT,
+        marker_type TEXT NOT NULL,
+        latitude REAL NOT NULL,
+        longitude REAL NOT NULL,
+        altitude_meters REAL,
+        recorded_at INTEGER NOT NULL,
+        elapsed_seconds REAL NOT NULL DEFAULT 0,
+        distance_meters REAL NOT NULL DEFAULT 0,
+        photo_uri TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY(track_id) REFERENCES tracks(id) ON DELETE CASCADE,
+        FOREIGN KEY(map_marker_id) REFERENCES map_markers(id) ON DELETE SET NULL
+      );
+
       CREATE TABLE IF NOT EXISTS map_places (
         id TEXT PRIMARY KEY,
         title TEXT NOT NULL,
@@ -420,6 +492,12 @@ export async function migrateDbIfNeeded(db: ArkSQLiteDatabase) {
       CREATE INDEX IF NOT EXISTS idx_map_places_updated ON map_places(updated_at);
       CREATE INDEX IF NOT EXISTS idx_routes_updated ON routes(updated_at);
       CREATE INDEX IF NOT EXISTS idx_navigation_sessions_status_updated ON navigation_sessions(status, updated_at);
+      CREATE INDEX IF NOT EXISTS idx_tracks_status_started ON tracks(status, started_at);
+      CREATE INDEX IF NOT EXISTS idx_tracks_deleted_started ON tracks(deleted_at, started_at);
+      CREATE INDEX IF NOT EXISTS idx_track_points_track_index ON track_points(track_id, point_index);
+      CREATE INDEX IF NOT EXISTS idx_track_points_track_recorded ON track_points(track_id, recorded_at);
+      CREATE INDEX IF NOT EXISTS idx_track_markers_track_recorded ON track_markers(track_id, recorded_at);
+      CREATE INDEX IF NOT EXISTS idx_track_markers_map_marker ON track_markers(map_marker_id);
       CREATE INDEX IF NOT EXISTS idx_chat_messages_thread ON chat_messages(thread_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_chat_messages_thread_visible ON chat_messages(thread_id, deleted_at, created_at);
       CREATE INDEX IF NOT EXISTS idx_rag_chunks_source ON rag_chunks(source_id, chunk_index);

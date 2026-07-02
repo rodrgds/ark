@@ -142,7 +142,7 @@ export default function SecurityScreen() {
                 ? biometrics
                   ? 'Biometrics enabled'
                   : 'Enable biometric unlock'
-              : 'Biometrics unavailable'}
+                : 'Biometrics unavailable'}
           </Text>
         </Button>
 

@@ -22,7 +22,7 @@ import {
   X,
 } from 'lucide-react-native';
 import * as React from 'react';
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import { ActivityIndicator, InteractionManager, Pressable, View } from 'react-native';
 
 type MapCountryGroup = {
   key: string;
@@ -32,6 +32,9 @@ type MapCountryGroup = {
   regions: MapRegion[];
   downloadedRegions: MapRegion[];
 };
+
+const MAX_VISIBLE_COUNTRY_GROUPS = 48;
+const MAX_VISIBLE_PRESET_ROWS = 36;
 
 const COUNTRY_NAMES: Record<string, string> = {
   AR: 'Argentina',
@@ -58,6 +61,16 @@ const COUNTRY_NAMES: Record<string, string> = {
 
 function buildMapCountryGroups(presets: MapPreset[], regions: MapRegion[]): MapCountryGroup[] {
   const groups = new Map<string, MapCountryGroup>();
+  const regionsByPresetKey = new Map<string, MapRegion[]>();
+  for (const region of regions) {
+    const keys = [region.manifestRegionId, region.name].filter(Boolean) as string[];
+    for (const key of keys) {
+      const bucket = regionsByPresetKey.get(key) ?? [];
+      bucket.push(region);
+      regionsByPresetKey.set(key, bucket);
+    }
+  }
+
   for (const preset of presets) {
     if (isStructuralMapPreset(preset)) continue;
     const countryName = countryNameForPreset(preset);
@@ -76,11 +89,16 @@ function buildMapCountryGroups(presets: MapPreset[], regions: MapRegion[]): MapC
 
   for (const group of groups.values()) {
     group.presets.sort((a, b) => levelSort(a) - levelSort(b) || a.name.localeCompare(b.name));
-    group.regions = regions.filter((region) => {
-      return group.presets.some(
-        (preset) => preset.id === region.manifestRegionId || preset.name === region.name
-      );
-    });
+    const groupRegionIds = new Set<string>();
+    group.regions = group.presets.flatMap((preset) =>
+      [preset.id, preset.name]
+        .flatMap((key) => regionsByPresetKey.get(key) ?? [])
+        .filter((region) => {
+          if (groupRegionIds.has(region.id)) return false;
+          groupRegionIds.add(region.id);
+          return true;
+        })
+    );
     group.downloadedRegions = group.regions.filter((region) => region.status === 'downloaded');
   }
 
@@ -332,17 +350,20 @@ export function OfflineMapsCard({
 }) {
   const [search, setSearch] = React.useState('');
   const [browseMode, setBrowseMode] = React.useState(false);
+  const [browseReady, setBrowseReady] = React.useState(false);
   const [selectedCountryKey, setSelectedCountryKey] = React.useState<string | null>(null);
   const [selectedRegion, setSelectedRegion] = React.useState<MapRegion | null>(null);
   const presets = React.useMemo(() => MapPresetsService.listPresets(), []);
   const searchText = search.trim().toLowerCase();
   const showingCatalog = browseMode || searchText.length > 0;
+  const canRenderCatalog = !showingCatalog || browseReady;
   const groups = React.useMemo(
     () => buildMapCountryGroups(presets, mapRegions),
     [mapRegions, presets]
   );
 
   const visibleGroups = React.useMemo(() => {
+    if (!canRenderCatalog) return [];
     let nextGroups = groups;
     if (searchText) {
       nextGroups = groups
@@ -361,14 +382,36 @@ export function OfflineMapsCard({
     }
     if (showingCatalog) return nextGroups;
     return nextGroups.filter((group) => group.downloadedRegions.length > 0);
-  }, [groups, searchText, showingCatalog]);
+  }, [canRenderCatalog, groups, searchText, showingCatalog]);
+  const cappedVisibleGroups = React.useMemo(
+    () => visibleGroups.slice(0, MAX_VISIBLE_COUNTRY_GROUPS),
+    [visibleGroups]
+  );
+  const hiddenGroupCount = Math.max(0, visibleGroups.length - cappedVisibleGroups.length);
+
+  React.useEffect(() => {
+    if (!showingCatalog) {
+      setBrowseReady(false);
+      return;
+    }
+    setBrowseReady(false);
+    const task = InteractionManager.runAfterInteractions(() => {
+      setBrowseReady(true);
+    });
+    return () => {
+      task.cancel();
+    };
+  }, [showingCatalog, searchText]);
 
   const selectedGroup = selectedCountryKey
     ? (groups.find((group) => group.key === selectedCountryKey) ?? null)
     : null;
-  const detailRegions = selectedGroup
-    ? getGroupRows(selectedGroup, showingCatalog, searchText)
-    : [];
+  const allDetailRegions =
+    selectedGroup && canRenderCatalog
+      ? getGroupRows(selectedGroup, showingCatalog, searchText)
+      : [];
+  const detailRegions = allDetailRegions.slice(0, MAX_VISIBLE_PRESET_ROWS);
+  const hiddenDetailCount = Math.max(0, allDetailRegions.length - detailRegions.length);
   const customDownloadedRegions = mapRegions.filter(
     (region) =>
       region.status === 'downloaded' &&
@@ -376,8 +419,15 @@ export function OfflineMapsCard({
         (preset) => preset.id === region.manifestRegionId || preset.name === region.name
       )
   );
-  const visibleCustomRegions = customDownloadedRegions.filter(
-    (region) => !searchText || region.name.toLowerCase().includes(searchText)
+  const visibleCustomRegions = canRenderCatalog
+    ? customDownloadedRegions.filter(
+        (region) => !searchText || region.name.toLowerCase().includes(searchText)
+      )
+    : [];
+  const cappedVisibleCustomRegions = visibleCustomRegions.slice(0, MAX_VISIBLE_PRESET_ROWS);
+  const hiddenCustomRegionCount = Math.max(
+    0,
+    visibleCustomRegions.length - cappedVisibleCustomRegions.length
   );
 
   return (
@@ -398,6 +448,7 @@ export function OfflineMapsCard({
           size="sm"
           variant={showingCatalog ? 'outline' : 'default'}
           onPress={() => {
+            setBrowseReady(false);
             setSelectedCountryKey(null);
             setBrowseMode((current) => !current);
           }}>
@@ -412,6 +463,7 @@ export function OfflineMapsCard({
           placeholder="Search countries and maps"
           value={search}
           onChangeText={(value) => {
+            setBrowseReady(false);
             setSearch(value);
             if (value.trim()) setSelectedCountryKey(null);
           }}
@@ -419,13 +471,23 @@ export function OfflineMapsCard({
           autoCorrect={false}
         />
         {search ? (
-          <Pressable onPress={() => setSearch('')} className="p-1">
+          <Pressable
+            onPress={() => {
+              setBrowseReady(false);
+              setSearch('');
+            }}
+            className="p-1">
             <Icon as={X} className="text-muted-foreground size-4" />
           </Pressable>
         ) : null}
       </View>
 
-      {selectedGroup ? (
+      {showingCatalog && !browseReady ? (
+        <View className="border-border bg-muted/25 gap-2 rounded-lg border px-3 py-4">
+          <Text>Preparing map list…</Text>
+          <Text variant="muted">Search narrows large catalogs faster.</Text>
+        </View>
+      ) : selectedGroup ? (
         <View className="gap-3">
           <Button
             className="self-start"
@@ -457,13 +519,19 @@ export function OfflineMapsCard({
                   : 'No downloaded maps in this folder yet.'}
               </Text>
             )}
+            {hiddenDetailCount ? (
+              <Text variant="muted">
+                Showing first {detailRegions.length}. Search within this folder to narrow{' '}
+                {hiddenDetailCount} more.
+              </Text>
+            ) : null}
           </View>
         </View>
       ) : (
         <View className="border-border overflow-hidden rounded-lg border">
           {visibleGroups.length || visibleCustomRegions.length ? (
             <>
-              {visibleGroups.map((group) => (
+              {cappedVisibleGroups.map((group) => (
                 <MapCountryRow
                   key={group.key}
                   group={group}
@@ -471,13 +539,29 @@ export function OfflineMapsCard({
                   onPress={() => setSelectedCountryKey(group.key)}
                 />
               ))}
-              {visibleCustomRegions.map((region) => (
+              {cappedVisibleCustomRegions.map((region) => (
                 <MapDownloadedRegionRow
                   key={region.id}
                   region={region}
                   onOpen={() => setSelectedRegion(region)}
                 />
               ))}
+              {hiddenGroupCount ? (
+                <View className="bg-card px-3 py-3">
+                  <Text variant="muted">
+                    Showing first {cappedVisibleGroups.length} folders. Search to narrow{' '}
+                    {hiddenGroupCount} more.
+                  </Text>
+                </View>
+              ) : null}
+              {hiddenCustomRegionCount ? (
+                <View className="bg-card px-3 py-3">
+                  <Text variant="muted">
+                    Showing first {cappedVisibleCustomRegions.length} custom maps. Search to narrow{' '}
+                    {hiddenCustomRegionCount} more.
+                  </Text>
+                </View>
+              ) : null}
             </>
           ) : (
             <View className="gap-2 px-3 py-4">

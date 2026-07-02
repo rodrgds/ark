@@ -20,12 +20,16 @@ import type {
   ArkBackupNote,
   ArkBackupRssFeed,
   ArkBackupSetting,
+  ArkBackupTrack,
+  ArkBackupTrackMarker,
+  ArkBackupTrackPoint,
 } from '@/types/backup';
 import type { ArkDocument } from '@/types/db';
 import type { MapMarker, SavedRoute } from '@/types/maps';
+import type { Track, TrackMarker, TrackPoint } from '@/types/tracks';
 
-const BACKUP_VERSION = 2;
-const BACKUP_AAD = strToU8('ark-backup-v1');
+const BACKUP_VERSION = 3;
+const BACKUP_AAD = strToU8('ark-backup-v3');
 const BACKUP_FILE_PREFIX = 'Ark backup';
 const DEFAULT_KDF: Required<Pick<ScryptOpts, 'N' | 'r' | 'p' | 'dkLen'>> = {
   N: 2 ** 15,
@@ -48,6 +52,10 @@ export const BACKUP_SETTING_KEYS = [
   'ai.selectedEmbeddingModelId',
   'ai.selectedVoiceModelId',
   'ai.chatModelDisabled',
+  'field.unitSystem',
+  'field.rateMode',
+  'field.defaultTrackActivity',
+  'field.recordingProfile',
 ] as const;
 
 type BackupOptions = {
@@ -149,6 +157,74 @@ type DocumentPageRow = {
   created_at: number;
 };
 
+type TrackRow = {
+  id: string;
+  title: string;
+  description: string | null;
+  activity_type: Track['activityType'];
+  status: Track['status'];
+  started_at: number;
+  ended_at: number | null;
+  timezone_offset_minutes: number;
+  distance_meters: number;
+  total_time_seconds: number;
+  moving_time_seconds: number;
+  average_speed_mps: number | null;
+  average_moving_speed_mps: number | null;
+  max_speed_mps: number | null;
+  elevation_gain_meters: number;
+  elevation_loss_meters: number;
+  min_elevation_meters: number | null;
+  max_elevation_meters: number | null;
+  sample_count: number;
+  marker_count: number;
+  recording_gap_count: number;
+  last_error: string | null;
+  created_at: number;
+  updated_at: number;
+  deleted_at: number | null;
+};
+
+type TrackPointRow = {
+  id: string;
+  track_id: string;
+  segment_index: number;
+  point_index: number;
+  kind: TrackPoint['kind'];
+  latitude: number | null;
+  longitude: number | null;
+  altitude_meters: number | null;
+  altitude_source: TrackPoint['altitudeSource'];
+  pressure_hpa: number | null;
+  horizontal_accuracy_meters: number | null;
+  vertical_accuracy_meters: number | null;
+  speed_mps: number | null;
+  bearing_degrees: number | null;
+  distance_from_previous_meters: number;
+  elapsed_seconds: number;
+  moving_elapsed_seconds: number;
+  recorded_at: number;
+  created_at: number;
+};
+
+type TrackMarkerRow = {
+  id: string;
+  track_id: string;
+  map_marker_id: string | null;
+  title: string;
+  description: string | null;
+  marker_type: TrackMarker['markerType'];
+  latitude: number;
+  longitude: number;
+  altitude_meters: number | null;
+  recorded_at: number;
+  elapsed_seconds: number;
+  distance_meters: number;
+  photo_uri: string | null;
+  created_at: number;
+  updated_at: number;
+};
+
 export class BackupService {
   static async createEncryptedBackup(passphrase: string, options: BackupOptions = {}) {
     const backupPassphrase = parseOrThrow(vaultPasswordSchema, passphrase);
@@ -223,6 +299,7 @@ export class BackupService {
         documents: manifest.documents.length,
         mapMarkers: manifest.mapMarkers.length,
         routes: manifest.routes.length,
+        tracks: manifest.tracks.length,
         rssFeeds: manifest.rssFeeds.length,
         settings: manifest.settings.length,
       },
@@ -250,6 +327,9 @@ export class BackupService {
       rssFeeds,
       chatThreads,
       chatMessages,
+      tracks,
+      trackPoints,
+      trackMarkers,
     ] = await Promise.all([
       exportSettings(),
       db.getAllAsync<NoteRow>(
@@ -298,6 +378,21 @@ export class BackupService {
          FROM chat_messages
          ORDER BY thread_id, created_at ASC`
       ),
+      db.getAllAsync<TrackRow>(
+        `SELECT * FROM tracks
+         WHERE deleted_at IS NULL AND status != 'discarded'
+         ORDER BY started_at DESC`
+      ),
+      db.getAllAsync<TrackPointRow>(
+        `SELECT * FROM track_points
+         WHERE track_id IN (SELECT id FROM tracks WHERE deleted_at IS NULL AND status != 'discarded')
+         ORDER BY track_id, point_index ASC`
+      ),
+      db.getAllAsync<TrackMarkerRow>(
+        `SELECT * FROM track_markers
+         WHERE track_id IN (SELECT id FROM tracks WHERE deleted_at IS NULL AND status != 'discarded')
+         ORDER BY track_id, recorded_at ASC`
+      ),
     ]);
 
     const zipEntries: Record<string, Uint8Array> = {};
@@ -317,6 +412,11 @@ export class BackupService {
         createdAt: document.created_at,
         updatedAt: document.updated_at,
       });
+    }
+    const backupTrackMarkers: ArkBackupTrackMarker[] = [];
+    for (const marker of trackMarkers) {
+      const backupPath = await addTrackMarkerPhotoToZip(zipEntries, marker);
+      backupTrackMarkers.push({ ...mapTrackMarkerBackup(marker), backupPath });
     }
 
     const manifest: ArkBackupManifest = {
@@ -341,6 +441,9 @@ export class BackupService {
         selectedSettings: true,
         chatThreads: true,
         chatMessages: true,
+        tracks: true,
+        trackPoints: true,
+        trackMarkers: true,
       },
       excludes: [
         'models',
@@ -362,6 +465,9 @@ export class BackupService {
       rssFeeds: rssFeeds.map(mapRssFeedBackup),
       chatThreads: chatThreads.map(mapChatThreadBackup),
       chatMessages: chatMessages.map(mapChatMessageBackup),
+      tracks: tracks.map(mapTrackBackup),
+      trackPoints: trackPoints.map(mapTrackPointBackup),
+      trackMarkers: backupTrackMarkers,
     };
 
     zipEntries['manifest.json'] = strToU8(JSON.stringify(manifest));
@@ -377,6 +483,7 @@ export class BackupService {
   ) {
     await FileSystemService.ensureAppDirectories();
     const restoredDocuments = await restoreDocumentFiles(manifest.documents, zip);
+    const restoredTrackMarkers = await restoreTrackMarkerPhotos(manifest.trackMarkers, zip);
     const db = await DatabaseClient.getDb();
 
     await db.withTransactionAsync(async (tx) => {
@@ -639,6 +746,130 @@ export class BackupService {
           ]
         );
       }
+
+      for (const track of manifest.tracks) {
+        await tx.runAsync('DELETE FROM track_markers WHERE track_id = ?', [track.id]);
+        await tx.runAsync('DELETE FROM track_points WHERE track_id = ?', [track.id]);
+        await tx.runAsync(
+          `INSERT INTO tracks
+            (id, title, description, activity_type, status, started_at, ended_at,
+             timezone_offset_minutes, distance_meters, total_time_seconds, moving_time_seconds,
+             average_speed_mps, average_moving_speed_mps, max_speed_mps, elevation_gain_meters,
+             elevation_loss_meters, min_elevation_meters, max_elevation_meters, sample_count,
+             marker_count, recording_gap_count, last_error, created_at, updated_at, deleted_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+           ON CONFLICT(id) DO UPDATE SET
+             title = excluded.title,
+             description = excluded.description,
+             activity_type = excluded.activity_type,
+             status = excluded.status,
+             started_at = excluded.started_at,
+             ended_at = excluded.ended_at,
+             timezone_offset_minutes = excluded.timezone_offset_minutes,
+             distance_meters = excluded.distance_meters,
+             total_time_seconds = excluded.total_time_seconds,
+             moving_time_seconds = excluded.moving_time_seconds,
+             average_speed_mps = excluded.average_speed_mps,
+             average_moving_speed_mps = excluded.average_moving_speed_mps,
+             max_speed_mps = excluded.max_speed_mps,
+             elevation_gain_meters = excluded.elevation_gain_meters,
+             elevation_loss_meters = excluded.elevation_loss_meters,
+             min_elevation_meters = excluded.min_elevation_meters,
+             max_elevation_meters = excluded.max_elevation_meters,
+             sample_count = excluded.sample_count,
+             marker_count = excluded.marker_count,
+             recording_gap_count = excluded.recording_gap_count,
+             last_error = excluded.last_error,
+             created_at = excluded.created_at,
+             updated_at = excluded.updated_at,
+             deleted_at = NULL`,
+          [
+            track.id,
+            track.title,
+            track.description,
+            track.activityType,
+            track.status,
+            track.startedAt,
+            track.endedAt,
+            track.timezoneOffsetMinutes,
+            track.distanceMeters,
+            track.totalTimeSeconds,
+            track.movingTimeSeconds,
+            track.averageSpeedMps,
+            track.averageMovingSpeedMps,
+            track.maxSpeedMps,
+            track.elevationGainMeters,
+            track.elevationLossMeters,
+            track.minElevationMeters,
+            track.maxElevationMeters,
+            track.sampleCount,
+            track.markerCount,
+            track.recordingGapCount,
+            track.lastError,
+            track.createdAt,
+            track.updatedAt,
+          ]
+        );
+      }
+
+      for (const point of manifest.trackPoints) {
+        await tx.runAsync(
+          `INSERT INTO track_points
+            (id, track_id, segment_index, point_index, kind, latitude, longitude, altitude_meters,
+             altitude_source, pressure_hpa, horizontal_accuracy_meters, vertical_accuracy_meters,
+             speed_mps, bearing_degrees, distance_from_previous_meters, elapsed_seconds,
+             moving_elapsed_seconds, recorded_at, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            point.id,
+            point.trackId,
+            point.segmentIndex,
+            point.pointIndex,
+            point.kind,
+            point.latitude,
+            point.longitude,
+            point.altitudeMeters,
+            point.altitudeSource,
+            point.pressureHpa,
+            point.horizontalAccuracyMeters,
+            point.verticalAccuracyMeters,
+            point.speedMps,
+            point.bearingDegrees,
+            point.distanceFromPreviousMeters,
+            point.elapsedSeconds,
+            point.movingElapsedSeconds,
+            point.recordedAt,
+            point.createdAt,
+          ]
+        );
+      }
+
+      for (const marker of restoredTrackMarkers) {
+        await tx.runAsync(
+          `INSERT INTO track_markers
+            (id, track_id, map_marker_id, title, description, marker_type, latitude, longitude,
+             altitude_meters, recorded_at, elapsed_seconds, distance_meters, photo_uri, created_at,
+             updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            marker.id,
+            marker.trackId,
+            marker.mapMarkerId,
+            marker.title,
+            marker.description,
+            marker.markerType,
+            marker.latitude,
+            marker.longitude,
+            marker.altitudeMeters,
+            marker.recordedAt,
+            marker.elapsedSeconds,
+            marker.distanceMeters,
+            marker.photoUri,
+            marker.createdAt,
+            marker.updatedAt,
+          ]
+        );
+      }
     });
 
     await reindexFts(manifest);
@@ -668,6 +899,22 @@ async function addDocumentToZip(zipEntries: Record<string, Uint8Array>, document
   return path;
 }
 
+async function addTrackMarkerPhotoToZip(
+  zipEntries: Record<string, Uint8Array>,
+  marker: TrackMarkerRow
+) {
+  if (!marker.photo_uri) return null;
+  const info = await FileSystem.getInfoAsync(marker.photo_uri).catch(() => null);
+  if (!info?.exists) return null;
+  const fileName = FileSystemService.safeFileName(marker.title || `${marker.id}.jpg`);
+  const path = `track-markers/${marker.id}/${fileName}`;
+  const base64 = await FileSystem.readAsStringAsync(marker.photo_uri, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+  zipEntries[path] = base64ToBytes(base64);
+  return path;
+}
+
 async function restoreDocumentFiles(
   documents: ArkBackupDocument[],
   zip: Record<string, Uint8Array>
@@ -685,6 +932,27 @@ async function restoreDocumentFiles(
       });
     }
     restored.push({ ...document, localUri });
+  }
+  return restored;
+}
+
+async function restoreTrackMarkerPhotos(
+  markers: ArkBackupTrackMarker[],
+  zip: Record<string, Uint8Array>
+) {
+  const restored: TrackMarker[] = [];
+  for (const marker of markers) {
+    let photoUri = marker.photoUri;
+    if (marker.backupPath) {
+      const bytes = zip[marker.backupPath];
+      if (!bytes) throw new Error(`Backup track photo is missing: ${marker.title}`);
+      const safeName = FileSystemService.safeFileName(marker.title || `${marker.id}.jpg`);
+      photoUri = `${FileSystemService.dir('tracks')}${marker.id}-${safeName}`;
+      await FileSystem.writeAsStringAsync(photoUri, bytesToBase64(bytes), {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+    }
+    restored.push({ ...marker, photoUri });
   }
   return restored;
 }
@@ -781,6 +1049,80 @@ function mapChatMessageBackup(row: ChatMessageRow): ArkBackupChatMessage {
     metadata: parseJsonObject(row.metadata_json),
     deletedAt: row.deleted_at,
     createdAt: row.created_at,
+  };
+}
+
+function mapTrackBackup(row: TrackRow): ArkBackupTrack {
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    activityType: row.activity_type,
+    status: row.status,
+    startedAt: row.started_at,
+    endedAt: row.ended_at,
+    timezoneOffsetMinutes: row.timezone_offset_minutes,
+    distanceMeters: row.distance_meters,
+    totalTimeSeconds: row.total_time_seconds,
+    movingTimeSeconds: row.moving_time_seconds,
+    averageSpeedMps: row.average_speed_mps,
+    averageMovingSpeedMps: row.average_moving_speed_mps,
+    maxSpeedMps: row.max_speed_mps,
+    elevationGainMeters: row.elevation_gain_meters,
+    elevationLossMeters: row.elevation_loss_meters,
+    minElevationMeters: row.min_elevation_meters,
+    maxElevationMeters: row.max_elevation_meters,
+    sampleCount: row.sample_count,
+    markerCount: row.marker_count,
+    recordingGapCount: row.recording_gap_count,
+    lastError: row.last_error,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    deletedAt: row.deleted_at,
+  };
+}
+
+function mapTrackPointBackup(row: TrackPointRow): ArkBackupTrackPoint {
+  return {
+    id: row.id,
+    trackId: row.track_id,
+    segmentIndex: row.segment_index,
+    pointIndex: row.point_index,
+    kind: row.kind,
+    latitude: row.latitude,
+    longitude: row.longitude,
+    altitudeMeters: row.altitude_meters,
+    altitudeSource: row.altitude_source,
+    pressureHpa: row.pressure_hpa,
+    horizontalAccuracyMeters: row.horizontal_accuracy_meters,
+    verticalAccuracyMeters: row.vertical_accuracy_meters,
+    speedMps: row.speed_mps,
+    bearingDegrees: row.bearing_degrees,
+    distanceFromPreviousMeters: row.distance_from_previous_meters,
+    elapsedSeconds: row.elapsed_seconds,
+    movingElapsedSeconds: row.moving_elapsed_seconds,
+    recordedAt: row.recorded_at,
+    createdAt: row.created_at,
+  };
+}
+
+function mapTrackMarkerBackup(row: TrackMarkerRow): TrackMarker {
+  return {
+    id: row.id,
+    trackId: row.track_id,
+    mapMarkerId: row.map_marker_id,
+    title: row.title,
+    description: row.description,
+    markerType: row.marker_type,
+    latitude: row.latitude,
+    longitude: row.longitude,
+    altitudeMeters: row.altitude_meters,
+    recordedAt: row.recorded_at,
+    elapsedSeconds: row.elapsed_seconds,
+    distanceMeters: row.distance_meters,
+    photoUri: row.photo_uri,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 

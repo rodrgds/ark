@@ -34,6 +34,7 @@ describe('TabPreferencesCard', () => {
     expect(mapToggle).toBeEnabled();
     expect(view.getByLabelText('Turn Arky tab off')).toBeDisabled();
     expect(view.getByLabelText('Turn Settings tab off')).toBeDisabled();
+    expect(view.getByLabelText('Turn Notes tab on')).toBeDisabled();
 
     await user.press(mapToggle);
 
@@ -87,6 +88,6 @@ describe('TabPreferencesCard', () => {
       expect(settingsSet).toHaveBeenCalledWith('tabs.order', expect.any(String));
     });
     const persistedOrder = JSON.parse(settings.get('tabs.order') ?? '[]') as string[];
-    expect(persistedOrder.slice(0, 3)).toEqual(['chat', 'library', 'map']);
+    expect(persistedOrder.slice(0, 4)).toEqual(['chat', 'tracks', 'library', 'map']);
   });
 });

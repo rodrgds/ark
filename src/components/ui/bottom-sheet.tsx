@@ -16,12 +16,14 @@ export type ArkBottomSheetProps = {
   visible: boolean;
   title?: string;
   description?: string;
-  children: React.ReactNode;
+  children?: React.ReactNode;
+  footer?: React.ReactNode;
   onDismiss: () => void;
   sheetRef?: React.RefObject<ArkBottomSheetRef | null>;
   snapPoints?: Array<string | number>;
   scrollable?: boolean;
   contentClassName?: string;
+  footerClassName?: string;
   maxDynamicContentSize?: number;
   /**
    * When `scrollable` is true, disable the auto-scroll-into-view behavior of
@@ -44,11 +46,13 @@ export function ArkBottomSheet({
   title,
   description,
   children,
+  footer,
   onDismiss,
   sheetRef,
   snapPoints,
   scrollable = false,
   contentClassName,
+  footerClassName,
   maxDynamicContentSize,
   enableKeyboardAwareScroll = true,
 }: ArkBottomSheetProps) {
@@ -160,6 +164,19 @@ export function ArkBottomSheet({
   if (!mounted) return null;
 
   const bottomPadding = Math.max(insets.bottom, 12) + 12;
+  const scrollBottomPadding = footer ? 12 : bottomPadding;
+  const footerContent = footer ? (
+    <View
+      style={{
+        paddingHorizontal: 16,
+        paddingTop: 12,
+        paddingBottom: bottomPadding,
+      }}>
+      <View className={footerClassName} style={{ gap: 8, width: '100%' }}>
+        {footer}
+      </View>
+    </View>
+  ) : null;
   const body = (
     <View
       style={[
@@ -170,32 +187,40 @@ export function ArkBottomSheet({
         <View style={[styles.handle, { backgroundColor: colors.mutedForeground }]} />
       </View>
       {scrollable ? (
-        <ArkKeyboardAwareScrollView
-          enabled={enableKeyboardAwareScroll}
-          style={styles.scrollView}
-          contentContainerStyle={{
-            paddingHorizontal: 16,
-            paddingTop: 4,
-            paddingBottom: bottomPadding,
-          }}
-          keyboardShouldPersistTaps="handled">
-          <View className={contentClassName} style={{ gap: 16, width: '100%' }}>
-            {header}
-            {children}
-          </View>
-        </ArkKeyboardAwareScrollView>
+        <>
+          <ArkKeyboardAwareScrollView
+            enabled={enableKeyboardAwareScroll}
+            style={styles.scrollView}
+            nestedScrollEnabled
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{
+              paddingHorizontal: 16,
+              paddingTop: 4,
+              paddingBottom: scrollBottomPadding,
+            }}
+            keyboardShouldPersistTaps="handled">
+            <View className={contentClassName} style={{ gap: 16, width: '100%' }}>
+              {header}
+              {children}
+            </View>
+          </ArkKeyboardAwareScrollView>
+          {footerContent}
+        </>
       ) : (
-        <View
-          style={{
-            paddingHorizontal: 16,
-            paddingTop: 4,
-            paddingBottom: bottomPadding,
-          }}>
-          <View className={contentClassName} style={{ gap: 16, width: '100%' }}>
-            {header}
-            {children}
+        <>
+          <View
+            style={{
+              paddingHorizontal: 16,
+              paddingTop: 4,
+              paddingBottom: footer ? 4 : bottomPadding,
+            }}>
+            <View className={contentClassName} style={{ gap: 16, width: '100%' }}>
+              {header}
+              {children}
+            </View>
           </View>
-        </View>
+          {footerContent}
+        </>
       )}
     </View>
   );

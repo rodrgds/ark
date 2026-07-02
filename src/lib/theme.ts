@@ -1,14 +1,23 @@
-import { DarkTheme, DefaultTheme, type Theme } from '@react-navigation/native';
 import {
+  DEFAULT_ACCENT_PREFERENCE,
   NAV_COLORS,
+  DEFAULT_SYSTEM_ACCENT_COLORS,
   getThemeColors,
+  type AccentColorsByTheme,
   type AccentPreference,
   type EffectiveTheme,
 } from '@/constants/theme';
+import { DarkTheme, DefaultTheme } from 'expo-router';
 
-function buildNavigationTheme(theme: EffectiveTheme, accentPreference: AccentPreference): Theme {
+type NavigationTheme = typeof DefaultTheme;
+
+function buildNavigationTheme(
+  theme: EffectiveTheme,
+  accentPreference: AccentPreference,
+  systemAccentColors: AccentColorsByTheme
+): NavigationTheme {
   const baseTheme = theme === 'light' ? DefaultTheme : DarkTheme;
-  const colors = getThemeColors(theme, accentPreference);
+  const colors = getThemeColors(theme, accentPreference, systemAccentColors);
   return {
     ...baseTheme,
     colors: {
@@ -24,12 +33,13 @@ function buildNavigationTheme(theme: EffectiveTheme, accentPreference: AccentPre
 
 export function getNavigationTheme(
   theme: EffectiveTheme,
-  accentPreference: AccentPreference = 'moss'
-): Theme {
-  return buildNavigationTheme(theme, accentPreference);
+  accentPreference: AccentPreference = DEFAULT_ACCENT_PREFERENCE,
+  systemAccentColors: AccentColorsByTheme = DEFAULT_SYSTEM_ACCENT_COLORS
+): NavigationTheme {
+  return buildNavigationTheme(theme, accentPreference, systemAccentColors);
 }
 
-export const NAV_THEME: Record<EffectiveTheme, Theme> = {
+export const NAV_THEME: Record<EffectiveTheme, NavigationTheme> = {
   oled: {
     ...DarkTheme,
     colors: {

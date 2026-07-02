@@ -1,7 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import {
   ACCENT_OPTIONS,
+  DEFAULT_ACCENT_PREFERENCE,
+  DEFAULT_THEME_PREFERENCE,
   DEFAULT_SYSTEM_ACCENT_COLORS,
+  THEME_OPTIONS,
   getAccentCssVariables,
   getThemeColors,
   isAccentPreference,
@@ -15,6 +18,13 @@ const dynamicAccent: AccentColorsByTheme = {
 };
 
 describe('theme accents', () => {
+  test('defaults fresh installs to system theme and system accent', () => {
+    expect(DEFAULT_THEME_PREFERENCE).toBe('system');
+    expect(DEFAULT_ACCENT_PREFERENCE).toBe('system');
+    expect(THEME_OPTIONS[0]?.value).toBe(DEFAULT_THEME_PREFERENCE);
+    expect(ACCENT_OPTIONS[0]?.value).toBe(DEFAULT_ACCENT_PREFERENCE);
+  });
+
   test('includes System as a first-class accent preference', () => {
     expect(ACCENT_OPTIONS[0]?.value).toBe('system');
     expect(isAccentPreference('system')).toBe(true);

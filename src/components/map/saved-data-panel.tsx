@@ -6,8 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
 import { getMapPinMeta } from '@/constants/map-pins';
 import { formatPoint } from '@/lib/geo';
+import { formatDistance } from '@/services/tracks/track-format';
 import { useThemeStore } from '@/stores/theme-store';
 import type { MapMarker, SavedRoute } from '@/types/maps';
+import type { UnitSystem } from '@/types/tracks';
 import { Pencil, Route, Star, Trash2, X } from 'lucide-react-native';
 import * as React from 'react';
 import { Image, Pressable, View } from 'react-native';
@@ -25,9 +27,11 @@ export function SavedDataPanel({
   onEditMarker,
   onFocusMarker,
   onFocusRoute,
+  unitSystem = 'metric',
 }: {
   markers: MapMarker[];
   routes: SavedRoute[];
+  unitSystem?: UnitSystem;
   search: string;
   visible: boolean;
   onChangeSearch: (value: string) => void;
@@ -82,6 +86,7 @@ export function SavedDataPanel({
                 <SavedRouteRow
                   key={route.id}
                   route={route}
+                  unitSystem={unitSystem}
                   onDelete={() => onDeleteRoute(route)}
                   onPress={() => onFocusRoute(route)}
                 />
@@ -136,10 +141,12 @@ function MapBottomSheetPanel({
 
 function SavedRouteRow({
   route,
+  unitSystem,
   onDelete,
   onPress,
 }: {
   route: SavedRoute;
+  unitSystem: UnitSystem;
   onDelete: () => void;
   onPress: () => void;
 }) {
@@ -155,7 +162,7 @@ function SavedRouteRow({
           </Text>
           <Text variant="muted" numberOfLines={1}>
             {route.points.length} points
-            {route.distanceMeters ? ` · ${(route.distanceMeters / 1000).toFixed(1)} km` : ''}
+            {route.distanceMeters ? ` · ${formatDistance(route.distanceMeters, unitSystem)}` : ''}
           </Text>
         </View>
       </Pressable>

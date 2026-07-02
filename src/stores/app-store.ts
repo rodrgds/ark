@@ -6,6 +6,7 @@ import { FileSystemService } from '@/services/files/filesystem.service';
 import { DownloadManagerService } from '@/services/files/download-manager.service';
 import { AuthoredGuideSeedService } from '@/services/content/authored-guide-seed.service';
 import { MapService } from '@/services/maps/map.service';
+import { TrackRecordingService } from '@/services/tracks/track-recording.service';
 import { useThemeStore } from '@/stores/theme-store';
 import { unlockVaultForService } from '@/stores/auth-store';
 import type { OnboardingState, VaultState } from '@/types/db';
@@ -97,7 +98,9 @@ async function runBoot(
     await DownloadManagerService.recoverPendingDownloads();
     set({ bootProgress: 0.82, bootStatus: 'Checking native map support' });
     await MapService.loadMapLibre().catch(() => undefined);
-    set({ bootProgress: 0.84, bootStatus: 'Loading theme and vault state' });
+    set({ bootProgress: 0.84, bootStatus: 'Recovering active track recording' });
+    await TrackRecordingService.recoverActiveRecording().catch(() => undefined);
+    set({ bootProgress: 0.88, bootStatus: 'Loading theme and vault state' });
     await useThemeStore.getState().init();
     const [onboarding, vault] = await Promise.all([
       SettingsRepository.getOnboardingState(),

@@ -95,7 +95,7 @@ export default function LevelTool() {
               borderColor: palette.border,
             },
           ]}>
-          <Svg width={size} height={size} style={StyleSheet.absoluteFillObject}>
+          <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
             {[0.25, 0.5, 0.75, 1].map((scale) => (
               <Circle
                 key={scale}
@@ -153,7 +153,7 @@ export default function LevelTool() {
               borderColor: palette.border,
             },
           ]}>
-          <Svg width={tubeWidth} height={120} style={StyleSheet.absoluteFillObject}>
+          <Svg width={tubeWidth} height={120} style={StyleSheet.absoluteFill}>
             <Rect
               x={tubeInset}
               y={34}
@@ -223,15 +223,7 @@ export default function LevelTool() {
   );
 }
 
-function Metric({
-  label,
-  value,
-  palette,
-}: {
-  label: string;
-  value: number;
-  palette: ThemeColors;
-}) {
+function Metric({ label, value, palette }: { label: string; value: number; palette: ThemeColors }) {
   return (
     <View style={[styles.metric, { backgroundColor: palette.card, borderColor: palette.border }]}>
       <Text variant="muted">{label}</Text>

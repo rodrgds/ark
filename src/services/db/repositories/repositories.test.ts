@@ -86,6 +86,7 @@ let resetStarterPacksSeedFlagForTests: () => void;
 let DownloadsRepository: typeof import('@/services/db/repositories/downloads.repo').DownloadsRepository;
 let NotesRepository: typeof import('@/services/db/repositories/notes.repo').NotesRepository;
 let MapsRepository: typeof import('@/services/db/repositories/maps.repo').MapsRepository;
+let TracksRepository: typeof import('@/services/db/repositories/tracks.repo').TracksRepository;
 let RssRepository: typeof import('@/services/db/repositories/rss.repo').RssRepository;
 let WeatherRepository: typeof import('@/services/db/repositories/weather.repo').WeatherRepository;
 let DocumentsRepository: typeof import('@/services/db/repositories/documents.repo').DocumentsRepository;
@@ -104,6 +105,7 @@ beforeAll(async () => {
   ({ DownloadsRepository } = await import('@/services/db/repositories/downloads.repo'));
   ({ NotesRepository } = await import('@/services/db/repositories/notes.repo'));
   ({ MapsRepository } = await import('@/services/db/repositories/maps.repo'));
+  ({ TracksRepository } = await import('@/services/db/repositories/tracks.repo'));
   ({ RssRepository } = await import('@/services/db/repositories/rss.repo'));
   ({ WeatherRepository } = await import('@/services/db/repositories/weather.repo'));
   ({ DocumentsRepository } = await import('@/services/db/repositories/documents.repo'));
@@ -124,7 +126,7 @@ beforeEach(async () => {
 describe('database migrations', () => {
   test('creates the current schema with FTS and resumable download columns', async () => {
     const version = await testDb.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
-    expect(version?.user_version).toBe(1);
+    expect(version?.user_version).toBe(2);
 
     const noteColumns = await testDb.getAllAsync<{ name: string }>('PRAGMA table_info(notes)');
     expect(noteColumns.map((column) => column.name)).toContain('theme_id');
@@ -239,6 +241,29 @@ describe('database migrations', () => {
     expect(placeIndexes.map((index) => index.name)).toContain('idx_map_places_updated');
     const routeIndexes = await testDb.getAllAsync<{ name: string }>('PRAGMA index_list(routes)');
     expect(routeIndexes.map((index) => index.name)).toContain('idx_routes_updated');
+    expect(
+      (
+        await testDb.getFirstAsync<{ name: string }>(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'tracks'"
+        )
+      )?.name
+    ).toBe('tracks');
+    expect(
+      (
+        await testDb.getFirstAsync<{ name: string }>(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'track_points'"
+        )
+      )?.name
+    ).toBe('track_points');
+    expect(
+      (
+        await testDb.getFirstAsync<{ name: string }>(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'track_markers'"
+        )
+      )?.name
+    ).toBe('track_markers');
+    const trackIndexes = await testDb.getAllAsync<{ name: string }>('PRAGMA index_list(tracks)');
+    expect(trackIndexes.map((index) => index.name)).toContain('idx_tracks_status_started');
 
     await testDb.runAsync(
       'INSERT INTO notes_fts (note_id, title, body, tags) VALUES (?, ?, ?, ?)',
@@ -307,6 +332,70 @@ describe('repositories', () => {
     await PreferencesService.setWifiOnlyDownloadsEnabled(true);
     expect(await PreferencesService.getWifiOnlyDownloadsEnabled()).toBe(true);
     expect(await SettingsRepository.get('downloads.wifiOnly')).toBe('true');
+  });
+
+  test('tracks persist samples, stats, markers, and route previews', async () => {
+    const track = await TracksRepository.createTrack({
+      title: 'Ridge walk',
+      activityType: 'hike',
+      startedAt: 1_000,
+    });
+    await TracksRepository.insertPoints(track.id, [
+      {
+        trackId: track.id,
+        segmentIndex: 0,
+        pointIndex: 0,
+        kind: 'start',
+        latitude: 38,
+        longitude: -9,
+        altitudeMeters: null,
+        altitudeSource: 'unknown',
+        pressureHpa: null,
+        horizontalAccuracyMeters: null,
+        verticalAccuracyMeters: null,
+        speedMps: null,
+        bearingDegrees: null,
+        distanceFromPreviousMeters: 0,
+        elapsedSeconds: 0,
+        movingElapsedSeconds: 0,
+        recordedAt: 1_000,
+      },
+      {
+        trackId: track.id,
+        segmentIndex: 0,
+        pointIndex: 1,
+        kind: 'sample',
+        latitude: 38.001,
+        longitude: -9,
+        altitudeMeters: 120,
+        altitudeSource: 'gps',
+        pressureHpa: null,
+        horizontalAccuracyMeters: 8,
+        verticalAccuracyMeters: 5,
+        speedMps: 1.4,
+        bearingDegrees: 0,
+        distanceFromPreviousMeters: 111,
+        elapsedSeconds: 80,
+        movingElapsedSeconds: 80,
+        recordedAt: 81_000,
+      },
+    ]);
+    const marker = await TracksRepository.createMarker({
+      trackId: track.id,
+      title: 'Spring',
+      markerType: 'water',
+      latitude: 38.001,
+      longitude: -9,
+      distanceMeters: 111,
+      elapsedSeconds: 80,
+    });
+    const stored = await TracksRepository.getTrack(track.id);
+    expect(stored?.distanceMeters).toBeGreaterThan(100);
+    expect(stored?.sampleCount).toBe(1);
+    expect(stored?.markerCount).toBe(1);
+    expect(marker.markerType).toBe('water');
+    const preview = await TracksRepository.getRoutePreview(track.id);
+    expect(preview?.coordinates).toHaveLength(2);
   });
 
   test('content packs seed real packs and support install state changes', async () => {

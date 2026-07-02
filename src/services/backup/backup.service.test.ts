@@ -127,6 +127,7 @@ let DocumentPagesRepository: typeof import('@/services/db/repositories/document-
 let MapsRepository: typeof import('@/services/db/repositories/maps.repo').MapsRepository;
 let RssRepository: typeof import('@/services/db/repositories/rss.repo').RssRepository;
 let SettingsRepository: typeof import('@/services/db/repositories/settings.repo').SettingsRepository;
+let TracksRepository: typeof import('@/services/db/repositories/tracks.repo').TracksRepository;
 let PreferencesService: typeof import('@/services/preferences/preferences.service').PreferencesService;
 
 let testDb: TestSQLiteDatabase;
@@ -143,6 +144,7 @@ beforeAll(async () => {
   ({ MapsRepository } = await import('@/services/db/repositories/maps.repo'));
   ({ RssRepository } = await import('@/services/db/repositories/rss.repo'));
   ({ SettingsRepository } = await import('@/services/db/repositories/settings.repo'));
+  ({ TracksRepository } = await import('@/services/db/repositories/tracks.repo'));
   ({ PreferencesService } = await import('@/services/preferences/preferences.service'));
 });
 
@@ -178,9 +180,19 @@ describe('encrypted Ark backups', () => {
     expect(inspected.entries.some((entry) => entry.startsWith('documents/'))).toBe(true);
     expect(inspected.manifest.notes[0]?.contentFormat).toBe('tiptap-json-v1');
     expect(inspected.manifest.notes[0]?.themeId).toBe('teal');
+    expect(inspected.manifest.version).toBe(3);
+    expect(inspected.manifest.tracks[0]?.title).toBe('Water cache scout');
+    expect(inspected.manifest.trackPoints).toHaveLength(3);
+    expect(inspected.manifest.trackMarkers[0]?.backupPath).toBe(
+      'track-markers/track-marker-1/North-ridge-photo.jpg'
+    );
     expect(inspected.manifest.settings.map((setting) => setting.key).sort()).toEqual([
       'battery.reduceModeEnabled',
       'downloads.wifiOnly',
+      'field.defaultTrackActivity',
+      'field.rateMode',
+      'field.recordingProfile',
+      'field.unitSystem',
       'label.colors',
       'label.registry',
       'notes.sortMode',
@@ -213,6 +225,7 @@ describe('encrypted Ark backups', () => {
       documents: 1,
       mapMarkers: 1,
       routes: 1,
+      tracks: 1,
       rssFeeds: 1,
     });
 
@@ -234,6 +247,7 @@ describe('encrypted Ark backups', () => {
       PreferencesService.getReadinessChecklist(),
       PreferencesService.getBatteryReduceModeEnabled(),
       PreferencesService.getWifiOnlyDownloadsEnabled(),
+      PreferencesService.getFieldPreferences(),
     ]);
     expect(settings[0]).toBe('oled');
     expect(settings[1]).toBe('amber');
@@ -241,6 +255,12 @@ describe('encrypted Ark backups', () => {
     expect(settings[3]).toEqual({ water: true });
     expect(settings[4]).toBe(true);
     expect(settings[5]).toBe(true);
+    expect(settings[6]).toEqual({
+      unitSystem: 'imperial',
+      rateMode: 'pace',
+      defaultTrackActivity: 'scout',
+      recordingProfile: 'conserve',
+    });
 
     const documents = await DocumentsRepository.list();
     expect(documents).toHaveLength(1);
@@ -263,6 +283,24 @@ describe('encrypted Ark backups', () => {
 
     expect(await MapsRepository.listMarkers()).toHaveLength(1);
     expect(await MapsRepository.listRoutes()).toHaveLength(1);
+    const tracks = await TracksRepository.listTracks();
+    expect(tracks).toHaveLength(1);
+    expect(tracks[0]).toMatchObject({
+      title: 'Water cache scout',
+      activityType: 'scout',
+      status: 'finished',
+      markerCount: 1,
+      sampleCount: 3,
+    });
+    expect(await TracksRepository.listPoints('track-water')).toHaveLength(3);
+    const trackMarkers = await TracksRepository.listMarkers('track-water');
+    expect(trackMarkers).toHaveLength(1);
+    expect(trackMarkers[0]?.photoUri).toBe(
+      'file:///ark-test/ark/tracks/track-marker-1-North-ridge-photo.jpg'
+    );
+    expect(new TextDecoder().decode(files.get(trackMarkers[0]?.photoUri ?? '')?.data)).toContain(
+      'fake jpg'
+    );
     expect(await RssRepository.listFeeds()).toHaveLength(1);
     expect(await RssRepository.listRecentItems()).toEqual([]);
     expect(await testDb.getAllAsync('SELECT * FROM downloads')).toEqual([]);
@@ -277,6 +315,7 @@ describe('encrypted Ark backups', () => {
     expect(Object.keys(zip).sort()).toEqual([
       'documents/doc-water/water-plan.txt',
       'manifest.json',
+      'track-markers/track-marker-1/North-ridge-photo.jpg',
     ]);
   });
 
@@ -333,6 +372,12 @@ async function seedBackupData() {
   await PreferencesService.setReadinessChecklist({ water: true });
   await PreferencesService.setBatteryReduceModeEnabled(true);
   await PreferencesService.setWifiOnlyDownloadsEnabled(true);
+  await PreferencesService.setFieldPreferences({
+    unitSystem: 'imperial',
+    rateMode: 'pace',
+    defaultTrackActivity: 'scout',
+    recordingProfile: 'conserve',
+  });
 
   await NotesRepository.create({
     title: 'Water plan',
@@ -397,6 +442,48 @@ async function seedBackupData() {
     },
   ]);
 
+  const now = Date.now();
+  const trackStartedAt = now - 120_000;
+  const photoUri = 'file:///ark-test/source/north-ridge-photo.jpg';
+  files.set(photoUri, { data: new TextEncoder().encode('fake jpg bytes') });
+  await testDb.runAsync(
+    `INSERT INTO tracks
+       (id, title, description, activity_type, status, started_at, ended_at,
+        timezone_offset_minutes, distance_meters, total_time_seconds, moving_time_seconds,
+        average_speed_mps, average_moving_speed_mps, max_speed_mps, elevation_gain_meters,
+        elevation_loss_meters, min_elevation_meters, max_elevation_meters, sample_count,
+        marker_count, recording_gap_count, last_error, created_at, updated_at, deleted_at)
+     VALUES
+       ('track-water', 'Water cache scout', 'Route to the cache', 'scout', 'finished', ?, ?,
+        0, 142.5, 120, 110, 1.18, 1.29, 1.8, 12, 4, 81, 93, 3, 1, 0, NULL, ?, ?, NULL)`,
+    [trackStartedAt, now, trackStartedAt, now]
+  );
+  await testDb.runAsync(
+    `INSERT INTO track_points
+       (id, track_id, segment_index, point_index, kind, latitude, longitude, altitude_meters,
+        altitude_source, pressure_hpa, horizontal_accuracy_meters, vertical_accuracy_meters,
+        speed_mps, bearing_degrees, distance_from_previous_meters, elapsed_seconds,
+        moving_elapsed_seconds, recorded_at, created_at)
+     VALUES
+       ('track-point-1', 'track-water', 0, 0, 'start', 38.7200, -9.1400, 81,
+        'gps', 1014.1, 6, 4, 0, 20, 0, 0, 0, ?, ?),
+       ('track-point-2', 'track-water', 0, 1, 'sample', 38.7204, -9.1408, 93,
+        'gps', 1013.8, 8, 5, 1.4, 24, 82.5, 60, 55, ?, ?),
+       ('track-point-3', 'track-water', 0, 2, 'stop', 38.7209, -9.1412, 89,
+        'gps', 1013.5, 7, 4, 1.1, 26, 60, 120, 110, ?, ?)`,
+    [trackStartedAt, trackStartedAt, trackStartedAt + 60_000, trackStartedAt + 60_000, now, now]
+  );
+  await testDb.runAsync(
+    `INSERT INTO track_markers
+       (id, track_id, map_marker_id, title, description, marker_type, latitude, longitude,
+        altitude_meters, recorded_at, elapsed_seconds, distance_meters, photo_uri, created_at,
+        updated_at)
+     VALUES
+       ('track-marker-1', 'track-water', NULL, 'North ridge photo.jpg', 'Visible cache approach',
+        'photo', 38.7204, -9.1408, 93, ?, 60, 82.5, ?, ?, ?)`,
+    [trackStartedAt + 60_000, photoUri, trackStartedAt + 60_000, now]
+  );
+
   await testDb.runAsync(
     `INSERT INTO downloads (id, kind, title, source_url, local_uri, status, created_at, updated_at)
      VALUES ('download-cache', 'guide', 'Download cache', 'https://example.test/file', 'file:///tmp/file', 'completed', 1, 1)`
@@ -410,7 +497,6 @@ async function seedBackupData() {
      VALUES ('document:doc-water', 'document', 'doc-water', 'RAG cache', 1, 1)`
   );
 
-  const now = Date.now();
   await testDb.runAsync(
     `INSERT INTO chat_threads (id, title, selected_model_id, chat_model_disabled, created_at, updated_at)
      VALUES ('thread-survival', 'Survival plan', NULL, 0, ?, ?)`,
@@ -446,7 +532,7 @@ async function decryptForShapeOnly(bytes: Uint8Array) {
   return gcm(
     key,
     base64ToBytes(envelope.crypto.nonce),
-    new TextEncoder().encode('ark-backup-v1')
+    new TextEncoder().encode('ark-backup-v3')
   ).decrypt(base64ToBytes(envelope.payload));
 }
 

@@ -99,8 +99,7 @@ async function execuTorchEmbedding(
 
 function getConfig(modelId: string | null) {
   return (
-    EMBEDDING_MODEL_CONFIGS[modelId ?? ''] ??
-    EMBEDDING_MODEL_CONFIGS[RAG_HASH_EMBEDDING_MODEL_ID]
+    EMBEDDING_MODEL_CONFIGS[modelId ?? ''] ?? EMBEDDING_MODEL_CONFIGS[RAG_HASH_EMBEDDING_MODEL_ID]
   );
 }
 

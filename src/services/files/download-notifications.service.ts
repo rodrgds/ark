@@ -32,6 +32,10 @@ export class DownloadNotificationService {
     await ensureNotificationChannel();
   }
 
+  static async requestPermission() {
+    return ensureNotificationsReady();
+  }
+
   static async progress(input: DownloadNotificationInput) {
     if (!shouldReportProgress(input)) return;
     await showDownloadNotification(input, true);

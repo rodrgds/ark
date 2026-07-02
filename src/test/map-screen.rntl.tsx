@@ -174,6 +174,24 @@ mock.module('@react-native-community/netinfo', () => ({
   useNetInfo: () => ({ isConnected: false }),
 }));
 
+mock.module('@/services/db/repositories/tracks.repo', () => ({
+  TracksRepository: {
+    getRoutePreview: async () => null,
+  },
+}));
+
+mock.module('@/services/preferences/preferences.service', () => ({
+  PreferencesService: {
+    getFieldPreferences: async () => ({
+      unitSystem: 'metric',
+      rateMode: 'activity',
+      defaultTrackActivity: 'hike',
+      recordingProfile: 'normal',
+    }),
+    subscribeFieldPreferences: () => () => undefined,
+  },
+}));
+
 mock.module('@swmansion/react-native-bottom-sheet', () => ({
   BottomSheetProvider: ({ children }: React.PropsWithChildren) => <>{children}</>,
 }));
@@ -342,7 +360,7 @@ describe('MapScreen', () => {
 
     expect(view.getByText('Saved spots and routes')).toBeOnTheScreen();
     expect(view.getByText(/Emergency rally point/)).toBeOnTheScreen();
-    expect(view.getByText(/3\.2 km/)).toBeOnTheScreen();
+    expect(view.getByText(/3\.20 km/)).toBeOnTheScreen();
 
     await fireEvent.press(view.getByLabelText('Offline maps'));
 

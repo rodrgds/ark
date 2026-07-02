@@ -26,8 +26,23 @@ describe('TabPreferencesService', () => {
       await import('@/services/preferences/tab-preferences.service');
 
     await expect(TabPreferencesService.getPreferences()).resolves.toEqual({
-      order: ['tools', 'map', 'chat', 'library', 'notes', 'settings'],
-      enabled: ['map', 'library', 'chat', 'settings'],
+      order: ['tools', 'map', 'chat', 'tracks', 'library', 'notes', 'settings'],
+      enabled: ['map', 'chat', 'library', 'settings'],
+    });
+  });
+
+  test('trims persisted tab selections to the native tab limit before launch', async () => {
+    settings.set(
+      'tabs.enabled',
+      JSON.stringify(['chat', 'tracks', 'map', 'library', 'notes', 'tools', 'settings'])
+    );
+
+    const { TabPreferencesService } =
+      await import('@/services/preferences/tab-preferences.service');
+
+    await expect(TabPreferencesService.getPreferences()).resolves.toEqual({
+      order: ['chat', 'tracks', 'map', 'library', 'notes', 'tools', 'settings'],
+      enabled: ['chat', 'tracks', 'map', 'library', 'settings'],
     });
   });
 
@@ -39,11 +54,12 @@ describe('TabPreferencesService', () => {
 
     await expect(
       TabPreferencesService.setOrder(['notes', 'map', 'notes'] as never)
-    ).resolves.toEqual(['notes', 'map', 'chat', 'library', 'tools', 'settings']);
+    ).resolves.toEqual(['notes', 'map', 'chat', 'tracks', 'library', 'tools', 'settings']);
     expect(JSON.parse(settings.get('tabs.order') ?? '[]')).toEqual([
       'notes',
       'map',
       'chat',
+      'tracks',
       'library',
       'tools',
       'settings',

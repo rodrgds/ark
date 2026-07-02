@@ -21,6 +21,7 @@ import {
   Map,
   NotebookPen,
   Ruler,
+  Route,
   Search,
   Newspaper,
   Settings,
@@ -59,6 +60,14 @@ const FUNCTION_ENTRIES: SearchEntry[] = [
     tabId: 'map',
   },
   {
+    title: 'Tracks',
+    subtitle: 'Record routes, markers, photos, and GPX history',
+    keywords: 'tracks recording route gps hike walk run speed elevation charts gpx',
+    icon: Route,
+    href: '/(tabs)/tracks' as Href,
+    tabId: 'tracks',
+  },
+  {
     title: 'Library',
     subtitle: 'Guides, wikis, and imported documents',
     keywords: 'library content downloads documents zim pdf guides wiki',
@@ -72,7 +81,6 @@ const FUNCTION_ENTRIES: SearchEntry[] = [
     keywords: 'notes vault secure private documents',
     icon: NotebookPen,
     href: '/(tabs)/notes',
-    tabId: 'notes',
   },
   {
     title: 'Tools',
@@ -175,6 +183,13 @@ const FUNCTION_ENTRIES: SearchEntry[] = [
     keywords: 'settings appearance theme battery reduce mode power display',
     icon: SlidersHorizontal,
     href: { pathname: '/(tabs)/settings', params: { tab: 'appearance' } },
+  },
+  {
+    title: 'Field Settings',
+    subtitle: 'Units, track activity, and recording profile',
+    keywords: 'settings field units metric imperial nautical tracks speed pace recording profile',
+    icon: Route,
+    href: { pathname: '/(tabs)/settings', params: { tab: 'field' } },
   },
   {
     title: 'Security Settings',

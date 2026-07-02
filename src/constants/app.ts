@@ -18,6 +18,7 @@ export const APP_DIRECTORIES = [
   'models',
   'imports',
   'backups',
+  'tracks',
   'cache',
 ] as const;
 

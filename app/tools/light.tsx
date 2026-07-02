@@ -126,7 +126,7 @@ export default function LightTool() {
         {/* Ambient glow background */}
         <Animated.View
           style={[
-            StyleSheet.absoluteFillObject,
+            StyleSheet.absoluteFill,
             {
               borderRadius: DISC_R,
               backgroundColor: zone.color,
@@ -136,8 +136,7 @@ export default function LightTool() {
         />
 
         {/* Rotating rays */}
-        <Animated.View
-          style={[StyleSheet.absoluteFillObject, { transform: [{ rotate: rotateDeg }] }]}>
+        <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ rotate: rotateDeg }] }]}>
           {RAY_ANGLES.map((angle, i) => {
             const rayLength = DISC_R * (0.18 + (i % 2 === 0 ? 0.08 : 0)) * (0.3 + progress * 0.7);
             const rad = (angle * Math.PI) / 180;
@@ -168,7 +167,7 @@ export default function LightTool() {
         </Animated.View>
 
         {/* SVG glow core */}
-        <Svg width={DISC_SIZE} height={DISC_SIZE} style={StyleSheet.absoluteFillObject}>
+        <Svg width={DISC_SIZE} height={DISC_SIZE} style={StyleSheet.absoluteFill}>
           <Defs>
             <RadialGradient id="glow" cx="50%" cy="50%" r="50%">
               <Stop offset="0%" stopColor={zone.color} stopOpacity="1" />

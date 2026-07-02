@@ -3,6 +3,7 @@ import type { NoteThemeId } from '@/constants/note-themes';
 import type { AiCitation } from '@/types/ai';
 import type { ArkDocument } from '@/types/db';
 import type { MapMarker, SavedRoute } from '@/types/maps';
+import type { Track, TrackMarker, TrackPoint } from '@/types/tracks';
 
 export type ArkBackupSetting = {
   key: string;
@@ -74,13 +75,19 @@ export type ArkBackupChatMessage = {
   createdAt: number;
 };
 
+export type ArkBackupTrack = Track;
+export type ArkBackupTrackPoint = TrackPoint;
+export type ArkBackupTrackMarker = TrackMarker & {
+  backupPath: string | null;
+};
+
 export type ArkBackupManifest = {
   format: 'ark-backup';
-  version: 2;
+  version: 3;
   exportedAt: number;
   app: {
     name: 'Ark';
-    backupSchema: 2;
+    backupSchema: 3;
   };
   includes: {
     notes: true;
@@ -96,6 +103,9 @@ export type ArkBackupManifest = {
     selectedSettings: true;
     chatThreads: true;
     chatMessages: true;
+    tracks: true;
+    trackPoints: true;
+    trackMarkers: true;
   };
   excludes: string[];
   settings: ArkBackupSetting[];
@@ -107,11 +117,14 @@ export type ArkBackupManifest = {
   rssFeeds: ArkBackupRssFeed[];
   chatThreads: ArkBackupChatThread[];
   chatMessages: ArkBackupChatMessage[];
+  tracks: ArkBackupTrack[];
+  trackPoints: ArkBackupTrackPoint[];
+  trackMarkers: ArkBackupTrackMarker[];
 };
 
 export type ArkBackupEnvelope = {
   format: 'ark-backup-envelope';
-  version: 2;
+  version: 3;
   crypto: {
     algorithm: 'AES-256-GCM';
     kdf: 'scrypt';

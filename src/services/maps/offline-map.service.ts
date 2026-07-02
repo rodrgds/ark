@@ -1,4 +1,5 @@
 import { MapsRepository } from '@/services/db/repositories/maps.repo';
+import { TracksRepository } from '@/services/db/repositories/tracks.repo';
 import { RagCleanupService } from '@/services/ai/rag-cleanup.service';
 import { DownloadNotificationService } from '@/services/files/download-notifications.service';
 import { FileSystemService } from '@/services/files/filesystem.service';
@@ -21,6 +22,8 @@ import type {
   SavedRoutePoint,
 } from '@/types/maps';
 import { haversineMeters, toRadians, formatPoint } from '@/lib/geo';
+import { formatDistance } from '@/services/tracks/track-format';
+import { PreferencesService } from '@/services/preferences/preferences.service';
 import { logger } from '@/lib/logger';
 
 type OfflinePackStatusLike = {
@@ -582,12 +585,15 @@ export class OfflineMapService {
   static async searchOffline(query: string, limit = 12): Promise<OfflineMapSearchResult[]> {
     const normalized = query.trim().toLowerCase();
     if (normalized.length < 2) return [];
-    const [markers, regions, routes, placeResults] = await Promise.all([
+    const [markers, regions, routes, placeResults, tracks, fieldPreferences] = await Promise.all([
       MapsRepository.listMarkers(),
       MapsRepository.listRegions(),
       MapsRepository.listRoutes(),
       OfflinePlaceIndexService.search(normalized, Math.min(limit, 8)).catch(() => []),
+      TracksRepository.searchTracks(normalized, Math.min(limit, 8)),
+      PreferencesService.getFieldPreferences().catch(() => null),
     ]);
+    const unitSystem = fieldPreferences?.unitSystem ?? 'metric';
 
     const markerResults = markers
       .filter((marker) =>
@@ -662,11 +668,20 @@ export class OfflineMapService {
         kind: 'route',
         title: route.title,
         subtitle: `${route.points.length} points${
-          route.distanceMeters ? ` · ${(route.distanceMeters / 1000).toFixed(1)} km` : ''
+          route.distanceMeters ? ` · ${formatDistance(route.distanceMeters, unitSystem)}` : ''
         }`,
         latitude: route.points[0]?.latitude ?? null,
         longitude: route.points[0]?.longitude ?? null,
       }));
+
+    const trackResults = tracks.map<OfflineMapSearchResult>((track) => ({
+      id: track.id,
+      kind: 'track',
+      title: track.title,
+      subtitle: `${track.activityType} · ${formatDistance(track.distanceMeters, unitSystem)}`,
+      latitude: null,
+      longitude: null,
+    }));
 
     return [
       ...markerResults,
@@ -674,6 +689,7 @@ export class OfflineMapService {
       ...savedRegionResults,
       ...presetRegionResults,
       ...routeResults,
+      ...trackResults,
     ].slice(0, limit);
   }
 

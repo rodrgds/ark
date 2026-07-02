@@ -182,8 +182,7 @@ export default function ContentDetailScreen() {
   const [zimArticleHistory, setZimArticleHistory] = React.useState<ZimArticle[]>([]);
   const [zimActionsOpen, setZimActionsOpen] = React.useState(false);
   const [zimSpeaking, setZimSpeaking] = React.useState(false);
-  const zimSpeechPreparing =
-    zimSpeaking && speechPlayback.isPreparing && !speechPlayback.isPlaying;
+  const zimSpeechPreparing = zimSpeaking && speechPlayback.isPreparing && !speechPlayback.isPlaying;
 
   const sections = React.useMemo(() => (pack ? GuideService.getSections(pack.id) : []), [pack]);
 
@@ -312,10 +311,7 @@ export default function ContentDetailScreen() {
       setZimSpeaking(false);
       return;
     }
-    const text = zimArticlePlainText(zimArticle)
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 2800);
+    const text = zimArticlePlainText(zimArticle).replace(/\s+/g, ' ').trim().slice(0, 2800);
     if (!text) return;
     setZimSpeaking(true);
     try {

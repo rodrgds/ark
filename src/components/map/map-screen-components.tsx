@@ -32,6 +32,7 @@ import {
   type MapPinType,
 } from '@/constants/map-pins';
 import { formatPoint } from '@/lib/geo';
+import { formatDistance } from '@/services/tracks/track-format';
 import type { MapLibreModule } from '@/services/maps/map.service';
 import type { MapLocationIssue } from '@/services/maps/map-location.service';
 import {
@@ -42,6 +43,7 @@ import { formatMapRegionStorage, routingStatusLabel } from '@/services/maps/map-
 import { isPresetDownloaded } from '@/services/maps/map-region-utils';
 import { useThemeStore } from '@/stores/theme-store';
 import type { MapMarker, MapRegion, NavigationSession, SavedRoute } from '@/types/maps';
+import type { UnitSystem } from '@/types/tracks';
 import {
   AlertTriangle,
   Bike,
@@ -661,6 +663,7 @@ function WorldOverviewFallback({ status }: { status: string }) {
 export function OfflineMapsPanel({
   busyKey,
   managerTab,
+  hasMorePresetResults,
   presetResults,
   presetSearch,
   regions,
@@ -678,6 +681,7 @@ export function OfflineMapsPanel({
 }: {
   busyKey: string | null;
   managerTab: ManagerTab;
+  hasMorePresetResults: boolean;
   presetResults: MapPreset[];
   presetSearch: string;
   regions: MapRegion[];
@@ -785,6 +789,9 @@ export function OfflineMapsPanel({
             ) : (
               <Text variant="muted">No catalog regions match this search.</Text>
             )}
+            {hasMorePresetResults ? (
+              <Text variant="muted">Showing the first results. Search to narrow the catalog.</Text>
+            ) : null}
           </View>
         </View>
       )}
@@ -983,10 +990,12 @@ function PinTypeSelector({
 
 export function NavigationStatusCard({
   session,
+  unitSystem = 'metric',
   onFocus,
   onStop,
 }: {
   session: NavigationSession;
+  unitSystem?: UnitSystem;
   onFocus: () => void;
   onStop: () => void;
 }) {
@@ -1008,7 +1017,7 @@ export function NavigationStatusCard({
             {nextManeuver?.instruction ?? 'Follow the highlighted route.'}
           </Text>
           <Text variant="small" className="text-muted-foreground">
-            {routingModeLabel} · {(remaining / 1000).toFixed(1)} km remaining
+            {routingModeLabel} · {formatDistance(remaining, unitSystem)} remaining
           </Text>
         </View>
       </View>
@@ -1047,19 +1056,22 @@ export function MapPointActionSheet({
       title="Map point"
       description={point ? formatPoint(point[1], point[0]) : ''}
       onDismiss={onDismiss}
-      snapPoints={['34%']}>
-      <Button disabled={busy} onPress={onRoute}>
-        {busy ? <ActivityIndicator size="small" /> : <Icon as={Route} className="size-4" />}
-        <Text>Route here</Text>
-      </Button>
-      <Button disabled={busy} variant="outline" onPress={onSave}>
-        <Icon as={MapPin} className="size-4" />
-        <Text>Save spot</Text>
-      </Button>
-      <Button variant="ghost" onPress={onDismiss}>
-        <Text>Cancel</Text>
-      </Button>
-    </ArkBottomSheet>
+      footer={
+        <>
+          <Button disabled={busy} onPress={onRoute}>
+            {busy ? <ActivityIndicator size="small" /> : <Icon as={Route} className="size-4" />}
+            <Text>Route here</Text>
+          </Button>
+          <Button disabled={busy} variant="outline" onPress={onSave}>
+            <Icon as={MapPin} className="size-4" />
+            <Text>Save spot</Text>
+          </Button>
+          <Button variant="ghost" onPress={onDismiss}>
+            <Text>Cancel</Text>
+          </Button>
+        </>
+      }
+    />
   );
 }
 
@@ -1089,19 +1101,22 @@ export function MarkerActionSheet({
           : ''
       }
       onDismiss={onDismiss}
-      snapPoints={['38%']}>
-      <Button disabled={busy} onPress={onRoute}>
-        {busy ? <ActivityIndicator size="small" /> : <Icon as={Route} className="size-4" />}
-        <Text>Route here</Text>
-      </Button>
-      <Button disabled={busy} variant="outline" onPress={onEdit}>
-        <Icon as={Pencil} className="size-4" />
-        <Text>Edit spot</Text>
-      </Button>
-      <Button variant="ghost" onPress={onDismiss}>
-        <Text>Close</Text>
-      </Button>
-    </ArkBottomSheet>
+      footer={
+        <>
+          <Button disabled={busy} onPress={onRoute}>
+            {busy ? <ActivityIndicator size="small" /> : <Icon as={Route} className="size-4" />}
+            <Text>Route here</Text>
+          </Button>
+          <Button disabled={busy} variant="outline" onPress={onEdit}>
+            <Icon as={Pencil} className="size-4" />
+            <Text>Edit spot</Text>
+          </Button>
+          <Button variant="ghost" onPress={onDismiss}>
+            <Text>Close</Text>
+          </Button>
+        </>
+      }
+    />
   );
 }
 
@@ -1137,7 +1152,17 @@ export function RouteOptionsSheet({
       description={destinationTitle ? `To ${destinationTitle}` : undefined}
       onDismiss={onDismiss}
       scrollable
-      snapPoints={['78%']}>
+      snapPoints={['88%']}>
+      <View className="flex-row gap-2">
+        <Button className="flex-1" variant="outline" onPress={onDismiss}>
+          <Text>Cancel</Text>
+        </Button>
+        <Button className="flex-1" disabled={busy} onPress={onStart}>
+          {busy ? <ActivityIndicator size="small" /> : <Icon as={Route} className="size-4" />}
+          <Text>Start route</Text>
+        </Button>
+      </View>
+
       <View className="gap-2">
         <Text variant="small" className="text-muted-foreground">
           Travel mode
@@ -1203,16 +1228,6 @@ export function RouteOptionsSheet({
           </>
         ) : null}
       </View>
-
-      <View className="flex-row gap-2">
-        <Button className="flex-1" variant="outline" onPress={onDismiss}>
-          <Text>Cancel</Text>
-        </Button>
-        <Button className="flex-1" disabled={busy} onPress={onStart}>
-          {busy ? <ActivityIndicator size="small" /> : <Icon as={Route} className="size-4" />}
-          <Text>Start route</Text>
-        </Button>
-      </View>
     </ArkBottomSheet>
   );
 }
@@ -1261,7 +1276,18 @@ export function SpotDialog({
       description={lngLat ? formatPoint(lngLat[1], lngLat[0]) : ''}
       onDismiss={onCancel}
       scrollable
-      snapPoints={['88%']}>
+      snapPoints={['88%']}
+      footer={
+        <View className="flex-row gap-2">
+          <Button className="flex-1" variant="outline" onPress={onCancel}>
+            <Text>Cancel</Text>
+          </Button>
+          <Button className="flex-1" disabled={busy} onPress={onSave}>
+            {busy ? <ActivityIndicator /> : <Icon as={MapPin} className="size-4" />}
+            <Text>Save</Text>
+          </Button>
+        </View>
+      }>
       <Input value={title} onChangeText={onChangeTitle} placeholder="Spot title" />
       <PinTypeSelector
         color={color}
@@ -1309,15 +1335,6 @@ export function SpotDialog({
           </Button>
         </View>
       )}
-      <View className="flex-row gap-2">
-        <Button className="flex-1" variant="outline" onPress={onCancel}>
-          <Text>Cancel</Text>
-        </Button>
-        <Button className="flex-1" disabled={busy} onPress={onSave}>
-          {busy ? <ActivityIndicator /> : <Icon as={MapPin} className="size-4" />}
-          <Text>Save</Text>
-        </Button>
-      </View>
     </ArkBottomSheet>
   );
 }
@@ -1366,7 +1383,18 @@ export function EditSpotDialog({
       description={marker ? formatPoint(marker.latitude, marker.longitude) : ''}
       onDismiss={onCancel}
       scrollable
-      snapPoints={['88%']}>
+      snapPoints={['88%']}
+      footer={
+        <View className="flex-row gap-2">
+          <Button className="flex-1" variant="outline" onPress={onCancel}>
+            <Text>Cancel</Text>
+          </Button>
+          <Button className="flex-1" disabled={busy} onPress={onSave}>
+            {busy ? <ActivityIndicator /> : <Icon as={Check} className="size-4" />}
+            <Text>Update</Text>
+          </Button>
+        </View>
+      }>
       <Input value={title} onChangeText={onChangeTitle} placeholder="Name" />
       <PinTypeSelector
         color={color}
@@ -1414,15 +1442,6 @@ export function EditSpotDialog({
           </Button>
         </View>
       )}
-      <View className="flex-row gap-2">
-        <Button className="flex-1" variant="outline" onPress={onCancel}>
-          <Text>Cancel</Text>
-        </Button>
-        <Button className="flex-1" disabled={busy} onPress={onSave}>
-          {busy ? <ActivityIndicator /> : <Icon as={Check} className="size-4" />}
-          <Text>Update</Text>
-        </Button>
-      </View>
     </ArkBottomSheet>
   );
 }

@@ -3,6 +3,9 @@ export type ThemePreference = 'system' | EffectiveTheme;
 export type StaticAccentPreference = 'moss' | 'amber' | 'clay' | 'blue' | 'violet';
 export type AccentPreference = 'system' | StaticAccentPreference;
 
+export const DEFAULT_THEME_PREFERENCE: ThemePreference = 'system';
+export const DEFAULT_ACCENT_PREFERENCE: AccentPreference = 'system';
+
 export const THEME_OPTIONS: Array<{ value: ThemePreference; label: string; description: string }> =
   [
     {
@@ -527,7 +530,7 @@ export function isAccentPreference(value: string | null): value is AccentPrefere
 
 export function getThemeColors(
   theme: EffectiveTheme,
-  accentPreference: AccentPreference = 'moss',
+  accentPreference: AccentPreference = DEFAULT_ACCENT_PREFERENCE,
   systemAccentColors: AccentColorsByTheme = DEFAULT_SYSTEM_ACCENT_COLORS
 ): ThemeColors {
   return buildSemanticPalette(theme, accentPreference, systemAccentColors);

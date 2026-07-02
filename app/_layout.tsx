@@ -1,13 +1,13 @@
 import '../polyfills';
 import '@/global.css';
+import '@/services/tracks/track-location-task';
 
 import { getNavigationTheme } from '@/lib/theme';
 import { BottomSheetProvider } from '@swmansion/react-native-bottom-sheet';
-import { ThemeProvider } from '@react-navigation/native';
 import { initExecutorch } from 'react-native-executorch';
 import { ExpoResourceFetcher } from 'react-native-executorch-expo-resource-fetcher';
 import { PortalHost } from '@rn-primitives/portal';
-import { router, Stack } from 'expo-router';
+import { router, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as React from 'react';
@@ -47,6 +47,7 @@ export default function RootLayout() {
   const error = useAppStore((state) => state.error);
   const effectiveTheme = useThemeStore((state) => state.effectiveTheme);
   const accentPreference = useThemeStore((state) => state.accentPreference);
+  const systemAccentColors = useThemeStore((state) => state.systemAccentColors);
 
   React.useEffect(() => {
     boot();
@@ -105,6 +106,7 @@ export default function RootLayout() {
             accentPreference={accentPreference}
             effectiveTheme={effectiveTheme}
             error={error}
+            systemAccentColors={systemAccentColors}
           />
         </ArkKeyboardProvider>
       </SafeAreaProvider>
@@ -116,14 +118,16 @@ function ThemedNavigator({
   accentPreference,
   effectiveTheme,
   error,
+  systemAccentColors,
 }: {
   accentPreference: ReturnType<typeof useThemeStore.getState>['accentPreference'];
   effectiveTheme: ReturnType<typeof useThemeStore.getState>['effectiveTheme'];
   error: string | null;
+  systemAccentColors: ReturnType<typeof useThemeStore.getState>['systemAccentColors'];
 }) {
   const navTheme = React.useMemo(
-    () => getNavigationTheme(effectiveTheme, accentPreference),
-    [accentPreference, effectiveTheme]
+    () => getNavigationTheme(effectiveTheme, accentPreference, systemAccentColors),
+    [accentPreference, effectiveTheme, systemAccentColors]
   );
   const themeColors = navTheme.colors;
   useDownloadNotificationNavigation();
@@ -150,6 +154,7 @@ function ThemedNavigator({
               <Stack.Screen name="library" options={{ headerShown: false }} />
               <Stack.Screen name="easter-egg" options={{ headerShown: false }} />
               <Stack.Screen name="notes" options={{ headerShown: false }} />
+              <Stack.Screen name="tracks" options={{ headerShown: false }} />
             </Stack>
             {error ? (
               <View className="bg-destructive p-3">
@@ -169,14 +174,16 @@ function useDownloadNotificationNavigation() {
     let subscription: { remove: () => void } | null = null;
     const handled = new Set<string>();
 
-    function handleResponse(response: {
-      notification?: {
-        request?: {
-          identifier?: string;
-          content?: { data?: Record<string, unknown> };
+    function handleResponse(
+      response: {
+        notification?: {
+          request?: {
+            identifier?: string;
+            content?: { data?: Record<string, unknown> };
+          };
         };
-      };
-    } | null) {
+      } | null
+    ) {
       const request = response?.notification?.request;
       const data = request?.content?.data;
       if (!data?.downloadId) return;

@@ -136,12 +136,14 @@ const OfflineSearchResultRow = React.memo(function OfflineSearchResultRow({
 
 function iconForSearchResult(kind: OfflineMapSearchResult['kind']) {
   if (kind === 'route') return Route;
+  if (kind === 'track') return Route;
   if (kind === 'region') return Layers;
   return MapPin;
 }
 
 function labelForSearchResult(result: OfflineMapSearchResult) {
   if (result.kind === 'route') return 'Route';
+  if (result.kind === 'track') return 'Track';
   if (result.kind === 'region') return 'Region';
   if (result.kind === 'place') {
     if (result.placeSource === 'offline') return 'Offline place';

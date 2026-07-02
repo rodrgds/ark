@@ -126,6 +126,11 @@ describe('TabsLayout', () => {
       'settings',
     ]);
     expect(getPreferences).toHaveBeenCalled();
+    expect(refreshRss).not.toHaveBeenCalled();
+    expect(refreshWeather).not.toHaveBeenCalled();
+
+    await new Promise((resolve) => setTimeout(resolve, 1900));
+
     expect(refreshRss).toHaveBeenCalled();
     expect(refreshWeather).toHaveBeenCalled();
   });

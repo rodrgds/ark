@@ -39,7 +39,10 @@ describe('guide sections', () => {
 
   test('Hesperian First Aid sections target physical PDF pages', () => {
     const pageByTitle = new Map(
-      GuideService.getSections('hesperian-first-aid').map((section) => [section.title, section.page])
+      GuideService.getSections('hesperian-first-aid').map((section) => [
+        section.title,
+        section.page,
+      ])
     );
 
     expect(pageByTitle.get('Calm and assess')).toBe(1);

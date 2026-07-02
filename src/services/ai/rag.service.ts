@@ -480,10 +480,12 @@ export class RagService {
     await db.runAsync('UPDATE rag_sources SET updated_at = 0');
   }
 
-  static async rebuildEmbeddingsForActiveModel(options: {
-    batchSize?: number;
-    onProgress?: (progress: RagEmbeddingRebuildProgress) => void | Promise<void>;
-  } = {}) {
+  static async rebuildEmbeddingsForActiveModel(
+    options: {
+      batchSize?: number;
+      onProgress?: (progress: RagEmbeddingRebuildProgress) => void | Promise<void>;
+    } = {}
+  ) {
     await rebuildRagEmbeddingsForActiveModel(options);
   }
 

@@ -137,7 +137,7 @@ class FakeSQLiteDatabase {
       return { count: 1 } as T;
     }
     if (sql.includes('user_version')) {
-      return { user_version: 1 } as T;
+      return { user_version: 2 } as T;
     }
     if (sql.includes('quick_check')) {
       return { quick_check: 'ok' } as T;
@@ -282,7 +282,7 @@ describe('DatabaseClient transaction mutex', () => {
     expect(encryptedDb.keyed).toBe(true);
     expect(plaintextDb.execs.some((sql) => sql.includes('sqlcipher_export'))).toBe(true);
     expect(
-      plaintextDb.execs.some((sql) => sql.includes('PRAGMA ark_encrypted.user_version = 1'))
+      plaintextDb.execs.some((sql) => sql.includes('PRAGMA ark_encrypted.user_version = 2'))
     ).toBe(true);
     expect(fileMoves).toEqual(
       expect.arrayContaining([

@@ -91,10 +91,7 @@ const OPENFREEMAP_STYLE_URLS: Record<MapTheme, string> = {
   light: DEFAULT_MAP_STYLE_URL,
 };
 
-const MAP_THEME_COLORS: Record<
-  MapTheme,
-  MapStyleColors
-> = {
+const MAP_THEME_COLORS: Record<MapTheme, MapStyleColors> = {
   oled: {
     background: '#0d0d0d',
     land: '#0d0d0d',

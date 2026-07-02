@@ -81,7 +81,11 @@ export class VaultService {
       if (!currentPassword) {
         return { ok: false, reason: 'Current passphrase is required to disable protection.' };
       }
-      const matches = await KeychainService.verifyPassword(currentPassword, vault.kdfSalt, expected);
+      const matches = await KeychainService.verifyPassword(
+        currentPassword,
+        vault.kdfSalt,
+        expected
+      );
       if (!matches) return { ok: false, reason: 'Current passphrase did not match.' };
     }
 

@@ -69,7 +69,7 @@ native toolchain is available. llama.rn builds CPU-only unless the Hexagon SDK i
   encryption as optional. Fresh installs open plaintext by default for speed and battery, and
   Settings > Security can encrypt the DB or return it to plaintext when SQLCipher is available.
   Diagnostics should distinguish `Encrypted database`, `Plaintext database`, `Not enforced in this
-  build`, and `Needs inspection`. Encrypted DB installs use a purpose-derived SQLCipher key from a
+build`, and `Needs inspection`. Encrypted DB installs use a purpose-derived SQLCipher key from a
   SecureStore device root and rotate that root on vault passphrase changes. The device-root vs
   vault-derived SQLCipher strategy still needs a production decision and device proof.
 - MapLibre: `@maplibre/maplibre-react-native` is installed and registered in `app.json`. `MapService`

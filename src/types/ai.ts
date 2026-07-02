@@ -114,6 +114,8 @@ export type AiAdapterResponse = {
   reasoning?: string;
 };
 
+export type AiRuntimeAdapter = 'mock' | 'llama-unavailable' | 'llama';
+
 export type AiAdapterSendInput = {
   content: string;
   selectedModelId?: string | null;

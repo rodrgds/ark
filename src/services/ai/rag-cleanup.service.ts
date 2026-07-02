@@ -8,21 +8,21 @@ export class RagCleanupService {
       'SELECT id FROM rag_chunks WHERE source_id = ?',
       [sourceId]
     );
-    await db.withTransactionAsync(async () => {
-      await db.runAsync(
+    await db.withTransactionAsync(async (tx) => {
+      await tx.runAsync(
         'DELETE FROM rag_chunks_fts WHERE chunk_id IN (SELECT id FROM rag_chunks WHERE source_id = ?)',
         [sourceId]
       );
       await RagVectorService.removeChunks(
-        db,
+        tx,
         chunkIds.map((chunk) => chunk.id)
       );
-      await db.runAsync(
+      await tx.runAsync(
         'DELETE FROM chunk_embeddings WHERE chunk_id IN (SELECT id FROM rag_chunks WHERE source_id = ?)',
         [sourceId]
       );
-      await db.runAsync('DELETE FROM rag_chunks WHERE source_id = ?', [sourceId]);
-      await db.runAsync('DELETE FROM rag_sources WHERE id = ?', [sourceId]);
+      await tx.runAsync('DELETE FROM rag_chunks WHERE source_id = ?', [sourceId]);
+      await tx.runAsync('DELETE FROM rag_sources WHERE id = ?', [sourceId]);
     });
   }
 
@@ -39,9 +39,9 @@ export class RagCleanupService {
 
   static async removeZimCache(zimId: string) {
     const db = await DatabaseClient.getDb();
-    await db.withTransactionAsync(async () => {
-      await db.runAsync('DELETE FROM zim_paragraph_chunks WHERE zim_id = ?', [zimId]);
-      await db.runAsync('DELETE FROM zim_articles_cache WHERE zim_id = ?', [zimId]);
+    await db.withTransactionAsync(async (tx) => {
+      await tx.runAsync('DELETE FROM zim_paragraph_chunks WHERE zim_id = ?', [zimId]);
+      await tx.runAsync('DELETE FROM zim_articles_cache WHERE zim_id = ?', [zimId]);
     });
     await this.removeSourcesByRef(zimId);
   }

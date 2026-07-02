@@ -1,8 +1,7 @@
 import { ContentPackService } from '@/services/content/content-pack.service';
 import {
+  EMBEDDING_MODEL_OPTIONS,
   EMBEDDING_MODEL_CONFIGS,
-  EXECUTORCH_EMBEDDING_MODEL_OPTIONS,
-  EXECUTORCH_TEXT_EMBEDDING_MODEL_ID,
   isEmbeddingModelPack,
 } from '@/services/ai/embedding-models';
 import { EmbeddingService, resetEmbeddingRuntimeContext } from '@/services/ai/embedding.service';
@@ -13,14 +12,13 @@ import {
 } from '@/services/ai/voice-models';
 import { getVisionProjectorId, isVisionProjectorPack } from '@/services/ai/vision-models';
 import { resetVoiceRuntimeContext } from '@/services/ai/voice-transcription.service';
-import {
-  RAG_HASH_EMBEDDING_DIMENSIONS,
-  RAG_HASH_EMBEDDING_MODEL_ID,
-} from '@/services/ai/rag-embedding';
+import { RAG_HASH_EMBEDDING_MODEL_ID } from '@/services/ai/rag-embedding';
 import { RagService } from '@/services/ai/rag.service';
 import { DatabaseClient } from '@/services/db/client';
 import { LlamaAdapter, resetLlamaRuntimeContext } from '@/services/ai/llama-adapter';
 import { PreferencesService } from '@/services/preferences/preferences.service';
+import type { RagEmbeddingRebuildProgress } from '@/services/ai/rag/embed';
+import type { AiRuntimeAdapter } from '@/types/ai';
 
 const llamaAdapter = new LlamaAdapter();
 
@@ -40,7 +38,7 @@ export class ModelManagerService {
   }
 
   static async listAvailableEmbeddingModels() {
-    return EXECUTORCH_EMBEDDING_MODEL_OPTIONS;
+    return EMBEDDING_MODEL_OPTIONS;
   }
 
   static async listAvailableVoiceModels() {
@@ -172,31 +170,43 @@ export class ModelManagerService {
 
   static async setSelectedEmbeddingModel(
     modelId: string | null,
-    onDownloadProgress?: (progress: number) => void
+    options:
+      | ((progress: number) => void)
+      | {
+          onDownloadProgress?: (progress: number) => void;
+          onRebuildProgress?: (progress: RagEmbeddingRebuildProgress) => void | Promise<void>;
+        } = {}
   ) {
-    const nextModelId = modelId ?? EXECUTORCH_TEXT_EMBEDDING_MODEL_ID;
-    if (!EMBEDDING_MODEL_CONFIGS[nextModelId]) {
-      throw new Error('Choose a supported ExecuTorch source-search model.');
+    const callbacks = typeof options === 'function' ? { onDownloadProgress: options } : options;
+    const nextModelId = modelId ?? RAG_HASH_EMBEDDING_MODEL_ID;
+    const nextModel = EMBEDDING_MODEL_CONFIGS[nextModelId];
+    if (!nextModel) {
+      throw new Error('Choose a supported source-search model.');
     }
-    if (await PreferencesService.getBatteryReduceModeEnabled()) {
+    if (
+      nextModel.family === 'executorch' &&
+      (await PreferencesService.getBatteryReduceModeEnabled())
+    ) {
       throw new Error('Turn off Battery Reduce Mode before changing the source-search model.');
     }
     const previousModelId = await PreferencesService.getSelectedEmbeddingModelId();
     await PreferencesService.setSelectedEmbeddingModelId(nextModelId);
     resetEmbeddingRuntimeContext();
-    const model = await EmbeddingService.prepareActiveModel(onDownloadProgress);
-    if (!model) {
+    const model = await EmbeddingService.prepareActiveModel(callbacks.onDownloadProgress);
+    if (nextModel.family === 'executorch' && !model) {
       await PreferencesService.setSelectedEmbeddingModelId(
-        previousModelId ?? EXECUTORCH_TEXT_EMBEDDING_MODEL_ID
+        previousModelId ?? RAG_HASH_EMBEDDING_MODEL_ID
       );
       resetEmbeddingRuntimeContext();
       throw new Error('Unable to download or load the source-search model.');
     }
     try {
-      await RagService.rebuildEmbeddingsForActiveModel();
+      await RagService.rebuildEmbeddingsForActiveModel({
+        onProgress: callbacks.onRebuildProgress,
+      });
     } catch (error) {
       await PreferencesService.setSelectedEmbeddingModelId(
-        previousModelId ?? EXECUTORCH_TEXT_EMBEDDING_MODEL_ID
+        previousModelId ?? RAG_HASH_EMBEDDING_MODEL_ID
       );
       resetEmbeddingRuntimeContext();
       throw error;
@@ -233,7 +243,11 @@ export class ModelManagerService {
       activeVoiceModel?.id
     );
     const runtime = await llamaAdapter.getRuntimeStatus();
-    const adapter = runtime.moduleAvailable && runtime.modelUri ? 'llama' : 'mock';
+    const adapter = resolveAiRuntimeAdapter({
+      moduleAvailable: runtime.moduleAvailable,
+      modelUri: runtime.modelUri,
+      installedChatModels: installedChatModels.length,
+    });
     const preferences = await this.getPreferences();
 
     return {
@@ -244,7 +258,7 @@ export class ModelManagerService {
       installedVoiceModels: installedVoiceModels.length,
       availableModels: models.length,
       availableChatModels: chatModels.length,
-      availableEmbeddingModels: EXECUTORCH_EMBEDDING_MODEL_OPTIONS.length,
+      availableEmbeddingModels: EMBEDDING_MODEL_OPTIONS.length,
       availableVoiceModels: voiceModels.length,
       selectedModelId: preferences.selectedModelId,
       selectedEmbeddingModelId: preferences.selectedEmbeddingModelId,
@@ -260,6 +274,8 @@ export class ModelManagerService {
         ? 'Answer model is disabled. Ask Arky will use local source search only.'
         : adapter === 'llama'
           ? `${runtime.modelTitle ?? 'Local model'} is ready for offline answers.`
+          : adapter === 'llama-unavailable'
+            ? 'An answer model is downloaded, but the local AI runtime is not available in this build.'
           : installedChatModels.length
             ? 'An answer model is downloaded. Use a build with local AI enabled to run it fully offline.'
             : 'No answer model is installed. Add an answer GGUF in Settings > AI before using offline AI.',
@@ -333,18 +349,11 @@ export class ModelManagerService {
     const domains = ['notes', 'guides', 'documents', 'rss', 'maps', 'zim'] as const;
     const totals = Object.fromEntries(totalRows.map((row) => [row.domain, row.total_count]));
     const activeEmbeddingModel = await this.getActiveEmbeddingModel();
-    const reportModels = [
-      ...EXECUTORCH_EMBEDDING_MODEL_OPTIONS.map((model) => ({
-        id: model.id,
-        title: `${model.title} (${model.dimension}d)`,
-        installed: model.id === activeEmbeddingModel.id,
-      })),
-      {
-        id: RAG_HASH_EMBEDDING_MODEL_ID,
-        title: `Ark hash fallback (${RAG_HASH_EMBEDDING_DIMENSIONS}d)`,
-        installed: true,
-      },
-    ];
+    const reportModels = EMBEDDING_MODEL_OPTIONS.map((model) => ({
+      id: model.id,
+      title: `${model.title} (${model.dimension}d)`,
+      installed: model.id === RAG_HASH_EMBEDDING_MODEL_ID || model.id === activeEmbeddingModel.id,
+    }));
 
     return reportModels.map((model) => {
       const byDomain = domains.map((domain) => {
@@ -373,4 +382,14 @@ export class ModelManagerService {
       };
     });
   }
+}
+
+export function resolveAiRuntimeAdapter(input: {
+  moduleAvailable: boolean;
+  modelUri: string | null | undefined;
+  installedChatModels: number;
+}): AiRuntimeAdapter {
+  if (input.moduleAvailable && input.modelUri) return 'llama';
+  if (input.installedChatModels > 0 && !input.moduleAvailable) return 'llama-unavailable';
+  return 'mock';
 }

@@ -1,4 +1,5 @@
 import { randomUUID } from 'expo-crypto';
+import type { SQLiteDatabase } from 'expo-sqlite';
 import { DatabaseClient } from '@/services/db/client';
 import { sqliteBoolean } from '@/services/db/sqlite-values';
 import { HapticsService } from '@/services/device/haptics.service';
@@ -170,9 +171,9 @@ export class AIService {
 
   static async clearThread(threadId: string) {
     const db = await DatabaseClient.getDb();
-    await db.withTransactionAsync(async () => {
-      await db.runAsync('DELETE FROM chat_messages WHERE thread_id = ?', [threadId]);
-      await db.runAsync('DELETE FROM chat_threads WHERE id = ?', [threadId]);
+    await db.withTransactionAsync(async (tx) => {
+      await tx.runAsync('DELETE FROM chat_messages WHERE thread_id = ?', [threadId]);
+      await tx.runAsync('DELETE FROM chat_threads WHERE id = ?', [threadId]);
     });
   }
 
@@ -300,14 +301,14 @@ export class AIService {
         createdAt: timestamp + 2,
       };
 
-      await db.withTransactionAsync(async () => {
+      await db.withTransactionAsync(async (tx) => {
         throwIfCancelled(request);
-        await insertMessage(db, userMessage);
+        await insertMessage(tx, userMessage);
         if (toolMessage) {
-          await insertMessage(db, toolMessage);
+          await insertMessage(tx, toolMessage);
         }
-        await insertMessage(db, assistantMessage);
-        await db.runAsync('UPDATE chat_threads SET updated_at = ? WHERE id = ?', [
+        await insertMessage(tx, assistantMessage);
+        await tx.runAsync('UPDATE chat_threads SET updated_at = ? WHERE id = ?', [
           assistantMessage.createdAt,
           threadId,
         ]);
@@ -477,10 +478,7 @@ function rowToMessage(row: {
   };
 }
 
-async function insertMessage(
-  db: Awaited<ReturnType<typeof DatabaseClient.getDb>>,
-  message: AiMessage
-) {
+async function insertMessage(db: SQLiteDatabase, message: AiMessage) {
   await db.runAsync(
     `INSERT INTO chat_messages
       (id, thread_id, role, content, citations_json, reasoning, metadata_json, created_at)

@@ -1,4 +1,8 @@
 import type { ContentPack } from '@/types/content';
+import {
+  RAG_HASH_EMBEDDING_DIMENSIONS,
+  RAG_HASH_EMBEDDING_MODEL_ID,
+} from '@/services/ai/rag-embedding';
 
 export type EmbeddingModelConfig = {
   id: string;
@@ -18,8 +22,20 @@ export const EXECUTORCH_TEXT_EMBEDDING_TITLE = 'ExecuTorch multi-qa MiniLM sourc
 export const EXECUTORCH_MPNET_EMBEDDING_MODEL_ID = 'executorch-multi-qa-mpnet-base-dot-v1';
 export const EXECUTORCH_MPNET_EMBEDDING_DIMENSIONS = 768;
 export const EXECUTORCH_MPNET_EMBEDDING_TITLE = 'ExecuTorch multi-qa MPNet source search';
+export const RAG_HASH_EMBEDDING_TITLE = 'Battery saver source search';
 
 export const EMBEDDING_MODEL_CONFIGS: Record<string, EmbeddingModelConfig> = {
+  [RAG_HASH_EMBEDDING_MODEL_ID]: {
+    id: RAG_HASH_EMBEDDING_MODEL_ID,
+    family: 'ark-hash',
+    title: RAG_HASH_EMBEDDING_TITLE,
+    description: 'No model load. Lower battery use and safer startup with deterministic local search.',
+    dimension: RAG_HASH_EMBEDDING_DIMENSIONS,
+    distance: 'cosine',
+    queryPrefix: '',
+    documentPrefix: '',
+    normalize: true,
+  },
   [EXECUTORCH_TEXT_EMBEDDING_MODEL_ID]: {
     id: EXECUTORCH_TEXT_EMBEDDING_MODEL_ID,
     family: 'executorch',
@@ -44,15 +60,22 @@ export const EMBEDDING_MODEL_CONFIGS: Record<string, EmbeddingModelConfig> = {
   },
 };
 
-export const EXECUTORCH_EMBEDDING_MODEL_OPTIONS = Object.values(EMBEDDING_MODEL_CONFIGS);
+export const EXECUTORCH_EMBEDDING_MODEL_OPTIONS = [
+  EMBEDDING_MODEL_CONFIGS[EXECUTORCH_TEXT_EMBEDDING_MODEL_ID],
+  EMBEDDING_MODEL_CONFIGS[EXECUTORCH_MPNET_EMBEDDING_MODEL_ID],
+];
+
+export const EMBEDDING_MODEL_OPTIONS = [
+  EMBEDDING_MODEL_CONFIGS[RAG_HASH_EMBEDDING_MODEL_ID],
+  ...EXECUTORCH_EMBEDDING_MODEL_OPTIONS,
+];
 
 export function isEmbeddingModelPack(pack: Pick<ContentPack, 'id' | 'title' | 'modelRole'>) {
-  if (pack.modelRole) return pack.modelRole === 'embedding';
-  return pack.id.startsWith('embedding-') || /embedding/i.test(pack.title);
+  return pack.modelRole === 'embedding';
 }
 
 export function getEmbeddingModelConfig(pack?: Pick<ContentPack, 'id' | 'title'> | null) {
-  if (!pack) return EMBEDDING_MODEL_CONFIGS[EXECUTORCH_TEXT_EMBEDDING_MODEL_ID];
+  if (!pack) return EMBEDDING_MODEL_CONFIGS[RAG_HASH_EMBEDDING_MODEL_ID];
   const known = EMBEDDING_MODEL_CONFIGS[pack.id];
   if (known) return known;
   return null;

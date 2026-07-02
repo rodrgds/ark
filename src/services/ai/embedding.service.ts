@@ -1,7 +1,6 @@
 import {
   EMBEDDING_MODEL_CONFIGS,
   EXECUTORCH_MPNET_EMBEDDING_MODEL_ID,
-  EXECUTORCH_TEXT_EMBEDDING_MODEL_ID,
   type EmbeddingModelConfig,
 } from '@/services/ai/embedding-models';
 import {
@@ -67,6 +66,7 @@ async function getEmbeddingModel(
   config: EmbeddingModelConfig,
   onDownloadProgress: (progress: number) => void = () => {}
 ) {
+  if (config.family !== 'executorch') return null;
   if (await PreferencesService.getBatteryReduceModeEnabled()) return null;
   if (!embeddingModelPromise || embeddingModelId !== config.id) {
     resetEmbeddingRuntimeContext();
@@ -84,6 +84,7 @@ async function execuTorchEmbedding(
   purpose: 'query' | 'document'
 ): Promise<EmbeddingResult | null> {
   const config = await EmbeddingService.getActiveModelConfig();
+  if (config.family !== 'executorch') return null;
   const model = await getEmbeddingModel(config);
   if (!model) return null;
   const prefix = purpose === 'query' ? config.queryPrefix : config.documentPrefix;
@@ -99,7 +100,7 @@ async function execuTorchEmbedding(
 function getConfig(modelId: string | null) {
   return (
     EMBEDDING_MODEL_CONFIGS[modelId ?? ''] ??
-    EMBEDDING_MODEL_CONFIGS[EXECUTORCH_TEXT_EMBEDDING_MODEL_ID]
+    EMBEDDING_MODEL_CONFIGS[RAG_HASH_EMBEDDING_MODEL_ID]
   );
 }
 

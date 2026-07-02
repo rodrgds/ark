@@ -2,8 +2,9 @@ import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { getNoteTheme } from '@/constants/note-themes';
-import type { ThemePreference } from '@/constants/theme';
+import type { EffectiveTheme, ThemeColors } from '@/constants/theme';
 import { getNotePreviewText } from '@/lib/note-text';
+import { useThemeStore } from '@/stores/theme-store';
 import type { Note } from '@/types/db';
 import { GripVertical } from 'lucide-react-native';
 import * as React from 'react';
@@ -19,7 +20,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 
 type NotesOrganizeListProps = {
   notes: Note[];
-  effectiveTheme: ThemePreference;
+  effectiveTheme: EffectiveTheme;
   movingNoteId: string | null;
   onMoveToIndex: (noteId: string, targetIndex: number) => void;
 };
@@ -32,10 +33,11 @@ export function NotesOrganizeList({
   movingNoteId,
   onMoveToIndex,
 }: NotesOrganizeListProps) {
+  const colors = useThemeStore((state) => state.colors);
   return (
     <View className="gap-2">
       {notes.map((note, index) => {
-        const noteTheme = getNoteTheme(note.themeId, effectiveTheme);
+        const noteTheme = getNoteTheme(note.themeId, effectiveTheme, colors);
         const moving = movingNoteId === note.id;
         return (
           <DraggableOrganizeRow
@@ -43,6 +45,7 @@ export function NotesOrganizeList({
             note={note}
             index={index}
             count={notes.length}
+            colors={colors}
             moving={moving}
             effectiveTheme={effectiveTheme}
             onMoveToIndex={onMoveToIndex}
@@ -58,17 +61,19 @@ function DraggableOrganizeRow({
   index,
   count,
   moving,
+  colors,
   effectiveTheme,
   onMoveToIndex,
 }: {
   note: Note;
   index: number;
   count: number;
+  colors: ThemeColors;
   moving: boolean;
-  effectiveTheme: ThemePreference;
+  effectiveTheme: EffectiveTheme;
   onMoveToIndex: (noteId: string, targetIndex: number) => void;
 }) {
-  const noteTheme = getNoteTheme(note.themeId, effectiveTheme);
+  const noteTheme = getNoteTheme(note.themeId, effectiveTheme, colors);
   const translateY = useSharedValue(0);
   const dragging = useSharedValue(0);
   const preview = getNotePreviewText(note);

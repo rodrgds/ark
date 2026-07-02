@@ -1,19 +1,33 @@
 import { ArkKeyboardAwareScrollView } from '@/components/layout/keyboard-controller';
 import { RichNoteEditor, type RichNoteEditorValue } from '@/components/notes/rich-note-editor';
+import { ArkBottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
+import { showSheetAlert } from '@/components/ui/sheet-alert';
 import { Text } from '@/components/ui/text';
 import { DEFAULT_NOTE_CONTENT_FORMAT, type NoteContentFormat } from '@/constants/note-content';
 import { DEFAULT_NOTE_THEME_ID, getNoteTheme, type NoteThemeId } from '@/constants/note-themes';
+import { getNotePlainText } from '@/lib/note-text';
 import { RagService } from '@/services/ai/rag.service';
 import { NotesRepository } from '@/services/db/repositories/notes.repo';
+import { FileSystemService } from '@/services/files/filesystem.service';
+import { NotePdfService } from '@/services/notes/note-pdf.service';
 import { useAuthStore } from '@/stores/auth-store';
 import { useThemeStore } from '@/stores/theme-store';
 import type { Note } from '@/types/db';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { ChevronLeft, Check, TriangleAlert } from 'lucide-react-native';
+import {
+  ChevronLeft,
+  Check,
+  MoreVertical,
+  Printer,
+  Share2,
+  TriangleAlert,
+} from 'lucide-react-native';
 import * as React from 'react';
-import { ActivityIndicator, Platform, TextInput, useWindowDimensions, View } from 'react-native';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import { ActivityIndicator, Linking, TextInput, useWindowDimensions, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -30,6 +44,8 @@ type DraftRef = DraftSnapshot & {
   hasSavableContent: boolean;
   snapshot: string;
 };
+
+type NoteExportKind = 'pdf' | 'text';
 
 function snapshotDraft(input: DraftSnapshot) {
   return JSON.stringify(input);
@@ -102,12 +118,66 @@ const HeaderTitleInput = React.memo(
 );
 HeaderTitleInput.displayName = 'HeaderTitleInput';
 
+type NoteActionsSheetProps = {
+  visible: boolean;
+  disabled: boolean;
+  exporting: NoteExportKind | null;
+  onDismiss: () => void;
+  onExportPdf: () => void;
+  onExportText: () => void;
+};
+
+function NoteActionsSheet({
+  visible,
+  disabled,
+  exporting,
+  onDismiss,
+  onExportPdf,
+  onExportText,
+}: NoteActionsSheetProps) {
+  return (
+    <ArkBottomSheet visible={visible} title="Note Actions" onDismiss={onDismiss}>
+      <View className="gap-2">
+        <Button
+          variant="outline"
+          disabled={disabled || exporting !== null}
+          onPress={() => {
+            onDismiss();
+            onExportPdf();
+          }}>
+          {exporting === 'pdf' ? (
+            <ActivityIndicator size="small" />
+          ) : (
+            <Icon as={Printer} className="size-4" />
+          )}
+          <Text>{exporting === 'pdf' ? 'Preparing PDF' : 'Export PDF'}</Text>
+        </Button>
+        <Button
+          variant="outline"
+          disabled={disabled || exporting !== null}
+          onPress={() => {
+            onDismiss();
+            onExportText();
+          }}>
+          {exporting === 'text' ? (
+            <ActivityIndicator size="small" />
+          ) : (
+            <Icon as={Share2} className="size-4" />
+          )}
+          <Text>{exporting === 'text' ? 'Preparing text' : 'Share text'}</Text>
+        </Button>
+      </View>
+    </ArkBottomSheet>
+  );
+}
+
 export default function NoteEditorScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
   const routeNoteId = typeof params.id === 'string' ? params.id : undefined;
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
   const effectiveTheme = useThemeStore((state) => state.effectiveTheme);
+  const colors = useThemeStore((state) => state.colors);
   const vaultUnlocked = useAuthStore((state) => state.unlocked);
 
   const [savedNoteId, setSavedNoteId] = React.useState<string | undefined>(routeNoteId);
@@ -123,6 +193,8 @@ export default function NoteEditorScreen() {
     DEFAULT_NOTE_CONTENT_FORMAT
   );
   const [themeId, setThemeId] = React.useState<NoteThemeId>(DEFAULT_NOTE_THEME_ID);
+  const [noteActionsOpen, setNoteActionsOpen] = React.useState(false);
+  const [exporting, setExporting] = React.useState<NoteExportKind | null>(null);
 
   const saveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveInFlightRef = React.useRef(false);
@@ -154,8 +226,8 @@ export default function NoteEditorScreen() {
   const inputHintProp = 'place' + 'holder';
   const inputHintColorProp = `${inputHintProp}TextColor`;
   const noteTheme = React.useMemo(
-    () => getNoteTheme(themeId, effectiveTheme),
-    [effectiveTheme, themeId]
+    () => getNoteTheme(themeId, effectiveTheme, colors),
+    [colors, effectiveTheme, themeId]
   );
 
   React.useEffect(() => {
@@ -312,6 +384,85 @@ export default function NoteEditorScreen() {
     setContentFormat(value.contentFormat);
   }, []);
 
+  function buildExportNote(): Note {
+    const now = Date.now();
+    return {
+      id: savedNoteId ?? 'draft-note',
+      title: title.trim() || 'Untitled Note',
+      body,
+      contentHtml,
+      contentJson,
+      contentFormat,
+      tags: [],
+      themeId,
+      sortOrder: 0,
+      isFavorite: false,
+      createdAt: now,
+      updatedAt: now,
+      deletedAt: null,
+    };
+  }
+
+  async function exportNotePdf() {
+    if (!hasSavableContent) return;
+    setExporting('pdf');
+    try {
+      const note = buildExportNote();
+      const { uri } = await NotePdfService.export(note);
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, {
+          dialogTitle: `Export ${note.title}`,
+          mimeType: 'application/pdf',
+          UTI: 'com.adobe.pdf',
+        });
+        return;
+      }
+
+      const canOpen = await Linking.canOpenURL(uri);
+      if (!canOpen) throw new Error('No app is available to open this PDF.');
+      await Linking.openURL(uri);
+    } catch (exportError) {
+      showSheetAlert(
+        'Export failed',
+        exportError instanceof Error ? exportError.message : 'Unable to export note.'
+      );
+    } finally {
+      setExporting(null);
+    }
+  }
+
+  async function exportNoteText() {
+    if (!hasSavableContent) return;
+    setExporting('text');
+    try {
+      const note = buildExportNote();
+      const noteText = [note.title, getNotePlainText(note)].filter(Boolean).join('\n\n').trim();
+      if (!noteText) return;
+      await FileSystemService.ensureAppDirectories();
+      const safeName = FileSystemService.safeFileName(note.title) || 'untitled-note';
+      const uri = `${FileSystemService.dir('cache')}${safeName}.txt`;
+      await FileSystem.writeAsStringAsync(uri, noteText, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, {
+          dialogTitle: `Share ${note.title}`,
+          mimeType: 'text/plain',
+          UTI: 'public.plain-text',
+        });
+        return;
+      }
+      showSheetAlert('Note saved', 'Saved a plaintext copy to Ark cache.');
+    } catch (exportError) {
+      showSheetAlert(
+        'Export failed',
+        exportError instanceof Error ? exportError.message : 'Unable to export note.'
+      );
+    } finally {
+      setExporting(null);
+    }
+  }
+
   const saveStatusLabel =
     saveState === 'saving' || saving
       ? 'Saving locally...'
@@ -369,6 +520,21 @@ export default function NoteEditorScreen() {
               <Icon as={ChevronLeft} className="text-foreground size-5" />
             </Button>
           ),
+          headerRight: () => (
+            <Button
+              accessibilityLabel="Note actions"
+              className="ml-2 h-9 w-9 rounded-full"
+              size="icon"
+              variant="ghost"
+              disabled={loading || !hasSavableContent}
+              onPress={() => setNoteActionsOpen(true)}>
+              {exporting ? (
+                <ActivityIndicator size="small" color={noteTheme.mutedForeground} />
+              ) : (
+                <Icon as={MoreVertical} className="text-foreground size-5" />
+              )}
+            </Button>
+          ),
         }}
       />
 
@@ -397,6 +563,14 @@ export default function NoteEditorScreen() {
           </Animated.View>
         )}
       </View>
+      <NoteActionsSheet
+        visible={noteActionsOpen}
+        disabled={!hasSavableContent}
+        exporting={exporting}
+        onDismiss={() => setNoteActionsOpen(false)}
+        onExportPdf={() => void exportNotePdf()}
+        onExportText={() => void exportNoteText()}
+      />
     </>
   );
 }

@@ -1,4 +1,4 @@
-import type { ThemePreference } from '@/constants/theme';
+import type { EffectiveTheme, ThemeColors } from '@/constants/theme';
 
 export const NOTE_THEME_IDS = [
   'default',
@@ -28,7 +28,7 @@ export type NoteThemeVariant = {
 export type NoteThemeDefinition = {
   id: NoteThemeId;
   label: string;
-  variants: Record<ThemePreference, NoteThemeVariant>;
+  variants: Record<EffectiveTheme, NoteThemeVariant>;
 };
 
 export const DEFAULT_NOTE_THEME_ID: NoteThemeId = 'default';
@@ -58,7 +58,7 @@ const defaultTheme = {
     chipBackground: '#1B1D18',
     chipForeground: '#E6DFC9',
   },
-} satisfies Record<ThemePreference, NoteThemeVariant>;
+} satisfies Record<EffectiveTheme, NoteThemeVariant>;
 
 export const NOTE_THEMES: Record<NoteThemeId, NoteThemeDefinition> = {
   default: {
@@ -378,6 +378,25 @@ export function normalizeNoteThemeId(value: string | null | undefined): NoteThem
   return isNoteThemeId(value) ? value : DEFAULT_NOTE_THEME_ID;
 }
 
-export function getNoteTheme(themeId: string | null | undefined, effectiveTheme: ThemePreference) {
-  return NOTE_THEMES[normalizeNoteThemeId(themeId)].variants[effectiveTheme];
+function defaultVariantFromPalette(colors: ThemeColors): NoteThemeVariant {
+  return {
+    background: colors.card,
+    foreground: colors.cardForeground,
+    mutedForeground: colors.mutedForeground,
+    border: colors.border,
+    chipBackground: colors.muted,
+    chipForeground: colors.foreground,
+  };
+}
+
+export function getNoteTheme(
+  themeId: string | null | undefined,
+  effectiveTheme: EffectiveTheme,
+  colors?: ThemeColors
+) {
+  const normalized = normalizeNoteThemeId(themeId);
+  if (normalized === DEFAULT_NOTE_THEME_ID && colors) {
+    return defaultVariantFromPalette(colors);
+  }
+  return NOTE_THEMES[normalized].variants[effectiveTheme];
 }

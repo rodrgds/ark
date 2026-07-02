@@ -5,7 +5,11 @@ import { AiSection } from '@/components/settings/ai-section';
 import { AppearanceSection } from '@/components/settings/appearance-section';
 import { BackupSection } from '@/components/settings/backup-section';
 import { DiagnosticsCard } from '@/components/settings/diagnostics-card';
-import { DownloadsCard, type DownloadBatchAction } from '@/components/settings/downloads-card';
+import {
+  DownloadsCard,
+  type DownloadBatchAction,
+  type DownloadRowAction,
+} from '@/components/settings/downloads-card';
 import { OfflineMapsCard } from '@/components/settings/offline-maps-card';
 import { SecuritySection } from '@/components/settings/security-section';
 import { Button } from '@/components/ui/button';
@@ -18,6 +22,7 @@ import { BackupService } from '@/services/backup/backup.service';
 import { ContentPackService } from '@/services/content/content-pack.service';
 import { ModelManagerService } from '@/services/ai/model-manager.service';
 import type { EmbeddingModelConfig } from '@/services/ai/embedding-models';
+import { DatabaseClient } from '@/services/db/client';
 import { SettingsRepository } from '@/services/db/repositories/settings.repo';
 import { DownloadManagerService } from '@/services/files/download-manager.service';
 import { FileSystemService } from '@/services/files/filesystem.service';
@@ -49,18 +54,28 @@ const SETTINGS_TABS: Array<{ value: SettingsTab; label: string }> = [
 ];
 
 export default function SettingsScreen() {
-  const { tab } = useLocalSearchParams<{
+  const { tab, downloadId } = useLocalSearchParams<{
     tab?: SettingsTab | 'downloads' | 'storage' | 'internals';
+    downloadId?: string;
   }>();
+  const selectedDownloadResourceId =
+    typeof downloadId === 'string' && downloadId.length > 0 ? downloadId : null;
   const preference = useThemeStore((state) => state.preference);
   const effectiveTheme = useThemeStore((state) => state.effectiveTheme);
+  const accentPreference = useThemeStore((state) => state.accentPreference);
+  const themeColors = useThemeStore((state) => state.colors);
+  const systemAccentAvailable = useThemeStore((state) => state.systemAccentAvailable);
+  const systemAccentColors = useThemeStore((state) => state.systemAccentColors);
   const setPreference = useThemeStore((state) => state.setPreference);
+  const setAccentPreference = useThemeStore((state) => state.setAccentPreference);
   const vaultUnlocked = useAuthStore((state) => state.unlocked);
   const [activeTab, setActiveTab] = React.useState<SettingsTab>('appearance');
+  const [vaultProtectionEnabled, setVaultProtectionEnabled] = React.useState(false);
   const [autoLock, setAutoLock] = React.useState(5);
   const [biometricsEnabled, setBiometricsEnabled] = React.useState(false);
   const [batteryReduceModeEnabled, setBatteryReduceModeEnabled] = React.useState(false);
   const [wifiOnlyDownloadsEnabled, setWifiOnlyDownloadsEnabled] = React.useState(false);
+  const [topHeaderEnabled, setTopHeaderEnabled] = React.useState(true);
   const [availableModels, setAvailableModels] = React.useState<ContentPack[]>([]);
   const [installedModels, setInstalledModels] = React.useState<ContentPack[]>([]);
   const [activeModel, setActiveModel] = React.useState<ContentPack | null>(null);
@@ -96,6 +111,7 @@ export default function SettingsScreen() {
       biometricState,
       reduceModeState,
       wifiOnlyDownloadsState,
+      topHeaderState,
       storageState,
       downloadRows,
       regions,
@@ -112,6 +128,7 @@ export default function SettingsScreen() {
       VaultService.getBiometricsEnabled(),
       PreferencesService.getBatteryReduceModeEnabled(),
       PreferencesService.getWifiOnlyDownloadsEnabled(),
+      PreferencesService.getTopHeaderEnabled(),
       FileSystemService.getStorageSummary(),
       DownloadManagerService.listDownloads(),
       OfflineMapService.listRegions(),
@@ -124,10 +141,12 @@ export default function SettingsScreen() {
       ModelManagerService.getActiveEmbeddingModel(),
       ModelManagerService.getEmbeddingIndexStatus(),
     ]);
+    setVaultProtectionEnabled(vault.isInitialized);
     setAutoLock(vault.autoLockMinutes);
     setBiometricsEnabled(biometricState);
     setBatteryReduceModeEnabled(reduceModeState);
     setWifiOnlyDownloadsEnabled(wifiOnlyDownloadsState);
+    setTopHeaderEnabled(topHeaderState);
     setStorage(storageState);
     setDownloads(downloadRows);
     setMapRegions(regions);
@@ -163,10 +182,14 @@ export default function SettingsScreen() {
     const hasActiveMapDownload = mapRegions.some((region) =>
       ['queued', 'downloading'].includes(region.status)
     );
+    const hasActiveRoutingDownload = mapRegions.some((region) =>
+      ['queued', 'downloading'].includes(region.routingStatus)
+    );
     if (
       !hasActiveModelDownload &&
       !hasActiveDownload &&
       !hasActiveMapDownload &&
+      !hasActiveRoutingDownload &&
       activeTab !== 'advanced'
     )
       return;
@@ -198,6 +221,35 @@ export default function SettingsScreen() {
     }
   }
 
+  async function enableVaultProtection(input: { nextPassword: string; passwordHint: string }) {
+    setBusy('password');
+    try {
+      const result = await VaultService.initializeVault(input.nextPassword, input.passwordHint);
+      if (result.ok) {
+        setVaultProtectionEnabled(true);
+        await load();
+      }
+      return { ok: result.ok, reason: result.reason };
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function disableVaultProtection(currentPassword: string) {
+    setBusy('password');
+    try {
+      const result = await VaultService.disableVaultProtection(currentPassword);
+      if (result.ok) {
+        setVaultProtectionEnabled(false);
+        setBiometricsEnabled(false);
+        await load();
+      }
+      return { ok: result.ok, reason: result.reason };
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function toggleBiometrics() {
     setBusy('biometrics');
     try {
@@ -217,10 +269,84 @@ export default function SettingsScreen() {
     }
   }
 
+  async function toggleTopHeader() {
+    const next = !topHeaderEnabled;
+    setTopHeaderEnabled(next);
+    await PreferencesService.setTopHeaderEnabled(next);
+  }
+
   async function toggleWifiOnlyDownloads() {
     const next = !wifiOnlyDownloadsEnabled;
     setWifiOnlyDownloadsEnabled(next);
     await PreferencesService.setWifiOnlyDownloadsEnabled(next);
+  }
+
+  function confirmDatabaseMigration() {
+    showSheetAlert(
+      'Encrypt database?',
+      'Ark will export this plaintext database to an encrypted SQLCipher copy, keep a plaintext backup, and reopen with the stored device key.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Encrypt DB', onPress: () => void migratePlaintextDatabase() },
+      ]
+    );
+  }
+
+  async function migratePlaintextDatabase() {
+    setBusy('db-migration');
+    try {
+      const result = await DatabaseClient.migratePlaintextDatabaseToEncrypted();
+      await load();
+      showSheetAlert(
+        result.reopenedEncrypted ? 'Database encrypted' : 'Migration needs verification',
+        result.reopenedEncrypted
+          ? `Ark reopened the encrypted database. Plaintext backup kept at ${result.backupPath}.`
+          : `Ark kept a plaintext backup at ${result.backupPath}. Restart Ark and check Diagnostics before deleting it.`
+      );
+    } catch (err) {
+      showSheetAlert(
+        'Database migration failed',
+        err instanceof Error ? err.message : 'Ark could not encrypt the existing database.'
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function confirmDisableDatabaseEncryption() {
+    showSheetAlert(
+      'Use plaintext database?',
+      'Ark will export the encrypted database to a plaintext copy, keep an encrypted backup, and reopen without SQLCipher. This improves access speed and battery use but removes database-at-rest encryption.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Use plaintext',
+          style: 'destructive',
+          onPress: () => void migrateEncryptedDatabaseToPlaintext(),
+        },
+      ]
+    );
+  }
+
+  async function migrateEncryptedDatabaseToPlaintext() {
+    setBusy('db-migration');
+    try {
+      const result = await DatabaseClient.migrateEncryptedDatabaseToPlaintext();
+      await load();
+      showSheetAlert(
+        result.reopenedPlaintext ? 'Database encryption off' : 'Migration needs verification',
+        result.reopenedPlaintext
+          ? `Ark reopened without SQLCipher. Encrypted backup kept at ${result.backupPath}.`
+          : `Encrypted backup kept at ${result.backupPath}. Restart Ark and check Diagnostics.`
+      );
+    } catch (err) {
+      showSheetAlert(
+        'Database migration failed',
+        err instanceof Error ? err.message : 'Ark could not export the database to plaintext.'
+      );
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function selectModel(model: ContentPack) {
@@ -232,10 +358,18 @@ export default function SettingsScreen() {
   async function selectEmbeddingModel(model: EmbeddingModelConfig) {
     setBusy(`embedding-${model.id}`);
     setAiMessage(null);
+    const previousEmbeddingModel = activeEmbeddingModel;
+    setActiveEmbeddingModel(model);
     try {
-      await ModelManagerService.setSelectedEmbeddingModel(model.id);
+      await ModelManagerService.setSelectedEmbeddingModel(model.id, {
+        onRebuildProgress: async () => {
+          setEmbeddingIndexStatus(await ModelManagerService.getEmbeddingIndexStatus());
+        },
+      });
       await load();
     } catch (modelError) {
+      setActiveEmbeddingModel(previousEmbeddingModel);
+      setEmbeddingIndexStatus(await ModelManagerService.getEmbeddingIndexStatus());
       setAiMessage(
         modelError instanceof Error ? modelError.message : 'Unable to update source search.'
       );
@@ -319,6 +453,27 @@ export default function SettingsScreen() {
     }
   }
 
+  async function runDownloadAction(download: DownloadRow, action: DownloadRowAction) {
+    setBusy(`download-${download.id}`);
+    try {
+      if (action === 'pause') {
+        await DownloadManagerService.pauseDownload(download.id);
+      } else if (action === 'resume') {
+        await DownloadManagerService.resumeDownload(download.id);
+      } else {
+        await DownloadManagerService.cancelDownload(download.id);
+      }
+      await load();
+    } catch (error) {
+      showSheetAlert(
+        'Download action failed',
+        error instanceof Error ? error.message : 'Unable to update this download.'
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function runDownloadBatchAction(action: DownloadBatchAction) {
     setBusy(`downloads-${action}`);
     try {
@@ -391,6 +546,32 @@ export default function SettingsScreen() {
     } finally {
       setBusy(null);
     }
+  }
+
+  async function retryRoutingDownload(region: MapRegion) {
+    setBusy(`routing-retry-${region.id}`);
+    try {
+      const result = await OfflineMapService.downloadRoutingPack(region.id);
+      if (!result.ok) {
+        showSheetAlert(
+          'Unable to download navigation',
+          result.reason ?? 'Check connection and storage.'
+        );
+      }
+      await load();
+    } catch (error) {
+      showSheetAlert(
+        'Navigation download failed',
+        error instanceof Error ? error.message : 'Unable to retry navigation data.'
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function clearSelectedDownloadResource() {
+    if (!selectedDownloadResourceId) return;
+    router.setParams({ downloadId: '' });
   }
 
   function confirmDeleteMapRegion(region: MapRegion) {
@@ -523,14 +704,23 @@ export default function SettingsScreen() {
       {activeTab === 'appearance' ? (
         <AppearanceSection
           preference={preference}
+          effectiveTheme={effectiveTheme}
+          accentPreference={accentPreference}
+          colors={themeColors}
+          systemAccentAvailable={systemAccentAvailable}
+          systemAccentColors={systemAccentColors}
           setPreference={setPreference}
+          setAccentPreference={setAccentPreference}
           batteryReduceModeEnabled={batteryReduceModeEnabled}
           toggleBatteryReduceMode={toggleBatteryReduceMode}
+          topHeaderEnabled={topHeaderEnabled}
+          toggleTopHeader={toggleTopHeader}
         />
       ) : null}
 
       {activeTab === 'security' ? (
         <SecuritySection
+          vaultProtectionEnabled={vaultProtectionEnabled}
           vaultUnlocked={vaultUnlocked}
           autoLockMinutes={autoLock}
           setLockMinutes={setLockMinutes}
@@ -538,8 +728,20 @@ export default function SettingsScreen() {
           biometricsBusy={busy === 'biometrics'}
           toggleBiometrics={toggleBiometrics}
           changePassword={changePassword}
+          enableVaultProtection={enableVaultProtection}
+          disableVaultProtection={disableVaultProtection}
+          databaseEncryption={diagnostics?.databaseEncryption ?? null}
+          encryptionBusy={busy === 'db-migration'}
+          onEnableDatabaseEncryption={confirmDatabaseMigration}
+          onDisableDatabaseEncryption={confirmDisableDatabaseEncryption}
           passwordBusy={busy === 'password'}
-          onLockPress={() => setLockSheetOpen(true)}
+          onLockPress={() => {
+            if (vaultUnlocked) {
+              setLockSheetOpen(true);
+              return;
+            }
+            router.push('/(tabs)/notes');
+          }}
         />
       ) : null}
 
@@ -644,14 +846,22 @@ export default function SettingsScreen() {
             storage={storage}
             wifiOnlyDownloadsEnabled={wifiOnlyDownloadsEnabled}
             busy={busy}
+            selectedResourceId={selectedDownloadResourceId}
             onToggleWifiOnlyDownloads={toggleWifiOnlyDownloads}
             onBatchAction={runDownloadBatchAction}
             onRetryDownload={retryDownload}
+            onDownloadAction={runDownloadAction}
+            onClearSelectedResource={clearSelectedDownloadResource}
             onDeleteMapRegion={confirmDeleteMapRegion}
             onMapRegionAction={runMapRegionAction}
+            onRetryRoutingDownload={retryRoutingDownload}
           />
 
-          <DiagnosticsCard report={diagnostics} />
+          <DiagnosticsCard
+            report={diagnostics}
+            migrationBusy={busy === 'db-migration'}
+            onMigratePlaintextDatabase={confirmDatabaseMigration}
+          />
 
           <AboutSection version="1.0.0 MVP" onBuildTap={handleBuildTap} />
         </>

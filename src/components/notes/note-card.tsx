@@ -2,9 +2,10 @@ import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { getNoteTheme } from '@/constants/note-themes';
-import { NAV_COLORS, type ThemePreference } from '@/constants/theme';
+import type { EffectiveTheme } from '@/constants/theme';
 import { getLabelColor, type LabelColorMap } from '@/lib/label-colors';
 import { getNotePreviewText } from '@/lib/note-text';
+import { useThemeStore } from '@/stores/theme-store';
 import type { Note } from '@/types/db';
 import { CheckCircle2, Circle } from 'lucide-react-native';
 import * as React from 'react';
@@ -14,7 +15,7 @@ import Animated from 'react-native-reanimated';
 type NoteCardProps = {
   note: Note;
   labelColors: LabelColorMap;
-  effectiveTheme: ThemePreference;
+  effectiveTheme: EffectiveTheme;
   selectionMode?: boolean;
   selected?: boolean;
   onPress: (note: Note) => void;
@@ -30,8 +31,9 @@ function NoteCardImpl({
   onPress,
   onLongPress,
 }: NoteCardProps) {
-  const noteTheme = getNoteTheme(note.themeId, effectiveTheme);
-  const selectedColor = NAV_COLORS[effectiveTheme].primary;
+  const colors = useThemeStore((state) => state.colors);
+  const noteTheme = getNoteTheme(note.themeId, effectiveTheme, colors);
+  const selectedColor = colors.primary;
   const preview = getNotePreviewText(note);
 
   return (

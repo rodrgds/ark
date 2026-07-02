@@ -47,8 +47,16 @@ mock.module('expo-router', () => ({
     }: {
       options?: {
         headerTitle?: () => React.ReactNode;
+        headerLeft?: () => React.ReactNode;
+        headerRight?: () => React.ReactNode;
       };
-    }) => <>{options?.headerTitle?.()}</>,
+    }) => (
+      <>
+        {options?.headerLeft?.()}
+        {options?.headerTitle?.()}
+        {options?.headerRight?.()}
+      </>
+    ),
   },
   Tabs: {
     Screen: () => null,
@@ -88,6 +96,30 @@ mock.module('@/components/notes/rich-note-editor', () => ({
           }),
         }),
     }),
+}));
+
+mock.module('expo-sharing', () => ({
+  isAvailableAsync: async () => true,
+  shareAsync: async () => undefined,
+}));
+
+mock.module('expo-file-system/legacy', () => ({
+  EncodingType: { UTF8: 'utf8' },
+  writeAsStringAsync: async () => undefined,
+}));
+
+mock.module('@/services/files/filesystem.service', () => ({
+  FileSystemService: {
+    dir: () => 'file:///cache/',
+    ensureAppDirectories: async () => undefined,
+    safeFileName: (name: string) => name.replace(/\s+/g, '-'),
+  },
+}));
+
+mock.module('@/services/notes/note-pdf.service', () => ({
+  NotePdfService: {
+    export: async () => ({ fileName: 'note.pdf', uri: 'file:///cache/note.pdf' }),
+  },
 }));
 
 mock.module('@/services/db/repositories/notes.repo', () => ({

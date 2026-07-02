@@ -10,14 +10,21 @@ export function EmbeddingIndexCard({
   status: Awaited<ReturnType<typeof ModelManagerService.getEmbeddingIndexStatus>> | null;
 }) {
   if (!status) return null;
+  const activeModel = status.find((model) => model.active) ?? status[0] ?? null;
 
   return (
     <Card className="gap-3">
       <View className="gap-1">
         <Text variant="large">Search index coverage</Text>
-        <Text variant="muted">
-          Coverage shows which indexed chunks have vectors for each search model.
-        </Text>
+        {activeModel ? (
+          <Text variant="muted">
+            {activeModel.complete >= 1
+              ? `${activeModel.title} is ready for local source search.`
+              : `${activeModel.title} is rebuilding: ${Math.round(
+                  activeModel.complete * 100
+                )}% ready.`}
+          </Text>
+        ) : null}
       </View>
       <View className="gap-3">
         {status.map((model) => (
@@ -26,8 +33,7 @@ export function EmbeddingIndexCard({
               <View className="min-w-0 flex-1">
                 <Text numberOfLines={1}>{model.title}</Text>
                 <Text variant="small" className="text-muted-foreground">
-                  {model.active ? 'Active' : model.installed ? 'Installed' : 'Not installed'} ·{' '}
-                  {Math.round(model.complete * 100)}%
+                  {indexStatusLabel(model)} · {Math.round(model.complete * 100)}%
                 </Text>
               </View>
               <Text variant="small" className="text-muted-foreground">
@@ -47,4 +53,16 @@ export function EmbeddingIndexCard({
       </View>
     </Card>
   );
+}
+
+function indexStatusLabel(model: {
+  active: boolean;
+  installed: boolean;
+  total: number;
+  complete: number;
+}) {
+  if (model.total === 0) return model.active ? 'Active' : 'No sources';
+  if (model.complete < 1) return model.active ? 'Rebuilding' : 'Partial';
+  if (model.active) return 'Active';
+  return model.installed ? 'Ready' : 'Indexed';
 }

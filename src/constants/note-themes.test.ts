@@ -6,7 +6,7 @@ import {
   isNoteThemeId,
   normalizeNoteThemeId,
 } from '@/constants/note-themes';
-import type { ThemePreference } from '@/constants/theme';
+import type { EffectiveTheme } from '@/constants/theme';
 
 const REQUIRED_VARIANT_KEYS = [
   'background',
@@ -43,7 +43,7 @@ describe('note themes', () => {
   });
 
   test('defines complete variants for every app theme', () => {
-    const appThemes: ThemePreference[] = ['oled', 'dark', 'light'];
+    const appThemes: EffectiveTheme[] = ['oled', 'dark', 'light'];
 
     for (const noteThemeId of NOTE_THEME_IDS) {
       for (const appTheme of appThemes) {

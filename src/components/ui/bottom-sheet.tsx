@@ -1,4 +1,3 @@
-import { NAV_COLORS } from '@/constants/theme';
 import { useThemeStore } from '@/stores/theme-store';
 import { ModalBottomSheet, type Detent } from '@swmansion/react-native-bottom-sheet';
 import * as React from 'react';
@@ -55,8 +54,7 @@ export function ArkBottomSheet({
 }: ArkBottomSheetProps) {
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
-  const effectiveTheme = useThemeStore((state) => state.effectiveTheme);
-  const colors = NAV_COLORS[effectiveTheme];
+  const colors = useThemeStore((state) => state.colors);
   const visibleRef = React.useRef(visible);
   const hasOpenedRef = React.useRef(false);
   const dismissingRef = React.useRef(false);

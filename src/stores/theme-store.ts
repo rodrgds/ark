@@ -1,41 +1,147 @@
 import { create } from 'zustand';
 import { Uniwind } from 'uniwind';
 import { SettingsRepository } from '@/services/db/repositories/settings.repo';
-import type { ThemePreference } from '@/constants/theme';
+import {
+  DEFAULT_SYSTEM_ACCENT_COLORS,
+  type AccentColorsByTheme,
+  getAccentCssVariables,
+  getThemeColors,
+  isAccentPreference,
+  isThemePreference,
+  type AccentPreference,
+  type EffectiveTheme,
+  type ThemeColors,
+  type ThemePreference,
+} from '@/constants/theme';
+import { Appearance } from 'react-native';
+import { SystemColorsService } from '@/services/device/system-colors.service';
 
 type ThemeState = {
   preference: ThemePreference;
-  effectiveTheme: 'oled' | 'dark' | 'light';
+  effectiveTheme: EffectiveTheme;
+  accentPreference: AccentPreference;
+  systemAccentAvailable: boolean;
+  systemAccentColors: AccentColorsByTheme;
+  systemAccentSource: 'android-material-you' | 'unsupported' | 'fallback';
+  systemAccentReason?: string;
+  colors: ThemeColors;
   init: () => Promise<void>;
   setPreference: (preference: ThemePreference) => Promise<void>;
+  setAccentPreference: (preference: AccentPreference) => Promise<void>;
+  refreshSystemAccent: () => Promise<void>;
 };
 
-function getEffective(preference: ThemePreference): 'oled' | 'dark' | 'light' {
-  return preference;
+const EFFECTIVE_THEMES: EffectiveTheme[] = ['oled', 'dark', 'light'];
+
+function getSystemTheme(): EffectiveTheme {
+  return Appearance.getColorScheme() === 'light' ? 'light' : 'dark';
 }
 
-function applyTheme(preference: ThemePreference) {
+function getEffective(preference: ThemePreference): EffectiveTheme {
+  return preference === 'system' ? getSystemTheme() : preference;
+}
+
+function applyAccentPreference(
+  preference: AccentPreference,
+  systemAccentColors: AccentColorsByTheme
+) {
+  for (const theme of EFFECTIVE_THEMES) {
+    Uniwind.updateCSSVariables(theme, getAccentCssVariables(theme, preference, systemAccentColors));
+  }
+}
+
+function applyTheme(
+  preference: ThemePreference,
+  accentPreference: AccentPreference,
+  systemAccentColors: AccentColorsByTheme
+) {
+  applyAccentPreference(accentPreference, systemAccentColors);
+  if (preference === 'system') {
+    Uniwind.setTheme('system');
+  } else {
+    Uniwind.setTheme(preference);
+  }
   const effectiveTheme = getEffective(preference);
-  Uniwind.setTheme(effectiveTheme);
-  return effectiveTheme;
+  return {
+    effectiveTheme,
+    colors: getThemeColors(effectiveTheme, accentPreference, systemAccentColors),
+  };
 }
 
-function isThemePreference(value: string | null): value is ThemePreference {
-  return value === 'oled' || value === 'dark' || value === 'light';
-}
+let appearanceSubscription: { remove: () => void } | null = null;
 
 export const useThemeStore = create<ThemeState>((set) => ({
   preference: 'oled',
   effectiveTheme: 'oled',
+  accentPreference: 'moss',
+  systemAccentAvailable: false,
+  systemAccentColors: DEFAULT_SYSTEM_ACCENT_COLORS,
+  systemAccentSource: 'fallback',
+  colors: getThemeColors('oled', 'moss'),
   init: async () => {
-    const stored = await SettingsRepository.get('theme.preference');
-    const preference = isThemePreference(stored) ? stored : 'oled';
-    const effectiveTheme = applyTheme(preference);
-    set({ preference, effectiveTheme });
+    const [storedTheme, storedAccent, systemAccent] = await Promise.all([
+      SettingsRepository.get('theme.preference'),
+      SettingsRepository.get('theme.accentPreference'),
+      SystemColorsService.getAccentColors(),
+    ]);
+    const preference = isThemePreference(storedTheme) ? storedTheme : 'oled';
+    const accentPreference = isAccentPreference(storedAccent) ? storedAccent : 'moss';
+    const next = applyTheme(preference, accentPreference, systemAccent.colors);
+    set({
+      preference,
+      accentPreference,
+      systemAccentAvailable: systemAccent.available,
+      systemAccentColors: systemAccent.colors,
+      systemAccentSource: systemAccent.source,
+      systemAccentReason: systemAccent.reason,
+      ...next,
+    });
+    appearanceSubscription ??= Appearance.addChangeListener(() => {
+      const current = useThemeStore.getState();
+      if (current.preference !== 'system') return;
+      const effectiveTheme = getSystemTheme();
+      set({
+        effectiveTheme,
+        colors: getThemeColors(
+          effectiveTheme,
+          current.accentPreference,
+          current.systemAccentColors
+        ),
+      });
+    });
   },
   setPreference: async (preference) => {
-    const effectiveTheme = applyTheme(preference);
+    const current = useThemeStore.getState();
+    const next = applyTheme(preference, current.accentPreference, current.systemAccentColors);
     await SettingsRepository.set('theme.preference', preference);
-    set({ preference, effectiveTheme });
+    set({ preference, ...next });
+  },
+  setAccentPreference: async (preference) => {
+    let current = useThemeStore.getState();
+    if (preference === 'system') {
+      const systemAccent = await SystemColorsService.getAccentColors();
+      set({
+        systemAccentAvailable: systemAccent.available,
+        systemAccentColors: systemAccent.colors,
+        systemAccentSource: systemAccent.source,
+        systemAccentReason: systemAccent.reason,
+      });
+      current = useThemeStore.getState();
+    }
+    const next = applyTheme(current.preference, preference, current.systemAccentColors);
+    await SettingsRepository.set('theme.accentPreference', preference);
+    set({ accentPreference: preference, ...next });
+  },
+  refreshSystemAccent: async () => {
+    const current = useThemeStore.getState();
+    const systemAccent = await SystemColorsService.getAccentColors();
+    const next = applyTheme(current.preference, current.accentPreference, systemAccent.colors);
+    set({
+      systemAccentAvailable: systemAccent.available,
+      systemAccentColors: systemAccent.colors,
+      systemAccentSource: systemAccent.source,
+      systemAccentReason: systemAccent.reason,
+      ...next,
+    });
   },
 }));

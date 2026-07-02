@@ -67,20 +67,22 @@ export function TabPreferencesCard() {
   }
 
   function moveTab(tabId: ArkTabId, targetIndex: number) {
-    const index = preferences.order.indexOf(tabId);
-    if (
-      index < 0 ||
-      targetIndex < 0 ||
-      targetIndex >= preferences.order.length ||
-      index === targetIndex
-    ) {
-      return;
-    }
+    setPreferences((current) => {
+      const index = current.order.indexOf(tabId);
+      if (
+        index < 0 ||
+        targetIndex < 0 ||
+        targetIndex >= current.order.length ||
+        index === targetIndex
+      ) {
+        return current;
+      }
 
-    const nextOrder = [...preferences.order];
-    nextOrder.splice(index, 1);
-    nextOrder.splice(targetIndex, 0, tabId);
-    setPreferences((current) => ({ ...current, order: nextOrder }));
+      const nextOrder = [...current.order];
+      nextOrder.splice(index, 1);
+      nextOrder.splice(targetIndex, 0, tabId);
+      return { ...current, order: nextOrder };
+    });
   }
 
   const hasChanges = React.useMemo(() => {

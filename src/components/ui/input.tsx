@@ -1,5 +1,4 @@
 import { cn } from '@/lib/utils';
-import { NAV_COLORS } from '@/constants/theme';
 import { useThemeStore } from '@/stores/theme-store';
 import * as React from 'react';
 import { TextInput, type TextInputProps } from 'react-native';
@@ -8,8 +7,8 @@ export const Input = React.forwardRef<TextInput, TextInputProps>(function Input(
   { className, placeholderTextColor, ...props },
   ref
 ) {
-  const effectiveTheme = useThemeStore((state) => state.effectiveTheme);
-  const placeholderColor = placeholderTextColor ?? NAV_COLORS[effectiveTheme].mutedForeground;
+  const colors = useThemeStore((state) => state.colors);
+  const placeholderColor = placeholderTextColor ?? colors.mutedForeground;
   return (
     <TextInput
       ref={ref}

@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button';
+import { ArkBottomSheet } from '@/components/ui/bottom-sheet';
 import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
@@ -50,89 +51,56 @@ export function AiSection({
   const [modelTitle, setModelTitle] = React.useState('');
   const [modelUrl, setModelUrl] = React.useState('');
   const [modelChecksum, setModelChecksum] = React.useState('');
+  const [addModelOpen, setAddModelOpen] = React.useState(false);
   const importBusy = busy === 'model-import';
   const urlBusy = busy === 'model-url';
+  const activeEmbeddingLabel = activeEmbeddingModel
+    ? sourceSearchLabel(activeEmbeddingModel)
+    : 'Built-in source search';
 
   async function handleAddModelUrl() {
     await addModelUrl({ title: modelTitle, url: modelUrl, checksum: modelChecksum });
     setModelTitle('');
     setModelUrl('');
     setModelChecksum('');
+    setAddModelOpen(false);
   }
 
   return (
     <>
       <Card className="gap-3">
-        <View className="gap-1">
-          <Text variant="large">Local AI</Text>
-          <Text>
-            {modelStatus
-              ? modelStatus.adapter === 'llama'
-                ? 'Offline answers ready'
-                : `${modelStatus.installedModels} answer model(s) installed`
-              : 'Checking model status...'}
-          </Text>
-          {modelStatus ? <Text variant="muted">{modelStatus.message}</Text> : null}
-        </View>
-        <View className="bg-muted/40 gap-1 rounded-md px-3 py-3">
-          <Text variant="small">Answer models installed: {installedModels.length}</Text>
-          <Text variant="small">
-            Source search: {activeEmbeddingModel?.title ?? 'ExecuTorch mobile embeddings'}
-          </Text>
-          <Text variant="muted">
-            Current answer model:{' '}
-            {activeModel
-              ? activeModel.title
-              : modelStatus?.chatModelDisabled
-                ? 'Source search only'
-                : 'None installed'}
-          </Text>
-          <Text variant="muted">
-            Current source search model:{' '}
-            {activeEmbeddingModel?.title ?? 'Built-in mobile embeddings'}
-          </Text>
-        </View>
-      </Card>
-
-      <Card className="gap-3">
-        <View className="gap-1">
-          <Text variant="large">Add your own model</Text>
-          <Text variant="muted">
-            Import a GGUF answer model you already have, or save a custom download URL for later.
-          </Text>
-        </View>
-        <Button variant="outline" disabled={importBusy} onPress={() => void importLocalModel()}>
-          {importBusy ? <ActivityIndicator /> : <Icon as={Upload} className="size-4" />}
-          <Text>Import GGUF file</Text>
-        </Button>
-        <View className="gap-2">
-          <Input value={modelTitle} onChangeText={setModelTitle} placeholder="Model name" />
-          <Input
-            value={modelUrl}
-            onChangeText={setModelUrl}
-            placeholder="https://.../model.gguf"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          <Input
-            value={modelChecksum}
-            onChangeText={setModelChecksum}
-            placeholder="Checksum (optional)"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          <Button
-            variant="outline"
-            disabled={urlBusy || !modelUrl.trim()}
-            onPress={() => void handleAddModelUrl()}>
-            {urlBusy ? <ActivityIndicator /> : <Icon as={Bot} className="size-4" />}
-            <Text>Add answer URL</Text>
+        <View className="flex-row items-start justify-between gap-3">
+          <View className="min-w-0 flex-1 gap-1">
+            <Text variant="large">Local AI</Text>
+            <Text>
+              {modelStatus
+                ? modelStatus.adapter === 'llama'
+                  ? 'Offline answers ready'
+                  : `${modelStatus.installedModels} answer model(s) installed`
+                : 'Checking model status...'}
+            </Text>
+            {modelStatus ? <Text variant="muted">{modelStatus.message}</Text> : null}
+          </View>
+          <Button size="sm" variant="outline" onPress={() => setAddModelOpen(true)}>
+            <Icon as={Upload} className="size-4" />
+            <Text>Add</Text>
           </Button>
         </View>
-        <Text variant="small" className="text-muted-foreground">
-          Source search uses built-in Ark ExecuTorch embeddings; custom GGUF imports are for Ask
-          Arky answer-writing models.
-        </Text>
+
+        <View className="border-border overflow-hidden rounded-md border">
+          <StatusRow
+            label="Answer model"
+            value={
+              activeModel
+                ? activeModel.title
+                : modelStatus?.chatModelDisabled
+                  ? 'Source search only'
+                  : 'None installed'
+            }
+          />
+          <StatusRow label="Source search" value={activeEmbeddingLabel} />
+          <StatusRow label="Installed" value={`${installedModels.length} answer model(s)`} />
+        </View>
       </Card>
 
       <ModelSection
@@ -149,8 +117,8 @@ export function AiSection({
         <View className="gap-1">
           <Text variant="large">Source search model</Text>
           <Text variant="muted">
-            These ExecuTorch models retrieve local sources. Changing models downloads the selected
-            model and rebuilds vectors as sources are indexed.
+            Choose how Ark matches your notes, guides, maps, and documents before answering.
+            Switching can take a few minutes while Ark rebuilds the local index.
           </Text>
         </View>
         <View className="gap-2">
@@ -166,11 +134,11 @@ export function AiSection({
                 onPress={() => void selectEmbeddingModel(model)}>
                 {modelBusy ? <ActivityIndicator /> : <Icon as={Search} className="size-4" />}
                 <View className="min-w-0 flex-1 items-start gap-1">
-                  <Text>{model.title}</Text>
+                  <Text>{sourceSearchLabel(model)}</Text>
                   <Text
                     variant="small"
                     className={active ? 'text-primary-foreground/80' : 'text-muted-foreground'}>
-                    {model.description} {model.dimension} dimensions.
+                    {sourceSearchDescription(model)}
                   </Text>
                 </View>
                 {active ? <Icon as={CheckCircle2} className="size-4" /> : null}
@@ -183,6 +151,77 @@ export function AiSection({
       <EmbeddingIndexCard status={embeddingIndexStatus} />
 
       {aiMessage ? <Text className="text-destructive">{aiMessage}</Text> : null}
+
+      <ArkBottomSheet
+        visible={addModelOpen}
+        title="Add answer model"
+        description="Import a GGUF answer model you already have, or save a download URL."
+        onDismiss={() => setAddModelOpen(false)}
+        scrollable
+        maxDynamicContentSize={560}>
+        <View className="gap-3">
+          <Button variant="outline" disabled={importBusy} onPress={() => void importLocalModel()}>
+            {importBusy ? <ActivityIndicator /> : <Icon as={Upload} className="size-4" />}
+            <Text>Import GGUF file</Text>
+          </Button>
+          <View className="gap-2">
+            <Input value={modelTitle} onChangeText={setModelTitle} placeholder="Model name" />
+            <Input
+              value={modelUrl}
+              onChangeText={setModelUrl}
+              placeholder="https://.../model.gguf"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <Input
+              value={modelChecksum}
+              onChangeText={setModelChecksum}
+              placeholder="Checksum (optional)"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <Button
+              variant="outline"
+              disabled={urlBusy || !modelUrl.trim()}
+              onPress={() => void handleAddModelUrl()}>
+              {urlBusy ? <ActivityIndicator /> : <Icon as={Bot} className="size-4" />}
+              <Text>Add answer URL</Text>
+            </Button>
+          </View>
+          <Text variant="small" className="text-muted-foreground">
+            Source search is built in. Custom files only change answer writing.
+          </Text>
+        </View>
+      </ArkBottomSheet>
     </>
   );
+}
+
+function StatusRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View className="border-border flex-row items-center justify-between gap-3 border-b px-3 py-2 last:border-b-0">
+      <Text variant="small" className="text-muted-foreground">
+        {label}
+      </Text>
+      <Text variant="small" className="min-w-0 flex-1 text-right" numberOfLines={2}>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+function sourceSearchLabel(model: EmbeddingModelConfig) {
+  if (model.id.includes('mpnet')) return 'Thorough search';
+  if (model.id.includes('minilm')) return 'Fast search';
+  return model.title;
+}
+
+function sourceSearchDescription(model: EmbeddingModelConfig) {
+  if (model.id.includes('mpnet')) {
+    return 'Better matching on newer phones, with slower indexing and more memory use.';
+  }
+  if (model.id.includes('minilm')) {
+    return 'Balanced default for phones. Faster indexing and lower memory use.';
+  }
+  return model.description;
 }

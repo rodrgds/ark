@@ -13,33 +13,85 @@ const iconNames = [
   'BookMarked',
   'BookOpen',
   'Bot',
+  'BrainCircuit',
+  'AlertTriangle',
+  'Camera',
+  'ChefHat',
   'Check',
+  'CheckCircle2',
   'ChevronLeft',
+  'ChevronRight',
   'CircleX',
   'CheckSquare',
   'Clock',
+  'Clock3',
   'Compass',
+  'Cross',
   'Download',
+  'ExternalLink',
+  'FileText',
+  'FlameKindling',
   'Footprints',
   'Gauge',
   'GripVertical',
+  'HandPlatter',
+  'House',
+  'HousePlug',
+  'Home',
+  'ImageIcon',
+  'Info',
+  'Layers',
   'Library',
   'Lightbulb',
+  'List',
   'LocateFixed',
   'LockKeyhole',
   'Map',
+  'MapPin',
+  'Maximize2',
   'MessageSquareText',
+  'Minimize2',
+  'MoreHorizontal',
+  'MoreVertical',
   'NotebookPen',
+  'PackageOpen',
+  'Pause',
+  'PillBottle',
+  'Pencil',
   'Plus',
+  'Plane',
+  'Printer',
+  'RefreshCw',
+  'RefreshCcw',
+  'RotateCcw',
+  'Route',
   'Ruler',
   'Search',
+  'Share2',
   'Newspaper',
   'Settings',
   'Shield',
+  'ShieldAlert',
+  'ShieldCheck',
   'SlidersHorizontal',
   'Smartphone',
+  'Snowflake',
+  'SoapDispenserDroplet',
+  'Stethoscope',
+  'Star',
+  'SunMedium',
+  'TentTree',
   'Trash2',
+  'Trees',
   'TriangleAlert',
+  'Upload',
+  'UtensilsCrossed',
+  'Volume2',
+  'VolumeX',
+  'Waves',
+  'Wifi',
+  'Users',
+  'X',
 ];
 
 function TestIcon() {
@@ -72,6 +124,10 @@ export function installCommonRntlMocks(mockApi: MockApi) {
 
   mockApi.module('react-native', () => ({
     ActivityIndicator: Host('ActivityIndicator'),
+    Appearance: {
+      addChangeListener: () => ({ remove: () => undefined }),
+      getColorScheme: () => 'dark',
+    },
     BackHandler: {
       addEventListener: () => ({ remove: () => undefined }),
     },
@@ -97,9 +153,14 @@ export function installCommonRntlMocks(mockApi: MockApi) {
           </React.Fragment>
         ))
       ),
+    Image: Host('Image'),
     Keyboard: {
       addListener: () => ({ remove: () => undefined }),
       dismiss: () => undefined,
+    },
+    Linking: {
+      canOpenURL: async () => true,
+      openURL: async () => undefined,
     },
     Modal: ({
       visible = true,
@@ -148,8 +209,38 @@ export function installCommonRntlMocks(mockApi: MockApi) {
   }));
 
   mockApi.module('@/stores/theme-store', () => ({
-    useThemeStore: <T,>(selector: (state: { effectiveTheme: 'oled' }) => T) =>
-      selector({ effectiveTheme: 'oled' }),
+    useThemeStore: <T,>(
+      selector: (state: {
+        accentPreference: 'moss';
+        colors: {
+          background: '#0D0D0D';
+          border: '#313A2C';
+          card: '#0C0F0B';
+          destructive: '#F87171';
+          foreground: '#EAE9FC';
+          mutedForeground: '#AFBDA8';
+          primary: '#95A78B';
+          primaryForeground: '#0C0F0B';
+        };
+        effectiveTheme: 'oled';
+        preference: 'oled';
+      }) => T
+    ) =>
+      selector({
+        accentPreference: 'moss',
+        colors: {
+          background: '#0D0D0D',
+          border: '#313A2C',
+          card: '#0C0F0B',
+          destructive: '#F87171',
+          foreground: '#EAE9FC',
+          mutedForeground: '#AFBDA8',
+          primary: '#95A78B',
+          primaryForeground: '#0C0F0B',
+        },
+        effectiveTheme: 'oled',
+        preference: 'oled',
+      }),
   }));
 
   mockApi.module('@/hooks/use-battery-reduce-mode', () => ({
@@ -181,18 +272,26 @@ export function installCommonRntlMocks(mockApi: MockApi) {
   }));
 
   mockApi.module('react-native-reanimated', () => {
+    const transition = {
+      duration: () => transition,
+      easing: () => transition,
+      springify: () => transition,
+    };
     const Animated = {
       View,
       createAnimatedComponent: (Component: React.ComponentType<unknown>) => Component,
     };
     return {
       default: Animated,
+      FadeIn: transition,
+      FadeOut: transition,
       Easing: {
         cubic: () => 0,
         out: (value: unknown) => value,
         quad: () => 0,
       },
       Extrapolation: { CLAMP: 'clamp' },
+      LinearTransition: transition,
       interpolate: () => 0,
       useAnimatedStyle: (factory: () => unknown) => factory(),
       useSharedValue: (value: unknown) => ({ value }),
@@ -203,17 +302,34 @@ export function installCommonRntlMocks(mockApi: MockApi) {
 
   mockApi.module('react-native-gesture-handler', () => {
     const createPan = () => {
+      const handlers: Record<string, unknown> = {};
       const chain = {
         enabled: () => chain,
-        onBegin: () => chain,
-        onFinalize: () => chain,
-        onUpdate: () => chain,
+        onBegin: (callback: unknown) => {
+          handlers.onBegin = callback;
+          return chain;
+        },
+        onFinalize: (callback: unknown) => {
+          handlers.onFinalize = callback;
+          return chain;
+        },
+        onUpdate: (callback: unknown) => {
+          handlers.onUpdate = callback;
+          return chain;
+        },
+        testOnlyHandlers: handlers,
       };
       return chain;
     };
     return {
       Gesture: { Pan: createPan },
-      GestureDetector: ({ children }: React.PropsWithChildren) => <>{children}</>,
+      GestureDetector: ({
+        children,
+        gesture,
+      }: React.PropsWithChildren<{ gesture?: Record<string, unknown> }>) =>
+        React.isValidElement(children)
+          ? React.cloneElement(children, { testOnlyGesture: gesture } as Partial<unknown>)
+          : children,
     };
   });
 

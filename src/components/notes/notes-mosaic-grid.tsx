@@ -1,5 +1,5 @@
 import { NoteCard } from '@/components/notes/note-card';
-import type { ThemePreference } from '@/constants/theme';
+import type { EffectiveTheme } from '@/constants/theme';
 import type { LabelColorMap } from '@/lib/label-colors';
 import type { Note } from '@/types/db';
 import * as React from 'react';
@@ -8,7 +8,7 @@ import { View } from 'react-native';
 type NotesMosaicGridProps = {
   notes: Note[];
   labelColors: LabelColorMap;
-  effectiveTheme: ThemePreference;
+  effectiveTheme: EffectiveTheme;
   mode: 'normal' | 'selection' | 'organize';
   selectedIds: ReadonlySet<string>;
   onNotePress: (note: Note) => void;

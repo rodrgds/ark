@@ -2,12 +2,11 @@ import { AppHeaderActionsProvider } from '@/components/layout/app-header-actions
 import { LockStateBar } from '@/components/layout/app-shell';
 import { TabsChromeProvider, useTabsChrome } from '@/components/layout/tabs-chrome';
 import { ARK_TABS, DEFAULT_ENABLED_TABS, DEFAULT_TAB_ORDER } from '@/constants/tabs';
-import { NAV_COLORS } from '@/constants/theme';
-import { NAV_THEME } from '@/lib/theme';
 import {
   TabPreferencesService,
   type TabPreferences,
 } from '@/services/preferences/tab-preferences.service';
+import { PreferencesService } from '@/services/preferences/preferences.service';
 import { RssService } from '@/services/rss/rss.service';
 import { WeatherCacheService } from '@/services/weather/weather-cache.service';
 import { useThemeStore } from '@/stores/theme-store';
@@ -51,9 +50,7 @@ export default function TabsLayout() {
 }
 
 function TabsLayoutContent() {
-  const theme = useThemeStore((state) => state.effectiveTheme);
-  const colors = NAV_THEME[theme].colors;
-  const navColors = NAV_COLORS[theme];
+  const colors = useThemeStore((state) => state.colors);
   const pathname = usePathname();
   const [preferences, setPreferences] = React.useState<TabPreferences | null>(null);
   const [materialIconSources, setMaterialIconSources] = React.useState<
@@ -61,6 +58,7 @@ function TabsLayoutContent() {
   >({});
   const [poppingRouteName, setPoppingRouteName] = React.useState<string | null>(null);
   const [iconPopPhase, setIconPopPhase] = React.useState<'peak' | 'settle' | null>(null);
+  const [topHeaderEnabled, setTopHeaderEnabled] = React.useState(true);
   const previousActiveRouteNameRef = React.useRef<string | null>(null);
   const { chromeHidden } = useTabsChrome();
 
@@ -76,6 +74,13 @@ function TabsLayoutContent() {
     loadTabPreferences();
     return TabPreferencesService.subscribe(loadTabPreferences);
   }, [loadTabPreferences]);
+
+  React.useEffect(() => {
+    void PreferencesService.getTopHeaderEnabled()
+      .then(setTopHeaderEnabled)
+      .catch(() => setTopHeaderEnabled(true));
+    return PreferencesService.subscribeTopHeaderEnabled(setTopHeaderEnabled);
+  }, []);
 
   React.useEffect(() => {
     void RssService.refreshIfStale().catch(() => undefined);
@@ -172,7 +177,7 @@ function TabsLayoutContent() {
   return (
     <View className="bg-background flex-1" style={{ backgroundColor: colors.background }}>
       <AppHeaderActionsProvider>
-        {chromeHidden ? null : <LockStateBar />}
+        {chromeHidden || !topHeaderEnabled ? null : <LockStateBar />}
         <NativeTabs
           backBehavior="history"
           backgroundColor={colors.card}
@@ -180,7 +185,7 @@ function TabsLayoutContent() {
           badgeTextColor={colors.card}
           disableTransparentOnScrollEdge
           hidden={chromeHidden}
-          iconColor={{ default: navColors.mutedForeground, selected: colors.primary }}
+          iconColor={{ default: colors.mutedForeground, selected: colors.primary }}
           indicatorColor={addHexAlpha(colors.primary, '26')}
           labelVisibilityMode="labeled"
           rippleColor="transparent"
@@ -188,8 +193,7 @@ function TabsLayoutContent() {
           tintColor={colors.primary}>
           {visibleTabs.map((tab) => {
             const isActive = activeRouteName === tab.routeName;
-            const tabContentBackground =
-              tab.routeName === 'map' ? navColors.background : colors.background;
+            const tabContentBackground = colors.background;
             const androidIconName = isActive ? tab.materialIcon.selected : tab.materialIcon.default;
             const androidIconSize =
               isActive && poppingRouteName === tab.routeName

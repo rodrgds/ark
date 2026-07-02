@@ -5,14 +5,17 @@ import { VaultLockSheet } from '@/components/security/vault-lock-sheet';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { useAuthStore } from '@/stores/auth-store';
+import { useAppStore } from '@/stores/app-store';
 import { NetworkService } from '@/services/connectivity/network.service';
-import { Lock } from 'lucide-react-native';
+import { router } from 'expo-router';
+import { Lock, Unlock } from 'lucide-react-native';
 import * as React from 'react';
 import { View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export function LockStateBar() {
   const unlocked = useAuthStore((state) => state.unlocked);
+  const vaultProtectionEnabled = useAppStore((state) => !!state.vault?.isInitialized);
   const [confirmLockOpen, setConfirmLockOpen] = React.useState(false);
   const [isOnline, setIsOnline] = React.useState<boolean | null>(null);
   const networkStatusClass =
@@ -31,18 +34,27 @@ export function LockStateBar() {
   return (
     <SafeAreaView edges={['top']} className="border-border bg-card border-b">
       <View className="flex-row items-center justify-between gap-3 px-4 py-2">
-        <Button
-          size="icon"
-          variant="ghost"
-          accessibilityLabel={unlocked ? 'Lock vault' : 'Vault locked'}
-          disabled={!unlocked}
-          onPress={() => setConfirmLockOpen(true)}
-          className="h-9 w-9 rounded-full">
-          <Icon
-            as={Lock}
-            className={unlocked ? 'text-primary size-4' : 'text-muted-foreground size-4'}
-          />
-        </Button>
+        {vaultProtectionEnabled ? (
+          <Button
+            size="icon"
+            variant="ghost"
+            accessibilityLabel={unlocked ? 'Lock vault' : 'Unlock vault'}
+            onPress={() => {
+              if (unlocked) {
+                setConfirmLockOpen(true);
+                return;
+              }
+              router.push('/(tabs)/notes');
+            }}
+            className="h-9 w-9 rounded-full">
+            <Icon
+              as={unlocked ? Lock : Unlock}
+              className={unlocked ? 'text-primary size-4' : 'text-muted-foreground size-4'}
+            />
+          </Button>
+        ) : (
+          <View className="h-9 w-9" />
+        )}
 
         <View className="flex-row items-center gap-2">
           <AppHeaderActionsSlot />
@@ -56,7 +68,9 @@ export function LockStateBar() {
         </View>
       </View>
 
-      <VaultLockSheet visible={confirmLockOpen} onDismiss={() => setConfirmLockOpen(false)} />
+      {vaultProtectionEnabled ? (
+        <VaultLockSheet visible={confirmLockOpen} onDismiss={() => setConfirmLockOpen(false)} />
+      ) : null}
     </SafeAreaView>
   );
 }

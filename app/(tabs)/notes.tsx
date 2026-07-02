@@ -61,6 +61,7 @@ function collectLabels(notes: Note[], savedLabels: string[]) {
 export default function NotesScreen() {
   const unlocked = useAuthStore((state) => state.unlocked);
   const effectiveTheme = useThemeStore((state) => state.effectiveTheme);
+  const colors = useThemeStore((state) => state.colors);
   const [password, setPassword] = React.useState('');
   const [unlockError, setUnlockError] = React.useState<string | null>(null);
   const [notes, setNotes] = React.useState<Note[]>([]);
@@ -636,7 +637,7 @@ export default function NotesScreen() {
       <ArkBottomSheet visible={!!themeTarget} onDismiss={() => setThemeTarget(null)}>
         <View className="gap-1">
           {NOTE_THEME_OPTIONS.map((option) => {
-            const optionTheme = getNoteTheme(option.id, effectiveTheme);
+            const optionTheme = getNoteTheme(option.id, effectiveTheme, colors);
             const selected =
               themeTarget?.type === 'single'
                 ? themeTarget.note.themeId === option.id

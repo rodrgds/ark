@@ -1,7 +1,35 @@
 import { DarkTheme, DefaultTheme, type Theme } from '@react-navigation/native';
-import { NAV_COLORS } from '@/constants/theme';
+import {
+  NAV_COLORS,
+  getThemeColors,
+  type AccentPreference,
+  type EffectiveTheme,
+} from '@/constants/theme';
 
-export const NAV_THEME: Record<'oled' | 'dark' | 'light', Theme> = {
+function buildNavigationTheme(theme: EffectiveTheme, accentPreference: AccentPreference): Theme {
+  const baseTheme = theme === 'light' ? DefaultTheme : DarkTheme;
+  const colors = getThemeColors(theme, accentPreference);
+  return {
+    ...baseTheme,
+    colors: {
+      background: colors.background,
+      border: colors.border,
+      card: colors.card,
+      notification: colors.destructive,
+      primary: colors.primary,
+      text: colors.foreground,
+    },
+  };
+}
+
+export function getNavigationTheme(
+  theme: EffectiveTheme,
+  accentPreference: AccentPreference = 'moss'
+): Theme {
+  return buildNavigationTheme(theme, accentPreference);
+}
+
+export const NAV_THEME: Record<EffectiveTheme, Theme> = {
   oled: {
     ...DarkTheme,
     colors: {

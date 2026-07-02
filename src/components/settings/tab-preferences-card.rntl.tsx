@@ -4,7 +4,7 @@ import { installCommonRntlMocks } from '@/test/rntl-mocks';
 
 installCommonRntlMocks(mock);
 
-const { fireEvent, render, waitFor } = await import('@testing-library/react-native');
+const { act, render, userEvent, waitFor } = await import('@testing-library/react-native');
 
 const settings = new Map<string, string>();
 const settingsSet = mock(async (key: string, value: string) => {
@@ -26,6 +26,7 @@ describe('TabPreferencesCard', () => {
 
   test('persists disabling an optional tab and keeps locked tabs enabled', async () => {
     const { TabPreferencesCard } = await import('@/components/settings/tab-preferences-card');
+    const user = userEvent.setup();
 
     const view = await render(<TabPreferencesCard />);
 
@@ -34,13 +35,16 @@ describe('TabPreferencesCard', () => {
     expect(view.getByLabelText('Turn Arky tab off')).toBeDisabled();
     expect(view.getByLabelText('Turn Settings tab off')).toBeDisabled();
 
-    await fireEvent.press(mapToggle);
+    await user.press(mapToggle);
 
     const applyButton = await view.findByText('Apply Changes');
-    await fireEvent.press(applyButton);
+    await user.press(applyButton);
 
     await waitFor(() => {
       expect(settingsSet).toHaveBeenCalledWith('tabs.enabled', expect.any(String));
+    });
+    await waitFor(() => {
+      expect(view.queryByText('Apply Changes')).toBeNull();
     });
 
     const persisted = JSON.parse(settings.get('tabs.enabled') ?? '[]') as string[];
@@ -48,5 +52,41 @@ describe('TabPreferencesCard', () => {
     expect(persisted).toContain('chat');
     expect(persisted).toContain('settings');
     expect(await view.findByLabelText('Turn Map tab on')).toBeEnabled();
+  });
+
+  test('waits until drop to reorder tabs and persists only after apply', async () => {
+    const { TabPreferencesCard } = await import('@/components/settings/tab-preferences-card');
+    const user = userEvent.setup();
+
+    const view = await render(<TabPreferencesCard />);
+    const mapHandle = await view.findByLabelText('Drag Map to reorder');
+    const gesture = mapHandle.props.testOnlyGesture as {
+      testOnlyHandlers?: {
+        onBegin?: () => void;
+        onUpdate?: (event: { translationY: number }) => void;
+        onFinalize?: (event: { translationY: number }) => void;
+      };
+    };
+
+    await act(async () => {
+      gesture.testOnlyHandlers?.onBegin?.();
+      gesture.testOnlyHandlers?.onUpdate?.({ translationY: 70 });
+    });
+
+    expect(settingsSet).not.toHaveBeenCalled();
+    expect(view.queryByText('Apply Changes')).toBeNull();
+
+    await act(async () => {
+      gesture.testOnlyHandlers?.onFinalize?.({ translationY: 70 });
+    });
+
+    const applyButton = await view.findByText('Apply Changes');
+    await user.press(applyButton);
+
+    await waitFor(() => {
+      expect(settingsSet).toHaveBeenCalledWith('tabs.order', expect.any(String));
+    });
+    const persistedOrder = JSON.parse(settings.get('tabs.order') ?? '[]') as string[];
+    expect(persistedOrder.slice(0, 3)).toEqual(['chat', 'library', 'map']);
   });
 });

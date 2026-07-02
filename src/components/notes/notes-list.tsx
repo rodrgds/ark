@@ -2,8 +2,9 @@ import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { getNoteTheme } from '@/constants/note-themes';
-import { NAV_COLORS, type ThemePreference } from '@/constants/theme';
+import type { EffectiveTheme } from '@/constants/theme';
 import type { LabelColorMap } from '@/lib/label-colors';
+import { useThemeStore } from '@/stores/theme-store';
 import type { Note } from '@/types/db';
 import { CheckCircle2, Circle } from 'lucide-react-native';
 import * as React from 'react';
@@ -13,7 +14,7 @@ import Animated from 'react-native-reanimated';
 type NotesListProps = {
   notes: Note[];
   labelColors: LabelColorMap;
-  effectiveTheme: ThemePreference;
+  effectiveTheme: EffectiveTheme;
   mode: 'normal' | 'selection' | 'organize';
   selectedIds: ReadonlySet<string>;
   onNotePress: (note: Note) => void;
@@ -29,12 +30,14 @@ export function NotesList({
   onNotePress,
   onNoteLongPress,
 }: NotesListProps) {
+  const colors = useThemeStore((state) => state.colors);
+  const selectedColor = colors.primary;
+
   return (
     <View className="gap-2">
       {notes.map((note) => {
-        const noteTheme = getNoteTheme(note.themeId, effectiveTheme);
+        const noteTheme = getNoteTheme(note.themeId, effectiveTheme, colors);
         const selected = selectedIds.has(note.id);
-        const selectedColor = NAV_COLORS[effectiveTheme].primary;
         return (
           <Pressable
             key={note.id}

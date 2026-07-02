@@ -1,0 +1,12 @@
+{
+  "name": "ark-system-colors",
+  "version": "1.0.0",
+  "main": "src/index.ts",
+  "dependencies": {
+    "expo-modules-core": "*"
+  },
+  "devDependencies": {
+    "expo": "*"
+  },
+  "private": true
+}

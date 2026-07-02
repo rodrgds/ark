@@ -8,7 +8,7 @@ import { useArkTextToSpeech } from '@/hooks/use-ark-text-to-speech';
 import OcrService from '@/modules/ark-ocr';
 import { ContentPackService } from '@/services/content/content-pack.service';
 import { GuideReaderService, type ReaderContent } from '@/services/content/guide-reader.service';
-import { NAV_COLORS, type ThemePreference } from '@/constants/theme';
+import type { EffectiveTheme, ThemeColors } from '@/constants/theme';
 import { useThemeStore } from '@/stores/theme-store';
 import { GuidePdfService } from '@/services/content/guide-pdf.service';
 import { GuideService, type GuideSection } from '@/services/content/guide.service';
@@ -18,6 +18,7 @@ import {
   ChevronLeft,
   ExternalLink,
   List,
+  MoreVertical,
   Printer,
   Share2,
   Volume2,
@@ -37,8 +38,7 @@ function getNativePdf() {
   }
 }
 
-function readerThemeScript(theme: ThemePreference) {
-  const colors = NAV_COLORS[theme];
+function readerThemeScript(theme: EffectiveTheme, colors: ThemeColors) {
   const selection = theme === 'light' ? 'rgba(74, 87, 66, 0.18)' : 'rgba(149, 167, 139, 0.28)';
 
   return `
@@ -314,38 +314,28 @@ function guideReaderReducer(state: GuideReaderState, action: GuideReaderAction):
 type ReaderHeaderProps = {
   title?: string;
   sectionsAvailable: boolean;
-  canOpenForPrint: boolean;
-  exportingPdf: boolean;
-  readerSpeaking: boolean;
-  speechDisabled: boolean;
-  speechGenerating: boolean;
   topInset: number;
   onOpenToc: () => void;
-  onSpeak: () => void;
-  onExportPdf: () => void;
-  onShare: () => void;
+  onOpenActions: () => void;
 };
 
 function ReaderHeader({
   title,
   sectionsAvailable,
-  canOpenForPrint,
-  exportingPdf,
-  readerSpeaking,
-  speechDisabled,
-  speechGenerating,
   topInset,
   onOpenToc,
-  onSpeak,
-  onExportPdf,
-  onShare,
+  onOpenActions,
 }: ReaderHeaderProps) {
   return (
     <View
       style={{ paddingTop: Math.max(8, topInset), zIndex: 100 }}
       className="bg-background border-border border-b">
       <View className="h-12 flex-row items-center justify-between px-3">
-        <Button variant="ghost" size="icon" onPress={() => router.back()}>
+        <Button
+          variant="ghost"
+          size="icon"
+          accessibilityLabel="Back"
+          onPress={() => router.back()}>
           <Icon as={ChevronLeft} className="text-foreground" />
         </Button>
         <View className="mx-2 flex-1">
@@ -355,33 +345,111 @@ function ReaderHeader({
         </View>
         <View className="flex-row gap-1">
           {sectionsAvailable && (
-            <Button variant="ghost" size="icon" onPress={onOpenToc}>
+            <Button
+              variant="ghost"
+              size="icon"
+              accessibilityLabel="Chapters"
+              onPress={onOpenToc}>
               <Icon as={List} className="text-foreground" />
             </Button>
           )}
-          <Button variant="ghost" size="icon" disabled={speechDisabled} onPress={onSpeak}>
-            {speechGenerating ? (
-              <ActivityIndicator size="small" />
-            ) : (
-              <Icon as={readerSpeaking ? VolumeX : Volume2} className="text-foreground" />
-            )}
-          </Button>
-          {canOpenForPrint ? (
-            <Button variant="ghost" size="icon" disabled={exportingPdf} onPress={onExportPdf}>
-              {exportingPdf ? (
-                <ActivityIndicator size="small" />
-              ) : (
-                <Icon as={Printer} className="text-foreground" />
-              )}
-            </Button>
-          ) : null}
-          <Button variant="ghost" size="icon" onPress={onShare}>
-            <Icon as={Share2} className="text-foreground" />
+          <Button
+            variant="ghost"
+            size="icon"
+            accessibilityLabel="Reader actions"
+            onPress={onOpenActions}>
+            <Icon as={MoreVertical} className="text-foreground" />
           </Button>
         </View>
       </View>
     </View>
   );
+}
+
+type ReaderActionsSheetProps = {
+  visible: boolean;
+  canOpenForPrint: boolean;
+  exportingPdf: boolean;
+  readerSpeaking: boolean;
+  speechDisabled: boolean;
+  speechPreparing: boolean;
+  onDismiss: () => void;
+  onSpeak: () => void;
+  onExportPdf: () => void;
+  onShare: () => void;
+};
+
+function ReaderActionsSheet({
+  visible,
+  canOpenForPrint,
+  exportingPdf,
+  readerSpeaking,
+  speechDisabled,
+  speechPreparing,
+  onDismiss,
+  onSpeak,
+  onExportPdf,
+  onShare,
+}: ReaderActionsSheetProps) {
+  return (
+    <ArkBottomSheet visible={visible} title="Reader Actions" onDismiss={onDismiss}>
+      <View className="gap-2">
+        <Button
+          variant="outline"
+          disabled={speechDisabled}
+          onPress={() => {
+            onDismiss();
+            onSpeak();
+          }}>
+          {speechPreparing ? (
+            <ActivityIndicator size="small" />
+          ) : (
+            <Icon as={readerSpeaking ? VolumeX : Volume2} className="size-4" />
+          )}
+          <Text>
+            {speechPreparing ? 'Preparing voice' : readerSpeaking ? 'Stop reading' : 'Read aloud'}
+          </Text>
+        </Button>
+        {canOpenForPrint ? (
+          <Button
+            variant="outline"
+            disabled={exportingPdf}
+            onPress={() => {
+              onDismiss();
+              onExportPdf();
+            }}>
+            {exportingPdf ? (
+              <ActivityIndicator size="small" />
+            ) : (
+              <Icon as={Printer} className="size-4" />
+            )}
+            <Text>{exportingPdf ? 'Preparing PDF' : 'Export PDF'}</Text>
+          </Button>
+        ) : null}
+        <Button
+          variant="outline"
+          onPress={() => {
+            onDismiss();
+            onShare();
+          }}>
+          <Icon as={Share2} className="size-4" />
+          <Text>Share file</Text>
+        </Button>
+      </View>
+    </ArkBottomSheet>
+  );
+}
+
+function getReaderNavigationPrefixes(content: ReaderContent) {
+  return [content.allowReadAccessToURL, content.uri].filter(
+    (value): value is string => Boolean(value)
+  );
+}
+
+function isReaderNavigationAllowed(content: ReaderContent, url: string) {
+  if (!url || url === 'about:blank' || url.startsWith('about:blank#')) return true;
+  if (url.startsWith('data:') || url.startsWith('#')) return true;
+  return getReaderNavigationPrefixes(content).some((prefix) => url.startsWith(prefix));
 }
 
 type ReaderContentViewProps = {
@@ -398,7 +466,8 @@ type ReaderContentViewProps = {
   onWebViewLoadEnd: () => void;
   onReaderMessage: (rawMessage: string) => void;
   onWebViewError: (description: string) => void;
-  theme: ThemePreference;
+  theme: EffectiveTheme;
+  colors: ThemeColors;
 };
 
 function ReaderContentView({
@@ -416,8 +485,8 @@ function ReaderContentView({
   onReaderMessage,
   onWebViewError,
   theme,
+  colors,
 }: ReaderContentViewProps) {
-  const colors = NAV_COLORS[theme];
   return (
     <View className="flex-1">
       {content &&
@@ -433,20 +502,23 @@ function ReaderContentView({
         ) : (
           <WebView
             ref={webViewRef}
-            originWhitelist={['*']}
+            originWhitelist={getReaderNavigationPrefixes(content)}
             source={
               content.uri
                 ? { uri: content.uri }
                 : { html: content.html!, baseUrl: content.allowReadAccessToURL }
             }
             allowFileAccess
-            allowFileAccessFromFileURLs
-            allowUniversalAccessFromFileURLs
             allowingReadAccessToURL={content.allowReadAccessToURL}
             style={{ flex: 1, backgroundColor: colors.background }}
             scalesPageToFit={isPdf}
-            injectedJavaScript={!isPdf ? readerThemeScript(theme) : undefined}
-            injectedJavaScriptBeforeContentLoaded={!isPdf ? readerThemeScript(theme) : undefined}
+            injectedJavaScript={!isPdf ? readerThemeScript(theme, colors) : undefined}
+            injectedJavaScriptBeforeContentLoaded={
+              !isPdf ? readerThemeScript(theme, colors) : undefined
+            }
+            onShouldStartLoadWithRequest={(request) =>
+              isReaderNavigationAllowed(content, request.url)
+            }
             onLoadStart={onWebViewLoadStart}
             onLoadEnd={onWebViewLoadEnd}
             onMessage={(event) => onReaderMessage(event.nativeEvent.data)}
@@ -582,6 +654,7 @@ function useGuideReaderController() {
   }>();
   const speechPlayback = useArkTextToSpeech();
   const theme = useThemeStore((state) => state.effectiveTheme);
+  const colors = useThemeStore((state) => state.colors);
   const [state, dispatch] = React.useReducer(guideReaderReducer, initialGuideReaderState);
   const {
     pack,
@@ -875,12 +948,18 @@ function useGuideReaderController() {
     handleReaderMessage,
     handleWebViewError,
     theme,
+    colors,
   };
 }
 
 export default function GuideReaderScreen() {
   const insets = useSafeAreaInsets();
   const reader = useGuideReaderController();
+  const [actionsVisible, setActionsVisible] = React.useState(false);
+  const readerSpeechPreparing =
+    reader.readerSpeaking &&
+    reader.speechPlayback.isPreparing &&
+    !reader.speechPlayback.isPlaying;
 
   if (reader.loading && !reader.content) {
     return (
@@ -918,16 +997,9 @@ export default function GuideReaderScreen() {
         <ReaderHeader
           title={reader.pack?.title}
           sectionsAvailable={reader.sections.length > 0}
-          canOpenForPrint={reader.canOpenForPrint}
-          exportingPdf={reader.exportingPdf}
-          readerSpeaking={reader.readerSpeaking}
-          speechDisabled={!reader.content || reader.speechPlayback.isGenerating}
-          speechGenerating={reader.speechPlayback.isGenerating}
           topInset={insets.top}
           onOpenToc={reader.openToc}
-          onSpeak={() => void reader.handleSpeakContent()}
-          onExportPdf={reader.handleExportPdf}
-          onShare={reader.handleShare}
+          onOpenActions={() => setActionsVisible(true)}
         />
       )}
 
@@ -946,6 +1018,7 @@ export default function GuideReaderScreen() {
         onReaderMessage={reader.handleReaderMessage}
         onWebViewError={reader.handleWebViewError}
         theme={reader.theme}
+        colors={reader.colors}
       />
 
       {reader.webViewLoadError && (
@@ -966,6 +1039,18 @@ export default function GuideReaderScreen() {
         sections={reader.sections}
         onDismiss={reader.dismissToc}
         onSectionSelect={reader.handleSectionSelect}
+      />
+      <ReaderActionsSheet
+        visible={actionsVisible}
+        canOpenForPrint={reader.canOpenForPrint}
+        exportingPdf={reader.exportingPdf}
+        readerSpeaking={reader.speechPlayback.isPlaying}
+        speechDisabled={!reader.content}
+        speechPreparing={readerSpeechPreparing}
+        onDismiss={() => setActionsVisible(false)}
+        onSpeak={() => void reader.handleSpeakContent()}
+        onExportPdf={reader.handleExportPdf}
+        onShare={reader.handleShare}
       />
     </View>
   );

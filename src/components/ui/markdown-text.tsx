@@ -1,4 +1,3 @@
-import { NAV_COLORS } from '@/constants/theme';
 import { useThemeStore } from '@/stores/theme-store';
 import * as React from 'react';
 import { Linking, Platform } from 'react-native';
@@ -8,15 +7,25 @@ import { EnrichedMarkdownText, type MarkdownStyle } from 'react-native-enriched-
 type MarkdownTextProps = {
   children: string;
   streaming?: boolean;
+  citationLinks?: Partial<Record<number, string>>;
+  onLinkPress?: (url: string) => void;
 };
 
 const markdownFlags = { latexMath: false };
 
-export function MarkdownText({ children, streaming = false }: MarkdownTextProps) {
-  const theme = useThemeStore((state) => state.effectiveTheme);
-  const colors = NAV_COLORS[theme];
+export function MarkdownText({
+  children,
+  streaming = false,
+  citationLinks,
+  onLinkPress,
+}: MarkdownTextProps) {
+  const colors = useThemeStore((state) => state.colors);
   const monoFont = Platform.select({ ios: 'Menlo', default: 'monospace' });
   const router = useRouter();
+  const markdown = React.useMemo(
+    () => linkMarkdownCitationMarkers(children, citationLinks),
+    [children, citationLinks]
+  );
 
   const markdownStyle = React.useMemo<MarkdownStyle>(
     () => ({
@@ -122,10 +131,14 @@ export function MarkdownText({ children, streaming = false }: MarkdownTextProps)
 
   const commonProps = {
     allowTrailingMargin: false,
-    markdown: children,
+    markdown,
     markdownStyle,
     md4cFlags: markdownFlags,
     onLinkPress: ({ url }: { url: string }) => {
+      if (onLinkPress) {
+        onLinkPress(url);
+        return;
+      }
       if (/^https?:\/\//i.test(url)) {
         router.push({
           pathname: '/content/web-reader',
@@ -146,4 +159,16 @@ export function MarkdownText({ children, streaming = false }: MarkdownTextProps)
       streamingAnimation={streaming}
     />
   );
+}
+
+function linkMarkdownCitationMarkers(
+  markdown: string,
+  citationLinks?: Partial<Record<number, string>>
+) {
+  if (!citationLinks) return markdown;
+  return markdown.replace(/(^|[^\]])\[(\d+)\](?!\()/g, (match, prefix, numberText) => {
+    const href = citationLinks[Number(numberText)];
+    if (!href) return match;
+    return `${prefix}[[${numberText}]](${href})`;
+  });
 }

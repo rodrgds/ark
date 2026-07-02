@@ -1,6 +1,7 @@
 import {
   getSpeechPlaybackContext,
   getSpeechSampleRate,
+  suspendSpeechPlaybackContext,
 } from '@/services/audio/speech-playback.service';
 import { VoiceRuntimeService } from '@/services/ai/voice-runtime.service';
 import { TextToSpeechModule } from 'react-native-executorch';
@@ -37,6 +38,7 @@ export function useArkTextToSpeech() {
       moduleRef.current?.streamStop(true);
       streamActiveRef.current = false;
     }
+    void suspendSpeechPlaybackContext();
     setIsPlaying(false);
     setIsGenerating(false);
   }, []);
@@ -96,6 +98,7 @@ export function useArkTextToSpeech() {
         if (runIdRef.current === runId) {
           setIsPlaying(false);
           setIsGenerating(false);
+          void suspendSpeechPlaybackContext();
         }
       }
     },
@@ -123,10 +126,13 @@ export function useArkTextToSpeech() {
     return unsubscribe;
   }, []);
 
+  const isPreparing = isGenerating && !isPlaying;
+
   return {
     error,
     isReady,
     isGenerating,
+    isPreparing,
     downloadProgress,
     isPlaying,
     speak,

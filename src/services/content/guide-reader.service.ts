@@ -1,5 +1,5 @@
 import * as FileSystem from 'expo-file-system/legacy';
-import { NAV_COLORS, type ThemePreference } from '@/constants/theme';
+import { NAV_COLORS, type EffectiveTheme } from '@/constants/theme';
 import type { ContentPack } from '@/types/content';
 import type { GuideSection } from '@/services/content/guide.service';
 import { Platform } from 'react-native';
@@ -17,7 +17,7 @@ export type ReaderContent = {
   allowReadAccessToURL?: string;
 };
 
-function getReaderThemeCss(theme: ThemePreference) {
+function getReaderThemeCss(theme: EffectiveTheme) {
   const colors = NAV_COLORS[theme];
   const selection = theme === 'light' ? 'rgba(74, 87, 66, 0.18)' : 'rgba(149, 167, 139, 0.28)';
 
@@ -100,7 +100,7 @@ function slugify(text: string) {
     .replace(/ +/g, '-');
 }
 
-function wrapInHtmlShell(body: string, title: string, theme: ThemePreference) {
+function wrapInHtmlShell(body: string, title: string, theme: EffectiveTheme) {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -122,7 +122,7 @@ export class GuideReaderService {
   static async prepareContent(
     pack: ContentPack,
     section?: GuideSection | null,
-    theme: ThemePreference = 'oled'
+    theme: EffectiveTheme = 'oled'
   ): Promise<ReaderContent> {
     if (!pack.localUri) {
       throw new Error('This guide has not been downloaded yet.');

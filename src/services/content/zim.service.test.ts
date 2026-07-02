@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { buildZimArticleHtml } from '@/services/content/zim-article-html';
 import { sanitizeArticleHtml } from '@/services/content/zim-html-sanitizer';
 
 describe('sanitizeArticleHtml', () => {
@@ -63,5 +64,19 @@ describe('sanitizeArticleHtml', () => {
 
   test('returns empty string for empty input', () => {
     expect(sanitizeArticleHtml('')).toBe('');
+  });
+});
+
+describe('buildZimArticleHtml', () => {
+  test('wraps article tables and infoboxes in Ark dark-reader styles', () => {
+    const html = buildZimArticleHtml({
+      html: '<table><tr><td style="background:#fff;color:#000">Cell</td></tr></table><div class="infobox">Box</div>',
+    });
+
+    expect(html).toContain('color-scheme: dark');
+    expect(html).toContain('table {');
+    expect(html).toContain('th, td');
+    expect(html).toContain('.infobox');
+    expect(html).toContain('background: #111113 !important');
   });
 });

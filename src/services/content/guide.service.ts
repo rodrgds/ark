@@ -166,12 +166,12 @@ const GUIDE_SECTIONS: Record<string, GuideSection[]> = {
     {
       title: 'Introduction and survival actions',
       detail: 'Survival mindset, planning, priorities, and immediate actions.',
-      page: 7,
+      page: 5,
     },
     {
       title: 'Psychology of survival',
       detail: 'Stress, fear, fatigue, isolation, and mental discipline in emergencies.',
-      page: 11,
+      page: 8,
     },
     {
       title: 'Survival medicine',
@@ -201,7 +201,7 @@ const GUIDE_SECTIONS: Record<string, GuideSection[]> = {
     {
       title: 'Animals for food',
       detail: 'Insects, fish, reptiles, birds, mammals, traps, snares, and preparation cautions.',
-      page: 83,
+      page: 78,
     },
     {
       title: 'Plants',
@@ -211,52 +211,52 @@ const GUIDE_SECTIONS: Record<string, GuideSection[]> = {
     {
       title: 'Poisonous plants',
       detail: 'Identification limits, contact hazards, ingestion hazards, and avoidance.',
-      page: 123,
+      page: 109,
     },
     {
       title: 'Dangerous animals',
       detail: 'Insects, snakes, aquatic hazards, mammals, and defensive precautions.',
-      page: 132,
+      page: 112,
     },
     {
       title: 'Weapons, tools, and equipment',
       detail: 'Field expedient tools, cordage, packs, clothing, and basic repairs.',
-      page: 150,
+      page: 120,
     },
     {
       title: 'Desert survival',
       detail: 'Heat, water discipline, desert shelters, travel timing, and hazards.',
-      page: 155,
+      page: 131,
     },
     {
       title: 'Tropical survival',
       detail: 'Jungle travel, shelter, water, food, insects, disease, and visibility.',
-      page: 172,
+      page: 139,
     },
     {
       title: 'Cold weather survival',
       detail: 'Shelter, clothing, frostbite, hypothermia, snow travel, and fire.',
-      page: 181,
+      page: 146,
     },
     {
       title: 'Sea survival',
       detail: 'Rafts, water discipline, signaling, fishing, exposure, and shore approach.',
-      page: 194,
+      page: 162,
     },
     {
       title: 'Expedient water crossings',
       detail: 'Fording, flotation aids, rafts, and river crossing risk controls.',
-      page: 211,
+      page: 185,
     },
     {
       title: 'Field-expedient direction finding',
       detail: 'Map, compass, sun, stars, shadows, and improvised direction finding.',
-      page: 216,
+      page: 194,
     },
     {
       title: 'Signaling',
       detail: 'Ground-to-air signals, mirrors, fires, markers, radios, and improvised signals.',
-      page: 223,
+      page: 200,
     },
   ],
 

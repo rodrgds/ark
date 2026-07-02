@@ -1,3 +1,4 @@
+import { ArkBottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ArkKeyboardAwareScrollView } from '@/components/layout/keyboard-controller';
@@ -22,7 +23,9 @@ import {
   ChevronLeft,
   Download,
   ExternalLink,
+  MoreVertical,
   Search,
+  Share2,
   Trash2,
   TriangleAlert,
   Volume2,
@@ -33,14 +36,30 @@ import { ActivityIndicator, Linking, Modal, View, Pressable } from 'react-native
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { Input } from '@/components/ui/input';
+import { FileSystemService } from '@/services/files/filesystem.service';
+import { BottomSheetProvider } from '@swmansion/react-native-bottom-sheet';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 
-function stripHtml(raw: string): string {
+function htmlToPlainText(raw: string): string {
   return raw
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<\/(p|div|section|article|li|tr|h[1-6])>/gi, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<[^>]+>/g, ' ')
     .replace(/\{\{[^}]+\}\}/g, ' ')
     .replace(/\[\[[^\]|]+\|/g, '')
     .replace(/\[\[|\]\]/g, '')
-    .replace(/\s+/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]{2,}/g, ' ')
     .trim();
 }
 
@@ -64,6 +83,13 @@ function zimArticleBaseUrl(article: ZimArticle) {
   return `https://ark.local/${article.finalPath.split('/').map(encodeURIComponent).join('/')}`;
 }
 
+function zimArticlePlainText(article: ZimArticle) {
+  return [article.title, htmlToPlainText(ZimService.articleHtml(article))]
+    .filter(Boolean)
+    .join('\n\n')
+    .trim();
+}
+
 function resolveZimArticleHref(url: string, currentArticle?: ZimArticle | null) {
   if (!currentArticle) return null;
   if (!url || url === 'about:blank') return null;
@@ -79,6 +105,61 @@ function resolveZimArticleHref(url: string, currentArticle?: ZimArticle | null) 
   } catch {
     return null;
   }
+}
+
+type ZimArticleActionsSheetProps = {
+  visible: boolean;
+  zimSpeaking: boolean;
+  speechPreparing: boolean;
+  speechDisabled: boolean;
+  shareDisabled: boolean;
+  onDismiss: () => void;
+  onSpeak: () => void;
+  onShare: () => void;
+};
+
+function ZimArticleActionsSheet({
+  visible,
+  zimSpeaking,
+  speechPreparing,
+  speechDisabled,
+  shareDisabled,
+  onDismiss,
+  onSpeak,
+  onShare,
+}: ZimArticleActionsSheetProps) {
+  return (
+    <ArkBottomSheet visible={visible} title="Article Actions" onDismiss={onDismiss}>
+      <View className="gap-2">
+        <Button
+          variant="outline"
+          disabled={speechDisabled}
+          onPress={() => {
+            onDismiss();
+            onSpeak();
+          }}>
+          {speechPreparing ? (
+            <ActivityIndicator size="small" />
+          ) : (
+            <Icon as={zimSpeaking ? VolumeX : Volume2} className="size-4" />
+          )}
+          <Text>
+            {speechPreparing ? 'Preparing voice' : zimSpeaking ? 'Stop reading' : 'Read aloud'}
+          </Text>
+        </Button>
+        <Button
+          variant="outline"
+          disabled={shareDisabled}
+          onPress={() => {
+            onDismiss();
+            onShare();
+          }}>
+          <Icon as={Share2} className="size-4" />
+          <Text>Share article</Text>
+        </Button>
+      </View>
+    </ArkBottomSheet>
+  );
 }
 
 export default function ContentDetailScreen() {
@@ -98,7 +179,11 @@ export default function ContentDetailScreen() {
   const [zimQuery, setZimQuery] = React.useState('');
   const [zimResults, setZimResults] = React.useState<ZimSearchResult[]>([]);
   const [zimArticle, setZimArticle] = React.useState<ZimArticle | null>(null);
+  const [zimArticleHistory, setZimArticleHistory] = React.useState<ZimArticle[]>([]);
+  const [zimActionsOpen, setZimActionsOpen] = React.useState(false);
   const [zimSpeaking, setZimSpeaking] = React.useState(false);
+  const zimSpeechPreparing =
+    zimSpeaking && speechPlayback.isPreparing && !speechPlayback.isPlaying;
 
   const sections = React.useMemo(() => (pack ? GuideService.getSections(pack.id) : []), [pack]);
 
@@ -142,12 +227,19 @@ export default function ContentDetailScreen() {
   }, [load, pack?.installStatus]);
 
   const openZimArticle = React.useCallback(
-    async (path?: string | null) => {
+    async (path?: string | null, options: { pushHistory?: boolean } = {}) => {
       if (!pack || !path) return;
+      const previousArticle = zimArticle;
       setZimBusy(true);
       setZimError(null);
       try {
-        setZimArticle(await ZimService.getArticle(pack, path));
+        const nextArticle = await ZimService.getArticle(pack, path);
+        if (options.pushHistory && previousArticle) {
+          setZimArticleHistory((history) => [...history, previousArticle]);
+        } else {
+          setZimArticleHistory([]);
+        }
+        setZimArticle(nextArticle);
       } catch (articleError) {
         setZimError(
           articleError instanceof Error ? articleError.message : 'Article could not be opened.'
@@ -156,7 +248,7 @@ export default function ContentDetailScreen() {
         setZimBusy(false);
       }
     },
-    [pack]
+    [pack, zimArticle]
   );
 
   React.useEffect(() => {
@@ -220,9 +312,7 @@ export default function ContentDetailScreen() {
       setZimSpeaking(false);
       return;
     }
-    const text = [zimArticle.title, stripHtml(ZimService.articleHtml(zimArticle))]
-      .filter(Boolean)
-      .join('. ')
+    const text = zimArticlePlainText(zimArticle)
       .replace(/\s+/g, ' ')
       .trim()
       .slice(0, 2800);
@@ -240,6 +330,34 @@ export default function ContentDetailScreen() {
     }
   }
 
+  async function handleShareZimArticle() {
+    if (!zimArticle) return;
+    try {
+      const articleText = zimArticlePlainText(zimArticle);
+      if (!articleText) return;
+      await FileSystemService.ensureAppDirectories();
+      const safeTitle = FileSystemService.safeFileName(zimArticle.title) || 'zim-article';
+      const uri = `${FileSystemService.dir('cache')}${safeTitle}.txt`;
+      await FileSystem.writeAsStringAsync(uri, articleText, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, {
+          dialogTitle: `Share ${zimArticle.title}`,
+          mimeType: 'text/plain',
+          UTI: 'public.plain-text',
+        });
+        return;
+      }
+      showSheetAlert('Article saved', 'Saved a plaintext copy to Ark cache.');
+    } catch (shareError) {
+      showSheetAlert(
+        'Unable to share article',
+        shareError instanceof Error ? shareError.message : 'Article export failed.'
+      );
+    }
+  }
+
   async function handleHandoffToKiwix() {
     if (!pack) return;
     try {
@@ -253,7 +371,7 @@ export default function ContentDetailScreen() {
     const target = resolveZimArticleHref(url, zimArticle);
     if (!target) return true;
     if ('articlePath' in target) {
-      void openZimArticle(target.articlePath);
+      void openZimArticle(target.articlePath, { pushHistory: true });
       return false;
     }
     if ('externalUrl' in target) {
@@ -261,6 +379,22 @@ export default function ContentDetailScreen() {
       return false;
     }
     return true;
+  }
+
+  function closeZimArticle() {
+    speechPlayback.stop();
+    setZimSpeaking(false);
+    setZimActionsOpen(false);
+    setZimArticle(null);
+    setZimArticleHistory([]);
+  }
+
+  function goBackInZimArticle() {
+    setZimArticleHistory((history) => {
+      const previous = history[history.length - 1];
+      if (previous) setZimArticle(previous);
+      return history.slice(0, -1);
+    });
   }
 
   if (!pack) {
@@ -639,45 +773,65 @@ export default function ContentDetailScreen() {
         visible={Boolean(zimArticle)}
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={() => setZimArticle(null)}>
-        <View className="bg-background flex-1">
-          <View
-            className="border-border flex-row items-center justify-between border-b px-4"
-            style={{ minHeight: insets.top + 56, paddingTop: insets.top }}>
-            <Button variant="ghost" size="sm" onPress={() => setZimArticle(null)}>
-              <Text className="text-primary font-bold">Done</Text>
-            </Button>
-            <Text className="text-foreground font-bold" numberOfLines={1}>
-              {zimArticle?.title}
-            </Text>
-            <View className="flex-row gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                disabled={speechPlayback.isGenerating}
-                onPress={() => void handleSpeakZimArticle()}>
-                {speechPlayback.isGenerating ? (
-                  <ActivityIndicator size="small" />
-                ) : (
-                  <Icon as={zimSpeaking ? VolumeX : Volume2} className="text-foreground" />
-                )}
-              </Button>
+        onRequestClose={closeZimArticle}>
+        <BottomSheetProvider>
+          <View className="bg-background flex-1">
+            <View
+              className="border-border flex-row items-center justify-between border-b px-4"
+              style={{ minHeight: insets.top + 56, paddingTop: insets.top }}>
+              <View className="flex-row items-center gap-1">
+                <Button variant="ghost" size="sm" onPress={closeZimArticle}>
+                  <Text className="text-primary font-bold">Done</Text>
+                </Button>
+                {zimArticleHistory.length > 0 ? (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    accessibilityLabel="Back to previous article"
+                    onPress={goBackInZimArticle}>
+                    <Icon as={ChevronLeft} className="text-foreground size-4" />
+                  </Button>
+                ) : null}
+              </View>
+              <Text className="text-foreground font-bold" numberOfLines={1}>
+                {zimArticle?.title}
+              </Text>
+              <View className="flex-row gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  accessibilityLabel="Article actions"
+                  disabled={!zimArticle}
+                  onPress={() => setZimActionsOpen(true)}>
+                  <Icon as={MoreVertical} className="text-foreground" />
+                </Button>
+              </View>
             </View>
+            <WebView
+              originWhitelist={['https://*', 'http://*']}
+              source={
+                zimArticle
+                  ? {
+                      html: ZimService.articleHtml(zimArticle),
+                      baseUrl: zimArticleBaseUrl(zimArticle),
+                    }
+                  : { html: '' }
+              }
+              onShouldStartLoadWithRequest={(request) => handleZimArticleNavigation(request.url)}
+              style={{ flex: 1 }}
+            />
+            <ZimArticleActionsSheet
+              visible={zimActionsOpen}
+              zimSpeaking={zimSpeaking}
+              speechPreparing={zimSpeechPreparing}
+              speechDisabled={!zimArticle && !zimSpeaking}
+              shareDisabled={!zimArticle}
+              onDismiss={() => setZimActionsOpen(false)}
+              onSpeak={() => void handleSpeakZimArticle()}
+              onShare={() => void handleShareZimArticle()}
+            />
           </View>
-          <WebView
-            originWhitelist={['https://*', 'http://*']}
-            source={
-              zimArticle
-                ? {
-                    html: ZimService.articleHtml(zimArticle),
-                    baseUrl: zimArticleBaseUrl(zimArticle),
-                  }
-                : { html: '' }
-            }
-            onShouldStartLoadWithRequest={(request) => handleZimArticleNavigation(request.url)}
-            style={{ flex: 1 }}
-          />
-        </View>
+        </BottomSheetProvider>
       </Modal>
     </View>
   );

@@ -1,16 +1,14 @@
-import { NAV_THEME } from '@/lib/theme';
 import { useThemeStore } from '@/stores/theme-store';
 import { Stack } from 'expo-router';
 
 export default function LibraryLayout() {
-  const theme = useThemeStore((state) => state.effectiveTheme);
-  const colors = NAV_THEME[theme].colors;
+  const colors = useThemeStore((state) => state.colors);
 
   return (
     <Stack
       screenOptions={{
         headerStyle: { backgroundColor: colors.background },
-        headerTintColor: colors.text,
+        headerTintColor: colors.foreground,
         contentStyle: { backgroundColor: colors.background },
       }}>
       <Stack.Screen name="[category]" options={{ title: 'Library' }} />

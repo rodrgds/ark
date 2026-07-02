@@ -20,6 +20,7 @@ export default function WebReaderScreen() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [speaking, setSpeaking] = React.useState(false);
+  const speechPreparing = speaking && speechPlayback.isPreparing && !speechPlayback.isPlaying;
 
   async function load() {
     if (!url) return;
@@ -121,9 +122,9 @@ export default function WebReaderScreen() {
               <Button
                 variant="ghost"
                 size="icon"
-                disabled={speechPlayback.isGenerating}
+                disabled={!article && !speaking}
                 onPress={() => void handleSpeak()}>
-                {speechPlayback.isGenerating ? (
+                {speechPreparing ? (
                   <ActivityIndicator size="small" />
                 ) : (
                   <Icon as={speaking ? VolumeX : Volume2} className="text-foreground" />

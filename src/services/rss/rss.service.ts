@@ -242,8 +242,13 @@ async function itemId(
   url: string | null,
   publishedAt: number | null
 ) {
-  return Crypto.digestStringAsync(
-    Crypto.CryptoDigestAlgorithm.SHA256,
-    `${feedId}:${url ?? title}:${publishedAt ?? ''}`
+  const value = `${feedId}:${url ?? title}:${publishedAt ?? ''}`;
+  const algorithm = Crypto.CryptoDigestAlgorithm.SHA256 ?? 'SHA-256';
+  if (typeof Crypto.digestStringAsync === 'function') {
+    return Crypto.digestStringAsync(algorithm, value);
+  }
+  const digest = await Crypto.digest(algorithm, new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join(
+    ''
   );
 }

@@ -1,6 +1,6 @@
 import type { ContentPack } from '@/types/content';
 import { ZimHeaderParser, type ZimHeaderInfo } from '@/services/content/zim-header';
-import { sanitizeArticleHtml } from '@/services/content/zim-html-sanitizer';
+import { buildZimArticleHtml } from '@/services/content/zim-article-html';
 
 export type ZimMetadata = {
   id: string;
@@ -170,28 +170,7 @@ export class ZimService {
   }
 
   static articleHtml(article: ZimArticle) {
-    return `<!doctype html>
-<html>
-<head>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    body {
-      background: #0a0a0a;
-      color: #fafafa;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      line-height: 1.55;
-      margin: 0;
-      padding: 18px;
-    }
-    img, video { max-width: 100%; height: auto; }
-    a { color: #f2b84b; }
-    table { max-width: 100%; overflow-x: auto; display: block; }
-  </style>
-</head>
-<body>
-  ${sanitizeArticleHtml(article.html)}
-</body>
-</html>`;
+    return buildZimArticleHtml(article);
   }
 
   static setNativeModuleForTests(module: ArkZimNativeModule | null | undefined) {

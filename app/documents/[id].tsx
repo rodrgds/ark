@@ -1,6 +1,7 @@
 import { ArkKeyboardAwareScrollView } from '@/components/layout/keyboard-controller';
-import { NAV_COLORS, type ThemePreference } from '@/constants/theme';
+import type { EffectiveTheme, ThemeColors } from '@/constants/theme';
 import { getNativePdf } from '@/components/readers/native-pdf';
+import { ArkBottomSheet } from '@/components/ui/bottom-sheet';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
@@ -20,7 +21,18 @@ import type { ArkDocument } from '@/types/db';
 import { format } from 'date-fns';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
-import { ExternalLink, FileText, RefreshCcw, Trash2, Volume2, VolumeX } from 'lucide-react-native';
+import {
+  Check,
+  ExternalLink,
+  FileText,
+  MoreHorizontal,
+  Pencil,
+  RefreshCcw,
+  Trash2,
+  Volume2,
+  VolumeX,
+  X,
+} from 'lucide-react-native';
 import * as React from 'react';
 import { ActivityIndicator, Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -39,8 +51,7 @@ function canPreviewInWebView(document: ArkDocument) {
   );
 }
 
-function documentThemeScript(theme: ThemePreference) {
-  const colors = NAV_COLORS[theme];
+function documentThemeScript(theme: EffectiveTheme, colors: ThemeColors) {
   const selection = theme === 'light' ? 'rgba(74, 87, 66, 0.18)' : 'rgba(149, 167, 139, 0.28)';
 
   return `
@@ -83,8 +94,7 @@ true;
 `;
 }
 
-function textHtml(title: string, body: string, theme: ThemePreference) {
-  const colors = NAV_COLORS[theme];
+function textHtml(title: string, body: string, colors: ThemeColors) {
   return `<!doctype html>
 <html>
   <head>
@@ -111,12 +121,44 @@ function escapeHtml(value: string) {
     .replace(/'/g, '&#039;');
 }
 
+function StatusPill({ label }: { label: string }) {
+  return (
+    <View className="border-border bg-muted/40 rounded-full border px-2.5 py-1">
+      <Text variant="small" className="text-muted-foreground">
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+function documentKindLabel(document: ArkDocument) {
+  if (isPdfDocument(document)) return 'PDF';
+  if (isImageDocument(document)) return 'Image';
+  if (isTextDocument(document)) return 'Text';
+  if (document.mimeType) return document.mimeType;
+  return 'Document';
+}
+
+function documentSearchBadge(document: ArkDocument) {
+  if (document.extractedText || document.ocrText) return 'Ready';
+  if (
+    document.ocrStatus === 'processing' ||
+    document.ocrStatus === 'extracting_text' ||
+    document.ocrStatus === 'ocr_running'
+  ) {
+    return 'Reading';
+  }
+  if (document.ocrStatus === 'failed') return 'Retry';
+  if (document.ocrStatus === 'ocr_needed') return 'OCR available';
+  return 'Title only';
+}
+
 export default function DocumentReaderScreen() {
   const { id, page } = useLocalSearchParams<{ id: string; page?: string }>();
   const insets = useSafeAreaInsets();
   const speechPlayback = useArkTextToSpeech();
   const theme = useThemeStore((state) => state.effectiveTheme);
-  const colors = NAV_COLORS[theme];
+  const colors = useThemeStore((state) => state.colors);
   const [document, setDocument] = React.useState<ArkDocument | null>(null);
   const [documentPages, setDocumentPages] = React.useState<
     Awaited<ReturnType<typeof DocumentPagesRepository.listForDocument>>
@@ -129,6 +171,9 @@ export default function DocumentReaderScreen() {
   const [currentPdfPage, setCurrentPdfPage] = React.useState(
     page && Number.isFinite(Number(page)) ? Math.max(1, Number(page)) : 1
   );
+  const [actionsVisible, setActionsVisible] = React.useState(false);
+  const speechPreparing =
+    readerSpeaking && speechPlayback.isPreparing && !speechPlayback.isPlaying;
 
   async function load() {
     if (!id) return;
@@ -176,6 +221,24 @@ export default function DocumentReaderScreen() {
     await run(async () => {
       const renamed = await ImportService.renameDocument(document.id, nextTitle);
       if (renamed) setDocument(renamed);
+    });
+  }
+
+  async function openDocument() {
+    if (!document) return;
+    await run(() => ImportService.openDocument(document.id));
+  }
+
+  function confirmDeleteDocument() {
+    if (!document) return;
+    confirmDestructive({
+      title: 'Delete document?',
+      message: document.title,
+      onConfirm: () =>
+        run(async () => {
+          await ImportService.deleteDocument(document.id);
+          router.back();
+        }),
     });
   }
 
@@ -228,7 +291,7 @@ export default function DocumentReaderScreen() {
   }
 
   const webSource = textPreview
-    ? { html: textHtml(document.title, textPreview, theme) }
+    ? { html: textHtml(document.title, textPreview, colors) }
     : document.localUri
       ? { uri: document.localUri }
       : null;
@@ -240,20 +303,6 @@ export default function DocumentReaderScreen() {
       <Stack.Screen
         options={{
           title: document.title,
-          headerRight: () => (
-            <Button
-              accessibilityLabel={readerSpeaking ? 'Stop reading document' : 'Read document aloud'}
-              disabled={speechPlayback.isGenerating}
-              size="icon"
-              variant="ghost"
-              onPress={() => void handleSpeakDocument()}>
-              {speechPlayback.isGenerating ? (
-                <ActivityIndicator size="small" />
-              ) : (
-                <Icon as={readerSpeaking ? VolumeX : Volume2} className="size-5" />
-              )}
-            </Button>
-          ),
         }}
       />
       <ArkKeyboardAwareScrollView
@@ -269,87 +318,80 @@ export default function DocumentReaderScreen() {
         extraKeyboardSpace={Platform.OS === 'android' ? 32 : 0}
         keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         keyboardShouldPersistTaps="handled">
-        <View className="gap-2">
-          <Text variant="h1" className="text-3xl">
-            {document.title}
-          </Text>
-          <Text variant="muted">
-            {document.mimeType ?? 'Unknown type'} -{' '}
-            {document.sizeBytes
-              ? FileSystemService.formatBytes(document.sizeBytes)
-              : 'Unknown size'}
-          </Text>
-          <Text variant="small">Imported {format(document.createdAt, 'PPp')}</Text>
-        </View>
+        <View className="gap-4">
+          <View className="gap-3">
+            <View className="gap-2">
+              <Text variant="h1" className="text-2xl">
+                {document.title}
+              </Text>
+              <View className="flex-row flex-wrap gap-2">
+                <StatusPill label={documentKindLabel(document)} />
+                <StatusPill
+                  label={
+                    document.sizeBytes
+                      ? FileSystemService.formatBytes(document.sizeBytes)
+                      : 'Unknown size'
+                  }
+                />
+                <StatusPill label={`Imported ${format(document.createdAt, 'PP')}`} />
+              </View>
+            </View>
 
-        <Card className="gap-3">
-          <View className="gap-2">
-            <Text variant="large">Document name</Text>
-            <View className="flex-row gap-2">
-              <Input
-                className="flex-1"
-                value={titleDraft}
-                onChangeText={setTitleDraft}
-                onSubmitEditing={() => void saveTitle()}
-                returnKeyType="done"
-              />
+            <View className="flex-row flex-wrap gap-2">
               <Button
+                className="min-w-32 flex-1"
+                disabled={busy}
+                onPress={() => void openDocument()}>
+                <Icon as={ExternalLink} className="size-4" />
+                <Text>Open file</Text>
+              </Button>
+              <Button
+                accessibilityLabel="Document actions"
+                size="icon"
                 variant="outline"
-                disabled={busy || !titleDraft.trim() || titleDraft.trim() === document.title}
-                onPress={() => void saveTitle()}>
-                {busy ? <ActivityIndicator /> : null}
-                <Text>Rename</Text>
+                disabled={busy}
+                onPress={() => setActionsVisible(true)}>
+                <Icon as={MoreHorizontal} className="size-4" />
               </Button>
             </View>
+            {document.encryptionStatus !== 'encrypted' ? (
+              <Text className="text-destructive text-sm">
+                Stored on this device. Stronger file protection is available in supported builds.
+              </Text>
+            ) : null}
+            {error ? <Text className="text-destructive text-sm">{error}</Text> : null}
           </View>
+        </View>
 
-          <View className="flex-row flex-wrap gap-2">
-            <Button
-              className="flex-1"
-              variant="outline"
-              disabled={busy}
-              onPress={() => run(() => ImportService.openDocument(document.id))}>
-              <Icon as={ExternalLink} className="size-4" />
-              <Text>Open File</Text>
-            </Button>
-            <Button
-              size="icon"
-              variant="outline"
-              disabled={busy}
-              onPress={() => {
-                confirmDestructive({
-                  title: 'Delete document?',
-                  message: document.title,
-                  onConfirm: () =>
-                    run(async () => {
-                      await ImportService.deleteDocument(document.id);
-                      router.back();
-                    }),
-                });
-              }}>
-              {busy ? <ActivityIndicator /> : <Icon as={Trash2} className="size-4" />}
-            </Button>
-          </View>
-          {document.encryptionStatus !== 'encrypted' ? (
-            <Text className="text-destructive text-sm">
-              Stored privately on this device. Stronger file protection is available in supported
-              builds.
-            </Text>
-          ) : null}
-          {error ? <Text className="text-destructive text-sm">{error}</Text> : null}
-        </Card>
+        <DocumentActionsSheet
+          visible={actionsVisible}
+          document={document}
+          busy={busy}
+          titleDraft={titleDraft}
+          readerSpeaking={readerSpeaking}
+          speechPreparing={speechPreparing}
+          onDismiss={() => setActionsVisible(false)}
+          onOpen={() => void openDocument()}
+          onSpeak={() => void handleSpeakDocument()}
+          onChangeTitle={setTitleDraft}
+          onSaveTitle={() => void saveTitle()}
+          onDelete={() => {
+            setActionsVisible(false);
+            confirmDeleteDocument();
+          }}
+        />
 
         <Card className="gap-3">
           <View className="flex-row items-center justify-between gap-3">
             <View className="min-w-0 flex-1 gap-1">
-              <Text variant="large">Search text</Text>
+              <View className="flex-row items-center gap-2">
+                <Text variant="large">Offline search</Text>
+                <StatusPill label={documentSearchBadge(document)} />
+              </View>
               <Text variant="muted">{ocrStatusCopy(document)}</Text>
             </View>
             {document.ocrStatus === 'processing' ? <ActivityIndicator /> : null}
           </View>
-          {document.extractedText ? (
-            <Text variant="small">Ready for offline search and Ask Arky.</Text>
-          ) : null}
           {document.ocrText ? (
             <View className="bg-muted/40 max-h-44 rounded-md p-3">
               <Text variant="small">{document.ocrText}</Text>
@@ -404,8 +446,8 @@ export default function DocumentReaderScreen() {
                 originWhitelist={textPreview ? [] : document.localUri ? [document.localUri] : []}
                 source={webSource}
                 allowFileAccess
-                injectedJavaScript={documentThemeScript(theme)}
-                injectedJavaScriptBeforeContentLoaded={documentThemeScript(theme)}
+                injectedJavaScript={documentThemeScript(theme, colors)}
+                injectedJavaScriptBeforeContentLoaded={documentThemeScript(theme, colors)}
                 startInLoadingState
                 style={{ backgroundColor: colors.background }}
                 renderLoading={() => (
@@ -426,6 +468,96 @@ export default function DocumentReaderScreen() {
         )}
       </ArkKeyboardAwareScrollView>
     </View>
+  );
+}
+
+type DocumentActionsSheetProps = {
+  visible: boolean;
+  document: ArkDocument;
+  busy: boolean;
+  titleDraft: string;
+  readerSpeaking: boolean;
+  speechPreparing: boolean;
+  onDismiss: () => void;
+  onOpen: () => void;
+  onSpeak: () => void;
+  onChangeTitle: (title: string) => void;
+  onSaveTitle: () => void;
+  onDelete: () => void;
+};
+
+function DocumentActionsSheet({
+  visible,
+  document,
+  busy,
+  titleDraft,
+  readerSpeaking,
+  speechPreparing,
+  onDismiss,
+  onOpen,
+  onSpeak,
+  onChangeTitle,
+  onSaveTitle,
+  onDelete,
+}: DocumentActionsSheetProps) {
+  const titleChanged = titleDraft.trim().length > 0 && titleDraft.trim() !== document.title;
+
+  return (
+    <ArkBottomSheet visible={visible} title="Document Actions" onDismiss={onDismiss} scrollable>
+      <View className="gap-2">
+        <Button
+          variant="outline"
+          disabled={busy}
+          onPress={() => {
+            onDismiss();
+            onOpen();
+          }}>
+          <Icon as={ExternalLink} className="size-4" />
+          <Text>Open file</Text>
+        </Button>
+        <Button
+          variant={readerSpeaking ? 'default' : 'outline'}
+          disabled={busy && !readerSpeaking}
+          onPress={() => {
+            onDismiss();
+            onSpeak();
+          }}>
+          {speechPreparing ? (
+            <ActivityIndicator size="small" />
+          ) : (
+            <Icon as={readerSpeaking ? VolumeX : Volume2} className="size-4" />
+          )}
+          <Text>
+            {speechPreparing ? 'Preparing voice' : readerSpeaking ? 'Stop reading' : 'Read aloud'}
+          </Text>
+        </Button>
+      </View>
+
+      <View className="gap-2">
+        <View className="flex-row items-center gap-2">
+          <Icon as={Pencil} className="text-primary size-4" />
+          <Text variant="large">Rename</Text>
+        </View>
+        <View className="flex-row gap-2">
+          <Input
+            className="flex-1"
+            value={titleDraft}
+            onChangeText={onChangeTitle}
+            onSubmitEditing={onSaveTitle}
+            returnKeyType="done"
+          />
+          <Button variant="outline" disabled={busy || !titleChanged} onPress={onSaveTitle}>
+            {busy ? <ActivityIndicator size="small" /> : <Icon as={Check} className="size-4" />}
+            <Text>Save</Text>
+          </Button>
+        </View>
+      </View>
+
+      <Button variant="outline" disabled={busy} onPress={onDelete}>
+        <Icon as={Trash2} className="text-destructive size-4" />
+        <Text className="text-destructive">Delete document</Text>
+      </Button>
+    </ArkBottomSheet>
   );
 }
 

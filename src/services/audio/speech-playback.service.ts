@@ -20,3 +20,7 @@ export async function closeSpeechPlaybackContext() {
   speechContext = null;
   await context?.close().catch(() => undefined);
 }
+
+export async function suspendSpeechPlaybackContext() {
+  await speechContext?.suspend().catch(() => undefined);
+}

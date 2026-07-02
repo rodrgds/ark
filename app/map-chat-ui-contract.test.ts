@@ -25,6 +25,10 @@ function mapScreenSource() {
   ].join('\n');
 }
 
+function tabsLayoutSource() {
+  return readFileSync(join(appDir, '(tabs)/_layout.tsx'), 'utf8');
+}
+
 describe('map and chat UI contracts', () => {
   test('map uses online base tiles when connected and falls back to local overview offline', () => {
     const source = mapScreenSource();
@@ -63,6 +67,47 @@ describe('map and chat UI contracts', () => {
     );
     expect(source).toContain('onDismissSearch();');
     expect(source).toContain('return;');
+  });
+
+  test('hidden top header keeps tab content below the status bar', () => {
+    const source = tabsLayoutSource();
+
+    expect(source).toContain('useSafeAreaInsets()');
+    expect(source).toContain('height: insets.top');
+    expect(source).toContain('topHeaderEnabled ?');
+    expect(source).toContain('<LockStateBar />');
+  });
+
+  test('map routing and spot creation use explicit long-press and marker sheets', () => {
+    const source = mapScreenSource();
+
+    expect(source).toContain('function eventLngLat(event: any): LngLat | null');
+    expect(source).toContain('Keyboard.dismiss();');
+    expect(source).not.toContain('if (lngLat) onMapPress(lngLat);');
+    expect(source).not.toContain('onMapPress={(lngLat) => void startNavigationToMapPoint(lngLat)}');
+    expect(source).toContain('setMapActionPoint(lngLat);');
+    expect(source).toContain('MapPointActionSheet');
+    expect(source).toContain('Route here');
+    expect(source).toContain('Save spot');
+    expect(source).toContain('MarkerActionSheet');
+    expect(source).toContain('setMarkerActionsOpen(true)');
+    expect(source).toContain('if (marker) openEditMarker(marker);');
+    expect(source).toContain('if (marker) void startNavigationToMarker(marker);');
+  });
+
+  test('marker editor choices scroll horizontally instead of wrapping', () => {
+    const source = mapScreenSource();
+
+    expect(source).toContain('ScrollView');
+    expect(source).toContain('horizontal');
+    expect(source).toContain('showsHorizontalScrollIndicator={false}');
+    expect(source).toContain('contentContainerStyle={{ gap: 8, paddingRight: 16 }}');
+    expect(source).not.toContain(
+      '<View className="flex-row flex-wrap gap-2">\\n        {MAP_PIN_TYPES'
+    );
+    expect(source).not.toContain(
+      '<View className="flex-row flex-wrap gap-2">\\n          {colorOptions'
+    );
   });
 
   test('map search includes offline, cached, or online places without selecting fake saved spots', () => {
@@ -134,7 +179,9 @@ describe('map and chat UI contracts', () => {
     expect(mapDownloadSource).toContain('downloadWatchdogs');
     expect(mapDownloadSource).toContain('scheduleDownloadWatchdog(region.id, pack.id');
     expect(mapDownloadSource).toContain('handleDownloadStall');
-    expect(mapDownloadSource).toContain("this.notifyRegionDownload(regionId, 'failed', stalledProgress)");
+    expect(mapDownloadSource).toContain(
+      "this.notifyRegionDownload(regionId, 'failed', stalledProgress)"
+    );
     expect(routingDownloadSource).toContain('const DOWNLOAD_STALL_TIMEOUT_MS = 30_000');
     expect(routingDownloadSource).toContain('RoutingDownloadStalledError');
     expect(routingDownloadSource).toContain('download?.cancelAsync()');
@@ -302,8 +349,8 @@ describe('map and chat UI contracts', () => {
 
     expect(appShell).toContain('<VaultLockSheet');
     expect(appShell).toContain('vaultProtectionEnabled');
-    expect(appShell).toContain("!!state.vault?.isInitialized");
-    expect(appShell).toContain("{vaultProtectionEnabled ? (");
+    expect(appShell).toContain('!!state.vault?.isInitialized');
+    expect(appShell).toContain('{vaultProtectionEnabled ? (');
     expect(appShell).toContain("accessibilityLabel={unlocked ? 'Lock vault' : 'Unlock vault'}");
     expect(appShell).toContain("router.push('/(tabs)/notes')");
     expect(settings).toContain('<VaultLockSheet');

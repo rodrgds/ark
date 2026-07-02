@@ -15,6 +15,7 @@ import { usePathname } from 'expo-router';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 import * as React from 'react';
 import { type ImageSourcePropType, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const tabById = new Map(ARK_TABS.map((tab) => [tab.id, tab]));
 
@@ -51,6 +52,7 @@ export default function TabsLayout() {
 
 function TabsLayoutContent() {
   const colors = useThemeStore((state) => state.colors);
+  const insets = useSafeAreaInsets();
   const pathname = usePathname();
   const [preferences, setPreferences] = React.useState<TabPreferences | null>(null);
   const [materialIconSources, setMaterialIconSources] = React.useState<
@@ -177,7 +179,11 @@ function TabsLayoutContent() {
   return (
     <View className="bg-background flex-1" style={{ backgroundColor: colors.background }}>
       <AppHeaderActionsProvider>
-        {chromeHidden || !topHeaderEnabled ? null : <LockStateBar />}
+        {chromeHidden ? null : topHeaderEnabled ? (
+          <LockStateBar />
+        ) : (
+          <View style={{ height: insets.top, backgroundColor: colors.background }} />
+        )}
         <NativeTabs
           backBehavior="history"
           backgroundColor={colors.card}

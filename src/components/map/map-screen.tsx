@@ -12,6 +12,8 @@ import {
   LocationNoticeCard,
   MapCanvas,
   MapFab,
+  MapPointActionSheet,
+  MarkerActionSheet,
   MissingRegionPromptModal,
   NavigationStatusCard,
   OfflineMapsPanel,
@@ -138,6 +140,8 @@ export default function MapScreen() {
   const [spotColor, setSpotColor] = React.useState(colors.primary);
   const [spotEmergency, setSpotEmergency] = React.useState(false);
   const [selectedMarkerId, setSelectedMarkerId] = React.useState<string | null>(null);
+  const [markerActionsOpen, setMarkerActionsOpen] = React.useState(false);
+  const [mapActionPoint, setMapActionPoint] = React.useState<LngLat | null>(null);
   const [navigationSession, setNavigationSession] = React.useState<NavigationSession | null>(null);
   const [editingMarker, setEditingMarker] = React.useState<MapMarker | null>(null);
   const [editTitle, setEditTitle] = React.useState('');
@@ -497,6 +501,8 @@ export default function MapScreen() {
   );
 
   function openSpotDialog(lngLat: LngLat) {
+    setMapActionPoint(null);
+    setMarkerActionsOpen(false);
     setPendingSpot(lngLat);
     setSpotTitle('');
     setSpotDescription('');
@@ -561,6 +567,8 @@ export default function MapScreen() {
   }
 
   function openEditMarker(marker: MapMarker) {
+    setMapActionPoint(null);
+    setMarkerActionsOpen(false);
     setEditingMarker(marker);
     setEditTitle(marker.title);
     setEditDescription(marker.description ?? '');
@@ -816,6 +824,7 @@ export default function MapScreen() {
       onConfirm: async () => {
         await OfflineMapService.deleteMarker(marker.id);
         if (selectedMarkerId === marker.id) setSelectedMarkerId(null);
+        if (selectedMarkerId === marker.id) setMarkerActionsOpen(false);
         if (editingMarker?.id === marker.id) setEditingMarker(null);
         await load();
       },
@@ -1089,12 +1098,12 @@ export default function MapScreen() {
         onBoundsChange={setViewedBounds}
         onCenterChange={handleCenterChange}
         onZoomChange={handleZoomChange}
-        onCloseMarkerPopup={() => setSelectedMarkerId(null)}
-        onEditMarker={openEditMarker}
-        onNavigateToMarker={startNavigationToMarker}
         onDismissSearch={closeSearchKeyboard}
-        onLongPress={openSpotDialog}
-        onMapPress={(lngLat) => void startNavigationToMapPoint(lngLat)}
+        onLongPress={(lngLat) => {
+          setSelectedMarkerId(null);
+          setMarkerActionsOpen(false);
+          setMapActionPoint(lngLat);
+        }}
         onMapLoadFailed={() =>
           setError(
             hasDownloadedRegion
@@ -1115,6 +1124,8 @@ export default function MapScreen() {
         onMarkerPress={(marker) => {
           centerOn([marker.longitude, marker.latitude], 14);
           setSelectedMarkerId(marker.id);
+          setMapActionPoint(null);
+          setMarkerActionsOpen(true);
         }}
       />
 
@@ -1273,6 +1284,40 @@ export default function MapScreen() {
           setActivePanel(null);
         }}
         onPauseRegion={pauseRegion}
+      />
+
+      <MapPointActionSheet
+        busy={routingBusy}
+        point={mapActionPoint}
+        visible={Boolean(mapActionPoint)}
+        onDismiss={() => setMapActionPoint(null)}
+        onRoute={() => {
+          const point = mapActionPoint;
+          setMapActionPoint(null);
+          if (point) void startNavigationToMapPoint(point);
+        }}
+        onSave={() => {
+          const point = mapActionPoint;
+          setMapActionPoint(null);
+          if (point) openSpotDialog(point);
+        }}
+      />
+
+      <MarkerActionSheet
+        busy={Boolean(selectedMarker && busy === `navigate:${selectedMarker.id}`)}
+        marker={selectedMarker}
+        visible={markerActionsOpen && Boolean(selectedMarker)}
+        onDismiss={() => setMarkerActionsOpen(false)}
+        onEdit={() => {
+          const marker = selectedMarker;
+          setMarkerActionsOpen(false);
+          if (marker) openEditMarker(marker);
+        }}
+        onRoute={() => {
+          const marker = selectedMarker;
+          setMarkerActionsOpen(false);
+          if (marker) void startNavigationToMarker(marker);
+        }}
       />
 
       <SpotDialog

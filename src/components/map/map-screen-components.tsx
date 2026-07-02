@@ -60,7 +60,7 @@ import {
   X,
 } from 'lucide-react-native';
 import * as React from 'react';
-import { ActivityIndicator, Image, Keyboard, Pressable, View } from 'react-native';
+import { ActivityIndicator, Image, Keyboard, Pressable, ScrollView, View } from 'react-native';
 import Animated, {
   Easing,
   FadeIn,
@@ -121,12 +121,8 @@ export function MapCanvas({
   onBoundsChange,
   onCenterChange,
   onZoomChange,
-  onCloseMarkerPopup,
-  onEditMarker,
-  onNavigateToMarker,
   onDismissSearch,
   onLongPress,
-  onMapPress,
   onMapLoadFailed,
   onMapReady,
   onMapUnmount,
@@ -157,12 +153,8 @@ export function MapCanvas({
   onBoundsChange: (bounds: MapViewBounds | null) => void;
   onCenterChange: (center: LngLat) => void;
   onZoomChange?: (zoom: number) => void;
-  onCloseMarkerPopup: () => void;
-  onEditMarker: (marker: MapMarker) => void;
-  onNavigateToMarker: (marker: MapMarker) => void;
   onDismissSearch: () => void;
   onLongPress: (center: LngLat) => void;
-  onMapPress: (center: LngLat) => void;
   onMapLoadFailed: () => void;
   onMapReady: (mapKey: string) => void;
   onMapUnmount: (mapKey: string) => void;
@@ -210,15 +202,14 @@ export function MapCanvas({
             return;
           }
           Keyboard.dismiss();
-          const lngLat = eventLngLat(event);
-          if (lngLat) onMapPress(lngLat);
         }}
         onLongPress={(event: any) => {
           if (isSearchActive || Date.now() < suppressLongPressUntilRef.current) {
             onDismissSearch();
             return;
           }
-          onLongPress(event.nativeEvent.lngLat);
+          const lngLat = eventLngLat(event);
+          if (lngLat) onLongPress(lngLat);
         }}
         onRegionIsChanging={(event: any) => {
           onBearingChange(event.nativeEvent.bearing ?? 0);
@@ -345,22 +336,6 @@ export function MapCanvas({
               </Marker>
             ))
           : null}
-        {Marker && selectedMarker ? (
-          <Marker
-            key={selectedMarker.id}
-            id={`ark-marker-popup-${selectedMarker.id}`}
-            lngLat={[selectedMarker.longitude, selectedMarker.latitude]}
-            anchor="bottom"
-            onPress={onCloseMarkerPopup}
-            offset={[0, -14]}>
-            <MarkerPopup
-              marker={selectedMarker}
-              onClose={onCloseMarkerPopup}
-              onEdit={() => onEditMarker(selectedMarker)}
-              onNavigate={() => onNavigateToMarker(selectedMarker)}
-            />
-          </Marker>
-        ) : null}
       </Map>
       {!mapReady ? (
         <View
@@ -906,7 +881,10 @@ function PinTypeSelector({
   }, [colors.primary]);
   return (
     <View className="gap-3">
-      <View className="flex-row flex-wrap gap-2">
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ gap: 8, paddingRight: 16 }}>
         {MAP_PIN_TYPES.map((pin) => {
           const selected = pin.type === value;
           const PinIcon = iconForPinType(pin.type);
@@ -925,12 +903,15 @@ function PinTypeSelector({
             </Button>
           );
         })}
-      </View>
+      </ScrollView>
       <View className="gap-2">
         <Text variant="small" className="text-muted-foreground">
           Color
         </Text>
-        <View className="flex-row flex-wrap gap-2">
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: 8, paddingRight: 16 }}>
           {colorOptions.map((optionColor) => {
             const selected = optionColor.toLowerCase() === color.toLowerCase();
             return (
@@ -954,7 +935,7 @@ function PinTypeSelector({
               </Button>
             );
           })}
-        </View>
+        </ScrollView>
       </View>
       <Button
         className="h-11 justify-start"
@@ -963,93 +944,6 @@ function PinTypeSelector({
         <Icon as={Star} className="size-4" />
         <Text>Emergency-important</Text>
       </Button>
-    </View>
-  );
-}
-
-export function MarkerPopup({
-  marker,
-  onClose,
-  onEdit,
-  onNavigate,
-}: {
-  marker: MapMarker;
-  onClose: () => void;
-  onEdit: () => void;
-  onNavigate: () => void;
-}) {
-  const colors = useThemeStore((state) => state.colors);
-  const pinMeta = getMapPinMeta(marker.pinType);
-  const PinIcon = iconForPinType(marker.pinType);
-  return (
-    <View className="w-72 items-center">
-      <Card className="border-primary/40 bg-background/95 w-72 gap-3 overflow-hidden p-3">
-        <View className="flex-row items-start gap-3">
-          <View className="h-16 w-16 shrink-0 overflow-hidden rounded-md">
-            {marker.photoUri ? (
-              <Image source={{ uri: marker.photoUri }} className="bg-muted h-full w-full" />
-            ) : (
-              <View className="bg-primary/15 h-full w-full items-center justify-center">
-                <Icon as={PinIcon} className="text-primary size-7" />
-              </View>
-            )}
-          </View>
-
-          <View className="min-w-0 flex-1 gap-1">
-            <View className="flex-row items-start gap-2">
-              <Text variant="large" className="min-w-0 flex-1 leading-5" numberOfLines={2}>
-                {marker.title}
-              </Text>
-              <Pressable
-                accessibilityLabel="Edit spot"
-                className="bg-muted/70 size-8 shrink-0 items-center justify-center rounded-md"
-                onPress={onEdit}>
-                <Icon as={Pencil} className="text-muted-foreground size-4" />
-              </Pressable>
-              <Pressable
-                accessibilityLabel="Close spot details"
-                className="bg-muted/70 size-8 shrink-0 items-center justify-center rounded-md"
-                onPress={onClose}>
-                <Icon as={X} className="text-muted-foreground size-4" />
-              </Pressable>
-            </View>
-            <Text variant="muted" className="text-sm leading-5" numberOfLines={2}>
-              {marker.description || 'No description saved.'}
-            </Text>
-            <View className="flex-row flex-wrap gap-1">
-              <View className="bg-muted/70 flex-row items-center gap-1 rounded-full px-2 py-1">
-                <Icon as={PinIcon} className="text-primary size-3" />
-                <Text variant="small">{pinMeta.label}</Text>
-              </View>
-              {marker.isEmergencyPin ? (
-                <View className="bg-primary/15 flex-row items-center gap-1 rounded-full px-2 py-1">
-                  <Icon as={Star} className="text-primary size-3" />
-                  <Text variant="small">Emergency</Text>
-                </View>
-              ) : null}
-            </View>
-            <Text variant="small" className="text-muted-foreground" numberOfLines={1}>
-              {formatPoint(marker.latitude, marker.longitude)}
-            </Text>
-            <Button className="mt-1 h-9 self-start" size="sm" onPress={onNavigate}>
-              <Icon as={Route} className="size-4" />
-              <Text>Navigate</Text>
-            </Button>
-          </View>
-        </View>
-      </Card>
-      <View
-        style={{
-          width: 0,
-          height: 0,
-          borderLeftWidth: 9,
-          borderRightWidth: 9,
-          borderTopWidth: 12,
-          borderLeftColor: 'transparent',
-          borderRightColor: 'transparent',
-          borderTopColor: colors.primary,
-        }}
-      />
     </View>
   );
 }
@@ -1096,6 +990,85 @@ export function NavigationStatusCard({
         </Button>
       </View>
     </Card>
+  );
+}
+
+export function MapPointActionSheet({
+  busy,
+  point,
+  visible,
+  onDismiss,
+  onRoute,
+  onSave,
+}: {
+  busy: boolean;
+  point: LngLat | null;
+  visible: boolean;
+  onDismiss: () => void;
+  onRoute: () => void;
+  onSave: () => void;
+}) {
+  return (
+    <ArkBottomSheet
+      visible={visible && Boolean(point)}
+      title="Map point"
+      description={point ? formatPoint(point[1], point[0]) : ''}
+      onDismiss={onDismiss}
+      snapPoints={['34%']}>
+      <Button disabled={busy} onPress={onRoute}>
+        {busy ? <ActivityIndicator size="small" /> : <Icon as={Route} className="size-4" />}
+        <Text>Route here</Text>
+      </Button>
+      <Button disabled={busy} variant="outline" onPress={onSave}>
+        <Icon as={MapPin} className="size-4" />
+        <Text>Save spot</Text>
+      </Button>
+      <Button variant="ghost" onPress={onDismiss}>
+        <Text>Cancel</Text>
+      </Button>
+    </ArkBottomSheet>
+  );
+}
+
+export function MarkerActionSheet({
+  busy,
+  marker,
+  visible,
+  onDismiss,
+  onEdit,
+  onRoute,
+}: {
+  busy: boolean;
+  marker: MapMarker | null;
+  visible: boolean;
+  onDismiss: () => void;
+  onEdit: () => void;
+  onRoute: () => void;
+}) {
+  const pinMeta = marker ? getMapPinMeta(marker.pinType) : null;
+  return (
+    <ArkBottomSheet
+      visible={visible && Boolean(marker)}
+      title={marker?.title ?? 'Saved spot'}
+      description={
+        marker
+          ? `${pinMeta?.label ?? 'Saved spot'} · ${formatPoint(marker.latitude, marker.longitude)}`
+          : ''
+      }
+      onDismiss={onDismiss}
+      snapPoints={['38%']}>
+      <Button disabled={busy} onPress={onRoute}>
+        {busy ? <ActivityIndicator size="small" /> : <Icon as={Route} className="size-4" />}
+        <Text>Route here</Text>
+      </Button>
+      <Button disabled={busy} variant="outline" onPress={onEdit}>
+        <Icon as={Pencil} className="size-4" />
+        <Text>Edit spot</Text>
+      </Button>
+      <Button variant="ghost" onPress={onDismiss}>
+        <Text>Close</Text>
+      </Button>
+    </ArkBottomSheet>
   );
 }
 

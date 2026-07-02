@@ -2,6 +2,13 @@ export type MapRegionPackFormat = 'maplibre_offline_pack' | 'pmtiles' | 'mbtiles
 
 export type RoutingProfile = 'pedestrian' | 'bicycle' | 'car';
 
+export type RoutingPreferences = {
+  avoidFerries?: boolean;
+  avoidHills?: boolean;
+  avoidHighways?: boolean;
+  avoidTolls?: boolean;
+};
+
 export type RoutingPackStatus =
   | 'not_downloaded'
   | 'queued'
@@ -141,6 +148,7 @@ export type NavigationManeuver = {
 export type OfflineRoute = {
   id?: string;
   profile: RoutingProfile;
+  routingPreferences?: RoutingPreferences;
   regionId: string;
   routingMode?: 'routed' | 'direct';
   routingFallbackReason?:

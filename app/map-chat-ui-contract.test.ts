@@ -90,9 +90,17 @@ describe('map and chat UI contracts', () => {
     expect(source).toContain('Route here');
     expect(source).toContain('Save spot');
     expect(source).toContain('MarkerActionSheet');
+    expect(source).toContain('RouteOptionsSheet');
+    expect(source).toContain('Travel mode');
+    expect(source).toContain('Avoid ferries');
+    expect(source).toContain('Avoid steep hills');
+    expect(source).toContain('Avoid highways');
+    expect(source).toContain('Avoid toll roads');
+    expect(source).toContain('profile: routeProfile');
+    expect(source).toContain('preferences: routePreferences');
     expect(source).toContain('setMarkerActionsOpen(true)');
     expect(source).toContain('if (marker) openEditMarker(marker);');
-    expect(source).toContain('if (marker) void startNavigationToMarker(marker);');
+    expect(source).toContain('openRouteOptions({');
   });
 
   test('marker editor choices scroll horizontally instead of wrapping', () => {
@@ -158,6 +166,14 @@ describe('map and chat UI contracts', () => {
     expect(routingSource).toContain('Valhalla native routing engine could not be loaded');
     expect(nativeRoutingSource).toContain('Valhalla routing engine library is missing');
     expect(nativeRoutingSource).toContain('"format": "json",\n        "shape_format": "polyline6"');
+    expect(nativeRoutingSource).toContain('"costing_options": $costingOptions');
+    expect(nativeRoutingSource).toContain('costingOptionsForProfile(costing, preferences)');
+    expect(nativeRoutingSource).toContain('"use_highways"');
+    expect(nativeRoutingSource).toContain('"use_tolls"');
+    expect(nativeRoutingSource).toContain('"use_hills"');
+    expect(nativeRoutingSource).toContain('"bicycle_type": "hybrid"');
+    expect(routingSource).toContain('not close enough to a routable road');
+    expect(routingSource).toContain('too long for offline calculation on this phone');
     expect(nativeRoutingSource).toContain('extractValhallaError(root)');
     expect(nativeRoutingSource).toContain('parseOsrmRoute(routes.getJSONObject(0))');
     expect(nativeRoutingSource).not.toContain('"format": "json"\n        "shape_format"');

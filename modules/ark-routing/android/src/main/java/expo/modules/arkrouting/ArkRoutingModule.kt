@@ -30,6 +30,7 @@ class ArkRoutingModule : Module() {
       try {
         val graphPath = request["graphPath"] as? String
         val profile = request["profile"] as? String
+        val preferences = request["preferences"] as? Map<*, *>
         val origin = request["origin"] as? Map<*, *>
         val destination = request["destination"] as? Map<*, *>
         if (graphPath.isNullOrBlank() || profile.isNullOrBlank() || origin == null || destination == null) {
@@ -45,7 +46,14 @@ class ArkRoutingModule : Module() {
         val destLon = number(destination["longitude"])
 
         val configPath = writeValhallaConfig(graphPath)
-        val requestJson = buildRouteRequest(profile, originLat, originLon, destLat, destLon)
+        val requestJson = buildRouteRequest(
+          profile,
+          preferences,
+          originLat,
+          originLon,
+          destLat,
+          destLon
+        )
         val responseJson = callValhallaNative(requestJson, configPath)
 
         promise.resolve(parseValhallaRoute(responseJson))
@@ -328,18 +336,22 @@ class ArkRoutingModule : Module() {
 
   private fun buildRouteRequest(
     profile: String,
+    preferences: Map<*, *>?,
     originLat: Double,
     originLon: Double,
     destLat: Double,
     destLon: Double
   ): String {
+    val costing = costingForProfile(profile)
+    val costingOptions = costingOptionsForProfile(costing, preferences)
     return """
       {
         "locations": [
           {"lat": $originLat, "lon": $originLon, "type": "break"},
           {"lat": $destLat, "lon": $destLon, "type": "break"}
         ],
-        "costing": "${costingForProfile(profile)}",
+        "costing": "$costing",
+        "costing_options": $costingOptions,
         "units": "kilometers",
         "format": "json",
         "shape_format": "polyline6",
@@ -355,6 +367,51 @@ class ArkRoutingModule : Module() {
       "car" -> "auto"
       "bicycle" -> "bicycle"
       else -> "pedestrian"
+    }
+  }
+
+  private fun costingOptionsForProfile(costing: String, preferences: Map<*, *>?): String {
+    val useFerry = if (preferenceEnabled(preferences, "avoidFerries")) 0.05 else 0.5
+    val useHills = if (preferenceEnabled(preferences, "avoidHills")) 0.15 else 0.5
+    val useHighways = if (preferenceEnabled(preferences, "avoidHighways")) 0.1 else 0.5
+    val useTolls = if (preferenceEnabled(preferences, "avoidTolls")) 0.1 else 0.5
+    return when (costing) {
+      "auto" -> """
+        {
+          "auto": {
+            "use_ferry": $useFerry,
+            "use_highways": $useHighways,
+            "use_tolls": $useTolls
+          }
+        }
+      """.trimIndent()
+      "bicycle" -> """
+        {
+          "bicycle": {
+            "bicycle_type": "hybrid",
+            "use_ferry": $useFerry,
+            "use_hills": $useHills
+          }
+        }
+      """.trimIndent()
+      else -> """
+        {
+          "pedestrian": {
+            "walking_speed": 5.1,
+            "use_ferry": $useFerry,
+            "use_hills": $useHills
+          }
+        }
+      """.trimIndent()
+    }
+  }
+
+  private fun preferenceEnabled(preferences: Map<*, *>?, key: String): Boolean {
+    return when (val value = preferences?.get(key)) {
+      is Boolean -> value
+      is Number -> value.toInt() != 0
+      is String -> value.equals("true", ignoreCase = true) || value == "1"
+      else -> false
     }
   }
 

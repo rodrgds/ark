@@ -11,6 +11,7 @@ import type {
   NavigationSession,
   OfflineRoute,
   RouteCoordinate,
+  RoutingPreferences,
   RoutingProfile,
   RoutingPackStatus,
 } from '@/types/maps';
@@ -165,7 +166,10 @@ export class OfflineRoutingService {
             destination,
           });
         } catch (downloadError) {
-          if (downloadError instanceof RoutingDownloadStalledError && attempt < MAX_STALL_RESTARTS) {
+          if (
+            downloadError instanceof RoutingDownloadStalledError &&
+            attempt < MAX_STALL_RESTARTS
+          ) {
             attempt += 1;
             await FileSystem.deleteAsync(destination, { idempotent: true }).catch(() => undefined);
             await MapsRepository.updateRegionRouting(regionId, {
@@ -314,6 +318,7 @@ export class OfflineRoutingService {
     origin: RouteCoordinate;
     destination: RouteCoordinate;
     profile: RoutingProfile;
+    preferences?: RoutingPreferences;
     regionId?: string | null;
   }): Promise<OfflineRoute> {
     const regions = await MapsRepository.listRegions();
@@ -329,15 +334,23 @@ export class OfflineRoutingService {
           routingProgress: 0,
           routingGraphUri: null,
         });
-        return buildDirectRoute(input.origin, input.destination, input.profile, region.id, {
-          reason: 'navigation_graph_missing',
-          message: 'Navigation data is missing from this device.',
-        });
+        return buildDirectRoute(
+          input.origin,
+          input.destination,
+          input.profile,
+          region.id,
+          {
+            reason: 'navigation_graph_missing',
+            message: 'Navigation data is missing from this device.',
+          },
+          input.preferences
+        );
       }
       try {
         const routing = await requireNativeRoutingModule();
         const result = await routing.calculateRoute({
           profile: input.profile,
+          preferences: normalizeRoutingPreferences(input.preferences),
           graphPath: normalizeFilePath(region.routingGraphUri),
           origin: input.origin,
           destination: input.destination,
@@ -351,6 +364,7 @@ export class OfflineRoutingService {
 
         return {
           profile: input.profile,
+          routingPreferences: normalizeRoutingPreferences(input.preferences),
           regionId: region.id,
           routingMode: 'routed',
           geometry,
@@ -360,21 +374,35 @@ export class OfflineRoutingService {
           createdAt: Date.now(),
         };
       } catch (error) {
-        return buildDirectRoute(input.origin, input.destination, input.profile, region.id, {
-          reason: isEngineUnavailableError(error)
-            ? 'engine_unavailable'
-            : 'route_calculation_failed',
-          message: isEngineUnavailableError(error)
-            ? 'Routing engine unavailable in this build.'
-            : routeFailureMessage(error),
-        });
+        return buildDirectRoute(
+          input.origin,
+          input.destination,
+          input.profile,
+          region.id,
+          {
+            reason: isEngineUnavailableError(error)
+              ? 'engine_unavailable'
+              : 'route_calculation_failed',
+            message: isEngineUnavailableError(error)
+              ? 'Routing engine unavailable in this build.'
+              : routeFailureMessage(error),
+          },
+          input.preferences
+        );
       }
     }
 
-    return buildDirectRoute(input.origin, input.destination, input.profile, region?.id, {
-      reason: fallbackReasonForRegion(region?.routingStatus),
-      message: fallbackMessageForRegion(region?.routingStatus),
-    });
+    return buildDirectRoute(
+      input.origin,
+      input.destination,
+      input.profile,
+      region?.id,
+      {
+        reason: fallbackReasonForRegion(region?.routingStatus),
+        message: fallbackMessageForRegion(region?.routingStatus),
+      },
+      input.preferences
+    );
   }
 
   static async startNavigation(input: {
@@ -382,6 +410,7 @@ export class OfflineRoutingService {
     destination: RouteCoordinate;
     destinationTitle: string;
     profile: RoutingProfile;
+    preferences?: RoutingPreferences;
     regionId?: string | null;
   }) {
     const route = await this.calculateRoute(input);
@@ -417,6 +446,7 @@ export class OfflineRoutingService {
         origin: location,
         destination: session.destination,
         profile: session.profile,
+        preferences: session.route.routingPreferences,
         regionId: session.regionId,
       });
       const progress = routeProgress(route, location);
@@ -454,12 +484,19 @@ export class OfflineRoutingService {
 
     const directRoute =
       session.route.routingMode === 'direct'
-        ? buildDirectRoute(location, session.destination, session.profile, session.regionId, {
-            reason: session.route.routingFallbackReason ?? 'route_calculation_failed',
-            message:
-              session.route.routingFallbackMessage ??
-              'Road routing is unavailable for this active navigation.',
-          })
+        ? buildDirectRoute(
+            location,
+            session.destination,
+            session.profile,
+            session.regionId,
+            {
+              reason: session.route.routingFallbackReason ?? 'route_calculation_failed',
+              message:
+                session.route.routingFallbackMessage ??
+                'Road routing is unavailable for this active navigation.',
+            },
+            session.route.routingPreferences
+          )
         : null;
     const route = directRoute ?? session.route;
     const progress = routeProgress(route, location);
@@ -507,6 +544,7 @@ export class OfflineRoutingService {
       origin,
       destination: session.destination,
       profile: session.profile,
+      preferences: session.route.routingPreferences,
       regionId: session.regionId,
     });
     await MapsRepository.updateNavigationSession(session.id, {
@@ -561,15 +599,40 @@ function isEngineUnavailableError(error: unknown) {
 
 function routeFailureMessage(error: unknown) {
   const detail = error instanceof Error ? error.message.trim() : '';
-  if (!detail) return 'Navigation graph could not calculate a road route.';
-  return `Road route failed: ${detail}`;
+  if (!detail)
+    return 'Road routing could not calculate a route from the downloaded navigation data.';
+
+  const normalized = detail.toLowerCase();
+  if (normalized.includes('no suitable edges')) {
+    return 'Road routing could not start because the start or destination is not close enough to a routable road or trail in the downloaded navigation data. Try moving the point onto a road, choosing another travel mode, or downloading the surrounding area.';
+  }
+  if (
+    normalized.includes('exceeds the max distance') ||
+    normalized.includes('max distance limit') ||
+    normalized.includes('service_limits') ||
+    normalized.includes('max_distance')
+  ) {
+    return 'That road route is too long for offline calculation on this phone with the current travel mode. Try a closer destination, split the trip into shorter legs, or use direct-line bearing until you are nearer.';
+  }
+  if (normalized.includes('path distance') || normalized.includes('too long')) {
+    return 'That road route is too long for offline calculation on this phone. Try a closer destination or split the trip into shorter legs.';
+  }
+  if (
+    normalized.includes('not found') ||
+    normalized.includes('graph') ||
+    normalized.includes('tile')
+  ) {
+    return 'Road routing could not find complete navigation data for that route. Download the surrounding map and navigation pack, then try again.';
+  }
+  return 'Road routing could not calculate a route from the downloaded navigation data. Try another travel mode or move the destination onto a nearby road.';
 }
 
 function fallbackReasonForRegion(
   routingStatus?: RoutingPackStatus | null
 ): NonNullable<OfflineRoute['routingFallbackReason']> {
   if (!routingStatus) return 'no_region';
-  if (routingStatus === 'downloading' || routingStatus === 'queued') return 'navigation_downloading';
+  if (routingStatus === 'downloading' || routingStatus === 'queued')
+    return 'navigation_downloading';
   if (routingStatus === 'failed') return 'navigation_failed';
   return 'navigation_not_downloaded';
 }
@@ -620,12 +683,14 @@ function buildDirectRoute(
   fallback?: {
     reason: NonNullable<OfflineRoute['routingFallbackReason']>;
     message: string;
-  }
+  },
+  preferences?: RoutingPreferences
 ): OfflineRoute {
   const distance = distanceMeters(origin, destination);
   const duration = distance / PROFILE_SPEED_METERS_PER_SECOND[profile];
   return {
     profile,
+    routingPreferences: normalizeRoutingPreferences(preferences),
     regionId: regionId ?? DIRECT_ROUTE_REGION_ID,
     routingMode: 'direct',
     routingFallbackReason: fallback?.reason,
@@ -643,6 +708,15 @@ function buildDirectRoute(
       },
     ],
     createdAt: Date.now(),
+  };
+}
+
+function normalizeRoutingPreferences(preferences?: RoutingPreferences): RoutingPreferences {
+  return {
+    avoidFerries: Boolean(preferences?.avoidFerries),
+    avoidHills: Boolean(preferences?.avoidHills),
+    avoidHighways: Boolean(preferences?.avoidHighways),
+    avoidTolls: Boolean(preferences?.avoidTolls),
   };
 }
 

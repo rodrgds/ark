@@ -8,8 +8,16 @@ declare module 'ark-routing' {
 
   export type NativeRoutingProfile = 'pedestrian' | 'bicycle' | 'car';
 
+  export type NativeRoutingPreferences = {
+    avoidFerries?: boolean;
+    avoidHills?: boolean;
+    avoidHighways?: boolean;
+    avoidTolls?: boolean;
+  };
+
   export type NativeRoutingRequest = {
     profile: NativeRoutingProfile;
+    preferences?: NativeRoutingPreferences;
     graphPath: string;
     origin: NativeRouteCoordinate;
     destination: NativeRouteCoordinate;

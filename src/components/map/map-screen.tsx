@@ -17,6 +17,7 @@ import {
   MissingRegionPromptModal,
   NavigationStatusCard,
   OfflineMapsPanel,
+  RouteOptionsSheet,
   SpotDialog,
 } from '@/components/map/map-screen-components';
 import {
@@ -63,6 +64,8 @@ import type {
   NavigationSession,
   OfflineMapSearchResult,
   RouteCoordinate,
+  RoutingPreferences,
+  RoutingProfile,
   SavedRoute,
 } from '@/types/maps';
 import type { LocationObject } from 'expo-location';
@@ -101,6 +104,19 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 type Panel = 'offline' | 'saved' | null;
 type ManagerTab = 'downloaded' | 'browse';
 type TopMode = TopMapMode;
+
+const DEFAULT_ROUTING_PREFERENCES: Required<RoutingPreferences> = {
+  avoidFerries: false,
+  avoidHills: false,
+  avoidHighways: false,
+  avoidTolls: false,
+};
+
+type PendingRouteTarget = {
+  busyKey: string;
+  destination: RouteCoordinate;
+  title: string;
+};
 
 const WORLD_OVERVIEW_ZOOM = 1.1;
 const SEARCH_INSET_WITH_COMPASS = 64;
@@ -142,6 +158,13 @@ export default function MapScreen() {
   const [selectedMarkerId, setSelectedMarkerId] = React.useState<string | null>(null);
   const [markerActionsOpen, setMarkerActionsOpen] = React.useState(false);
   const [mapActionPoint, setMapActionPoint] = React.useState<LngLat | null>(null);
+  const [routeOptionsTarget, setRouteOptionsTarget] = React.useState<PendingRouteTarget | null>(
+    null
+  );
+  const [routeProfile, setRouteProfile] = React.useState<RoutingProfile>('pedestrian');
+  const [routePreferences, setRoutePreferences] = React.useState<RoutingPreferences>(
+    DEFAULT_ROUTING_PREFERENCES
+  );
   const [navigationSession, setNavigationSession] = React.useState<NavigationSession | null>(null);
   const [editingMarker, setEditingMarker] = React.useState<MapMarker | null>(null);
   const [editTitle, setEditTitle] = React.useState('');
@@ -842,10 +865,20 @@ export default function MapScreen() {
     });
   }
 
+  function openRouteOptions(target: PendingRouteTarget) {
+    setMapActionPoint(null);
+    setMarkerActionsOpen(false);
+    setRouteOptionsTarget(target);
+    setRouteProfile('pedestrian');
+    setRoutePreferences(DEFAULT_ROUTING_PREFERENCES);
+  }
+
   async function startNavigationToDestination(input: {
     busyKey: string;
     destination: RouteCoordinate;
     title: string;
+    profile: RoutingProfile;
+    preferences: RoutingPreferences;
   }) {
     let origin = userLocation;
     if (!origin) {
@@ -874,7 +907,8 @@ export default function MapScreen() {
         origin,
         destination: input.destination,
         destinationTitle: input.title,
-        profile: 'pedestrian',
+        profile: input.profile,
+        preferences: input.preferences,
       });
       setNavigationSession(session);
       if (session.route.routingMode === 'direct') {
@@ -886,6 +920,7 @@ export default function MapScreen() {
         );
       }
       setSelectedMarkerId(null);
+      setRouteOptionsTarget(null);
       fitNavigationRoute(session);
     } catch (navigationError) {
       setError(
@@ -896,23 +931,15 @@ export default function MapScreen() {
     }
   }
 
-  async function startNavigationToMarker(marker: MapMarker) {
-    await startNavigationToDestination({
-      busyKey: `navigate:${marker.id}`,
-      destination: { latitude: marker.latitude, longitude: marker.longitude },
-      title: marker.title,
-    });
-  }
-
-  async function startNavigationToMapPoint(lngLat: LngLat) {
+  async function startSelectedRoute() {
+    if (!routeOptionsTarget) return;
     if (isPlacing || busy?.startsWith('navigate:')) return;
-    const destination = { latitude: lngLat[1], longitude: lngLat[0] };
     setSelectedMarkerId(null);
     setActivePanel(null);
     await startNavigationToDestination({
-      busyKey: 'navigate:map-point',
-      destination,
-      title: formatPoint(destination.latitude, destination.longitude),
+      ...routeOptionsTarget,
+      profile: routeProfile,
+      preferences: routePreferences,
     });
   }
 
@@ -1294,7 +1321,14 @@ export default function MapScreen() {
         onRoute={() => {
           const point = mapActionPoint;
           setMapActionPoint(null);
-          if (point) void startNavigationToMapPoint(point);
+          if (point) {
+            const destination = { latitude: point[1], longitude: point[0] };
+            openRouteOptions({
+              busyKey: 'navigate:map-point',
+              destination,
+              title: formatPoint(destination.latitude, destination.longitude),
+            });
+          }
         }}
         onSave={() => {
           const point = mapActionPoint;
@@ -1316,8 +1350,26 @@ export default function MapScreen() {
         onRoute={() => {
           const marker = selectedMarker;
           setMarkerActionsOpen(false);
-          if (marker) void startNavigationToMarker(marker);
+          if (marker) {
+            openRouteOptions({
+              busyKey: `navigate:${marker.id}`,
+              destination: { latitude: marker.latitude, longitude: marker.longitude },
+              title: marker.title,
+            });
+          }
         }}
+      />
+
+      <RouteOptionsSheet
+        busy={routingBusy}
+        destinationTitle={routeOptionsTarget?.title ?? null}
+        preferences={routePreferences}
+        profile={routeProfile}
+        visible={Boolean(routeOptionsTarget)}
+        onChangePreferences={setRoutePreferences}
+        onChangeProfile={setRouteProfile}
+        onDismiss={() => setRouteOptionsTarget(null)}
+        onStart={() => void startSelectedRoute()}
       />
 
       <SpotDialog

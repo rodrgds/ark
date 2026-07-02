@@ -20,6 +20,13 @@ describe('ArkRouting native bridge contracts', () => {
     expect(kotlin).toContain('Class.forName("com.valhalla.valhalla.ValhallaKotlin")');
     expect(kotlin).toContain('getDeclaredMethod("route", String::class.java, String::class.java)');
     expect(kotlin).toContain('"format": "json",');
+    expect(kotlin).toContain('"costing_options": $costingOptions');
+    expect(kotlin).toContain('costingOptionsForProfile(costing, preferences)');
+    expect(kotlin).toContain('"use_ferry"');
+    expect(kotlin).toContain('"use_highways"');
+    expect(kotlin).toContain('"use_tolls"');
+    expect(kotlin).toContain('"use_hills"');
+    expect(kotlin).toContain('"bicycle_type": "hybrid"');
     expect(kotlin).toContain('extractValhallaError(root)');
     expect(kotlin).toContain('parseOsrmRoute(routes.getJSONObject(0))');
     expect(kotlin).toContain('byte = shape[index++].code - 63');
@@ -63,6 +70,14 @@ describe('ArkRouting native bridge contracts', () => {
     expect(swift).toContain('callValhallaRoute(valhalla, requestJson: requestJson)');
     expect(swift).toContain('parseValhallaRoute(responseJson)');
     expect(swift).toContain('"format": "json",');
+    expect(swift).toContain(
+      '"costing_options": costingOptions(for: costing, preferences: preferences)'
+    );
+    expect(swift).toContain('preferenceEnabled(preferences, "avoidFerries")');
+    expect(swift).toContain('"use_highways": useHighways');
+    expect(swift).toContain('"use_tolls": useTolls');
+    expect(swift).toContain('"use_hills": useHills');
+    expect(swift).toContain('"bicycle_type": "hybrid"');
     expect(swift).toContain('extractValhallaError(root)');
     expect(swift).toContain('parseOsrmRoute(route)');
     expect(swift).toContain('"service_defaults"');

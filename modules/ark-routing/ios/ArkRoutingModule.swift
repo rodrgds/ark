@@ -25,6 +25,7 @@ public class ArkRoutingModule: Module {
               let destination = request["destination"] as? [String: Any?] else {
           throw ArkRoutingError.badRequest("Routing request is incomplete.")
         }
+        let preferences = request["preferences"] as? [String: Any?] ?? [:]
 
         let originLat = try number(origin["latitude"] ?? nil)
         let originLon = try number(origin["longitude"] ?? nil)
@@ -34,6 +35,7 @@ public class ArkRoutingModule: Module {
         let configPath = try writeValhallaConfig(tileExtractPath: graphPath)
         let requestJson = try buildRouteRequest(
           profile: profile,
+          preferences: preferences,
           originLat: originLat,
           originLon: originLon,
           destLat: destLat,
@@ -359,17 +361,20 @@ private func buildValhallaConfigJson(tileExtractPath: String) -> String {
 
 private func buildRouteRequest(
   profile: String,
+  preferences: [String: Any?],
   originLat: Double,
   originLon: Double,
   destLat: Double,
   destLon: Double
 ) throws -> String {
+  let costing = costingForProfile(profile)
   let request: [String: Any] = [
     "locations": [
       ["lat": originLat, "lon": originLon, "type": "break"],
       ["lat": destLat, "lon": destLon, "type": "break"]
     ],
-    "costing": costingForProfile(profile),
+    "costing": costing,
+    "costing_options": costingOptions(for: costing, preferences: preferences),
     "units": "kilometers",
     "format": "json",
     "shape_format": "polyline6",
@@ -394,6 +399,56 @@ private func costingForProfile(_ profile: String) -> String {
   default:
     return "pedestrian"
   }
+}
+
+private func costingOptions(for costing: String, preferences: [String: Any?]) -> [String: Any] {
+  let useFerry = preferenceEnabled(preferences, "avoidFerries") ? 0.05 : 0.5
+  let useHills = preferenceEnabled(preferences, "avoidHills") ? 0.15 : 0.5
+  let useHighways = preferenceEnabled(preferences, "avoidHighways") ? 0.1 : 0.5
+  let useTolls = preferenceEnabled(preferences, "avoidTolls") ? 0.1 : 0.5
+
+  switch costing {
+  case "auto":
+    return [
+      "auto": [
+        "use_ferry": useFerry,
+        "use_highways": useHighways,
+        "use_tolls": useTolls
+      ]
+    ]
+  case "bicycle":
+    return [
+      "bicycle": [
+        "bicycle_type": "hybrid",
+        "use_ferry": useFerry,
+        "use_hills": useHills
+      ]
+    ]
+  default:
+    return [
+      "pedestrian": [
+        "walking_speed": 5.1,
+        "use_ferry": useFerry,
+        "use_hills": useHills
+      ]
+    ]
+  }
+}
+
+private func preferenceEnabled(_ preferences: [String: Any?], _ key: String) -> Bool {
+  guard let value = preferences[key] else {
+    return false
+  }
+  if let boolValue = value as? Bool {
+    return boolValue
+  }
+  if let numberValue = value as? NSNumber {
+    return numberValue.boolValue
+  }
+  if let stringValue = value as? String {
+    return stringValue.caseInsensitiveCompare("true") == .orderedSame || stringValue == "1"
+  }
+  return false
 }
 
 private func number(_ value: Any?) throws -> Double {

@@ -44,17 +44,23 @@ import { useThemeStore } from '@/stores/theme-store';
 import type { MapMarker, MapRegion, NavigationSession, SavedRoute } from '@/types/maps';
 import {
   AlertTriangle,
+  Bike,
   Camera,
+  Car,
   Check,
   CheckCircle2,
   Clock3,
+  CircleDollarSign,
   Download,
+  Footprints,
   ImageIcon,
   Layers,
   Map as MapIcon,
   MapPin,
+  Mountain,
   Pencil,
   Route,
+  Ship,
   Star,
   Trash2,
   X,
@@ -70,8 +76,35 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
+import type { RoutingPreferences, RoutingProfile } from '@/types/maps';
 
 type ManagerTab = 'downloaded' | 'browse';
+
+const ROUTING_PROFILE_OPTIONS: Array<{
+  profile: RoutingProfile;
+  label: string;
+  description: string;
+  icon: typeof Route;
+}> = [
+  {
+    profile: 'pedestrian',
+    label: 'Walk',
+    description: 'Footpaths, trails, and streets with pedestrian access.',
+    icon: Footprints,
+  },
+  {
+    profile: 'bicycle',
+    label: 'Bicycle',
+    description: 'Bikeable streets and paths for a hybrid/city bicycle.',
+    icon: Bike,
+  },
+  {
+    profile: 'car',
+    label: 'Car',
+    description: 'Driving route where offline road data supports it.',
+    icon: Car,
+  },
+];
 
 const WORLD_OVERVIEW_PATHS = [
   'M42 58L72 45L101 53L116 72L107 94L80 100L58 88Z',
@@ -1068,6 +1101,118 @@ export function MarkerActionSheet({
       <Button variant="ghost" onPress={onDismiss}>
         <Text>Close</Text>
       </Button>
+    </ArkBottomSheet>
+  );
+}
+
+export function RouteOptionsSheet({
+  busy,
+  destinationTitle,
+  preferences,
+  profile,
+  visible,
+  onChangePreferences,
+  onChangeProfile,
+  onDismiss,
+  onStart,
+}: {
+  busy: boolean;
+  destinationTitle: string | null;
+  preferences: RoutingPreferences;
+  profile: RoutingProfile;
+  visible: boolean;
+  onChangePreferences: (preferences: RoutingPreferences) => void;
+  onChangeProfile: (profile: RoutingProfile) => void;
+  onDismiss: () => void;
+  onStart: () => void;
+}) {
+  const updatePreference = (key: keyof RoutingPreferences) => {
+    onChangePreferences({ ...preferences, [key]: !preferences[key] });
+  };
+
+  return (
+    <ArkBottomSheet
+      visible={visible}
+      title="Route options"
+      description={destinationTitle ? `To ${destinationTitle}` : undefined}
+      onDismiss={onDismiss}
+      scrollable
+      snapPoints={['78%']}>
+      <View className="gap-2">
+        <Text variant="small" className="text-muted-foreground">
+          Travel mode
+        </Text>
+        {ROUTING_PROFILE_OPTIONS.map((option) => {
+          const selected = option.profile === profile;
+          return (
+            <Button
+              key={option.profile}
+              className="h-auto justify-start px-3 py-3"
+              variant={selected ? 'default' : 'outline'}
+              onPress={() => onChangeProfile(option.profile)}>
+              <Icon as={option.icon} className="size-4" />
+              <View className="min-w-0 flex-1">
+                <Text>{option.label}</Text>
+                <Text
+                  variant="small"
+                  className={selected ? 'text-primary-foreground/85' : 'text-muted-foreground'}>
+                  {option.description}
+                </Text>
+              </View>
+            </Button>
+          );
+        })}
+      </View>
+
+      <View className="gap-2">
+        <Text variant="small" className="text-muted-foreground">
+          Route preferences
+        </Text>
+        <Button
+          className="h-11 justify-start"
+          variant={preferences.avoidFerries ? 'default' : 'outline'}
+          onPress={() => updatePreference('avoidFerries')}>
+          <Icon as={Ship} className="size-4" />
+          <Text>Avoid ferries</Text>
+        </Button>
+        {profile !== 'car' ? (
+          <Button
+            className="h-11 justify-start"
+            variant={preferences.avoidHills ? 'default' : 'outline'}
+            onPress={() => updatePreference('avoidHills')}>
+            <Icon as={Mountain} className="size-4" />
+            <Text>Avoid steep hills</Text>
+          </Button>
+        ) : null}
+        {profile === 'car' ? (
+          <>
+            <Button
+              className="h-11 justify-start"
+              variant={preferences.avoidHighways ? 'default' : 'outline'}
+              onPress={() => updatePreference('avoidHighways')}>
+              <Icon as={Route} className="size-4" />
+              <Text>Avoid highways</Text>
+            </Button>
+            <Button
+              className="h-11 justify-start"
+              variant={preferences.avoidTolls ? 'default' : 'outline'}
+              onPress={() => updatePreference('avoidTolls')}>
+              <Icon as={CircleDollarSign} className="size-4" />
+              <Text>Avoid toll roads</Text>
+            </Button>
+          </>
+        ) : null}
+      </View>
+
+      <View className="flex-row gap-2">
+        <Button className="flex-1" variant="outline" onPress={onDismiss}>
+          <Text>Cancel</Text>
+        </Button>
+        <Button className="flex-1" disabled={busy} onPress={onStart}>
+          {busy ? <ActivityIndicator size="small" /> : <Icon as={Route} className="size-4" />}
+          <Text>Start route</Text>
+        </Button>
+      </View>
     </ArkBottomSheet>
   );
 }

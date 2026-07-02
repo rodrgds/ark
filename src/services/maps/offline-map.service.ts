@@ -16,6 +16,7 @@ import type {
   MapRegion,
   OfflineMapSearchResult,
   RouteCoordinate,
+  RoutingPreferences,
   RoutingProfile,
   SavedRoutePoint,
 } from '@/types/maps';
@@ -564,6 +565,7 @@ export class OfflineMapService {
     destination: RouteCoordinate;
     destinationTitle: string;
     profile: RoutingProfile;
+    preferences?: RoutingPreferences;
     regionId?: string | null;
   }) {
     return OfflineRoutingService.startNavigation(input);

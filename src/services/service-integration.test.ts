@@ -55,6 +55,12 @@ const mockScheduledNotifications: Array<{
 }> = [];
 const mockNativeRoutingRequests: Array<{
   profile: string;
+  preferences?: {
+    avoidFerries?: boolean;
+    avoidHills?: boolean;
+    avoidHighways?: boolean;
+    avoidTolls?: boolean;
+  };
   graphPath: string;
   origin: { latitude: number; longitude: number };
   destination: { latitude: number; longitude: number };
@@ -125,11 +131,7 @@ mock.module('expo-crypto', () => ({
 
 mock.module('expo-secure-store', () => ({
   WHEN_UNLOCKED_THIS_DEVICE_ONLY: 'when_unlocked_this_device_only',
-  setItemAsync: async (
-    key: string,
-    value: string,
-    options?: { keychainAccessible?: string }
-  ) => {
+  setItemAsync: async (key: string, value: string, options?: { keychainAccessible?: string }) => {
     secureStore.set(key, value);
     secureStoreOptions.set(key, options);
   },
@@ -2182,15 +2184,29 @@ describe('service integration', () => {
       origin: { latitude: 38.72, longitude: -9.14 },
       destination: { latitude: 38.73, longitude: -9.12 },
       destinationTitle: 'North spring',
-      profile: 'pedestrian',
+      profile: 'bicycle',
+      preferences: { avoidFerries: true, avoidHills: true },
       regionId,
     });
 
     expect(session.route.routingMode).toBe('routed');
+    expect(session.route.profile).toBe('bicycle');
+    expect(session.route.routingPreferences).toMatchObject({
+      avoidFerries: true,
+      avoidHills: true,
+      avoidHighways: false,
+      avoidTolls: false,
+    });
     expect(session.route.routingFallbackReason).toBeUndefined();
     expect(session.route.geometry).toHaveLength(3);
     expect(mockNativeRoutingRequests[0]).toMatchObject({
-      profile: 'pedestrian',
+      profile: 'bicycle',
+      preferences: {
+        avoidFerries: true,
+        avoidHills: true,
+        avoidHighways: false,
+        avoidTolls: false,
+      },
       graphPath: '/ark-test/maps/lisbon-routing.valhalla.tar',
       origin: { latitude: 38.72, longitude: -9.14 },
       destination: { latitude: 38.73, longitude: -9.12 },
@@ -2225,7 +2241,9 @@ describe('service integration', () => {
 
     expect(session.route.routingMode).toBe('direct');
     expect(session.route.routingFallbackReason).toBe('route_calculation_failed');
-    expect(session.route.routingFallbackMessage).toContain('No suitable edges near destination');
+    expect(session.route.routingFallbackMessage).toContain('not close enough to a routable road');
+    expect(session.route.routingFallbackMessage).not.toContain('Valhalla error');
+    expect(session.route.routingFallbackMessage).not.toContain('No suitable edges');
   });
 
   test('routing data diagnostics distinguish ready graphs from stale ready rows', async () => {
@@ -3372,9 +3390,9 @@ describe('service integration', () => {
     await PreferencesService.setSelectedEmbeddingModelId('executorch-multi-qa-mpnet-base-dot-v1');
     resetEmbeddingServiceForTests();
 
-    await expect(
-      RagService.rebuildEmbeddingsForActiveModel({ batchSize: 1 })
-    ).rejects.toThrow('Source-search model failed');
+    await expect(RagService.rebuildEmbeddingsForActiveModel({ batchSize: 1 })).rejects.toThrow(
+      'Source-search model failed'
+    );
 
     const partialMpnet = await testDb.getFirstAsync<{ count: number }>(
       "SELECT COUNT(*) AS count FROM chunk_embeddings WHERE model_id = 'executorch-multi-qa-mpnet-base-dot-v1'"
@@ -3384,7 +3402,9 @@ describe('service integration', () => {
     );
 
     expect(partialMpnet?.count).toBe(1);
-    expect(primaryModels.map((row) => row.embedding_model_id)).toEqual([RAG_HASH_EMBEDDING_MODEL_ID]);
+    expect(primaryModels.map((row) => row.embedding_model_id)).toEqual([
+      RAG_HASH_EMBEDDING_MODEL_ID,
+    ]);
   });
 
   test('diagnostics reports the actual AI runtime status', async () => {

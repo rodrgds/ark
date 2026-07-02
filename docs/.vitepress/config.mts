@@ -11,7 +11,11 @@ export default defineConfig({
     ['meta', { name: 'theme-color', content: '#29302a' }],
   ],
   themeConfig: {
-    logo: '/ark-logo.png',
+    logo: {
+      light: '/ark-logo.png',
+      dark: '/ark-logo-dark.png',
+      alt: 'Ark logo',
+    },
     nav: [
       { text: 'User Guide', link: '/user/getting-started' },
       { text: 'Developer Guide', link: '/developer/setup' },

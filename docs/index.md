@@ -5,7 +5,8 @@ hero:
   text: Offline survival computer
   tagline: Maps, knowledge, private notes, local source search, and field tools for phones that still need to work after the network is gone.
   image:
-    src: /ark-logo.png
+    light: /ark-logo.png
+    dark: /ark-logo-dark.png
     alt: Ark mark
   actions:
     - theme: brand

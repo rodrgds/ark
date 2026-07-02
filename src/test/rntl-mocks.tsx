@@ -183,6 +183,10 @@ export function installCommonRntlMocks(mockApi: MockApi) {
     },
     Text,
     TextInput,
+    TurboModuleRegistry: {
+      get: () => null,
+      getEnforcing: () => ({}),
+    },
     View,
     useWindowDimensions: () => ({ width: 390, height: 844, scale: 1, fontScale: 1 }),
   }));

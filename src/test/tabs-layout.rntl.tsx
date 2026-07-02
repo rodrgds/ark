@@ -43,6 +43,13 @@ mock.module('@/services/preferences/tab-preferences.service', () => ({
   },
 }));
 
+mock.module('@/services/preferences/preferences.service', () => ({
+  PreferencesService: {
+    getTopHeaderEnabled: async () => true,
+    subscribeTopHeaderEnabled: () => () => undefined,
+  },
+}));
+
 mock.module('@/services/rss/rss.service', () => ({
   RssService: {
     refreshIfStale: refreshRss,

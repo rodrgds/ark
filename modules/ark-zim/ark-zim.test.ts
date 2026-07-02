@@ -63,12 +63,10 @@ describe('ArkZim local module', () => {
 
   test('keeps libkiwix classes and native method names in minified Android release builds', () => {
     const appConfig = readFileSync(join(appRoot, 'app.json'), 'utf8');
-    const proguard = readFileSync(join(appRoot, 'android', 'app', 'proguard-rules.pro'), 'utf8');
 
+    expect(appConfig).toContain('"extraProguardRules"');
     expect(appConfig).toContain('-keep class org.kiwix.** { *; }');
     expect(appConfig).toContain('-keepclasseswithmembernames class org.kiwix.**');
-    expect(proguard).toContain('-keep class org.kiwix.** { *; }');
-    expect(proguard).toContain('-keepclasseswithmembernames class org.kiwix.**');
   });
 
   test('wires iOS through CoreKiwix and a native Objective-C++ reader bridge', () => {

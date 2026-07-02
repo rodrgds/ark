@@ -1,0 +1,724 @@
+diff --git a/node_modules/uniwind/.bun-tag-3a8b1a1fdb1feee3 b/.bun-tag-3a8b1a1fdb1feee3
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/src/components/index.ts b/src/components/index.ts
+index b822a302e506550d2990f07efdd35a755f98d1b0..c42a784b9ca4d6fc3ea1ff214620399b0aa69637 100644
+--- a/src/components/index.ts
++++ b/src/components/index.ts
+@@ -1,3 +1,5 @@
++const ReactNative = require('react-native/index')
++
+ module.exports = {
+     get ActivityIndicator() {
+         return require('./native/ActivityIndicator').ActivityIndicator
+@@ -68,246 +70,246 @@ module.exports = {
+
+     // Unsupported
+     get DrawerLayoutAndroid() {
+-        return require('react-native').DrawerLayoutAndroid
++        return ReactNative.DrawerLayoutAndroid
+     },
+     get experimental_LayoutConformance() {
+-        return require('react-native').experimental_LayoutConformance
++        return ReactNative.experimental_LayoutConformance
+     },
+     get ProgressBarAndroid() {
+-        return require('react-native').ProgressBarAndroid
++        return ReactNative.ProgressBarAndroid
+     },
+     get StatusBar() {
+-        return require('react-native').StatusBar
++        return ReactNative.StatusBar
+     },
+     get unstable_TextAncestorContext() {
+-        return require('react-native').unstable_TextAncestorContext
++        return ReactNative.unstable_TextAncestorContext
+     },
+     get Touchable() {
+-        return require('react-native').Touchable
++        return ReactNative.Touchable
+     },
+     get VirtualizedSectionList() {
+-        return require('react-native').VirtualizedSectionList
++        return ReactNative.VirtualizedSectionList
+     },
+     get unstable_VirtualView() {
+-        return require('react-native').unstable_VirtualView
++        return ReactNative.unstable_VirtualView
+     },
+     get AccessibilityInfo() {
+-        return require('react-native').AccessibilityInfo
++        return ReactNative.AccessibilityInfo
+     },
+     get ActionSheetIOS() {
+-        return require('react-native').ActionSheetIOS
++        return ReactNative.ActionSheetIOS
+     },
+     get Alert() {
+-        return require('react-native').Alert
++        return ReactNative.Alert
+     },
+     get Animated() {
+-        return require('react-native').Animated
++        return ReactNative.Animated
+     },
+     get Appearance() {
+-        return require('react-native').Appearance
++        return ReactNative.Appearance
+     },
+     get AppRegistry() {
+-        return require('react-native').AppRegistry
++        return ReactNative.AppRegistry
+     },
+     get AppState() {
+-        return require('react-native').AppState
++        return ReactNative.AppState
+     },
+     get BackHandler() {
+-        return require('react-native').BackHandler
++        return ReactNative.BackHandler
+     },
+     get Clipboard() {
+-        return require('react-native').Clipboard
++        return ReactNative.Clipboard
+     },
+     get codegenNativeCommands() {
+-        return require('react-native').codegenNativeCommands
++        return ReactNative.codegenNativeCommands
+     },
+     get codegenNativeComponent() {
+-        return require('react-native').codegenNativeComponent
++        return ReactNative.codegenNativeComponent
+     },
+     get DeviceEventEmitter() {
+-        return require('react-native').DeviceEventEmitter
++        return ReactNative.DeviceEventEmitter
+     },
+     get DeviceInfo() {
+-        return require('react-native').DeviceInfo
++        return ReactNative.DeviceInfo
+     },
+     get DevMenu() {
+-        return require('react-native').DevMenu
++        return ReactNative.DevMenu
+     },
+     get DevSettings() {
+-        return require('react-native').DevSettings
++        return ReactNative.DevSettings
+     },
+     get Dimensions() {
+-        return require('react-native').Dimensions
++        return ReactNative.Dimensions
+     },
+     get DynamicColorIOS() {
+-        return require('react-native').DynamicColorIOS
++        return ReactNative.DynamicColorIOS
+     },
+     get Easing() {
+-        return require('react-native').Easing
++        return ReactNative.Easing
+     },
+     get findNodeHandle() {
+-        return require('react-native').findNodeHandle
++        return ReactNative.findNodeHandle
+     },
+     get I18nManager() {
+-        return require('react-native').I18nManager
++        return ReactNative.I18nManager
+     },
+     get InteractionManager() {
+-        return require('react-native').InteractionManager
++        return ReactNative.InteractionManager
+     },
+     get Keyboard() {
+-        return require('react-native').Keyboard
++        return ReactNative.Keyboard
+     },
+     get LayoutAnimation() {
+-        return require('react-native').LayoutAnimation
++        return ReactNative.LayoutAnimation
+     },
+     get Linking() {
+-        return require('react-native').Linking
++        return ReactNative.Linking
+     },
+     get LogBox() {
+-        return require('react-native').LogBox
++        return ReactNative.LogBox
+     },
+     get NativeAppEventEmitter() {
+-        return require('react-native').NativeAppEventEmitter
++        return ReactNative.NativeAppEventEmitter
+     },
+     get NativeDialogManagerAndroid() {
+-        return require('react-native').NativeDialogManagerAndroid
++        return ReactNative.NativeDialogManagerAndroid
+     },
+     get NativeEventEmitter() {
+-        return require('react-native').NativeEventEmitter
++        return ReactNative.NativeEventEmitter
+     },
+     get NativeModules() {
+-        return require('react-native').NativeModules
++        return ReactNative.NativeModules
+     },
+     get Networking() {
+-        return require('react-native').Networking
++        return ReactNative.Networking
+     },
+     get PanResponder() {
+-        return require('react-native').PanResponder
++        return ReactNative.PanResponder
+     },
+     get PermissionsAndroid() {
+-        return require('react-native').PermissionsAndroid
++        return ReactNative.PermissionsAndroid
+     },
+     get PixelRatio() {
+-        return require('react-native').PixelRatio
++        return ReactNative.PixelRatio
+     },
+     get Platform() {
+-        return require('react-native').Platform
++        return ReactNative.Platform
+     },
+     get PlatformColor() {
+-        return require('react-native').PlatformColor
++        return ReactNative.PlatformColor
+     },
+     get PushNotificationIOS() {
+-        return require('react-native').PushNotificationIOS
++        return ReactNative.PushNotificationIOS
+     },
+     get processColor() {
+-        return require('react-native').processColor
++        return ReactNative.processColor
+     },
+     get registerCallableModule() {
+-        return require('react-native').registerCallableModule
++        return ReactNative.registerCallableModule
+     },
+     get requireNativeComponent() {
+-        return require('react-native').requireNativeComponent
++        return ReactNative.requireNativeComponent
+     },
+     get RootTagContext() {
+-        return require('react-native').RootTagContext
++        return ReactNative.RootTagContext
+     },
+     get Settings() {
+-        return require('react-native').Settings
++        return ReactNative.Settings
+     },
+     get Share() {
+-        return require('react-native').Share
++        return ReactNative.Share
+     },
+     get StyleSheet() {
+-        return require('react-native').StyleSheet
++        return ReactNative.StyleSheet
+     },
+     get Systrace() {
+-        return require('react-native').Systrace
++        return ReactNative.Systrace
+     },
+     get ToastAndroid() {
+-        return require('react-native').ToastAndroid
++        return ReactNative.ToastAndroid
+     },
+     get TurboModuleRegistry() {
+-        return require('react-native').TurboModuleRegistry
++        return ReactNative.TurboModuleRegistry
+     },
+     get UIManager() {
+-        return require('react-native').UIManager
++        return ReactNative.UIManager
+     },
+     get unstable_batchedUpdates() {
+-        return require('react-native').unstable_batchedUpdates
++        return ReactNative.unstable_batchedUpdates
+     },
+     get useAnimatedValue() {
+-        return require('react-native').useAnimatedValue
++        return ReactNative.useAnimatedValue
+     },
+     get useColorScheme() {
+-        return require('react-native').useColorScheme
++        return ReactNative.useColorScheme
+     },
+     get useWindowDimensions() {
+-        return require('react-native').useWindowDimensions
++        return ReactNative.useWindowDimensions
+     },
+     get UTFSequence() {
+-        return require('react-native').UTFSequence
++        return ReactNative.UTFSequence
+     },
+     get Vibration() {
+-        return require('react-native').Vibration
++        return ReactNative.Vibration
+     },
+     get VirtualViewMode() {
+-        return require('react-native').VirtualViewMode
++        return ReactNative.VirtualViewMode
+     },
+     get NativeComponentRegistry() {
+-        return require('react-native').NativeComponentRegistry
++        return ReactNative.NativeComponentRegistry
+     },
+     get ReactNativeVersion() {
+-        return require('react-native').ReactNativeVersion
++        return ReactNative.ReactNativeVersion
+     },
+     get TVEventControl() {
+-        return require('react-native').TVEventControl
++        return ReactNative.TVEventControl
+     },
+     get TVEventHandler() {
+-        return require('react-native').TVEventHandler
++        return ReactNative.TVEventHandler
+     },
+     get useTVEventHandler() {
+-        return require('react-native').useTVEventHandler
++        return ReactNative.useTVEventHandler
+     },
+     get TVFocusGuideView() {
+-        return require('react-native').TVFocusGuideView
++        return ReactNative.TVFocusGuideView
+     },
+     get TVMenuControl() {
+-        return require('react-native').TVMenuControl
++        return ReactNative.TVMenuControl
+     },
+     get TVTextScrollView() {
+-        return require('react-native').TVTextScrollView
++        return ReactNative.TVTextScrollView
+     },
+     get DynamicColorMacOS() {
+-        return require('react-native').DynamicColorMacOS
++        return ReactNative.DynamicColorMacOS
+     },
+     get ColorWithSystemEffectMacOS() {
+-        return require('react-native').ColorWithSystemEffectMacOS
++        return ReactNative.ColorWithSystemEffectMacOS
+     },
+     get Flyout() {
+-        return require('react-native').Flyout
++        return ReactNative.Flyout
+     },
+     get Glyph() {
+-        return require('react-native').Glyph
++        return ReactNative.Glyph
+     },
+     get Popup() {
+-        return require('react-native').Popup
++        return ReactNative.Popup
+     },
+     get supportKeyboard() {
+-        return require('react-native').supportKeyboard
++        return ReactNative.supportKeyboard
+     },
+     get EventPhase() {
+-        return require('react-native').EventPhase
++        return ReactNative.EventPhase
+     },
+     get HandledEventPhase() {
+-        return require('react-native').HandledEventPhase
++        return ReactNative.HandledEventPhase
+     },
+     get ViewWindows() {
+-        return require('react-native').ViewWindows
++        return ReactNative.ViewWindows
+     },
+     get AppTheme() {
+-        return require('react-native').AppTheme
++        return ReactNative.AppTheme
+     },
+     get XamlHost() {
+-        return require('react-native').XamlHost
++        return ReactNative.XamlHost
+     },
+ }
+diff --git a/src/components/native/ActivityIndicator.tsx b/src/components/native/ActivityIndicator.tsx
+index 0c1820b2f374e86a935c4596426ff623574068d8..161fb9fd1e787aa2c3f1543c014799b0330c3518 100644
+--- a/src/components/native/ActivityIndicator.tsx
++++ b/src/components/native/ActivityIndicator.tsx
+@@ -1,4 +1,4 @@
+-import { ActivityIndicator as RNActivityIndicator, ActivityIndicatorProps } from 'react-native'
++import { ActivityIndicator as RNActivityIndicator, ActivityIndicatorProps } from 'react-native/index'
+ import { copyComponentProperties } from '../utils'
+ import { useAccentColor } from './useAccentColor'
+ import { useStyle } from './useStyle'
+diff --git a/src/components/native/Button.tsx b/src/components/native/Button.tsx
+index 82714dd87484357e324c68ee68e19d94a2914a29..891872b103a5fd05657387e82a921ce6828b4817 100644
+--- a/src/components/native/Button.tsx
++++ b/src/components/native/Button.tsx
+@@ -1,4 +1,4 @@
+-import { Button as RNButton, ButtonProps } from 'react-native'
++import { Button as RNButton, ButtonProps } from 'react-native/index'
+ import { copyComponentProperties } from '../utils'
+ import { useAccentColor } from './useAccentColor'
+
+diff --git a/src/components/native/FlatList.tsx b/src/components/native/FlatList.tsx
+index a194621e5f792badfd6bece789a2aabbdd274b76..2151875a607202e63cd18875df16378ef592393c 100644
+--- a/src/components/native/FlatList.tsx
++++ b/src/components/native/FlatList.tsx
+@@ -1,4 +1,4 @@
+-import { FlatList as RNFlatList, FlatListProps } from 'react-native'
++import { FlatList as RNFlatList, FlatListProps } from 'react-native/index'
+ import { copyComponentProperties } from '../utils'
+ import { useAccentColor } from './useAccentColor'
+ import { useStyle } from './useStyle'
+diff --git a/src/components/native/Image.tsx b/src/components/native/Image.tsx
+index 8d34df16ac90744ee0c815b7f02b372b306a0f94..926d4bd42f456ad8f49bc2bb7a703e2535ac9f1a 100644
+--- a/src/components/native/Image.tsx
++++ b/src/components/native/Image.tsx
+@@ -1,4 +1,4 @@
+-import { Image as RNImage, ImageProps } from 'react-native'
++import { Image as RNImage, ImageProps } from 'react-native/index'
+ import { copyComponentProperties } from '../utils'
+ import { useAccentColor } from './useAccentColor'
+ import { useStyle } from './useStyle'
+diff --git a/src/components/native/ImageBackground.tsx b/src/components/native/ImageBackground.tsx
+index 18393491da5cce758b545576cc0ad4bb5f4777ca..ad0f7e491bb8013855b202ae2665a3db39379157 100644
+--- a/src/components/native/ImageBackground.tsx
++++ b/src/components/native/ImageBackground.tsx
+@@ -1,4 +1,4 @@
+-import { ImageBackground as RNImageBackground, ImageBackgroundProps } from 'react-native'
++import { ImageBackground as RNImageBackground, ImageBackgroundProps } from 'react-native/index'
+ import { copyComponentProperties } from '../utils'
+ import { useAccentColor } from './useAccentColor'
+ import { useStyle } from './useStyle'
+diff --git a/src/components/native/InputAccessoryView.tsx b/src/components/native/InputAccessoryView.tsx
+index fad2936c8d0bea3d6686f304d53b406f98e220a9..fb3cf4d8cec7faf16e949781a4d1a9f788b17141 100644
+--- a/src/components/native/InputAccessoryView.tsx
++++ b/src/components/native/InputAccessoryView.tsx
+@@ -1,5 +1,5 @@
+ import { ForwardedRef } from 'react'
+-import { InputAccessoryView as RNInputAccessoryView, InputAccessoryViewProps } from 'react-native'
++import { InputAccessoryView as RNInputAccessoryView, InputAccessoryViewProps } from 'react-native/index'
+ import { copyComponentProperties } from '../utils'
+ import { useAccentColor } from './useAccentColor'
+ import { useStyle } from './useStyle'
+diff --git a/src/components/native/KeyboardAvoidingView.tsx b/src/components/native/KeyboardAvoidingView.tsx
+index 045eb8cfc9f2ae5a871c39a03650ee835ea8dce2..ea5565e0ab4fa9e3688425a68a48c720e9d8ff7d 100644
+--- a/src/components/native/KeyboardAvoidingView.tsx
++++ b/src/components/native/KeyboardAvoidingView.tsx
+@@ -1,4 +1,4 @@
+-import { KeyboardAvoidingView as RNKeyboardAvoidingView, KeyboardAvoidingViewProps } from 'react-native'
++import { KeyboardAvoidingView as RNKeyboardAvoidingView, KeyboardAvoidingViewProps } from 'react-native/index'
+ import { copyComponentProperties } from '../utils'
+ import { useStyle } from './useStyle'
+
+diff --git a/src/components/native/Modal.tsx b/src/components/native/Modal.tsx
+index f35651b5857b34be57b7cc991adf88d9d0f7273f..ada695b4c4fb714d43cfcf39217dea9386127e45 100644
+--- a/src/components/native/Modal.tsx
++++ b/src/components/native/Modal.tsx
+@@ -1,4 +1,4 @@
+-import { Modal as RNModal, ModalProps } from 'react-native'
++import { Modal as RNModal, ModalProps } from 'react-native/index'
+ import { copyComponentProperties } from '../utils'
+ import { useAccentColor } from './useAccentColor'
+ import { useStyle } from './useStyle'
+diff --git a/src/components/native/Pressable.tsx b/src/components/native/Pressable.tsx
+index 73b499f7454c5957abde95925b3b471ea5548925..5d1171ac7206b5daeeb8751f48ac1aa5d8552715 100644
+--- a/src/components/native/Pressable.tsx
++++ b/src/components/native/Pressable.tsx
+@@ -1,4 +1,4 @@
+-import { Pressable as RNPressable, PressableProps } from 'react-native'
++import { Pressable as RNPressable, PressableProps } from 'react-native/index'
+ import { useUniwindContext } from '../../core/context'
+ import { UniwindStore } from '../../core/native'
+ import { copyComponentProperties } from '../utils'
+diff --git a/src/components/native/RefreshControl.tsx b/src/components/native/RefreshControl.tsx
+index c22bed8c4a59046b6be9d2288954cbbdca5cc7ff..6732fda2338705cd75de3a1c259adf39a4ddc3a9 100644
+--- a/src/components/native/RefreshControl.tsx
++++ b/src/components/native/RefreshControl.tsx
+@@ -1,4 +1,4 @@
+-import { RefreshControl as RNRefreshControl, RefreshControlProps } from 'react-native'
++import { RefreshControl as RNRefreshControl, RefreshControlProps } from 'react-native/index'
+ import { copyComponentProperties } from '../utils'
+ import { useAccentColor } from './useAccentColor'
+ import { useStyle } from './useStyle'
+diff --git a/src/components/native/SafeAreaView.tsx b/src/components/native/SafeAreaView.tsx
+index 99b4e15fc176f7add51f92b8d274ca54364f1f7b..6d1e0f60544a3859c48e28f3d09b1d829526419c 100644
+--- a/src/components/native/SafeAreaView.tsx
++++ b/src/components/native/SafeAreaView.tsx
+@@ -1,4 +1,4 @@
+-import { SafeAreaView as RNSafeAreaView, ViewProps } from 'react-native'
++import { SafeAreaView as RNSafeAreaView, ViewProps } from 'react-native/index'
+ import { copyComponentProperties } from '../utils'
+ import { useStyle } from './useStyle'
+
+diff --git a/src/components/native/ScrollView.tsx b/src/components/native/ScrollView.tsx
+index d2ce2a56dbd871f4ff4cd541d476ba3fc653615b..199c8a2254082a381724feccc789da5a333e5e9b 100644
+--- a/src/components/native/ScrollView.tsx
++++ b/src/components/native/ScrollView.tsx
+@@ -1,4 +1,4 @@
+-import { ScrollView as RNScrollView, ScrollViewProps } from 'react-native'
++import { ScrollView as RNScrollView, ScrollViewProps } from 'react-native/index'
+ import { copyComponentProperties } from '../utils'
+ import { useAccentColor } from './useAccentColor'
+ import { useStyle } from './useStyle'
+diff --git a/src/components/native/SectionList.tsx b/src/components/native/SectionList.tsx
+index a3e97d497ce4896be89d4b99e7015714cee0d572..aa8214c9b58712545ed63d5c5f60364ad83f93db 100644
+--- a/src/components/native/SectionList.tsx
++++ b/src/components/native/SectionList.tsx
+@@ -1,4 +1,4 @@
+-import { SectionList as RNSectionList, SectionListProps } from 'react-native'
++import { SectionList as RNSectionList, SectionListProps } from 'react-native/index'
+ import { copyComponentProperties } from '../utils'
+ import { useAccentColor } from './useAccentColor'
+ import { useStyle } from './useStyle'
+diff --git a/src/components/native/Switch.tsx b/src/components/native/Switch.tsx
+index c7bc52a672cfb6c6f5da3de6a2e12a85d03f273c..3a9750e2a7f11f0640e275c62b2ab153f0a03ee6 100644
+--- a/src/components/native/Switch.tsx
++++ b/src/components/native/Switch.tsx
+@@ -1,4 +1,4 @@
+-import { Switch as RNSwitch, SwitchProps } from 'react-native'
++import { Switch as RNSwitch, SwitchProps } from 'react-native/index'
+ import { ComponentState } from '../../core/types'
+ import { copyComponentProperties } from '../utils'
+ import { useAccentColor } from './useAccentColor'
+diff --git a/src/components/native/Text.tsx b/src/components/native/Text.tsx
+index 4b27f0c06d027e025364b6f65d4dc1cb53d76db3..f9ba9e78f461822cabdf2e68ca8606809f352d80 100644
+--- a/src/components/native/Text.tsx
++++ b/src/components/native/Text.tsx
+@@ -1,5 +1,5 @@
+ import { useState } from 'react'
+-import { Text as RNText, TextProps } from 'react-native'
++import { Text as RNText, TextProps } from 'react-native/index'
+ import { ComponentState } from '../../core/types'
+ import { copyComponentProperties } from '../utils'
+ import { useAccentColor } from './useAccentColor'
+diff --git a/src/components/native/TextInput.tsx b/src/components/native/TextInput.tsx
+index 9e5172d7c0c8c35171cc182df38a0fbd7eb5647b..01b6bda4c56fe799791cbfcc9762ee60dfdf6e13 100644
+--- a/src/components/native/TextInput.tsx
++++ b/src/components/native/TextInput.tsx
+@@ -1,5 +1,5 @@
+ import { useState } from 'react'
+-import { TextInput as RNTextInput, TextInputProps } from 'react-native'
++import { TextInput as RNTextInput, TextInputProps } from 'react-native/index'
+ import { ComponentState } from '../../core/types'
+ import { copyComponentProperties } from '../utils'
+ import { useAccentColor } from './useAccentColor'
+diff --git a/src/components/native/TouchableHighlight.tsx b/src/components/native/TouchableHighlight.tsx
+index b393cf8d87a474fcaf652b9e71b5f2346d50d991..d68ae4606d9b1b4d68b50cfb60c7c79e07a4739d 100644
+--- a/src/components/native/TouchableHighlight.tsx
++++ b/src/components/native/TouchableHighlight.tsx
+@@ -1,5 +1,5 @@
+ import { useState } from 'react'
+-import { TouchableHighlight as RNTouchableHighlight, TouchableHighlightProps } from 'react-native'
++import { TouchableHighlight as RNTouchableHighlight, TouchableHighlightProps } from 'react-native/index'
+ import { ComponentState } from '../../core/types'
+ import { copyComponentProperties } from '../utils'
+ import { useAccentColor } from './useAccentColor'
+diff --git a/src/components/native/TouchableNativeFeedback.tsx b/src/components/native/TouchableNativeFeedback.tsx
+index ca35768eb69d6a683e2f89dca14b2cbdefb474f6..0b1ea6101d5069c7fd54bc9c41c3d52c9d0283eb 100644
+--- a/src/components/native/TouchableNativeFeedback.tsx
++++ b/src/components/native/TouchableNativeFeedback.tsx
+@@ -1,5 +1,5 @@
+ import { useState } from 'react'
+-import { TouchableNativeFeedback as RNTouchableNativeFeedback, TouchableNativeFeedbackProps } from 'react-native'
++import { TouchableNativeFeedback as RNTouchableNativeFeedback, TouchableNativeFeedbackProps } from 'react-native/index'
+ import { ComponentState } from '../../core/types'
+ import { copyComponentProperties } from '../utils'
+ import { useStyle } from './useStyle'
+diff --git a/src/components/native/TouchableOpacity.tsx b/src/components/native/TouchableOpacity.tsx
+index 7d0e2082ffcedbb0dbb4e0e987e13e604559c95e..1115c3c4edb28fb46e1e471914ae093f59c0ad12 100644
+--- a/src/components/native/TouchableOpacity.tsx
++++ b/src/components/native/TouchableOpacity.tsx
+@@ -1,5 +1,5 @@
+ import { useState } from 'react'
+-import { TouchableOpacity as RNTouchableOpacity, TouchableOpacityProps } from 'react-native'
++import { TouchableOpacity as RNTouchableOpacity, TouchableOpacityProps } from 'react-native/index'
+ import { ComponentState } from '../../core/types'
+ import { copyComponentProperties } from '../utils'
+ import { useStyle } from './useStyle'
+diff --git a/src/components/native/TouchableWithoutFeedback.tsx b/src/components/native/TouchableWithoutFeedback.tsx
+index 6b46585658440afc018e4f486ddbe0c30f7f23f3..87ac520c13da24cf5939291cc1a74856fd18f1b5 100644
+--- a/src/components/native/TouchableWithoutFeedback.tsx
++++ b/src/components/native/TouchableWithoutFeedback.tsx
+@@ -1,5 +1,5 @@
+ import { useState } from 'react'
+-import { TouchableWithoutFeedback as RNTouchableWithoutFeedback, TouchableWithoutFeedbackProps } from 'react-native'
++import { TouchableWithoutFeedback as RNTouchableWithoutFeedback, TouchableWithoutFeedbackProps } from 'react-native/index'
+ import { ComponentState } from '../../core/types'
+ import { copyComponentProperties } from '../utils'
+ import { useStyle } from './useStyle'
+diff --git a/src/components/native/View.tsx b/src/components/native/View.tsx
+index 622a2f2f17e884017e3e6e13a8bca8c75ba9d25f..5bb82ef25b095ae3aaab708fe2e75e375750d0f4 100644
+--- a/src/components/native/View.tsx
++++ b/src/components/native/View.tsx
+@@ -1,4 +1,4 @@
+-import { View as RNView, ViewProps } from 'react-native'
++import { View as RNView, ViewProps } from 'react-native/index'
+ import { copyComponentProperties } from '../utils'
+ import { useStyle } from './useStyle'
+
+diff --git a/src/components/native/VirtualizedList.tsx b/src/components/native/VirtualizedList.tsx
+index 922a7b85055a44b6468c1ee4ce570aafb872ffb5..3e7ab12f8693653685bca99be07f900a7d8ae3e4 100644
+--- a/src/components/native/VirtualizedList.tsx
++++ b/src/components/native/VirtualizedList.tsx
+@@ -1,4 +1,4 @@
+-import { VirtualizedList as RNVirtualizedList, VirtualizedListProps } from 'react-native'
++import { VirtualizedList as RNVirtualizedList, VirtualizedListProps } from 'react-native/index'
+ import { copyComponentProperties } from '../utils'
+ import { useAccentColor } from './useAccentColor'
+ import { useStyle } from './useStyle'
+diff --git a/src/core/config/config.common.ts b/src/core/config/config.common.ts
+index fe72dac4878ff8b00354ecd4b052327071b7e7bc..5b2a05cc05dc1b0d705b81c813fc7dd3dda573b6 100644
+--- a/src/core/config/config.common.ts
++++ b/src/core/config/config.common.ts
+@@ -1,4 +1,4 @@
+-import { Appearance, Insets, Platform } from 'react-native'
++import { Appearance, Insets, Platform } from 'react-native/index'
+ import { ColorScheme, StyleDependency } from '../../types'
+ import { UniwindListener } from '../listener'
+ import { CSSVariables, GenerateStyleSheetsCallback, ThemeName } from '../types'
+diff --git a/src/core/config/config.native.ts b/src/core/config/config.native.ts
+index 29d91d628fa24f85ecafd886f57e2c42477e24ab..f63bb2dba7351838aebc03c4012972fa7bede465 100644
+--- a/src/core/config/config.native.ts
++++ b/src/core/config/config.native.ts
+@@ -1,5 +1,5 @@
+ import { formatHex, formatHex8, parse } from 'culori'
+-import { Insets } from 'react-native'
++import { Insets } from 'react-native/index'
+ import { StyleDependency } from '../../types'
+ import { UniwindListener } from '../listener'
+ import { Logger } from '../logger'
+diff --git a/src/core/native/runtime.ts b/src/core/native/runtime.ts
+index ebeb1a058309b8b43e62ae3cd78ce492c97d8eb2..0b09460ccf0f86591c328980ee2297730c160c5b 100644
+--- a/src/core/native/runtime.ts
++++ b/src/core/native/runtime.ts
+@@ -1,4 +1,4 @@
+-import { Appearance, Dimensions, I18nManager, PixelRatio, StyleSheet } from 'react-native'
++import { Appearance, Dimensions, I18nManager, PixelRatio, StyleSheet } from 'react-native/index'
+ import { ColorScheme, Orientation } from '../../types'
+ import type { UniwindRuntime as UniwindRuntimeType } from '../types'
+ import { colorMix, lightDark, parseColor } from './native-utils'
+diff --git a/src/core/native/store.ts b/src/core/native/store.ts
+index 2e811877f6bd40de4dc7a9e0b92b2f0a7a7a9272..81ba1cac4cbea0cc734944fcd083924ab56ba869 100644
+--- a/src/core/native/store.ts
++++ b/src/core/native/store.ts
+@@ -1,4 +1,4 @@
+-import { Dimensions, Platform } from 'react-native'
++import { Dimensions, Platform } from 'react-native/index'
+ import { Platform as UniwindPlatform, UNIWIND_PLATFORM_VARIABLES, UNIWIND_THEME_VARIABLES } from '../../common/consts'
+ import { Orientation, StyleDependency } from '../../types'
+ import { UniwindListener } from '../listener'
+diff --git a/uniwind.css b/uniwind.css
+index 095d6f4b14de1e4ac4e8945c3ee47d92f4fd9ed6..dd2ea767e057ed564e1124e1aaf8e7d680f04c91 100644
+--- a/uniwind.css
++++ b/uniwind.css
+@@ -407,7 +407,7 @@
+    }
+
+    @media (prefers-color-scheme: light) {
+-       &:not(:where(.light, .light *, .dark, .dark *)) {
++       &:not(:where(.light, .light *, .dark, .dark *, .oled, .oled *)) {
+            @slot;
+        }
+    }
+@@ -419,8 +419,99 @@
+    }
+
+    @media (prefers-color-scheme: dark) {
+-       &:not(:where(.light, .light *, .dark, .dark *)) {
++       &:not(:where(.light, .light *, .dark, .dark *, .oled, .oled *)) {
+            @slot;
+        }
+    }
+ }
++
++@custom-variant oled (&:where(.oled, .oled *));
++
++@theme {
++    --color-text-50: unset;
++    --color-text-100: unset;
++    --color-text-200: unset;
++    --color-text-300: unset;
++    --color-text-400: unset;
++    --color-text-500: unset;
++    --color-text-600: unset;
++    --color-text-700: unset;
++    --color-text-800: unset;
++    --color-text-900: unset;
++    --color-text-950: unset;
++    --color-background-50: unset;
++    --color-background-100: unset;
++    --color-background-200: unset;
++    --color-background-300: unset;
++    --color-background-400: unset;
++    --color-background-500: unset;
++    --color-background-600: unset;
++    --color-background-700: unset;
++    --color-background-800: unset;
++    --color-background-900: unset;
++    --color-background-950: unset;
++    --color-primary-50: unset;
++    --color-primary-100: unset;
++    --color-primary-200: unset;
++    --color-primary-300: unset;
++    --color-primary-400: unset;
++    --color-primary-500: unset;
++    --color-primary-600: unset;
++    --color-primary-700: unset;
++    --color-primary-800: unset;
++    --color-primary-900: unset;
++    --color-primary-950: unset;
++    --color-secondary-50: unset;
++    --color-secondary-100: unset;
++    --color-secondary-200: unset;
++    --color-secondary-300: unset;
++    --color-secondary-400: unset;
++    --color-secondary-500: unset;
++    --color-secondary-600: unset;
++    --color-secondary-700: unset;
++    --color-secondary-800: unset;
++    --color-secondary-900: unset;
++    --color-secondary-950: unset;
++    --color-accent-50: unset;
++    --color-accent-100: unset;
++    --color-accent-200: unset;
++    --color-accent-300: unset;
++    --color-accent-400: unset;
++    --color-accent-500: unset;
++    --color-accent-600: unset;
++    --color-accent-700: unset;
++    --color-accent-800: unset;
++    --color-accent-900: unset;
++    --color-accent-950: unset;
++    --color-background: unset;
++    --color-foreground: unset;
++    --color-card: unset;
++    --color-card-foreground: unset;
++    --color-popover: unset;
++    --color-popover-foreground: unset;
++    --color-primary: unset;
++    --color-primary-foreground: unset;
++    --color-secondary: unset;
++    --color-secondary-foreground: unset;
++    --color-muted: unset;
++    --color-muted-foreground: unset;
++    --color-accent: unset;
++    --color-accent-foreground: unset;
++    --color-destructive: unset;
++    --color-border: unset;
++    --color-input: unset;
++    --color-ring: unset;
++    --color-chart-1: unset;
++    --color-chart-2: unset;
++    --color-chart-3: unset;
++    --color-chart-4: unset;
++    --color-chart-5: unset;
++    --color-sidebar: unset;
++    --color-sidebar-foreground: unset;
++    --color-sidebar-primary: unset;
++    --color-sidebar-primary-foreground: unset;
++    --color-sidebar-accent: unset;
++    --color-sidebar-accent-foreground: unset;
++    --color-sidebar-border: unset;
++    --color-sidebar-ring: unset;
++}
+\ No newline at end of file

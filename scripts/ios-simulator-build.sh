@@ -13,11 +13,11 @@ run_expo() {
 }
 
 if [[ "${ARK_IOS_PREBUILD:-0}" == "1" || ! -d ios/Ark.xcworkspace ]]; then
-  run_expo prebuild --platform ios --no-install
+  run_expo prebuild --platform ios --no-install --no-clean
 fi
 
-if [[ ! -d ios/Ark.xcworkspace ]]; then
-  echo "ios/Ark.xcworkspace was not generated." >&2
+if [[ ! -f ios/Podfile ]]; then
+  echo "Expo prebuild did not generate ios/Podfile." >&2
   exit 1
 fi
 
@@ -27,6 +27,11 @@ if [[ "${ARK_IOS_POD_INSTALL:-1}" != "0" ]]; then
     exit 1
   fi
   (cd ios && pod install)
+fi
+
+if [[ ! -d ios/Ark.xcworkspace ]]; then
+  echo "ios/Ark.xcworkspace was not generated. Run with ARK_IOS_POD_INSTALL=1 or inspect pod install output." >&2
+  exit 1
 fi
 
 export RCT_NO_LAUNCH_PACKAGER=1

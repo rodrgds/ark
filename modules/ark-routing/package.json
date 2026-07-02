@@ -7,11 +7,5 @@
     "pack:graph": "node scripts/build-valhalla-routing-pack.mjs",
     "test": "bun test"
   },
-  "dependencies": {
-    "expo-modules-core": "*"
-  },
-  "devDependencies": {
-    "expo": "*"
-  },
   "private": true
 }

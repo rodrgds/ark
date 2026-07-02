@@ -50,7 +50,7 @@ OCR/PDF readers, TTS, local AI/RAG, backups, and Android theme/accent behavior.
 For local Android verification:
 
 1. Install Android Studio or the Android command-line tools.
-2. Install an SDK platform compatible with Expo SDK 55, Android build tools, platform-tools, and
+2. Install an SDK platform compatible with Expo SDK 57, Android build tools, platform-tools, and
    the Android SDK command-line tools.
 3. Set `ANDROID_HOME` to the SDK directory, for example `export ANDROID_HOME=$HOME/Android/Sdk`.
 4. Add `$ANDROID_HOME/platform-tools` to `PATH` if you need `adb install`.

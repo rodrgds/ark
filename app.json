@@ -6,21 +6,18 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "ark",
-    "splash": {
-      "image": "./assets/images/splash-transparent.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#000000"
-    },
     "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
         "NSFaceIDUsageDescription": "Allow Ark to protect your offline vault with Face ID.",
         "NSMotionUsageDescription": "Allow Ark to use motion sensors for compass, level, and survival tools.",
-        "NSLocationWhenInUseUsageDescription": "Allow Ark to save your position and offline map regions.",
+        "NSLocationWhenInUseUsageDescription": "Allow Ark to show your position, save map spots, and record tracks while Ark is open.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow Ark to keep recording an active track when the screen is locked or Ark is in the background.",
         "NSMicrophoneUsageDescription": "Allow Ark to record short voice prompts for offline transcription.",
-        "NSCameraUsageDescription": "Allow Ark to attach photos to saved map locations and Ask Arky chats.",
-        "NSPhotoLibraryUsageDescription": "Allow Ark to choose photos for saved map locations and Ask Arky chats."
+        "NSCameraUsageDescription": "Allow Ark to attach photos to tracks, saved map locations, and Ask Arky chats.",
+        "NSPhotoLibraryUsageDescription": "Allow Ark to choose photos for tracks, saved map locations, and Ask Arky chats.",
+        "UIBackgroundModes": ["location"]
       },
       "bundleIdentifier": "app.ark.offline"
     },
@@ -30,9 +27,13 @@
         "backgroundColor": "#000000"
       },
       "package": "app.ark.offline",
+      "versionCode": 1,
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
         "ACTIVITY_RECOGNITION",
         "RECORD_AUDIO",
         "POST_NOTIFICATIONS"
@@ -89,8 +90,8 @@
       [
         "expo-image-picker",
         {
-          "cameraPermission": "Allow Ark to attach photos to saved map locations and Ask Arky chats.",
-          "photosPermission": "Allow Ark to choose photos for saved map locations and Ask Arky chats.",
+          "cameraPermission": "Allow Ark to attach photos to tracks, saved map locations, and Ask Arky chats.",
+          "photosPermission": "Allow Ark to choose photos for tracks, saved map locations, and Ask Arky chats.",
           "microphonePermission": "Allow Ark to record short voice prompts for offline transcription."
         }
       ],
@@ -111,7 +112,11 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Allow Ark to save your position and offline map regions."
+          "locationWhenInUsePermission": "Allow Ark to show your position, save map spots, and record tracks while Ark is open.",
+          "locationAlwaysAndWhenInUsePermission": "Allow Ark to keep recording an active track when the screen is locked or Ark is in the background.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
         }
       ],
       [
@@ -122,15 +127,17 @@
       ],
       "@maplibre/maplibre-react-native",
       "./plugins/with-ark-routing",
+      "./plugins/with-ark-gradle-memory",
       [
         "expo-build-properties",
         {
           "android": {
             "minSdkVersion": 26,
+            "usePrecompiledHeaders": true,
             "enableMinifyInReleaseBuilds": true,
             "enableShrinkResourcesInReleaseBuilds": true,
             "useLegacyPackaging": true,
-          "extraProguardRules": "# React Native ExecuTorch reaches these Java classes from native JNI code.\n# R8 cannot see those references and otherwise removes or renames the runtime.\n-keep class org.pytorch.executorch.** { *; }\n-keep class com.swmansion.rnexecutorch.** { *; }\n\n# ArkZim reaches libkiwix/libzim Java classes and native methods from JNI.\n# Release R8 minification can otherwise rename symbols that debug builds keep.\n-keep class org.kiwix.** { *; }\n-keep class org.kiwix.libzim.** { *; }\n-keepclasseswithmembernames class org.kiwix.** { native <methods>; }\n-dontwarn org.kiwix.**\n\n# PDFBox can reference the optional Gemalto JPEG2000 decoder when parsing PDFs.\n# Ark does not bundle that decoder; OCR/text extraction paths handle failures.\n-dontwarn com.gemalto.jp2.JP2Decoder\n\n# Local Expo modules under modules/ (ark-routing, ark-ocr, ark-zim, ark-system-colors)\n# are reached only through the ExpoModulesPackageList's modulesMap at\n# runtime. R8 cannot see the reflective load() call, so the classes\n# would otherwise be stripped from the release APK. Keep the entry\n# classes and the JNI bridge that the ark-routing module talks to.\n-keep class expo.modules.arkrouting.** { *; }\n-keep class expo.modules.arkocr.** { *; }\n-keep class expo.modules.arkzim.** { *; }\n-keep class expo.modules.arksystemcolors.** { *; }\n-keep class com.valhalla.valhalla.** { *; }\n-keepclasseswithmembernames class com.valhalla.valhalla.** { native <methods>; }"
+            "extraProguardRules": "# React Native ExecuTorch reaches these Java classes from native JNI code.\n# R8 cannot see those references and otherwise removes or renames the runtime.\n-keep class org.pytorch.executorch.** { *; }\n-keep class com.swmansion.rnexecutorch.** { *; }\n\n# ArkZim reaches libkiwix/libzim Java classes and native methods from JNI.\n# Release R8 minification can otherwise rename symbols that debug builds keep.\n-keep class org.kiwix.** { *; }\n-keep class org.kiwix.libzim.** { *; }\n-keepclasseswithmembernames class org.kiwix.** { native <methods>; }\n-dontwarn org.kiwix.**\n\n# PDFBox can reference the optional Gemalto JPEG2000 decoder when parsing PDFs.\n# Ark does not bundle that decoder; OCR/text extraction paths handle failures.\n-dontwarn com.gemalto.jp2.JP2Decoder\n\n# Local Expo modules under modules/ (ark-routing, ark-ocr, ark-zim, ark-system-colors)\n# are reached only through the ExpoModulesPackageList's modulesMap at\n# runtime. R8 cannot see the reflective load() call, so the classes\n# would otherwise be stripped from the release APK. Keep the entry\n# classes and the JNI bridge that the ark-routing module talks to.\n-keep class expo.modules.arkrouting.** { *; }\n-keep class expo.modules.arkocr.** { *; }\n-keep class expo.modules.arkzim.** { *; }\n-keep class expo.modules.arksystemcolors.** { *; }\n-keep class com.valhalla.valhalla.** { *; }\n-keepclasseswithmembernames class com.valhalla.valhalla.** { native <methods>; }"
           },
           "ios": {
             "deploymentTarget": "17.0"
@@ -146,7 +153,11 @@
           "enableOpenCLAndHexagon": true
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      "expo-status-bar",
+      "expo-asset",
+      "expo-image",
+      "expo-localization"
     ],
     "experiments": {
       "typedRoutes": true

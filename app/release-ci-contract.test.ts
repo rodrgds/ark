@@ -126,6 +126,7 @@ describe('release CI contracts', () => {
       'NSFaceIDUsageDescription',
       'NSMotionUsageDescription',
       'NSLocationWhenInUseUsageDescription',
+      'NSLocationAlwaysAndWhenInUseUsageDescription',
       'NSMicrophoneUsageDescription',
       'NSCameraUsageDescription',
       'NSPhotoLibraryUsageDescription',
@@ -135,16 +136,27 @@ describe('release CI contracts', () => {
 
     expect(app.expo.android.permissions).toContain('ACCESS_FINE_LOCATION');
     expect(app.expo.android.permissions).toContain('ACCESS_COARSE_LOCATION');
+    expect(app.expo.android.permissions).toContain('ACCESS_BACKGROUND_LOCATION');
+    expect(app.expo.android.permissions).toContain('FOREGROUND_SERVICE');
+    expect(app.expo.android.permissions).toContain('FOREGROUND_SERVICE_LOCATION');
     expect(app.expo.android.permissions).toContain('ACTIVITY_RECOGNITION');
     expect(app.expo.android.permissions).toContain('RECORD_AUDIO');
-    expect(app.expo.android.permissions).not.toContain('ACCESS_BACKGROUND_LOCATION');
 
     const audioPlugin = findPlugin(app.expo.plugins, 'expo-audio');
     expect(audioPlugin?.enableBackgroundPlayback).toBe(false);
     expect(audioPlugin?.enableBackgroundRecording).toBe(false);
 
+    const locationPlugin = findPlugin(app.expo.plugins, 'expo-location');
+    expect(locationPlugin?.locationWhenInUsePermission).toContain('record tracks');
+    expect(locationPlugin?.locationAlwaysAndWhenInUsePermission).toContain('screen is locked');
+    expect(locationPlugin?.isIosBackgroundLocationEnabled).toBe(true);
+    expect(locationPlugin?.isAndroidBackgroundLocationEnabled).toBe(true);
+    expect(locationPlugin?.isAndroidForegroundServiceEnabled).toBe(true);
+
     const imagePickerPlugin = findPlugin(app.expo.plugins, 'expo-image-picker');
+    expect(imagePickerPlugin?.cameraPermission).toContain('tracks');
     expect(imagePickerPlugin?.cameraPermission).toContain('Ask Arky chats');
+    expect(imagePickerPlugin?.photosPermission).toContain('tracks');
     expect(imagePickerPlugin?.photosPermission).toContain('Ask Arky chats');
   });
 

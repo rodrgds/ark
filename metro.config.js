@@ -1,4 +1,5 @@
 const { getDefaultConfig } = require('expo/metro-config');
+const { getBundleModeMetroConfig } = require('react-native-worklets/bundleMode');
 const { withUniwindConfig } = require('uniwind/metro');
 
 const config = getDefaultConfig(__dirname);
@@ -14,7 +15,7 @@ const defaultBlockList = Array.isArray(config.resolver.blockList)
 
 config.resolver.blockList = [...defaultBlockList, /\.test\.[tj]sx?$/, /\.spec\.[tj]sx?$/];
 
-module.exports = withUniwindConfig(config, {
+module.exports = withUniwindConfig(getBundleModeMetroConfig(config), {
   // relative path to your global.css file (from previous step)
   cssEntryFile: './global.css',
   extraThemes: ['oled'],

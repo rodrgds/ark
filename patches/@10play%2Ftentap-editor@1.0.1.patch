@@ -1,0 +1,12 @@
+diff --git a/package.json b/package.json
+index 903cbd706295df955753ed26d87e7afa2516ee40..34dc98b29a94f0e68c8020c70c9fea5d2efcb256 100644
+--- a/package.json
++++ b/package.json
+@@ -226,6 +226,6 @@
+     "@tiptap/react": "^3.11.0",
+     "@tiptap/starter-kit": "^3.11.0",
+     "lodash": "^4.17.21",
+-    "react-dom": "^18.2.0"
++    "react-dom": "^18.2.0 || ^19.0.0"
+   }
+ }

@@ -6,7 +6,7 @@ Pod::Spec.new do |s|
   s.author         = 'Ark'
   s.homepage       = 'https://github.com/ark-offline/ark'
   s.license        = 'MIT'
-  s.platform       = :ios, '15.1'
+  s.platform       = :ios, '16.4'
   s.source         = { git: 'https://github.com/ark-offline/ark.git' }
   s.static_framework = true
   s.swift_version  = '5.4'

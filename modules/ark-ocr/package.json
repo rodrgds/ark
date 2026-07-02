@@ -11,8 +11,7 @@
   ],
   "license": "UNLICENSED",
   "peerDependencies": {
-    "expo": "*",
-    "expo-modules-core": "*"
+    "expo": "*"
   },
   "private": true
 }

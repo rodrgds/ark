@@ -139,7 +139,7 @@
 - [x] **`tests/integration/map-chat-ui-contract.test.ts`** — Brittle string matching. _Fix: assert on testids or reduced snapshot._ **DEFERRED — test now composes route source plus extracted map/chat component source where needed; still uses string matching but is a contract test for route/source wiring, not behavior.**
 - [x] **`.github/workflows/ci.yml`** — iOS CI missing. _Fix: add iOS lane._ **DONE — added `scripts/ios-simulator-build.sh`, `bun run ios:build:sim`, and a macOS `iOS Simulator Build` job that regenerates the iOS project, installs pods, and runs `xcodebuild` for the unsigned simulator target. `app/release-ci-contract.test.ts` now guards the lane.**
 - [x] **`__tests__`** — 196 tests, none mount React Native. _Fix: add `@testing-library/react-native` for lock + notes._ **DONE — added 7 RNTL mounted tests covering tab preferences, diagnostics, function search, chat index, tabs layout, and note editor autosave.**
-- [x] **`package.json:36-37, 41, 48, 52, 58-63, 68`** — DONE: removed the unused `tailwindcss-animate`, `expo-system-ui`, `expo-updates`, `expo-battery`, `expo-linking`, and `punycode` entries; `defuddle` and `expo-splash-screen` remain installed because remote HTML extraction and splash configuration use them. Typecheck, lint, and tests pass.
+- [x] **`package.json:36-37, 41, 48, 52, 58-63, 68`** — DONE: removed the unused `tailwindcss-animate`, `expo-system-ui`, `expo-updates`, `expo-battery`, and `punycode` entries. `expo-linking` and `expo-asset` are installed again because SDK 57 peer validation requires them; `defuddle` and `expo-splash-screen` remain installed because remote HTML extraction and splash configuration use them. Typecheck, lint, and tests pass.
 
 ### Code style
 

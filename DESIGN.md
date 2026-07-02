@@ -6,10 +6,11 @@ Ark is used on a phone in daylight, a vehicle, a shelter, or a dark room during 
 
 ## Theme
 
-- Default to OLED for low-light and battery-conscious use.
+- Default to System theme plus System accent so first-run Ark follows the phone and uses Android dynamic color when available.
+- Keep OLED available for low-light and battery-conscious use; Battery Reduce Mode may still prefer OLED.
 - Keep dark and light modes readable in field conditions.
 - Accent color controls preserve contrast and apply to primary actions, active selection, pins, and readiness indicators only.
-- System theme follows the phone light/dark setting; true Android Material You accent extraction still needs a native resolved-color bridge.
+- System theme follows the phone light/dark setting; Android Material You accent extraction uses the native `ark-system-colors` bridge with Moss as the fallback.
 
 ## Current Visual System
 

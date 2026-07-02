@@ -79,7 +79,7 @@
 - [x] **Guide export (share to print)** — The content reader supports share/print for PDF and HTML guides from the More actions sheet.
 - [x] **Notes export** — The note editor now exports the current note as PDF or plaintext from a More actions sheet, and the notes list still supports single-note PDF export from selection mode.
 - [x] **Wikipedia article export** — ZIM article actions are grouped behind the in-reader More sheet, and users can share a plaintext copy of the current article for printing or off-site reference.
-- [x] **Full vault backup** — Encrypted v2 `.arkbackup` export/import covers selected settings, notes/rich content, documents, document pages, map markers, routes, RSS subscriptions, chat threads, and chat messages. It intentionally excludes caches, downloaded map/model/ZIM payloads, generated embeddings, and active download queues.
+- [x] **Full vault backup** — Encrypted v3 `.arkbackup` export/import covers selected settings, Field preferences, notes/rich content, documents, document pages, map markers, routes, tracks/points/markers/photos, RSS subscriptions, chat threads, and chat messages. It intentionally excludes caches, downloaded map/model/ZIM payloads, generated embeddings, and active download queues.
 
 ### Placeholders → real implementations
 

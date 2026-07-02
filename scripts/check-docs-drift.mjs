@@ -12,12 +12,12 @@ const checks = [
   },
   {
     name: 'store count',
-    expected: 4,
+    expected: 5,
     actual: await countFiles('src/stores', (name) => name.endsWith('-store.ts')),
   },
   {
     name: 'service dirs',
-    expected: 16,
+    expected: 17,
     actual: await countDirs('src/services'),
   },
   {
@@ -30,7 +30,7 @@ const checks = [
   },
   {
     name: 'ui primitives',
-    expected: 11,
+    expected: 12,
     actual: await countFiles(
       'src/components/ui',
       (name) => name.endsWith('.tsx') && !name.endsWith('.test.tsx')
@@ -38,12 +38,12 @@ const checks = [
   },
   {
     name: 'db version',
-    expected: 1,
+    expected: 2,
     actual: await findLatestPragmaVersion(),
   },
   {
     name: 'base table count',
-    expected: 26,
+    expected: 29,
     actual: await countMigrations((line) => /CREATE TABLE (?!IF NOT EXISTS \w+_fts)/i.test(line)),
   },
   {
@@ -151,9 +151,9 @@ const factsInDoc = extractNumbersNear(agents, [
   'services/',
   'stores',
   'lib',
-  '26 base tables',
+  '29 base tables',
   '4 FTS5',
-  'versioned to 1',
+  'versioned to 2',
 ]);
 
 if (factsInDoc.length) {

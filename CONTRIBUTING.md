@@ -45,9 +45,10 @@ Update docs in the same PR when behavior changes. The most important files are:
 
 - `README.md` for public project positioning.
 - `AGENTS.md` for implementation-level source-of-truth notes.
-- `docs/release-readiness.md` for release risk.
+- `docs/user/**` for user-facing behavior.
+- `docs/developer/**` for setup, architecture, native builds, data, and CI.
+- `docs/release/**` plus `docs/release-readiness.md` for release risk and distribution.
 - `docs/content-pack-urls.md` for curated downloads.
-- `docs/development-build.md` for native build behavior.
 
 ## Issues
 

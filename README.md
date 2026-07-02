@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="assets/images/readme-logo.png" alt="Ark logo" width="150" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/images/readme-logo-dark.png" />
+    <img src="assets/images/readme-logo.png" alt="Ark logo" width="150" />
+  </picture>
 </p>
 
 <h1 align="center">Ark</h1>

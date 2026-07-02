@@ -48,7 +48,7 @@ let
       export NODE_OPTIONS="--max-old-space-size=1024"
       cd "${config.git.root}"
       bun install --frozen-lockfile
-      bun test
+      bun run test
     '';
   };
 in
@@ -81,7 +81,7 @@ in
     # preferred fix. typecheck/test don't go through `bun run` so they
     # don't hit the same trap; only lint needed the bypass.
     lint.exec = "bunx eslint . --quiet";
-    test.exec = "bun test";
+    test.exec = "bun run test";
   };
 
   git-hooks.hooks = {
@@ -122,7 +122,7 @@ in
     echo "    format    - prettier --write ."
     echo "    typecheck - tsc --noEmit"
     echo "    lint      - eslint . --quiet"
-    echo "    test      - bun test"
+    echo "    test      - bun run test"
     echo ""
   '';
 

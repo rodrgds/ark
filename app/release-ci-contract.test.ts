@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 describe('release CI contracts', () => {
   test('package scripts expose the local release gates', () => {
@@ -52,11 +53,22 @@ describe('release CI contracts', () => {
     expect(devenvNix).toContain('bunx prettier --check .');
     expect(devenvNix).toContain('bunx tsc --noEmit');
     expect(devenvNix).toContain('bunx eslint . --quiet');
-    expect(devenvNix).toContain('bun test');
+    expect(devenvNix).toContain('bun run test');
 
     const gitignore = readFileSync(join(process.cwd(), '.gitignore'), 'utf8');
     expect(gitignore).toContain('.githooks/');
     expect(gitignore).toContain('.pre-commit-config.yaml');
+
+    const trackedGeneratedHooks = spawnSync(
+      'git',
+      ['ls-files', '.githooks/pre-commit', '.pre-commit-config.yaml'],
+      {
+        cwd: process.cwd(),
+        encoding: 'utf8',
+      }
+    );
+    expect(trackedGeneratedHooks.status).toBe(0);
+    expect(trackedGeneratedHooks.stdout.trim()).toBe('');
 
     // The CI workflow must wire the same checks. The current shape calls
     // the dev-shell scripts (format-check / typecheck / lint) directly and
@@ -87,7 +99,7 @@ describe('release CI contracts', () => {
   test('GitHub Actions runs install, checks, tests, and an iOS simulator build', () => {
     // Ark delegates Android debug builds to a separate project for now;
     // the in-repo CI runs devenv shell scripts (format-check / typecheck
-    // / lint) and `bun run test` for the rntl-suite. The Android gate is
+    // / lint) and `bun run test` for the scoped rntl-suite. The Android gate is
     // documented in docs/release-readiness.md and will be re-added to this
     // workflow once a CI SDK cache strategy is decided. The strings that
     // used to live here (`bun run android:build:dev`,
@@ -108,7 +120,7 @@ describe('release CI contracts', () => {
     expect(devShellName('typecheck')).toBe(true);
     expect(devShellName('lint')).toBe(true);
     expect(workflow).toContain('bun run test');
-    expect(workflow).toContain('runs-on: macos-15');
+    expect(workflow).toContain('runs-on: macos-26');
     expect(workflow).toContain('bun run ios:build:sim');
   });
 

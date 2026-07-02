@@ -4,6 +4,7 @@ import { DatabaseClient } from '@/services/db/client';
 import { sqliteBoolean } from '@/services/db/sqlite-values';
 import type {
   MapMarker,
+  OfflineMapPlace,
   MapRegion,
   MapRegionPackFormat,
   NavigationSession,
@@ -171,6 +172,34 @@ function mapNavigationSession(row: {
     lastReroutedAt: row.last_rerouted_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+function mapPlace(row: {
+  id: string;
+  title: string;
+  subtitle: string | null;
+  latitude: number;
+  longitude: number;
+  source: string;
+  source_ref: string | null;
+  terms: string | null;
+  created_at: number;
+  updated_at: number;
+  last_seen_at: number | null;
+}): OfflineMapPlace {
+  return {
+    id: row.id,
+    title: row.title,
+    subtitle: row.subtitle,
+    latitude: row.latitude,
+    longitude: row.longitude,
+    source: normalizePlaceSource(row.source),
+    sourceRef: row.source_ref,
+    terms: row.terms,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    lastSeenAt: row.last_seen_at,
   };
 }
 
@@ -473,12 +502,12 @@ export class MapsRepository {
       pinType?: MapPinType;
       isEmergencyPin?: boolean;
       photoUri?: string | null;
+      color?: string | null;
     }
   ) {
     const db = await DatabaseClient.getDb();
     const existing = await this.getMarker(id);
     const pinType = normalizeMapPinType(marker.pinType ?? existing?.pinType);
-    const pinMeta = getMapPinMeta(pinType);
     await db.runAsync(
       `UPDATE map_markers
        SET title = ?,
@@ -497,7 +526,7 @@ export class MapsRepository {
         (marker.isEmergencyPin ?? existing?.isEmergencyPin) ? 1 : 0,
         marker.photoUri ?? null,
         pinType,
-        pinMeta.color,
+        marker.color ?? existing?.color ?? getMapPinMeta(pinType).color,
         Date.now(),
         id,
       ]
@@ -544,6 +573,107 @@ export class MapsRepository {
   static async deleteRoute(id: string) {
     const db = await DatabaseClient.getDb();
     await db.runAsync('DELETE FROM routes WHERE id = ?', [id]);
+  }
+
+  static async upsertPlace(place: {
+    id?: string;
+    title: string;
+    subtitle?: string | null;
+    latitude: number;
+    longitude: number;
+    source: OfflineMapPlace['source'];
+    sourceRef?: string | null;
+    terms?: string | null;
+    lastSeenAt?: number | null;
+  }) {
+    const title = place.title.trim();
+    if (!title || !Number.isFinite(place.latitude) || !Number.isFinite(place.longitude)) return null;
+
+    const db = await DatabaseClient.getDb();
+    const timestamp = Date.now();
+    const sourceRef = place.sourceRef?.trim() || stablePlaceRef(place);
+    const id = place.id?.trim() || stablePlaceId(place.source, sourceRef);
+    await db.runAsync(
+      `INSERT INTO map_places
+        (id, title, subtitle, latitude, longitude, source, source_ref, terms, last_seen_at, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(source, source_ref) DO UPDATE SET
+         title = excluded.title,
+         subtitle = excluded.subtitle,
+         latitude = excluded.latitude,
+         longitude = excluded.longitude,
+         terms = excluded.terms,
+         last_seen_at = COALESCE(excluded.last_seen_at, map_places.last_seen_at),
+         updated_at = excluded.updated_at`,
+      [
+        id,
+        title,
+        place.subtitle?.trim() || null,
+        place.latitude,
+        place.longitude,
+        place.source,
+        sourceRef,
+        normalizePlaceTerms(place.terms, title, place.subtitle),
+        place.lastSeenAt ?? timestamp,
+        timestamp,
+        timestamp,
+      ]
+    );
+    const stored = await db.getFirstAsync<Parameters<typeof mapPlace>[0]>(
+      'SELECT * FROM map_places WHERE source = ? AND source_ref = ?',
+      [place.source, sourceRef]
+    );
+    if (!stored) return null;
+    await db.runAsync('DELETE FROM map_places_fts WHERE place_id = ?', [stored.id]);
+    await db.runAsync(
+      `INSERT INTO map_places_fts (place_id, title, subtitle, terms)
+       VALUES (?, ?, ?, ?)`,
+      [stored.id, stored.title, stored.subtitle ?? '', stored.terms ?? '']
+    );
+    return mapPlace(stored);
+  }
+
+  static async upsertPlaces(places: Parameters<typeof MapsRepository.upsertPlace>[0][]) {
+    const stored: OfflineMapPlace[] = [];
+    for (const place of places) {
+      const result = await this.upsertPlace(place);
+      if (result) stored.push(result);
+    }
+    return stored;
+  }
+
+  static async searchPlaces(query: string, limit = 8) {
+    const db = await DatabaseClient.getDb();
+    const ftsQuery = toFtsPrefixQuery(query);
+    if (ftsQuery) {
+      try {
+        const rows = await db.getAllAsync<Parameters<typeof mapPlace>[0]>(
+          `SELECT p.*
+           FROM map_places p
+           JOIN map_places_fts fts ON fts.place_id = p.id
+           WHERE map_places_fts MATCH ?
+           ORDER BY rank, p.updated_at DESC
+           LIMIT ?`,
+          [ftsQuery, limit]
+        );
+        if (rows.length) return rows.map(mapPlace);
+      } catch {
+        // Fall through to LIKE matching when FTS syntax is unavailable.
+      }
+    }
+
+    const like = `%${escapeLike(query.trim().toLowerCase())}%`;
+    const rows = await db.getAllAsync<Parameters<typeof mapPlace>[0]>(
+      `SELECT *
+       FROM map_places
+       WHERE lower(title) LIKE ? ESCAPE '\\'
+          OR lower(COALESCE(subtitle, '')) LIKE ? ESCAPE '\\'
+          OR lower(COALESCE(terms, '')) LIKE ? ESCAPE '\\'
+       ORDER BY updated_at DESC
+       LIMIT ?`,
+      [like, like, like, limit]
+    );
+    return rows.map(mapPlace);
   }
 
   static async getActiveNavigationSession() {
@@ -657,4 +787,47 @@ function normalizeRoutingPackStatus(status?: string | null): RoutingPackStatus {
 function normalizeRoutingProfile(profile?: string | null): RoutingProfile {
   if (profile === 'pedestrian' || profile === 'bicycle' || profile === 'car') return profile;
   return 'pedestrian';
+}
+
+function normalizePlaceSource(source?: string | null): OfflineMapPlace['source'] {
+  if (source === 'bundled' || source === 'catalog' || source === 'photon') return source;
+  return 'bundled';
+}
+
+function normalizePlaceTerms(
+  terms: string | null | undefined,
+  title: string,
+  subtitle?: string | null
+) {
+  return Array.from(
+    new Set(
+      [title, subtitle, terms]
+        .flatMap((value) => `${value ?? ''}`.split(/[^\p{L}\p{N}]+/u))
+        .map((value) => value.trim().toLowerCase())
+        .filter((value) => value.length >= 2)
+    )
+  ).join(' ');
+}
+
+function stablePlaceRef(place: { title: string; latitude: number; longitude: number }) {
+  return `${place.title.trim().toLowerCase()}:${place.latitude.toFixed(5)}:${place.longitude.toFixed(5)}`;
+}
+
+function stablePlaceId(source: OfflineMapPlace['source'], sourceRef: string) {
+  return `place-${source}-${sourceRef.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 96)}`;
+}
+
+function toFtsPrefixQuery(query: string) {
+  const tokens = query
+    .trim()
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 2)
+    .slice(0, 6);
+  return tokens.map((token) => `"${token.replace(/"/g, '""')}"*`).join(' ');
+}
+
+function escapeLike(value: string) {
+  return value.replace(/[\\%_]/g, (match) => `\\${match}`);
 }

@@ -4,17 +4,19 @@
 
 ## Current Mode
 
-The module now uses **valhalla-mobile** — a prebuilt Valhalla Android library published to Maven Central by [Rallista/Archdoog](https://github.com/Rallista/valhalla-mobile).
+Android and iOS now consume **valhalla-mobile** — prebuilt Valhalla mobile artifacts published by [Rallista/Archdoog](https://github.com/Rallista/valhalla-mobile).
 
 - The Kotlin module loads `libvalhalla-wrapper.so` from the AAR at runtime via `System.loadLibrary("valhalla-wrapper")` and calls its JNI `route()` function through reflection.
+- The Swift module detects the package's `ValhallaObjc` wrapper through the ObjC runtime, writes the same Valhalla config shape, calls `initWithConfigPath:error:` + `route:`, and parses the same polyline6 response shape as Android.
 - No C++ cross-compilation is required. The CMake build has been removed.
-- Simply adding `implementation 'io.github.rallista:valhalla-mobile:0.1.1'` to `android/build.gradle` is sufficient.
+- Android uses `implementation 'io.github.rallista:valhalla-mobile:0.1.1'`; newer Android artifacts currently require Kotlin 2.3 metadata, while Expo SDK 55 builds this app with Kotlin 2.1.x.
+- iOS uses `plugins/with-ark-routing.js` plus `ArkRouting.podspec` post-install wiring to add the `Valhalla` Swift Package product to the app target during Expo prebuild/CocoaPods install. ArkRouting calls the wrapper dynamically instead of importing the Swift package at pod compile time, which avoids static-library duplicate symbols from SwiftPM objects.
 - `getEngineStatus()` returns `available: true` when the native library loads successfully.
 - `calculateRoute()` writes a Valhalla JSON config file (with `mjolnir.tile_extract` pointing at the downloaded `.valhalla.tar` graph), builds a route request JSON, delegates to the native engine, and parses the polyline6-encoded response.
 
 ### iOS
 
-ArkRouting on iOS is still a stub (`available: false`). Valhalla for iOS is available as a [Swift Package](https://github.com/Rallista/valhalla-mobile?tab=readme-ov-file#ios) from the same upstream project.
+The iOS bridge compiles and links in the unsigned simulator build (`bun run ios:build:sim`), but still needs device route proof with a downloaded `.valhalla.tar` graph before Ark can claim iOS offline road routing as ready. The Swift package's current minimum is iOS 16.4; Ark's app deployment target is 17.0.
 
 ## Routing Graph Packs
 
@@ -31,9 +33,9 @@ Ark expects downloaded routing packs to contain Valhalla graph tiles produced by
 
 Ark pulls routing packs from GitHub Releases (static hosting, no backend). The runtime downloads the pack to app storage, verifies it when a SHA-256 is advertised, and passes the local path to Valhalla. When `routingPackUrl` is present on a catalog region, `startPresetRegionDownload` downloads both the map tiles and the routing pack as a single user-facing download.
 
-## Android Build Helper
+## Legacy Android Build Helper
 
-`scripts/build-valhalla-android.mjs` prepares the expected output directory and runs a CMake Android build for Valhalla. Valhalla's dependency graph is large; use it on a machine with enough RAM/CPU and expect to tune dependency paths.
+`scripts/build-valhalla-android.mjs` is retained only as a legacy/debugging helper from the former source-build approach. It is not used by the current Android build. The shipping Android bridge consumes `io.github.rallista:valhalla-mobile` and the prebuilt `libvalhalla-wrapper.so` from Maven Central.
 
 ## Graph Pack Helper
 

@@ -143,6 +143,15 @@ export type OfflineRoute = {
   profile: RoutingProfile;
   regionId: string;
   routingMode?: 'routed' | 'direct';
+  routingFallbackReason?:
+    | 'no_region'
+    | 'navigation_not_downloaded'
+    | 'navigation_downloading'
+    | 'navigation_failed'
+    | 'navigation_graph_missing'
+    | 'engine_unavailable'
+    | 'route_calculation_failed';
+  routingFallbackMessage?: string;
   geometry: RouteCoordinate[];
   distanceMeters: number;
   durationSeconds: number;
@@ -178,9 +187,24 @@ export type NavigationLocationUpdate = {
 
 export type OfflineMapSearchResult = {
   id: string;
-  kind: 'spot' | 'region' | 'route';
+  kind: 'spot' | 'region' | 'route' | 'place';
   title: string;
   subtitle: string;
   latitude?: number | null;
   longitude?: number | null;
+  placeSource?: 'online' | 'cached' | 'offline';
+};
+
+export type OfflineMapPlace = {
+  id: string;
+  title: string;
+  subtitle: string | null;
+  latitude: number;
+  longitude: number;
+  source: 'bundled' | 'catalog' | 'photon';
+  sourceRef: string | null;
+  terms: string | null;
+  createdAt: number;
+  updatedAt: number;
+  lastSeenAt: number | null;
 };

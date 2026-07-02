@@ -16,6 +16,17 @@ export const MAP_PIN_TYPES: Array<{
   { type: 'custom', label: 'Custom', color: BRAND_AMBER },
 ];
 
+export const MAP_PIN_COLOR_OPTIONS = [
+  BRAND_AMBER,
+  '#95A78B',
+  '#38BDF8',
+  '#F87171',
+  '#34D399',
+  '#F59E0B',
+  '#E879F9',
+  '#F8FAFC',
+] as const;
+
 export function normalizeMapPinType(type?: string | null): MapPinType {
   return MAP_PIN_TYPES.some((pin) => pin.type === type) ? (type as MapPinType) : 'custom';
 }

@@ -1,3 +1,5 @@
+import type { AiRuntimeAdapter } from '@/types/ai';
+
 type SensorAvailability = {
   compass: boolean;
   barometer: boolean;
@@ -18,17 +20,33 @@ export type DiagnosticReport = {
   sqlCipherActive: boolean;
   databaseEncryption: {
     active: boolean;
+    runtimeActive: boolean;
+    databaseState: 'unknown' | 'encrypted' | 'plaintext' | 'unenforced';
+    stateLabel: string;
+    encryptionEnabled: boolean;
     keyStored: boolean;
     keyStrategy: string;
     migrationStatus: string;
+    existingDataStatus: string;
+    passphraseRekeyStatus: string;
+    plaintextMigrationImplemented: boolean;
+    vaultPassphraseRekeyImplemented: boolean;
     note: string;
   };
   ftsAvailable: boolean;
-  aiAdapter: 'mock' | 'llama-unavailable' | 'llama';
+  aiAdapter: AiRuntimeAdapter;
   aiStatusMessage: string;
   routingEngine: {
     available: boolean;
     engine: string;
     reason?: string;
+  };
+  routingData: {
+    readyCount: number;
+    readyRegionNames: string[];
+    downloadingCount: number;
+    failedCount: number;
+    missingGraphCount: number;
+    message: string;
   };
 };

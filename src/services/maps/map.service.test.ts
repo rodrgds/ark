@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { MapService } from '@/services/maps/map.service';
 import { sizeFromPackStatus } from '@/services/maps/map-pack-status';
+import { getThemeColors } from '@/constants/theme';
 
 describe('MapService runtime status', () => {
   test('does not report MapLibre available before the dynamic native check completes', () => {
@@ -37,6 +38,21 @@ describe('MapService runtime status', () => {
     expect(typeof style).toBe('object');
     expect(style.sources).toEqual({});
     expect(style.layers.map((layer) => layer.type)).toEqual(['background']);
+  });
+
+  test('derives local map colors from the active app accent palette', () => {
+    const colors = getThemeColors('dark', 'violet');
+    const style = MapService.getLocalStyle('dark', colors);
+    const roadMajor = style.layers.find((layer) => layer.id === 'road-major') as
+      | { paint?: Record<string, unknown> }
+      | undefined;
+    const park = style.layers.find((layer) => layer.id === 'park') as
+      | { paint?: Record<string, unknown> }
+      | undefined;
+
+    expect(roadMajor?.paint?.['line-color']).toBe(colors.primary);
+    expect(park?.paint?.['fill-color']).toContain('rgba(');
+    expect(JSON.stringify(style)).not.toContain('#95a78b');
   });
 
   test('guards MapLibre network mode behind the native manager', () => {

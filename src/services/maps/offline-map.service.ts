@@ -6,6 +6,7 @@ import { MapService, type MapLibreModule } from '@/services/maps/map.service';
 import { sizeFromPackStatus } from '@/services/maps/map-pack-status';
 import { getUnsupportedMapPackReason } from '@/services/maps/map-pack-format';
 import { MapPresetsService } from '@/services/maps/map-presets.service';
+import { OfflinePlaceIndexService } from '@/services/maps/offline-place-index.service';
 import { getDownloadedRegionForCoordinate } from '@/services/maps/map-region-utils';
 import { estimatedMapRegionBytes } from '@/services/maps/map-storage';
 import { OfflineRoutingService } from '@/services/maps/offline-routing.service';
@@ -31,10 +32,22 @@ type OfflinePackStatusLike = {
   requiredResourceCount: number;
 };
 
+const DOWNLOAD_STALL_TIMEOUT_MS = 30_000;
+const MAX_STALL_RESTARTS = 1;
+
 export class OfflineMapService {
   private static activeRegionId: string | null = null;
   private static startingQueuedRegion = false;
   private static lifecycleSubscription: { remove: () => void } | null = null;
+  private static downloadWatchdogs = new Map<
+    string,
+    {
+      packId: string;
+      progress: number;
+      restarts: number;
+      timer: ReturnType<typeof setTimeout>;
+    }
+  >();
 
   static async createRegionDownload(input: {
     name: string;
@@ -162,6 +175,7 @@ export class OfflineMapService {
       }
       if (!isComplete && !isPaused) {
         await this.attachPackListeners(maplibre, region.id, pack.id);
+        this.scheduleDownloadWatchdog(region.id, pack.id, progressFromPackStatus(status));
       }
       if (!isComplete && status.state === 'inactive' && !isPaused) {
         await pack.resume().catch(() => undefined);
@@ -206,6 +220,7 @@ export class OfflineMapService {
     }
 
     if (this.activeRegionId === id) this.completeRegionDownload(id);
+    this.clearDownloadWatchdog(id);
     if (region.routingGraphUri) {
       await FileSystemService.deleteByUri(region.routingGraphUri).catch(() => undefined);
     }
@@ -233,6 +248,7 @@ export class OfflineMapService {
     await MapsRepository.updateRegionStatus(id, { status: 'paused' });
     this.notifyRegionDownload(id, 'paused', region.progress);
     if (this.activeRegionId === id) this.completeRegionDownload(id);
+    this.clearDownloadWatchdog(id);
     return { ok: true };
   }
 
@@ -367,6 +383,11 @@ export class OfflineMapService {
             offlinePackId: existingPack.id,
           });
           this.notifyRegionDownload(id, 'downloading', progressFromPackStatus(existingStatus));
+          this.scheduleDownloadWatchdog(
+            id,
+            existingPack.id,
+            progressFromPackStatus(existingStatus)
+          );
         }
         return { ok: true };
       }
@@ -391,6 +412,7 @@ export class OfflineMapService {
       );
       await pack.resume().catch(() => undefined);
       const status = await pack.status().catch(() => null);
+      this.scheduleDownloadWatchdog(id, pack.id, status ? progressFromPackStatus(status) : 0);
       await MapsRepository.updateRegionStatus(id, {
         status: status && isOfflinePackComplete(status) ? 'downloaded' : 'downloading',
         progress: status ? progressFromPackStatus(status) : 0,
@@ -425,6 +447,7 @@ export class OfflineMapService {
     latitude: number;
     longitude: number;
     photoUri?: string | null;
+    color?: string | null;
   }) {
     return MapsRepository.createMarker(input);
   }
@@ -437,6 +460,7 @@ export class OfflineMapService {
       pinType?: MapPinType;
       isEmergencyPin?: boolean;
       photoUri?: string | null;
+      color?: string | null;
     }
   ) {
     const marker = await MapsRepository.getMarker(id);
@@ -447,6 +471,7 @@ export class OfflineMapService {
       pinType: input.pinType,
       isEmergencyPin: input.isEmergencyPin,
       photoUri: input.photoUri,
+      color: input.color,
     });
     if (marker.photoUri && marker.photoUri !== (input.photoUri ?? null)) {
       await FileSystemService.deleteByUri(marker.photoUri).catch(() => undefined);
@@ -498,6 +523,26 @@ export class OfflineMapService {
     });
   }
 
+  static async createRegionFromViewport(input: {
+    name?: string;
+    bounds: [number, number, number, number];
+    zoom?: number | null;
+    styleUrl?: string;
+  }) {
+    const [west, south, east, north] = input.bounds;
+    const zoom = viewportZoomRange(input.zoom);
+    return this.createRegionFromBounds({
+      name: input.name?.trim() || visibleAreaName({ north, south, east, west }),
+      north,
+      south,
+      east,
+      west,
+      minZoom: zoom.minZoom,
+      maxZoom: zoom.maxZoom,
+      styleUrl: input.styleUrl,
+    });
+  }
+
   static async deleteMarker(id: string) {
     const marker = await MapsRepository.getMarker(id);
     if (marker?.photoUri)
@@ -535,10 +580,11 @@ export class OfflineMapService {
   static async searchOffline(query: string, limit = 12): Promise<OfflineMapSearchResult[]> {
     const normalized = query.trim().toLowerCase();
     if (normalized.length < 2) return [];
-    const [markers, regions, routes] = await Promise.all([
+    const [markers, regions, routes, placeResults] = await Promise.all([
       MapsRepository.listMarkers(),
       MapsRepository.listRegions(),
       MapsRepository.listRoutes(),
+      OfflinePlaceIndexService.search(normalized, Math.min(limit, 8)).catch(() => []),
     ]);
 
     const markerResults = markers
@@ -620,10 +666,13 @@ export class OfflineMapService {
         longitude: route.points[0]?.longitude ?? null,
       }));
 
-    return [...markerResults, ...savedRegionResults, ...presetRegionResults, ...routeResults].slice(
-      0,
-      limit
-    );
+    return [
+      ...markerResults,
+      ...placeResults,
+      ...savedRegionResults,
+      ...presetRegionResults,
+      ...routeResults,
+    ].slice(0, limit);
   }
 
   static async createRouteFromMarkers(title: string, markers: MapMarker[]) {
@@ -645,6 +694,7 @@ export class OfflineMapService {
   }
 
   private static completeRegionDownload(id: string) {
+    this.clearDownloadWatchdog(id);
     if (this.activeRegionId === id) {
       this.activeRegionId = null;
       this.startNextQueuedRegion();
@@ -669,25 +719,104 @@ export class OfflineMapService {
     status: OfflinePackStatusLike
   ) {
     const completed = isOfflinePackComplete(status);
+    const progress = progressFromPackStatus(status);
     void MapsRepository.updateRegionStatus(regionId, {
       status: completed ? 'downloaded' : 'downloading',
-      progress: progressFromPackStatus(status),
+      progress,
       sizeBytes: sizeFromPackStatus(status),
       offlinePackId: packId,
     });
-    this.notifyRegionDownload(
-      regionId,
-      completed ? 'completed' : 'downloading',
-      progressFromPackStatus(status)
-    );
+    this.notifyRegionDownload(regionId, completed ? 'completed' : 'downloading', progress);
     if (completed) this.completeRegionDownload(regionId);
+    else this.scheduleDownloadWatchdog(regionId, packId, progress);
   }
 
   private static handlePackError(regionId: string, message?: string) {
+    this.clearDownloadWatchdog(regionId);
     void MapsRepository.updateRegionStatus(regionId, { status: 'failed', progress: 0 });
     this.notifyRegionDownload(regionId, 'failed', 0);
     this.completeRegionDownload(regionId);
     if (message) logger.warn(message);
+  }
+
+  private static scheduleDownloadWatchdog(regionId: string, packId: string, progress: number) {
+    const current = this.downloadWatchdogs.get(regionId);
+    const normalizedProgress = Math.max(0, Math.min(1, progress));
+    if (current && normalizedProgress <= current.progress && current.packId === packId) return;
+
+    if (current) clearTimeout(current.timer);
+    const restarts = current?.restarts ?? 0;
+    const timer = setTimeout(() => {
+      void this.handleDownloadStall(regionId, packId, normalizedProgress, restarts);
+    }, DOWNLOAD_STALL_TIMEOUT_MS);
+    this.downloadWatchdogs.set(regionId, {
+      packId,
+      progress: normalizedProgress,
+      restarts,
+      timer,
+    });
+  }
+
+  private static clearDownloadWatchdog(regionId: string) {
+    const watchdog = this.downloadWatchdogs.get(regionId);
+    if (!watchdog) return;
+    clearTimeout(watchdog.timer);
+    this.downloadWatchdogs.delete(regionId);
+  }
+
+  private static async handleDownloadStall(
+    regionId: string,
+    packId: string,
+    stalledProgress: number,
+    restarts: number
+  ) {
+    const watchdog = this.downloadWatchdogs.get(regionId);
+    if (!watchdog || watchdog.packId !== packId || watchdog.progress !== stalledProgress) return;
+
+    const region = await MapsRepository.getRegion(regionId);
+    if (!region || region.status !== 'downloading') {
+      this.clearDownloadWatchdog(regionId);
+      return;
+    }
+    if (Math.abs(region.progress - stalledProgress) > 0.0001) {
+      this.scheduleDownloadWatchdog(regionId, packId, region.progress);
+      return;
+    }
+
+    const maplibre = await MapService.loadMapLibre();
+    if (maplibre && restarts < MAX_STALL_RESTARTS) {
+      try {
+        const packs = await maplibre.OfflineManager.getPacks();
+        const pack = packs.find((candidate) => candidate.id === packId);
+        if (pack) {
+          await pack.pause().catch(() => undefined);
+          await pack.resume().catch(() => undefined);
+          if (this.downloadWatchdogs.get(regionId) === watchdog) {
+            clearTimeout(watchdog.timer);
+            const timer = setTimeout(() => {
+              void this.handleDownloadStall(regionId, packId, stalledProgress, restarts + 1);
+            }, DOWNLOAD_STALL_TIMEOUT_MS);
+            this.downloadWatchdogs.set(regionId, {
+              packId,
+              progress: stalledProgress,
+              restarts: restarts + 1,
+              timer,
+            });
+          }
+          return;
+        }
+      } catch (error) {
+        logger.warn(error instanceof Error ? error.message : 'Unable to restart stalled map pack.');
+      }
+    }
+
+    this.clearDownloadWatchdog(regionId);
+    await MapsRepository.updateRegionStatus(regionId, {
+      status: 'failed',
+      progress: stalledProgress,
+    });
+    this.notifyRegionDownload(regionId, 'failed', stalledProgress);
+    this.completeRegionDownload(regionId);
   }
 
   private static notifyRegionDownload(
@@ -776,6 +905,23 @@ function validateZoom(minZoom: number, maxZoom: number) {
     throw new Error('Zoom levels must stay between 0 and 22, with minimum before maximum.');
   }
   return { minZoom: nextMin, maxZoom: nextMax };
+}
+
+function viewportZoomRange(zoom?: number | null) {
+  const baseZoom = Number.isFinite(zoom) ? Number(zoom) : 9;
+  const minZoom = clamp(Math.floor(baseZoom) - 1, 5, 13);
+  const maxZoom = clamp(Math.ceil(baseZoom) + 4, Math.max(10, minZoom), 16);
+  return validateZoom(minZoom, maxZoom);
+}
+
+function visibleAreaName(bounds: { north: number; south: number; east: number; west: number }) {
+  const latitude = (bounds.north + bounds.south) / 2;
+  const longitude = (bounds.east + bounds.west) / 2;
+  return `Visible area ${formatPoint(latitude, longitude)}`;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function matches(query: string, ...values: Array<string | null | undefined>) {

@@ -58,10 +58,10 @@ class TestSQLiteDatabase {
     return this.db.query(sql).all(...this.normalize(params)) as T[];
   }
 
-  async withTransactionAsync(callback: () => Promise<void>) {
+  async withTransactionAsync(callback: (tx: TestSQLiteDatabase) => Promise<void>) {
     this.db.exec('BEGIN');
     try {
-      await callback();
+      await callback(this);
       this.db.exec('COMMIT');
     } catch (error) {
       this.db.exec('ROLLBACK');
@@ -124,7 +124,7 @@ beforeEach(async () => {
 describe('database migrations', () => {
   test('creates the current schema with FTS and resumable download columns', async () => {
     const version = await testDb.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
-    expect(version?.user_version).toBe(19);
+    expect(version?.user_version).toBe(1);
 
     const noteColumns = await testDb.getAllAsync<{ name: string }>('PRAGMA table_info(notes)');
     expect(noteColumns.map((column) => column.name)).toContain('theme_id');
@@ -214,6 +214,31 @@ describe('database migrations', () => {
         )
       )?.name
     ).toBe('zim_articles_cache');
+    const markerIndexes = await testDb.getAllAsync<{ name: string }>(
+      'PRAGMA index_list(map_markers)'
+    );
+    expect(markerIndexes.map((index) => index.name)).toContain('idx_map_markers_updated');
+    expect(
+      (
+        await testDb.getFirstAsync<{ name: string }>(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'map_places'"
+        )
+      )?.name
+    ).toBe('map_places');
+    expect(
+      (
+        await testDb.getFirstAsync<{ name: string }>(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'map_places_fts'"
+        )
+      )?.name
+    ).toBe('map_places_fts');
+    const placeIndexes = await testDb.getAllAsync<{ name: string }>(
+      'PRAGMA index_list(map_places)'
+    );
+    expect(placeIndexes.map((index) => index.name)).toContain('idx_map_places_source');
+    expect(placeIndexes.map((index) => index.name)).toContain('idx_map_places_updated');
+    const routeIndexes = await testDb.getAllAsync<{ name: string }>('PRAGMA index_list(routes)');
+    expect(routeIndexes.map((index) => index.name)).toContain('idx_routes_updated');
 
     await testDb.runAsync(
       'INSERT INTO notes_fts (note_id, title, body, tags) VALUES (?, ?, ?, ?)',
@@ -226,132 +251,13 @@ describe('database migrations', () => {
     expect(rows[0]?.note_id).toBe('note-1');
   });
 
-  test('adds semantic note metadata to existing v14 databases', async () => {
+  test('rejects pre-release database schemas instead of carrying compatibility migrations', async () => {
     const oldDb = new TestSQLiteDatabase();
     try {
-      await oldDb.execAsync(`
-        CREATE TABLE notes (
-          id TEXT PRIMARY KEY,
-          title TEXT NOT NULL,
-          body TEXT NOT NULL,
-          tags_json TEXT,
-          is_favorite INTEGER DEFAULT 0,
-          created_at INTEGER,
-          updated_at INTEGER,
-          deleted_at INTEGER
-        );
-        PRAGMA user_version = 14;
-      `);
-
-      await migrateDbIfNeeded(oldDb as never);
-
-      const version = await oldDb.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
-      const noteColumns = await oldDb.getAllAsync<{
-        name: string;
-        notnull: number;
-        dflt_value: string | null;
-      }>('PRAGMA table_info(notes)');
-      const themeColumn = noteColumns.find((column) => column.name === 'theme_id');
-      const sortColumn = noteColumns.find((column) => column.name === 'sort_order');
-
-      expect(version?.user_version).toBe(19);
-      expect(themeColumn?.notnull).toBe(1);
-      expect(themeColumn?.dflt_value).toBe("'default'");
-      expect(sortColumn?.name).toBe('sort_order');
-      expect(noteColumns.map((column) => column.name)).toContain('content_html');
-      expect(noteColumns.map((column) => column.name)).toContain('content_json');
-      expect(noteColumns.map((column) => column.name)).toContain('content_format');
-    } finally {
-      oldDb.close();
-    }
-  });
-
-  test('backfills manual note order for existing v15 databases', async () => {
-    const oldDb = new TestSQLiteDatabase();
-    try {
-      await oldDb.execAsync(`
-        CREATE TABLE notes (
-          id TEXT PRIMARY KEY,
-          title TEXT NOT NULL,
-          body TEXT NOT NULL,
-          tags_json TEXT,
-          theme_id TEXT NOT NULL DEFAULT 'default',
-          is_favorite INTEGER DEFAULT 0,
-          created_at INTEGER,
-          updated_at INTEGER,
-          deleted_at INTEGER
-        );
-        INSERT INTO notes
-          (id, title, body, tags_json, theme_id, is_favorite, created_at, updated_at, deleted_at)
-        VALUES
-          ('oldest', 'Oldest', 'Body', '[]', 'default', 0, 100, 100, NULL),
-          ('favorite', 'Favorite', 'Body', '[]', 'default', 1, 200, 200, NULL),
-          ('newest', 'Newest', 'Body', '[]', 'default', 0, 300, 300, NULL);
-        PRAGMA user_version = 15;
-      `);
-
-      await migrateDbIfNeeded(oldDb as never);
-
-      const version = await oldDb.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
-      const rows = await oldDb.getAllAsync<{ id: string; sort_order: number }>(
-        'SELECT id, sort_order FROM notes ORDER BY sort_order ASC'
+      await oldDb.execAsync('PRAGMA user_version = 14');
+      await expect(migrateDbIfNeeded(oldDb as never)).rejects.toThrow(
+        'Unsupported pre-release database schema v14'
       );
-
-      expect(version?.user_version).toBe(19);
-      expect(rows).toEqual([
-        { id: 'favorite', sort_order: 1000 },
-        { id: 'newest', sort_order: 2000 },
-        { id: 'oldest', sort_order: 3000 },
-      ]);
-    } finally {
-      oldDb.close();
-    }
-  });
-
-  test('adds rich note content columns to existing v16 databases', async () => {
-    const oldDb = new TestSQLiteDatabase();
-    try {
-      await oldDb.execAsync(`
-        CREATE TABLE notes (
-          id TEXT PRIMARY KEY,
-          title TEXT NOT NULL,
-          body TEXT NOT NULL,
-          tags_json TEXT,
-          theme_id TEXT NOT NULL DEFAULT 'default',
-          sort_order REAL,
-          is_favorite INTEGER DEFAULT 0,
-          created_at INTEGER,
-          updated_at INTEGER,
-          deleted_at INTEGER
-        );
-        INSERT INTO notes
-          (id, title, body, tags_json, theme_id, sort_order, is_favorite, created_at, updated_at, deleted_at)
-        VALUES
-          ('plain-note', 'Plain', 'Body', '[]', 'default', 1000, 0, 100, 100, NULL);
-        PRAGMA user_version = 16;
-      `);
-
-      await migrateDbIfNeeded(oldDb as never);
-
-      const version = await oldDb.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
-      const noteColumns = await oldDb.getAllAsync<{ name: string }>('PRAGMA table_info(notes)');
-      const row = await oldDb.getFirstAsync<{
-        content_html: string | null;
-        content_json: string | null;
-        content_format: string;
-      }>('SELECT content_html, content_json, content_format FROM notes WHERE id = ?', [
-        'plain-note',
-      ]);
-
-      expect(version?.user_version).toBe(19);
-      expect(noteColumns.map((column) => column.name)).toContain('content_html');
-      expect(noteColumns.map((column) => column.name)).toContain('content_json');
-      expect(noteColumns.map((column) => column.name)).toContain('content_format');
-      expect(row).toEqual({
-        content_html: null,
-        content_json: null,
-        content_format: 'plain-text',
-      });
     } finally {
       oldDb.close();
     }
@@ -390,15 +296,7 @@ describe('repositories', () => {
     expect(vault.passwordHint).toBe('hint');
   });
 
-  test('preferences persist battery reduce mode and map legacy motion state', async () => {
-    expect(await PreferencesService.getBatteryReduceModeEnabled()).toBe(false);
-    expect(await PreferencesService.getMotionEnabled()).toBe(true);
-
-    await SettingsRepository.set('motion.enabled', 'false');
-    expect(await PreferencesService.getBatteryReduceModeEnabled()).toBe(true);
-    expect(await PreferencesService.getMotionEnabled()).toBe(false);
-
-    await PreferencesService.setBatteryReduceModeEnabled(false);
+  test('preferences persist battery reduce mode', async () => {
     expect(await PreferencesService.getBatteryReduceModeEnabled()).toBe(false);
     expect(await PreferencesService.getMotionEnabled()).toBe(true);
 
@@ -412,17 +310,9 @@ describe('repositories', () => {
   });
 
   test('content packs seed real packs and support install state changes', async () => {
-    await testDb.runAsync(
-      `INSERT INTO content_packs
-        (id, title, description, category, language, source_url, format, installed, install_status, progress, created_at, updated_at)
-       VALUES (?, 'Gemma old row', 'Removed model', 'AI Models', 'en', 'https://example.test/gemma.gguf', 'gguf', 0, 'not_installed', 0, 1, 1)`,
-      ['model-gemma3-1b-it-q4-0']
-    );
-
     const packs = await ContentRepository.list({ includeTestOnly: true });
     expect(packs.length).toBeGreaterThan(4);
     expect(packs.some((pack) => pack.id.includes('placeholder'))).toBe(false);
-    expect(packs.some((pack) => pack.id === 'model-gemma3-1b-it-q4-0')).toBe(false);
     expect(packs.some((pack) => pack.id === 'model-gemma4-e2b-it-q4-k-m')).toBe(true);
 
     const pack = packs.find((item) => item.id === 'wikipedia-en-top100-nopic');
@@ -872,6 +762,28 @@ describe('repositories', () => {
     expect(activeNavigation?.route.distanceMeters).toBe(1200);
     expect(activeNavigation?.remainingDistanceMeters).toBe(900);
     expect(activeNavigation?.lastLocation?.latitude).toBe(38.71);
+
+    await MapsRepository.upsertPlace({
+      title: 'Porto pharmacy',
+      subtitle: 'Cached emergency pharmacy result',
+      latitude: 41.15,
+      longitude: -8.61,
+      source: 'photon',
+      sourceRef: 'osm-node-123',
+      terms: 'Porto pharmacy medicine',
+    });
+    await MapsRepository.upsertPlace({
+      title: 'Coimbra',
+      subtitle: 'Bundled city seed',
+      latitude: 40.2,
+      longitude: -8.41,
+      source: 'bundled',
+      sourceRef: 'pt-coimbra',
+      terms: 'Portugal central city',
+    });
+    const places = await MapsRepository.searchPlaces('pharm', 5);
+    expect(places[0]?.title).toBe('Porto pharmacy');
+    expect(places[0]?.source).toBe('photon');
   });
 
   test('rss, weather, documents, and sensors persist offline data', async () => {

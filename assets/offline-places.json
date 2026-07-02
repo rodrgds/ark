@@ -1,0 +1,199 @@
+{
+  "version": 1,
+  "updatedAt": "2026-07-01",
+  "source": "ark-bundled-place-seeds",
+  "places": [
+    {
+      "id": "pt-porto",
+      "title": "Porto",
+      "subtitle": "City, North Portugal",
+      "latitude": 41.1579,
+      "longitude": -8.6291,
+      "terms": ["Portugal", "Porto", "north", "city", "Douro"]
+    },
+    {
+      "id": "pt-braga",
+      "title": "Braga",
+      "subtitle": "City, North Portugal",
+      "latitude": 41.5454,
+      "longitude": -8.4265,
+      "terms": ["Portugal", "Braga", "Minho", "north", "city"]
+    },
+    {
+      "id": "pt-viana-castelo",
+      "title": "Viana do Castelo",
+      "subtitle": "Coastal city, North Portugal",
+      "latitude": 41.6918,
+      "longitude": -8.8344,
+      "terms": ["Portugal", "Viana", "Minho", "coast", "north"]
+    },
+    {
+      "id": "pt-vila-real",
+      "title": "Vila Real",
+      "subtitle": "City, Tras-os-Montes",
+      "latitude": 41.3006,
+      "longitude": -7.7441,
+      "terms": ["Portugal", "Vila Real", "Tras-os-Montes", "Douro"]
+    },
+    {
+      "id": "pt-braganca",
+      "title": "Braganca",
+      "subtitle": "City, Northeast Portugal",
+      "latitude": 41.8061,
+      "longitude": -6.7567,
+      "terms": ["Portugal", "Braganca", "Tras-os-Montes", "northeast"]
+    },
+    {
+      "id": "pt-coimbra",
+      "title": "Coimbra",
+      "subtitle": "City, Central Portugal",
+      "latitude": 40.2033,
+      "longitude": -8.4103,
+      "terms": ["Portugal", "Coimbra", "centre", "Mondego", "city"]
+    },
+    {
+      "id": "pt-viseu",
+      "title": "Viseu",
+      "subtitle": "City, Central Portugal",
+      "latitude": 40.6566,
+      "longitude": -7.9125,
+      "terms": ["Portugal", "Viseu", "centre", "Beira"]
+    },
+    {
+      "id": "pt-aveiro",
+      "title": "Aveiro",
+      "subtitle": "Coastal city, Central Portugal",
+      "latitude": 40.6405,
+      "longitude": -8.6538,
+      "terms": ["Portugal", "Aveiro", "coast", "centre"]
+    },
+    {
+      "id": "pt-guarda",
+      "title": "Guarda",
+      "subtitle": "Highland city, Central Portugal",
+      "latitude": 40.5373,
+      "longitude": -7.2658,
+      "terms": ["Portugal", "Guarda", "Serra da Estrela", "Beira"]
+    },
+    {
+      "id": "pt-lisbon",
+      "title": "Lisbon",
+      "subtitle": "Capital city, Portugal",
+      "latitude": 38.7223,
+      "longitude": -9.1393,
+      "terms": ["Portugal", "Lisbon", "Lisboa", "capital", "Tagus"]
+    },
+    {
+      "id": "pt-cascais",
+      "title": "Cascais",
+      "subtitle": "Coastal town, Lisbon region",
+      "latitude": 38.6979,
+      "longitude": -9.4215,
+      "terms": ["Portugal", "Cascais", "Lisbon", "coast"]
+    },
+    {
+      "id": "pt-sintra",
+      "title": "Sintra",
+      "subtitle": "Town, Lisbon region",
+      "latitude": 38.8029,
+      "longitude": -9.3817,
+      "terms": ["Portugal", "Sintra", "Lisbon", "mountain"]
+    },
+    {
+      "id": "pt-setubal",
+      "title": "Setubal",
+      "subtitle": "Coastal city, South Portugal",
+      "latitude": 38.5244,
+      "longitude": -8.8882,
+      "terms": ["Portugal", "Setubal", "coast", "Sado", "south"]
+    },
+    {
+      "id": "pt-evora",
+      "title": "Evora",
+      "subtitle": "City, Alentejo",
+      "latitude": 38.5714,
+      "longitude": -7.9135,
+      "terms": ["Portugal", "Evora", "Alentejo", "south"]
+    },
+    {
+      "id": "pt-beja",
+      "title": "Beja",
+      "subtitle": "City, Alentejo",
+      "latitude": 38.0151,
+      "longitude": -7.8632,
+      "terms": ["Portugal", "Beja", "Alentejo", "south"]
+    },
+    {
+      "id": "pt-faro",
+      "title": "Faro",
+      "subtitle": "City, Algarve",
+      "latitude": 37.0194,
+      "longitude": -7.9304,
+      "terms": ["Portugal", "Faro", "Algarve", "south", "coast"]
+    },
+    {
+      "id": "pt-funchal",
+      "title": "Funchal",
+      "subtitle": "City, Madeira",
+      "latitude": 32.6669,
+      "longitude": -16.9241,
+      "terms": ["Portugal", "Funchal", "Madeira", "island"]
+    },
+    {
+      "id": "pt-ponta-delgada",
+      "title": "Ponta Delgada",
+      "subtitle": "City, Azores",
+      "latitude": 37.7394,
+      "longitude": -25.6687,
+      "terms": ["Portugal", "Ponta Delgada", "Azores", "island"]
+    },
+    {
+      "id": "es-vigo",
+      "title": "Vigo",
+      "subtitle": "City, Galicia",
+      "latitude": 42.2406,
+      "longitude": -8.7207,
+      "terms": ["Spain", "Galicia", "Vigo", "border", "coast"]
+    },
+    {
+      "id": "es-santiago",
+      "title": "Santiago de Compostela",
+      "subtitle": "City, Galicia",
+      "latitude": 42.8782,
+      "longitude": -8.5448,
+      "terms": ["Spain", "Galicia", "Santiago", "northwest"]
+    },
+    {
+      "id": "es-madrid",
+      "title": "Madrid",
+      "subtitle": "Capital city, Spain",
+      "latitude": 40.4168,
+      "longitude": -3.7038,
+      "terms": ["Spain", "Madrid", "capital", "central"]
+    },
+    {
+      "id": "es-barcelona",
+      "title": "Barcelona",
+      "subtitle": "City, Catalonia",
+      "latitude": 41.3874,
+      "longitude": 2.1686,
+      "terms": ["Spain", "Barcelona", "Catalonia", "coast"]
+    },
+    {
+      "id": "fr-bordeaux",
+      "title": "Bordeaux",
+      "subtitle": "City, Southwest France",
+      "latitude": 44.8378,
+      "longitude": -0.5792,
+      "terms": ["France", "Bordeaux", "southwest", "Aquitaine"]
+    },
+    {
+      "id": "fr-paris",
+      "title": "Paris",
+      "subtitle": "Capital city, France",
+      "latitude": 48.8566,
+      "longitude": 2.3522,
+      "terms": ["France", "Paris", "capital", "north"]
+    }
+  ]
+}

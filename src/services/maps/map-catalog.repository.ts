@@ -361,7 +361,14 @@ async function verifyCatalogIntegrity(body: string) {
 
 async function sha256Text(value: string) {
   const Crypto = await import('expo-crypto');
-  return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, value);
+  const algorithm = Crypto.CryptoDigestAlgorithm.SHA256 ?? 'SHA-256';
+  if (typeof Crypto.digestStringAsync === 'function') {
+    return Crypto.digestStringAsync(algorithm, value);
+  }
+  const digest = await Crypto.digest(algorithm, new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join(
+    ''
+  );
 }
 
 function normalizeLevel(level: unknown): MapPreset['level'] | undefined {

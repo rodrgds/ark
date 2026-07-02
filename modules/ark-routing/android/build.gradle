@@ -21,7 +21,8 @@ dependencies {
   implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.24"
 
   // Valhalla routing engine for Android — prebuilt native .so + JNI
-  // Published to Maven Central by Rallista (Archdoog).
+  // Published to Maven Central by Rallista (Archdoog). Keep Android on 0.1.1
+  // until Ark upgrades from Kotlin 2.1.x; 0.5.1 is compiled with Kotlin 2.3 metadata.
   // https://github.com/Rallista/valhalla-mobile
   implementation 'io.github.rallista:valhalla-mobile:0.1.1'
 }

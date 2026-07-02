@@ -122,7 +122,7 @@ export async function startPresetRegionDownload(
       queued: true,
       regionId,
       reason:
-        'Map download is queued. Install a development build with MapLibre native offline packs to start downloading map tiles.',
+        'Map download is queued. Install the latest Ark build with native map support to start downloading map tiles.',
       ...(navigation ? { navigation } : {}),
     };
   }

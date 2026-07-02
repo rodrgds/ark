@@ -5,21 +5,45 @@ import { join } from 'node:path';
 const appDir = join(process.cwd(), 'app');
 const assetsDir = join(process.cwd(), 'assets');
 
+function chatDetailSource() {
+  return [
+    readFileSync(join(appDir, 'chat/[threadId].tsx'), 'utf8'),
+    readFileSync(join(process.cwd(), 'src/components/chat/chat-input.tsx'), 'utf8'),
+    readFileSync(join(process.cwd(), 'src/components/chat/chat-message.tsx'), 'utf8'),
+  ].join('\n');
+}
+
+function mapScreenSource() {
+  return [
+    readFileSync(join(appDir, '(tabs)/map.tsx'), 'utf8'),
+    readFileSync(join(process.cwd(), 'src/components/map/map-screen.tsx'), 'utf8'),
+    readFileSync(join(process.cwd(), 'src/components/map/map-screen-components.tsx'), 'utf8'),
+    readFileSync(join(process.cwd(), 'src/components/map/map-screen-utils.ts'), 'utf8'),
+    readFileSync(join(process.cwd(), 'src/components/map/map-pin.tsx'), 'utf8'),
+    readFileSync(join(process.cwd(), 'src/components/map/saved-data-panel.tsx'), 'utf8'),
+    readFileSync(join(process.cwd(), 'src/components/map/map-toolbar.tsx'), 'utf8'),
+  ].join('\n');
+}
+
 describe('map and chat UI contracts', () => {
-  test('map defaults to a local low-detail world overview without online style upgrades', () => {
-    const source = readFileSync(join(appDir, '(tabs)/map.tsx'), 'utf8');
+  test('map uses online base tiles when connected and falls back to local overview offline', () => {
+    const source = mapScreenSource();
 
     expect(source).toContain('DEFAULT_CENTER: LngLat = [0, 20]');
     expect(source).toContain('WORLD_OVERVIEW_ZOOM = 1.1');
-    expect(source).toContain('MapService.getOverviewStyle(theme)');
+    expect(source).toContain('mapCanUseNetwork');
+    expect(source).toContain('MapService.getThemedStyle(theme, colors)');
+    expect(source).toContain('MapService.getOverviewStyle(theme, colors)');
+    expect(source).toContain('MapService.getLocalStyle(theme, colors)');
+    expect(source).toContain("mapCanUseNetwork\n        ? 'online-basemap'");
+    expect(source).toContain('showWorldOverview={!mapHasBaseTiles}');
     expect(source).toContain('worldOverviewFeatureCollection()');
     expect(source).toContain('No downloaded map regions');
-    expect(source).not.toContain('MapService.getThemedStyle(theme)');
     expect(source).not.toContain('MapService.canReachStyleUrl');
   });
 
   test('map owns compass visibility so the search bar animates around it', () => {
-    const source = readFileSync(join(appDir, '(tabs)/map.tsx'), 'utf8');
+    const source = mapScreenSource();
 
     expect(source).toContain('compass={false}');
     expect(source).toContain('bearingDistanceFromNorth(mapBearing)');
@@ -29,7 +53,7 @@ describe('map and chat UI contracts', () => {
   });
 
   test('map search dismissal cannot fall through to spot creation', () => {
-    const source = readFileSync(join(appDir, '(tabs)/map.tsx'), 'utf8');
+    const source = mapScreenSource();
 
     expect(source).toContain("BackHandler.addEventListener('hardwareBackPress'");
     expect(source).toContain("navigation.addListener('beforeRemove'");
@@ -41,29 +65,91 @@ describe('map and chat UI contracts', () => {
     expect(source).toContain('return;');
   });
 
+  test('map search includes offline, cached, or online places without selecting fake saved spots', () => {
+    const source = mapScreenSource();
+    const geocodingSource = readFileSync(
+      join(process.cwd(), 'src/services/maps/geocoding.service.ts'),
+      'utf8'
+    );
+
+    expect(source).toContain("import('@/services/maps/geocoding.service')");
+    expect(source).toContain('GeocodingService.search(query, 6, abortController.signal)');
+    expect(source).toContain("result.kind === 'place'");
+    expect(source).toContain("'Offline place'");
+    expect(source).toContain("'Cached place'");
+    expect(source).toContain("'Online place'");
+    expect(geocodingSource).toContain("kind: 'place'");
+    expect(geocodingSource).toContain("placeSource: 'online'");
+    expect(geocodingSource).toContain("placeSource: 'cached'");
+    expect(geocodingSource).toContain('OfflinePlaceIndexService.indexPhotonResults(results)');
+  });
+
   test('map routing stays usable without native road graphs', () => {
-    const mapSource = readFileSync(join(appDir, '(tabs)/map.tsx'), 'utf8');
+    const mapSource = mapScreenSource();
     const routingSource = readFileSync(
       join(process.cwd(), 'src/services/maps/offline-routing.service.ts'),
+      'utf8'
+    );
+    const nativeRoutingSource = readFileSync(
+      join(
+        process.cwd(),
+        'modules/ark-routing/android/src/main/java/expo/modules/arkrouting/ArkRoutingModule.kt'
+      ),
       'utf8'
     );
 
     expect(mapSource).toContain('SavedRouteRow');
     expect(mapSource).toContain("session.route.routingMode === 'direct'");
     expect(mapSource).toContain('Direct line');
+    expect(mapSource).toContain('routeFallbackLabel(session.route)');
+    expect(mapSource).toContain('routing engine unavailable');
+    expect(routingSource).toContain('routingFallbackReason');
+    expect(routingSource).toContain('navigation_graph_missing');
+    expect(mapSource).not.toContain('install a dev build for turn-by-turn');
     expect(routingSource).toContain('buildDirectRoute');
     expect(routingSource).toContain("routingMode: 'direct'");
     expect(routingSource).toContain("routingMode: 'routed'");
     expect(routingSource).toContain('routeSegmentProgress');
+    expect(routingSource).toContain('Valhalla native routing engine could not be loaded');
+    expect(nativeRoutingSource).toContain('Valhalla routing engine library is missing');
+    expect(nativeRoutingSource).toContain('"format": "json",\n        "shape_format": "polyline6"');
+    expect(nativeRoutingSource).toContain('extractValhallaError(root)');
+    expect(nativeRoutingSource).toContain('parseOsrmRoute(routes.getJSONObject(0))');
+    expect(nativeRoutingSource).not.toContain('"format": "json"\n        "shape_format"');
+    expect(nativeRoutingSource).not.toContain('Install a development build');
+  });
+
+  test('offline map and navigation downloads recover from stalled progress', () => {
+    const mapDownloadSource = readFileSync(
+      join(process.cwd(), 'src/services/maps/offline-map.service.ts'),
+      'utf8'
+    );
+    const routingDownloadSource = readFileSync(
+      join(process.cwd(), 'src/services/maps/offline-routing.service.ts'),
+      'utf8'
+    );
+
+    expect(mapDownloadSource).toContain('const DOWNLOAD_STALL_TIMEOUT_MS = 30_000');
+    expect(mapDownloadSource).toContain('const MAX_STALL_RESTARTS = 1');
+    expect(mapDownloadSource).toContain('downloadWatchdogs');
+    expect(mapDownloadSource).toContain('scheduleDownloadWatchdog(region.id, pack.id');
+    expect(mapDownloadSource).toContain('handleDownloadStall');
+    expect(mapDownloadSource).toContain("this.notifyRegionDownload(regionId, 'failed', stalledProgress)");
+    expect(routingDownloadSource).toContain('const DOWNLOAD_STALL_TIMEOUT_MS = 30_000');
+    expect(routingDownloadSource).toContain('RoutingDownloadStalledError');
+    expect(routingDownloadSource).toContain('download?.cancelAsync()');
+    expect(routingDownloadSource).toContain('attempt < MAX_STALL_RESTARTS');
+    expect(routingDownloadSource).toContain('Routing graph download stalled for 30 seconds');
+    expect(routingDownloadSource).toContain('DownloadNotificationService.terminal');
   });
 
   test('chat uses a floating split composer that follows the keyboard', () => {
-    const source = readFileSync(join(appDir, 'chat/[threadId].tsx'), 'utf8');
+    const source = chatDetailSource();
 
     expect(source).toContain('keyboardDidShow');
     expect(source).toContain('keyboardDidHide');
     expect(source).toContain('keyboardOffset');
-    expect(source).toContain('FloatingComposer');
+    expect(source).toContain('ChatInput');
     expect(source).toContain('AnimatedPressable');
     expect(source).toContain('detachedPlusStyle');
     expect(source).toContain('embeddedPlusStyle');
@@ -73,8 +159,10 @@ describe('map and chat UI contracts', () => {
     expect(source).toContain('DETACHED_PLUS_SIZE = COMPOSER_HEIGHT');
     expect(source).toContain('backgroundColor: colors.card');
     expect(source).toContain('borderColor: colors.border');
-    expect(source).toContain('placeholderTextColor={themeColors.mutedForeground}');
+    expect(source).toContain('placeholderTextColor={colors.mutedForeground}');
     expect(source).toContain("textAlignVertical={inputExpanded ? 'top' : 'center'}");
+    expect(source).toContain('citationLinks={citationLinks}');
+    expect(source).toContain('onLinkPress={openSource}');
     expect(source).toContain('EMPTY_THREAD_PROMPTS');
     expect(source).toContain('pendingUserMessage');
     expect(source).not.toContain('.reverse()');
@@ -90,7 +178,7 @@ describe('map and chat UI contracts', () => {
   });
 
   test('chat voice input works around native VAD arguments and streams spoken responses', () => {
-    const chat = readFileSync(join(appDir, 'chat/[threadId].tsx'), 'utf8');
+    const chat = chatDetailSource();
     const voiceRuntime = readFileSync(
       join(process.cwd(), 'src/services/ai/voice-runtime.service.ts'),
       'utf8'
@@ -130,6 +218,68 @@ describe('map and chat UI contracts', () => {
     expect(tts).not.toContain('moduleRef.current?.delete()');
   });
 
+  test('reader TTS controls distinguish preparing from active playback', () => {
+    const tts = readFileSync(join(process.cwd(), 'src/hooks/use-ark-text-to-speech.ts'), 'utf8');
+    const contentReader = readFileSync(join(appDir, 'content/reader.tsx'), 'utf8');
+    const contentDetail = readFileSync(join(appDir, 'content/[id].tsx'), 'utf8');
+    const documentDetail = readFileSync(join(appDir, 'documents/[id].tsx'), 'utf8');
+    const webReader = readFileSync(join(appDir, 'content/web-reader.tsx'), 'utf8');
+    const chat = chatDetailSource();
+
+    expect(tts).toContain('const isPreparing = isGenerating && !isPlaying;');
+    expect(tts).toContain('isPreparing,');
+    expect(contentReader).toContain('const readerSpeechPreparing =');
+    expect(contentReader).toContain('!reader.speechPlayback.isPlaying;');
+    expect(contentReader).toContain('accessibilityLabel="Chapters"');
+    expect(contentReader).toContain('accessibilityLabel="Reader actions"');
+    expect(chat).toContain('speechPlayback.isPreparing');
+    for (const source of [contentDetail, documentDetail, webReader]) {
+      expect(source).toContain('speechPlayback.isPreparing');
+      expect(source).toContain('!speechPlayback.isPlaying');
+      expect(source).not.toContain('disabled={speechPlayback.isGenerating}');
+      expect(source).not.toContain('speechPlayback.isGenerating ? (');
+    }
+    expect(contentReader).toContain(
+      "speechPreparing ? 'Preparing voice' : readerSpeaking ? 'Stop reading' : 'Read aloud'"
+    );
+    expect(documentDetail).toContain(
+      "speechPreparing ? 'Preparing voice' : readerSpeaking ? 'Stop reading' : 'Read aloud'"
+    );
+    expect(documentDetail).toContain('disabled={busy && !readerSpeaking}');
+    expect(contentDetail).toContain('speechDisabled={!zimArticle && !zimSpeaking}');
+    expect(webReader).toContain('disabled={!article && !speaking}');
+  });
+
+  test('document detail keeps secondary actions in a sheet', () => {
+    const documentDetail = readFileSync(join(appDir, 'documents/[id].tsx'), 'utf8');
+
+    expect(documentDetail).toContain('function DocumentActionsSheet');
+    expect(documentDetail).toContain('title="Document Actions"');
+    expect(documentDetail).toContain('accessibilityLabel="Document actions"');
+    expect(documentDetail).toContain('MoreHorizontal');
+    expect(documentDetail).toContain('Read aloud');
+    expect(documentDetail).toContain('Rename');
+    expect(documentDetail).toContain('Delete document');
+    expect(documentDetail).toContain('Open file');
+    expect(documentDetail).not.toContain('accessibilityLabel="Delete document"');
+    expect(documentDetail).not.toContain('<Text variant="large">Name</Text>');
+  });
+
+  test('zim article actions are grouped and exportable', () => {
+    const contentDetail = readFileSync(join(appDir, 'content/[id].tsx'), 'utf8');
+
+    expect(contentDetail).toContain('function ZimArticleActionsSheet');
+    expect(contentDetail).toContain('title="Article Actions"');
+    expect(contentDetail).toContain('accessibilityLabel="Article actions"');
+    expect(contentDetail).toContain('zimArticlePlainText');
+    expect(contentDetail).toContain('FileSystem.writeAsStringAsync');
+    expect(contentDetail).toContain('Sharing.shareAsync');
+    expect(contentDetail).toContain("mimeType: 'text/plain'");
+    expect(contentDetail).toContain('Share article');
+    expect(contentDetail).toContain('MoreVertical');
+    expect(contentDetail).not.toContain('onPress={() => void handleSpeakZimArticle()}');
+  });
+
   test('upright level draws its tube from the measured width', () => {
     const source = readFileSync(join(appDir, 'tools/level.tsx'), 'utf8');
 
@@ -151,24 +301,32 @@ describe('map and chat UI contracts', () => {
     );
 
     expect(appShell).toContain('<VaultLockSheet');
+    expect(appShell).toContain('vaultProtectionEnabled');
+    expect(appShell).toContain("!!state.vault?.isInitialized");
+    expect(appShell).toContain("{vaultProtectionEnabled ? (");
+    expect(appShell).toContain("accessibilityLabel={unlocked ? 'Lock vault' : 'Unlock vault'}");
+    expect(appShell).toContain("router.push('/(tabs)/notes')");
     expect(settings).toContain('<VaultLockSheet');
     expect(lockSheet).toContain('Animated.sequence');
     expect(lockSheet).toContain('VaultService.lock()');
   });
 
   test('map keeps network enabled while native offline packs are active', () => {
-    const source = readFileSync(join(appDir, '(tabs)/map.tsx'), 'utf8');
+    const source = mapScreenSource();
 
     expect(source).toContain('hasActiveMapDownloads');
+    expect(source).toContain('mapCanUseNetwork');
     expect(source).toContain("region.status === 'downloading' || region.status === 'queued'");
-    expect(source).toContain('MapService.setNetworkConnected(maplibre, hasActiveMapDownloads)');
+    expect(source).toContain(
+      'MapService.setNetworkConnected(maplibre, mapCanUseNetwork || hasActiveMapDownloads)'
+    );
     expect(source).not.toContain(
       'MapService.setNetworkConnected(maplibre, false);\n      setBusy(null);'
     );
   });
 
   test('downloaded maps open centered on the downloaded region', () => {
-    const source = readFileSync(join(appDir, '(tabs)/map.tsx'), 'utf8');
+    const source = mapScreenSource();
 
     expect(source).toContain('primaryDownloadedRegion');
     expect(source).toContain('mapInitialCenter');
@@ -179,11 +337,28 @@ describe('map and chat UI contracts', () => {
   });
 
   test('missing map prompts can use visible MapLibre bounds, not just the center', () => {
-    const source = readFileSync(join(appDir, '(tabs)/map.tsx'), 'utf8');
+    const source = mapScreenSource();
 
     expect(source).toContain('viewedBounds');
     expect(source).toContain('normalizeMapEventBounds(event.nativeEvent.bounds)');
     expect(source).toContain('MapPresetsService.getRegionsForBoundingBox(viewedBounds)');
+  });
+
+  test('map can download the current visible bounds as a custom offline region', () => {
+    const source = mapScreenSource();
+    const offlineMapSource = readFileSync(
+      join(process.cwd(), 'src/services/maps/offline-map.service.ts'),
+      'utf8'
+    );
+
+    expect(source).toContain('downloadVisibleArea');
+    expect(source).toContain('OfflineMapService.createRegionFromViewport');
+    expect(source).toContain("busyKey === 'download:visible-area'");
+    expect(source).toContain('Download visible area');
+    expect(source).toContain("activePanel === 'offline'");
+    expect(source).toContain('OfflineMapsPanel');
+    expect(offlineMapSource).toContain('createRegionFromViewport');
+    expect(offlineMapSource).toContain('visibleAreaName');
   });
 
   test('map onboarding starts from manifest-backed region downloads', () => {
@@ -199,7 +374,7 @@ describe('map and chat UI contracts', () => {
   });
 
   test('map screen delegates GPS permission and fix retrieval to the maps domain', () => {
-    const source = readFileSync(join(appDir, '(tabs)/map.tsx'), 'utf8');
+    const source = mapScreenSource();
 
     expect(source).toContain('MapLocationService.resolveUserLocation');
     expect(source).not.toContain("import * as Location from 'expo-location'");
@@ -208,7 +383,7 @@ describe('map and chat UI contracts', () => {
   });
 
   test('map catalog cards do not invite unsupported future pack downloads', () => {
-    const source = readFileSync(join(appDir, '(tabs)/map.tsx'), 'utf8');
+    const source = mapScreenSource();
 
     expect(source).toContain('getUnsupportedMapPackReason(preset)');
     expect(source).toContain("? 'Planned'");
@@ -232,7 +407,7 @@ describe('map and chat UI contracts', () => {
   });
 
   test('map edit overlays use shared bottom sheets while fullscreen escapes native tabs', () => {
-    const source = readFileSync(join(appDir, '(tabs)/map.tsx'), 'utf8');
+    const source = mapScreenSource();
 
     expect(source).toContain('ArkBottomSheet');
     expect(source).toContain("snapPoints={['58%', '92%']}");
@@ -263,7 +438,7 @@ describe('map and chat UI contracts', () => {
       join(process.cwd(), 'src/components/ui/markdown-text.tsx'),
       'utf8'
     );
-    const chatThread = readFileSync(join(appDir, 'chat/[threadId].tsx'), 'utf8');
+    const chatThread = chatDetailSource();
     const packageJson = readFileSync(join(process.cwd(), 'package.json'), 'utf8');
 
     expect(markdownText).toContain('react-native-enriched-markdown');

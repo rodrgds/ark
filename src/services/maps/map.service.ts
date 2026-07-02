@@ -1,3 +1,6 @@
+import { hexToRgba } from '@/lib/colors';
+import type { ThemeColors } from '@/constants/theme';
+
 type MapLibreLogEvent = {
   level?: string;
   tag?: string;
@@ -10,6 +13,20 @@ type StyleSpecification = {
   sprite?: string;
   sources: Record<string, unknown>;
   layers: Array<Record<string, unknown>>;
+};
+
+type MapStyleColors = {
+  background: string;
+  land: string;
+  water: string;
+  landuse: string;
+  vegetation: string;
+  park: string;
+  road: string;
+  primary: string;
+  text: string;
+  mutedText: string;
+  border: string;
 };
 
 type OfflinePackStatusLike = {
@@ -76,23 +93,15 @@ const OPENFREEMAP_STYLE_URLS: Record<MapTheme, string> = {
 
 const MAP_THEME_COLORS: Record<
   MapTheme,
-  {
-    background: string;
-    land: string;
-    water: string;
-    landuse: string;
-    road: string;
-    primary: string;
-    text: string;
-    mutedText: string;
-    border: string;
-  }
+  MapStyleColors
 > = {
   oled: {
     background: '#0d0d0d',
     land: '#0d0d0d',
     water: '#181d16',
     landuse: '#0c0f0b',
+    vegetation: '#2b3f20',
+    park: '#2d4221',
     road: '#313a2c',
     primary: '#95a78b',
     text: '#eae9fc',
@@ -104,6 +113,8 @@ const MAP_THEME_COLORS: Record<
     land: '#1a1a1a',
     water: '#181d16',
     landuse: '#0c0f0b',
+    vegetation: '#2b3f20',
+    park: '#2d4221',
     road: '#313a2c',
     primary: '#95a78b',
     text: '#eae9fc',
@@ -115,6 +126,8 @@ const MAP_THEME_COLORS: Record<
     land: '#f2f2f2',
     water: '#e5e9e2',
     landuse: '#e5e9e2',
+    vegetation: '#b0d59a',
+    park: '#d8e8c8',
     road: '#cad3c5',
     primary: '#627458',
     text: '#050316',
@@ -146,7 +159,7 @@ export class MapService {
       available: false,
       checking: false,
       reason:
-        'MapLibre is installed, but the native runtime is not loaded in this build. Use a development build for map rendering and native offline packs.',
+        'MapLibre is installed, but the native runtime is not loaded in this installed build. Install the latest Ark build with native map support for map rendering and offline packs.',
     };
   }
 
@@ -189,18 +202,18 @@ export class MapService {
     return process.env.EXPO_PUBLIC_ARK_MAP_STYLE_URL || OPENFREEMAP_STYLE_URLS[theme];
   }
 
-  static getThemedStyle(theme: MapTheme): StyleSpecification | string {
+  static getThemedStyle(theme: MapTheme, appColors?: ThemeColors): StyleSpecification | string {
     if (process.env.EXPO_PUBLIC_ARK_USE_JSON_MAP_STYLE === 'true')
-      return createTacticalStyle(theme);
+      return createTacticalStyle(theme, appColors);
     return this.getDefaultStyleUrl(theme);
   }
 
-  static getOverviewStyle(theme: MapTheme = 'oled'): StyleSpecification {
-    return createOverviewStyle(theme);
+  static getOverviewStyle(theme: MapTheme = 'oled', appColors?: ThemeColors): StyleSpecification {
+    return createOverviewStyle(theme, appColors);
   }
 
-  static getLocalStyle(theme: MapTheme = 'oled'): StyleSpecification {
-    return createTacticalStyle(theme);
+  static getLocalStyle(theme: MapTheme = 'oled', appColors?: ThemeColors): StyleSpecification {
+    return createTacticalStyle(theme, appColors);
   }
 
   static setNetworkConnected(maplibre: MapLibreModule | null, connected: boolean) {
@@ -238,8 +251,25 @@ export class MapService {
   }
 }
 
-export function createOverviewStyle(theme: MapTheme): StyleSpecification {
-  const colors = MAP_THEME_COLORS[theme];
+function mapStyleColors(theme: MapTheme, appColors?: ThemeColors): MapStyleColors {
+  if (!appColors) return MAP_THEME_COLORS[theme];
+  return {
+    background: appColors.background,
+    land: appColors.background,
+    water: appColors.muted,
+    landuse: theme === 'light' ? appColors.secondary : appColors.card,
+    vegetation: hexToRgba(appColors.accent, theme === 'light' ? 0.52 : 0.42),
+    park: hexToRgba(appColors.primary, theme === 'light' ? 0.2 : 0.18),
+    road: appColors.border,
+    primary: appColors.primary,
+    text: appColors.foreground,
+    mutedText: appColors.mutedForeground,
+    border: appColors.border,
+  };
+}
+
+export function createOverviewStyle(theme: MapTheme, appColors?: ThemeColors): StyleSpecification {
+  const colors = mapStyleColors(theme, appColors);
   return {
     version: 8,
     sources: {},
@@ -255,8 +285,8 @@ export function createOverviewStyle(theme: MapTheme): StyleSpecification {
   };
 }
 
-export function createTacticalStyle(theme: MapTheme): StyleSpecification {
-  const colors = MAP_THEME_COLORS[theme];
+export function createTacticalStyle(theme: MapTheme, appColors?: ThemeColors): StyleSpecification {
+  const colors = mapStyleColors(theme, appColors);
   return {
     version: 8,
     glyphs: OPENMAPTILES_GLYPHS_URL,
@@ -292,7 +322,7 @@ export function createTacticalStyle(theme: MapTheme): StyleSpecification {
         'source-layer': 'landcover',
         filter: ['==', ['get', 'class'], 'wood'],
         paint: {
-          'fill-color': theme === 'light' ? 'hsla(98,61%,72%,0.7)' : 'hsla(98,61%,32%,0.7)',
+          'fill-color': colors.vegetation,
           'fill-opacity': 0.4,
         },
       },
@@ -303,7 +333,7 @@ export function createTacticalStyle(theme: MapTheme): StyleSpecification {
         'source-layer': 'landcover',
         filter: ['==', ['get', 'class'], 'grass'],
         paint: {
-          'fill-color': theme === 'light' ? '#b0d59a' : '#2b3f20',
+          'fill-color': colors.vegetation,
           'fill-opacity': 0.3,
         },
       },
@@ -313,7 +343,7 @@ export function createTacticalStyle(theme: MapTheme): StyleSpecification {
         source: 'openmaptiles',
         'source-layer': 'park',
         paint: {
-          'fill-color': theme === 'light' ? '#d8e8c8' : '#2d4221',
+          'fill-color': colors.park,
           'fill-opacity': 0.7,
         },
       },

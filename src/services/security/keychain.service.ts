@@ -1,13 +1,43 @@
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
+import { argon2idAsync } from '@noble/hashes/argon2.js';
 
 const PASSWORD_VERIFIER_KEY = 'ark.vault.passwordVerifier';
 const BIOMETRIC_TOKEN_KEY = 'ark.vault.biometricToken';
-const VERIFIER_V2_PREFIX = 'ark-v2:sha512:5000:';
-const CURRENT_VERIFIER = {
-  prefix: 'ark-v3:sha512:12000:',
-  iterations: 12000,
+const ARGON2ID_PARAMS = {
+  t: 2,
+  m: 19_456,
+  p: 1,
+  dkLen: 32,
+  asyncTick: 10,
 };
+const CURRENT_VERIFIER = {
+  prefix: `ark-v4:argon2id:${ARGON2ID_PARAMS.t}:${ARGON2ID_PARAMS.m}:${ARGON2ID_PARAMS.p}:${ARGON2ID_PARAMS.dkLen}:`,
+};
+
+function bytesToHex(bytes: Uint8Array) {
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function hexToBytes(value: string) {
+  if (!/^[a-fA-F0-9]+$/.test(value) || value.length % 2 !== 0) {
+    return Uint8Array.from(value, (char) => char.charCodeAt(0) & 0xff);
+  }
+  const bytes = new Uint8Array(value.length / 2);
+  for (let index = 0; index < bytes.length; index += 1) {
+    bytes[index] = Number.parseInt(value.slice(index * 2, index * 2 + 2), 16);
+  }
+  return bytes;
+}
+
+function constantTimeEqual(left: string, right: string) {
+  let diff = left.length ^ right.length;
+  const length = Math.max(left.length, right.length);
+  for (let index = 0; index < length; index += 1) {
+    diff |= (left.charCodeAt(index) || 0) ^ (right.charCodeAt(index) || 0);
+  }
+  return diff === 0;
+}
 
 export class KeychainService {
   static async generateSalt() {
@@ -16,60 +46,28 @@ export class KeychainService {
   }
 
   static async derivePasswordVerifier(password: string, salt: string) {
-    return this.deriveSha512Verifier(
-      password,
-      salt,
-      CURRENT_VERIFIER.iterations,
-      CURRENT_VERIFIER.prefix
-    );
-  }
-
-  private static async deriveSha512Verifier(
-    password: string,
-    salt: string,
-    iterations: number,
-    prefix: string
-  ) {
-    let digest = `${salt}:${password}`;
-    for (let i = 0; i < iterations; i += 1) {
-      digest = await Crypto.digestStringAsync(
-        Crypto.CryptoDigestAlgorithm.SHA512,
-        `${salt}:${i}:${digest}`
-      );
-    }
-    return `${prefix}${digest}`;
+    const derived = await argon2idAsync(password, hexToBytes(salt), ARGON2ID_PARAMS);
+    return `${CURRENT_VERIFIER.prefix}${bytesToHex(derived)}`;
   }
 
   static async verifyPassword(password: string, salt: string, expectedVerifier: string) {
-    const actual = expectedVerifier.startsWith(CURRENT_VERIFIER.prefix)
-      ? await this.derivePasswordVerifier(password, salt)
-      : expectedVerifier.startsWith(VERIFIER_V2_PREFIX)
-        ? await this.deriveSha512Verifier(password, salt, 5000, VERIFIER_V2_PREFIX)
-        : await this.deriveLegacyPasswordVerifier(password, salt);
-    return actual === expectedVerifier;
-  }
-
-  static needsVerifierUpgrade(verifier: string) {
-    return !verifier.startsWith(CURRENT_VERIFIER.prefix);
-  }
-
-  private static async deriveLegacyPasswordVerifier(password: string, salt: string) {
-    let digest = `${salt}:${password}`;
-    for (let i = 0; i < 750; i += 1) {
-      digest = await Crypto.digestStringAsync(
-        Crypto.CryptoDigestAlgorithm.SHA256,
-        `${salt}:${digest}`
-      );
-    }
-    return digest;
+    if (!expectedVerifier.startsWith(CURRENT_VERIFIER.prefix)) return false;
+    const actual = await this.derivePasswordVerifier(password, salt);
+    return constantTimeEqual(actual, expectedVerifier);
   }
 
   static async savePasswordVerifier(verifier: string) {
-    await SecureStore.setItemAsync(PASSWORD_VERIFIER_KEY, verifier);
+    await SecureStore.setItemAsync(PASSWORD_VERIFIER_KEY, verifier, {
+      keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+    });
   }
 
   static async getPasswordVerifier() {
     return SecureStore.getItemAsync(PASSWORD_VERIFIER_KEY);
+  }
+
+  static async deletePasswordVerifier() {
+    await SecureStore.deleteItemAsync(PASSWORD_VERIFIER_KEY);
   }
 
   static async saveBiometricToken(token: string) {

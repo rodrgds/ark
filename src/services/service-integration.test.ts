@@ -2,6 +2,7 @@ import { beforeAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { Database } from 'bun:sqlite';
 
 const secureStore = new Map<string, string>();
+const secureStoreOptions = new Map<string, { keychainAccessible?: string } | undefined>();
 let llamaStopCalls = 0;
 let llamaCompletionGate: Promise<void> | null = null;
 let llamaCompletionStarted: (() => void) | null = null;
@@ -40,6 +41,8 @@ let mockCurrentLocation: MockLocationObject | null = null;
 let mockCurrentLocationError: Error | null = null;
 let mockNetworkState = { type: 'wifi', isConnected: true, isInternetReachable: true };
 let mockExecutorchEmbeddingsAvailable = true;
+let mockExecutorchEmbeddingForwardCalls = 0;
+let mockExecutorchEmbeddingFailAfter: number | null = null;
 let mockTtsLoadCalls = 0;
 let mockVadLoadCalls = 0;
 let mockSttLoadCalls = 0;
@@ -50,6 +53,25 @@ const mockScheduledNotifications: Array<{
   body?: string | null;
   sticky?: boolean;
 }> = [];
+const mockNativeRoutingRequests: Array<{
+  profile: string;
+  graphPath: string;
+  origin: { latitude: number; longitude: number };
+  destination: { latitude: number; longitude: number };
+}> = [];
+let mockNativeRoutingResult: {
+  geometry: Array<{ latitude: number; longitude: number }>;
+  distanceMeters: number;
+  durationSeconds: number;
+  maneuvers: Array<{
+    instruction: string;
+    distanceMeters: number;
+    durationSeconds: number;
+    beginIndex: number;
+    endIndex: number;
+  }>;
+} | null = null;
+let mockNativeRoutingError: Error | null = null;
 
 type MockLocationObject = {
   coords: {
@@ -63,6 +85,24 @@ type MockLocationObject = {
 mock.module('expo-sqlite', () => ({
   openDatabaseAsync: async () => {
     throw new Error('Service tests inject a Bun SQLite database.');
+  },
+}));
+
+mock.module('ark-routing', () => ({
+  default: {
+    getEngineStatus: async () => ({
+      available: true,
+      engine: 'valhalla',
+      reason: null,
+    }),
+    calculateRoute: async (request: (typeof mockNativeRoutingRequests)[number]) => {
+      mockNativeRoutingRequests.push(request);
+      if (mockNativeRoutingError) throw mockNativeRoutingError;
+      if (!mockNativeRoutingResult) {
+        throw new Error('Native routing mock has no route result.');
+      }
+      return mockNativeRoutingResult;
+    },
   },
 }));
 
@@ -85,12 +125,18 @@ mock.module('expo-crypto', () => ({
 
 mock.module('expo-secure-store', () => ({
   WHEN_UNLOCKED_THIS_DEVICE_ONLY: 'when_unlocked_this_device_only',
-  setItemAsync: async (key: string, value: string) => {
+  setItemAsync: async (
+    key: string,
+    value: string,
+    options?: { keychainAccessible?: string }
+  ) => {
     secureStore.set(key, value);
+    secureStoreOptions.set(key, options);
   },
   getItemAsync: async (key: string) => secureStore.get(key) ?? null,
   deleteItemAsync: async (key: string) => {
     secureStore.delete(key);
+    secureStoreOptions.delete(key);
   },
 }));
 
@@ -153,8 +199,17 @@ mock.module('@react-native-community/netinfo', () => ({
 mock.module('uniwind', () => ({
   Uniwind: {
     setTheme: () => undefined,
+    updateCSSVariables: () => undefined,
   },
   withUniwind: (component: unknown) => component,
+}));
+
+mock.module('ark-system-colors', () => ({
+  getSystemAccentColors: async () => ({
+    available: false,
+    source: 'fallback',
+    reason: 'System accent colors are not available in Bun tests.',
+  }),
 }));
 
 mock.module('expo-haptics', () => ({
@@ -362,6 +417,13 @@ mock.module('react-native-executorch', () => ({
     }
 
     async forward(text: string) {
+      mockExecutorchEmbeddingForwardCalls += 1;
+      if (
+        mockExecutorchEmbeddingFailAfter !== null &&
+        mockExecutorchEmbeddingForwardCalls > mockExecutorchEmbeddingFailAfter
+      ) {
+        throw new Error('ExecuTorch embedding failed');
+      }
       return Float32Array.from({ length: this.dimensions }, (_, index) =>
         text.toLowerCase().includes('water') && index === 0 ? 1 : index === 1 ? 0.5 : 0
       );
@@ -639,10 +701,10 @@ class TestSQLiteDatabase {
     return this.db.query(sql).all(...this.normalize(params)) as T[];
   }
 
-  async withTransactionAsync(callback: () => Promise<void>) {
+  async withTransactionAsync(callback: (tx: TestSQLiteDatabase) => Promise<void>) {
     this.db.exec('BEGIN');
     try {
-      await callback();
+      await callback(this);
       this.db.exec('COMMIT');
     } catch (error) {
       this.db.exec('ROLLBACK');
@@ -659,15 +721,53 @@ class TestSQLiteDatabase {
   }
 }
 
+class SqlCipherTestDatabase {
+  readonly execs: string[] = [];
+  readonly databasePath = '/tmp/ark-service-test.db';
+
+  constructor(private readonly inner: TestSQLiteDatabase) {}
+
+  async execAsync(sql: string) {
+    this.execs.push(sql);
+    if (sql.includes('PRAGMA key') || sql.includes('PRAGMA rekey')) return;
+    await this.inner.execAsync(sql);
+  }
+
+  async runAsync(sql: string, params?: Params) {
+    return this.inner.runAsync(sql, params);
+  }
+
+  async getFirstAsync<T>(sql: string, params?: Params): Promise<T | null> {
+    if (sql.includes('cipher_version')) {
+      return { cipher_version: '4.5.0' } as T;
+    }
+    return this.inner.getFirstAsync<T>(sql, params);
+  }
+
+  async getAllAsync<T>(sql: string, params?: Params): Promise<T[]> {
+    return this.inner.getAllAsync<T>(sql, params);
+  }
+
+  async withTransactionAsync(callback: (tx: SqlCipherTestDatabase) => Promise<void>) {
+    await this.inner.withTransactionAsync(async () => {
+      await callback(this);
+    });
+  }
+}
+
 let DatabaseClient: typeof import('@/services/db/client').DatabaseClient;
 let migrateDbIfNeeded: typeof import('@/services/db/migrations').migrateDbIfNeeded;
 let DatabaseEncryptionService: typeof import('@/services/db/encryption.service').DatabaseEncryptionService;
 let VaultService: typeof import('@/services/security/vault.service').VaultService;
+let KeychainService: typeof import('@/services/security/keychain.service').KeychainService;
 let ContentPackService: typeof import('@/services/content/content-pack.service').ContentPackService;
 let ZimService: typeof import('@/services/content/zim.service').ZimService;
 let OfflineMapService: typeof import('@/services/maps/offline-map.service').OfflineMapService;
+let OfflineRoutingService: typeof import('@/services/maps/offline-routing.service').OfflineRoutingService;
 let MapLocationService: typeof import('@/services/maps/map-location.service').MapLocationService;
 let MapCatalogRepository: typeof import('@/services/maps/map-catalog.repository').MapCatalogRepository;
+let GeocodingService: typeof import('@/services/maps/geocoding.service').GeocodingService;
+let MapsRepository: typeof import('@/services/db/repositories/maps.repo').MapsRepository;
 let DiagnosticsService: typeof import('@/services/sensors/diagnostics.service').DiagnosticsService;
 let RagService: typeof import('@/services/ai/rag.service').RagService;
 let AIService: typeof import('@/services/ai/ai.service').AIService;
@@ -690,6 +790,7 @@ let DownloadsRepository: typeof import('@/services/db/repositories/downloads.rep
 let RssRepository: typeof import('@/services/db/repositories/rss.repo').RssRepository;
 let WeatherRepository: typeof import('@/services/db/repositories/weather.repo').WeatherRepository;
 let PreferencesService: typeof import('@/services/preferences/preferences.service').PreferencesService;
+let setDatabaseEncryptionStateForTests: typeof import('@/services/db/schema').setDatabaseEncryptionState;
 
 let testDb: TestSQLiteDatabase;
 
@@ -698,11 +799,15 @@ beforeAll(async () => {
   ({ migrateDbIfNeeded } = await import('@/services/db/migrations'));
   ({ DatabaseEncryptionService } = await import('@/services/db/encryption.service'));
   ({ VaultService } = await import('@/services/security/vault.service'));
+  ({ KeychainService } = await import('@/services/security/keychain.service'));
   ({ ContentPackService } = await import('@/services/content/content-pack.service'));
   ({ ZimService } = await import('@/services/content/zim.service'));
   ({ OfflineMapService } = await import('@/services/maps/offline-map.service'));
+  ({ OfflineRoutingService } = await import('@/services/maps/offline-routing.service'));
   ({ MapLocationService } = await import('@/services/maps/map-location.service'));
   ({ MapCatalogRepository } = await import('@/services/maps/map-catalog.repository'));
+  ({ GeocodingService } = await import('@/services/maps/geocoding.service'));
+  ({ MapsRepository } = await import('@/services/db/repositories/maps.repo'));
   ({ DiagnosticsService } = await import('@/services/sensors/diagnostics.service'));
   ({ RagService } = await import('@/services/ai/rag.service'));
   ({ AIService } = await import('@/services/ai/ai.service'));
@@ -725,10 +830,13 @@ beforeAll(async () => {
   ({ RssRepository } = await import('@/services/db/repositories/rss.repo'));
   ({ WeatherRepository } = await import('@/services/db/repositories/weather.repo'));
   ({ PreferencesService } = await import('@/services/preferences/preferences.service'));
+  ({ setDatabaseEncryptionState: setDatabaseEncryptionStateForTests } =
+    await import('@/services/db/schema'));
 });
 
 beforeEach(async () => {
   secureStore.clear();
+  secureStoreOptions.clear();
   resetStarterPacksSeedFlagForTests();
   llamaStopCalls = 0;
   llamaCompletionGate = null;
@@ -751,11 +859,16 @@ beforeEach(async () => {
   mockCurrentLocation = null;
   mockCurrentLocationError = null;
   mockExecutorchEmbeddingsAvailable = true;
+  mockExecutorchEmbeddingForwardCalls = 0;
+  mockExecutorchEmbeddingFailAfter = null;
   mockTtsLoadCalls = 0;
   mockVadLoadCalls = 0;
   mockSttLoadCalls = 0;
   mockSttAbortOnce = false;
   mockScheduledNotifications.length = 0;
+  mockNativeRoutingRequests.length = 0;
+  mockNativeRoutingResult = null;
+  mockNativeRoutingError = null;
   mockNetworkState = { type: 'wifi', isConnected: true, isInternetReachable: true };
   delete process.env.EXPO_PUBLIC_ARK_MAP_CATALOG_URL;
   delete process.env.EXPO_PUBLIC_ARK_MAP_CATALOG_SHA256;
@@ -789,6 +902,7 @@ beforeEach(async () => {
   testDb = new TestSQLiteDatabase();
   await migrateDbIfNeeded(testDb as never);
   DatabaseClient.setTestDbForTests(testDb as never);
+  setDatabaseEncryptionStateForTests?.(false, 'unenforced');
   useAppStore?.setState({ booted: false, onboarding: null, vault: null, error: null });
 });
 
@@ -799,7 +913,7 @@ describe('service integration', () => {
     const persisted = await SettingsRepository.getOnboardingState();
     expect(persisted.completedAt).toBeNumber();
     expect(persisted.hasSeenIntro).toBe(true);
-    expect(persisted.hasCreatedVault).toBe(true);
+    expect(persisted.hasCreatedVault).toBe(false);
     expect(useAppStore.getState().onboarding?.completedAt).toBe(persisted.completedAt);
   });
 
@@ -818,8 +932,8 @@ describe('service integration', () => {
     }
 
     const state = useAppStore.getState();
-    expect(state.booted).toBe(true);
     expect(state.error).toBeNull();
+    expect(state.booted).toBe(true);
     expect(fetchCalls).toBe(0);
   });
 
@@ -854,32 +968,79 @@ describe('service integration', () => {
     expect(speechProgress.at(-1)).toBe(1);
   });
 
-  test('database encryption reports key storage and unresolved migration limits', async () => {
-    const active = await DatabaseEncryptionService.applyKey(testDb as never);
-    const status = await DatabaseEncryptionService.getRuntimeStatus(active);
-    const storedKey = secureStore.get('ark.db.sqlcipherKey');
+  test('database encryption is optional and disabled by default', async () => {
+    const result = await DatabaseEncryptionService.applyKey(testDb as never);
+    const status = await DatabaseEncryptionService.getRuntimeStatus(
+      result.runtimeActive,
+      result.databaseState
+    );
+    const storedRootKey = secureStore.get('ark.security.rootKey.v1');
 
-    expect(active).toBe(false);
-    expect(status.keyStored).toBe(true);
-    expect(status.keyStrategy).toBe('SecureStore device key');
-    expect(status.migrationStatus).toContain('vault-passphrase rekey');
-    expect(storedKey).toMatch(/^[a-f0-9]{64}$/);
+    expect(result.runtimeActive).toBe(false);
+    expect(result.databaseState).toBe('plaintext');
+    expect(status.active).toBe(false);
+    expect(status.runtimeActive).toBe(false);
+    expect(status.databaseState).toBe('plaintext');
+    expect(status.stateLabel).toBe('Plaintext database');
+    expect(status.encryptionEnabled).toBe(false);
+    expect(status.keyStored).toBe(false);
+    expect(status.keyStrategy).toBe('Encryption disabled by user preference');
+    expect(status.migrationStatus).toContain('Database encryption is off');
+    expect(status.existingDataStatus).toContain('fresh pre-release database baseline');
+    expect(status.passphraseRekeyStatus).toContain('SQLCipher is optional');
+    expect(status.plaintextMigrationImplemented).toBe(true);
+    expect(status.vaultPassphraseRekeyImplemented).toBe(true);
+    expect(storedRootKey).toBeUndefined();
   });
 
-  test('database encryption replaces invalid stored keys before applying SQLCipher', async () => {
-    secureStore.set('ark.db.sqlcipherKey', "bad-key'; DROP TABLE notes; --");
+  test('database encryption creates a current root key only when enabled', async () => {
+    await DatabaseEncryptionService.setEncryptionEnabled(true);
 
-    const active = await DatabaseEncryptionService.applyKey(testDb as never);
-    const storedKey = secureStore.get('ark.db.sqlcipherKey');
+    const result = await DatabaseEncryptionService.applyKey(testDb as never);
+    const storedRootKey = secureStore.get('ark.security.rootKey.v1');
 
-    expect(active).toBe(false);
-    expect(storedKey).toMatch(/^[a-f0-9]{64}$/);
-    expect(storedKey).not.toContain('DROP TABLE');
+    expect(result.runtimeActive).toBe(false);
+    expect(storedRootKey).toMatch(/^[a-f0-9]{64}$/);
   });
+
+  test('database encryption reports plaintext without claiming encrypted protection', async () => {
+    const status = await DatabaseEncryptionService.getRuntimeStatus(true, 'plaintext');
+
+    expect(status.active).toBe(false);
+    expect(status.runtimeActive).toBe(true);
+    expect(status.databaseState).toBe('plaintext');
+    expect(status.stateLabel).toBe('Plaintext database');
+    expect(status.note).toContain('encryption is disabled');
+    expect(status.plaintextMigrationImplemented).toBe(true);
+  });
+
+  test('keychain verifier rejects same-prefix and truncated mismatches', async () => {
+    const salt = '0123456789abcdef0123456789abcdef';
+    const verifier = await KeychainService.derivePasswordVerifier('correct horse battery', salt);
+    const suffix = verifier.endsWith('0') ? '1' : '0';
+
+    expect(await KeychainService.verifyPassword('correct horse battery', salt, verifier)).toBe(
+      true
+    );
+    expect(
+      await KeychainService.verifyPassword(
+        'correct horse battery',
+        salt,
+        `${verifier.slice(0, -1)}${suffix}`
+      )
+    ).toBe(false);
+    expect(
+      await KeychainService.verifyPassword('correct horse battery', salt, verifier.slice(0, -8))
+    ).toBe(false);
+  }, 10_000);
 
   test('vault initializes, unlocks, changes passphrase, and rejects the old one', async () => {
     const initialized = await VaultService.initializeVault('correct horse battery', 'horse', true);
     expect(initialized.ok).toBe(true);
+    expect(secureStoreOptions.get('ark.vault.passwordVerifier')?.keychainAccessible).toBe(
+      'when_unlocked_this_device_only'
+    );
+    const initialVault = await SettingsRepository.getVaultState();
 
     expect((await VaultService.unlockWithPassword('correct horse battery')).ok).toBe(true);
     expect((await VaultService.unlockWithBiometrics()).ok).toBe(true);
@@ -890,25 +1051,60 @@ describe('service integration', () => {
       passwordHint: 'new hint',
     });
     expect(changed.ok).toBe(true);
+    expect(secureStoreOptions.get('ark.vault.passwordVerifier')?.keychainAccessible).toBe(
+      'when_unlocked_this_device_only'
+    );
+    const changedVault = await SettingsRepository.getVaultState();
+    expect(changedVault.kdfSalt).not.toBe(initialVault.kdfSalt);
     expect((await VaultService.unlockWithPassword('correct horse battery')).ok).toBe(false);
     expect((await VaultService.unlockWithPassword('new correct battery')).ok).toBe(true);
   }, 10_000);
 
-  test('vault upgrades v2 stretched verifiers after successful unlock', async () => {
-    const salt = '0123456789abcdef0123456789abcdef';
-    secureStore.set(
-      'ark.vault.passwordVerifier',
-      await deriveV2VerifierForTest('correct horse battery', salt)
-    );
-    await SettingsRepository.updateVaultState({
-      isInitialized: true,
-      kdfSalt: salt,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
+  test('vault passphrase protection can be disabled and re-enabled', async () => {
+    expect((await VaultService.disableVaultProtection()).ok).toBe(true);
+    expect((await SettingsRepository.getVaultState()).isInitialized).toBe(false);
+    expect((await VaultService.unlockWithPassword('anything')).ok).toBe(true);
 
-    expect((await VaultService.unlockWithPassword('correct horse battery')).ok).toBe(true);
-    expect(secureStore.get('ark.vault.passwordVerifier')).toStartWith('ark-v3:sha512:12000:');
+    const enabled = await VaultService.initializeVault('correct horse battery', 'horse', false);
+    expect(enabled.ok).toBe(true);
+    const wrongDisable = await VaultService.disableVaultProtection('wrong passphrase');
+    expect(wrongDisable.ok).toBe(false);
+
+    const disabled = await VaultService.disableVaultProtection('correct horse battery');
+    const vault = await SettingsRepository.getVaultState();
+    expect(disabled.ok).toBe(true);
+    expect(vault.isInitialized).toBe(false);
+    expect(vault.kdfSalt).toBeNull();
+    expect(secureStore.get('ark.vault.passwordVerifier')).toBeUndefined();
+  }, 10_000);
+
+  test('vault passphrase change rotates the SQLCipher device root for encrypted databases', async () => {
+    const sqlCipherDb = new SqlCipherTestDatabase(testDb);
+    DatabaseClient.setTestDbForTests(sqlCipherDb as never);
+    await DatabaseEncryptionService.setEncryptionEnabled(true);
+    const encryption = await DatabaseEncryptionService.applyKey(sqlCipherDb as never);
+    const initialRootKey = secureStore.get('ark.security.rootKey.v1');
+
+    expect(encryption.databaseState).toBe('encrypted');
+    expect(initialRootKey).toMatch(/^[a-f0-9]{64}$/);
+    expect((await VaultService.initializeVault('correct horse battery', 'horse', false)).ok).toBe(
+      true
+    );
+
+    const changed = await VaultService.changePassword({
+      currentPassword: 'correct horse battery',
+      nextPassword: 'new correct battery',
+      passwordHint: 'new hint',
+    });
+    const rotatedRootKey = secureStore.get('ark.security.rootKey.v1');
+    const rekeySql = sqlCipherDb.execs.find((sql) => sql.includes('PRAGMA rekey'));
+
+    expect(changed.ok).toBe(true);
+    expect(rotatedRootKey).toMatch(/^[a-f0-9]{64}$/);
+    expect(rotatedRootKey).not.toBe(initialRootKey);
+    expect(rekeySql).not.toContain(rotatedRootKey);
+    expect((await VaultService.unlockWithPassword('correct horse battery')).ok).toBe(false);
+    expect((await VaultService.unlockWithPassword('new correct battery')).ok).toBe(true);
   }, 10_000);
 
   test('content pack install downloads, completes, and indexes guide sections for RAG', async () => {
@@ -950,8 +1146,8 @@ describe('service integration', () => {
        WHERE s.source_ref = ? AND c.chunk_index = 2`,
       ['hesperian-first-aid']
     );
-    expect(embeddedChunk?.embedding_model_id).toBe('executorch-multi-qa-minilm-l6-cos-v1');
-    expect(embeddedChunk?.embedding_blob?.byteLength).toBe(384 * 4);
+    expect(embeddedChunk?.embedding_model_id).toBe(RAG_HASH_EMBEDDING_MODEL_ID);
+    expect(embeddedChunk?.embedding_blob?.byteLength).toBe(RAG_HASH_EMBEDDING_DIMENSIONS * 4);
   });
 
   test('installed HTML snapshot packs are indexed from their downloaded body text', async () => {
@@ -1373,6 +1569,25 @@ describe('service integration', () => {
     ).rejects.toThrow('North must be greater than south.');
   });
 
+  test('offline map regions can be planned from the visible viewport', async () => {
+    const regionId = await OfflineMapService.createRegionFromViewport({
+      bounds: [-9.6, 38.4, -9.4, 38.6],
+      zoom: 12.1,
+      styleUrl: 'https://maps.example.test/style.json',
+    });
+    const region = (await OfflineMapService.listRegions()).find((item) => item.id === regionId);
+
+    expect(region?.name).toBe('Visible area 38.50000, -9.50000');
+    expect(region?.north).toBe(38.6);
+    expect(region?.south).toBe(38.4);
+    expect(region?.east).toBe(-9.4);
+    expect(region?.west).toBe(-9.6);
+    expect(region?.minZoom).toBe(11);
+    expect(region?.maxZoom).toBe(16);
+    expect(region?.status).toBe('queued');
+    expect(region?.styleUrl).toBe('https://maps.example.test/style.json');
+  });
+
   test('offline map downloads check estimated storage before native startup', async () => {
     freeDiskStorageBytes = 120 * 1024 * 1024;
 
@@ -1779,6 +1994,101 @@ describe('service integration', () => {
     }
   });
 
+  test('online place search is cached and relabeled when reused offline', async () => {
+    mockFetchText = JSON.stringify({
+      features: [
+        {
+          properties: {
+            osm_id: 123,
+            name: 'Porto',
+            city: 'Porto',
+            country: 'Portugal',
+          },
+          geometry: {
+            coordinates: [-8.61, 41.15],
+          },
+        },
+      ],
+    });
+
+    const onlineResults = await GeocodingService.search('porto');
+
+    mockNetworkState = { type: 'none', isConnected: false, isInternetReachable: false };
+    const cachedResults = await GeocodingService.search('porto');
+
+    expect(onlineResults[0]).toMatchObject({
+      kind: 'place',
+      title: 'Porto',
+      subtitle: 'Porto',
+      latitude: 41.15,
+      longitude: -8.61,
+      placeSource: 'online',
+    });
+    expect(cachedResults[0]).toMatchObject({
+      kind: 'place',
+      title: 'Porto',
+      placeSource: 'cached',
+    });
+  });
+
+  test('reverse geocoding reuses cached names when offline', async () => {
+    mockFetchText = JSON.stringify({
+      features: [
+        {
+          properties: {
+            name: 'Porto',
+            city: 'Porto',
+            country: 'Portugal',
+            extent: [-8.75, 41.05, -8.5, 41.25],
+          },
+        },
+      ],
+    });
+
+    const onlineResult = await GeocodingService.reverseGeocode(41.15, -8.61);
+
+    mockNetworkState = { type: 'none', isConnected: false, isInternetReachable: false };
+    const cachedResult = await GeocodingService.reverseGeocode(41.16, -8.6);
+
+    expect(onlineResult).toMatchObject({
+      name: 'Porto',
+      bounds: { west: -8.75, south: 41.05, east: -8.5, north: 41.25 },
+    });
+    expect(cachedResult).toMatchObject({
+      name: 'Porto',
+      bounds: { west: -8.75, south: 41.05, east: -8.5, north: 41.25 },
+    });
+  });
+
+  test('reverse geocoding falls back to bundled catalog names offline', async () => {
+    mockNetworkState = { type: 'none', isConnected: false, isInternetReachable: false };
+
+    const result = await GeocodingService.reverseGeocode(41.15, -8.61);
+
+    expect(result.name).toBe('North and Centre Portugal');
+    expect(result.bounds).toBeUndefined();
+  });
+
+  test('reverse geocoding handles abort errors when DOMException is unavailable', async () => {
+    const originalFetch = globalThis.fetch;
+    const originalDomException = (globalThis as any).DOMException;
+    globalThis.fetch = (async () => {
+      const error = new Error('Aborted');
+      error.name = 'AbortError';
+      throw error;
+    }) as typeof fetch;
+    delete (globalThis as any).DOMException;
+
+    try {
+      const result = await GeocodingService.reverseGeocode(0, 0);
+
+      expect(result.name).toBe('this area');
+    } finally {
+      globalThis.fetch = originalFetch;
+      (globalThis as any).DOMException = originalDomException;
+    }
+  });
+
   test('offline navigation falls back to a direct route when road routing is unavailable', async () => {
     const session = await OfflineMapService.startNavigation({
       origin: { latitude: 38.72, longitude: -9.14 },
@@ -1789,12 +2099,163 @@ describe('service integration', () => {
 
     expect(session.destinationTitle).toBe('North spring');
     expect(session.route.routingMode).toBe('direct');
+    expect(session.route.routingFallbackReason).toBe('no_region');
+    expect(session.route.routingFallbackMessage).toContain('No downloaded map');
     expect(session.route.geometry).toHaveLength(2);
     expect(session.route.distanceMeters).toBeGreaterThan(0);
     expect(session.route.maneuvers[0]?.instruction).toContain('directly');
 
     const moved = await OfflineMapService.getActiveNavigationSession();
     expect(moved?.route.routingMode).toBe('direct');
+    expect(moved?.route.routingFallbackReason).toBe('no_region');
+  });
+
+  test('offline navigation explains stale routing graph files before falling back', async () => {
+    const regionId = await OfflineMapService.createRegionDownload({
+      name: 'Lisbon stale navigation',
+      bounds: { north: 39, south: 38.4, east: -8.7, west: -9.6 },
+      minZoom: 8,
+      maxZoom: 14,
+      routingPackUrl:
+        'https://github.com/rodrgds/ark/releases/download/routing-v1/pt-lisbon-south.valhalla.tar',
+    });
+    await MapsRepository.updateRegionRouting(regionId, {
+      routingStatus: 'ready',
+      routingProgress: 1,
+      routingGraphUri: 'file:///ark-test/maps/missing-routing.valhalla.tar',
+    });
+
+    const session = await OfflineMapService.startNavigation({
+      origin: { latitude: 38.72, longitude: -9.14 },
+      destination: { latitude: 38.73, longitude: -9.12 },
+      destinationTitle: 'North spring',
+      profile: 'pedestrian',
+      regionId,
+    });
+    const region = (await OfflineMapService.listRegions()).find(
+      (candidate) => candidate.id === regionId
+    );
+
+    expect(session.route.routingMode).toBe('direct');
+    expect(session.route.routingFallbackReason).toBe('navigation_graph_missing');
+    expect(session.route.routingFallbackMessage).toContain('missing');
+    expect(region?.routingStatus).toBe('not_downloaded');
+    expect(region?.routingGraphUri).toBeNull();
+  });
+
+  test('offline navigation uses native Valhalla routes when a graph is ready', async () => {
+    const readyGraphUri = 'file:///ark-test/maps/lisbon-routing.valhalla.tar';
+    const regionId = await OfflineMapService.createRegionDownload({
+      name: 'Lisbon ready navigation',
+      bounds: { north: 39, south: 38.4, east: -8.7, west: -9.6 },
+      minZoom: 8,
+      maxZoom: 14,
+      routingPackUrl:
+        'https://github.com/rodrgds/ark/releases/download/routing-v1/pt-lisbon-south.valhalla.tar',
+    });
+    await MapsRepository.updateRegionRouting(regionId, {
+      routingStatus: 'ready',
+      routingProgress: 1,
+      routingGraphUri: readyGraphUri,
+    });
+    mockFiles.set(readyGraphUri, { isDirectory: false, size: 1024, text: 'valhalla' });
+    mockNativeRoutingResult = {
+      geometry: [
+        { latitude: 38.72, longitude: -9.14 },
+        { latitude: 38.725, longitude: -9.13 },
+        { latitude: 38.73, longitude: -9.12 },
+      ],
+      distanceMeters: 1800,
+      durationSeconds: 1200,
+      maneuvers: [
+        {
+          instruction: 'Walk north on the local road.',
+          distanceMeters: 1800,
+          durationSeconds: 1200,
+          beginIndex: 0,
+          endIndex: 2,
+        },
+      ],
+    };
+
+    const session = await OfflineMapService.startNavigation({
+      origin: { latitude: 38.72, longitude: -9.14 },
+      destination: { latitude: 38.73, longitude: -9.12 },
+      destinationTitle: 'North spring',
+      profile: 'pedestrian',
+      regionId,
+    });
+
+    expect(session.route.routingMode).toBe('routed');
+    expect(session.route.routingFallbackReason).toBeUndefined();
+    expect(session.route.geometry).toHaveLength(3);
+    expect(mockNativeRoutingRequests[0]).toMatchObject({
+      profile: 'pedestrian',
+      graphPath: '/ark-test/maps/lisbon-routing.valhalla.tar',
+      origin: { latitude: 38.72, longitude: -9.14 },
+      destination: { latitude: 38.73, longitude: -9.12 },
+    });
+  });
+
+  test('offline navigation preserves native Valhalla failure details when falling back', async () => {
+    const readyGraphUri = 'file:///ark-test/maps/lisbon-routing.valhalla.tar';
+    const regionId = await OfflineMapService.createRegionDownload({
+      name: 'Lisbon failing navigation',
+      bounds: { north: 39, south: 38.4, east: -8.7, west: -9.6 },
+      minZoom: 8,
+      maxZoom: 14,
+      routingPackUrl:
+        'https://github.com/rodrgds/ark/releases/download/routing-v1/pt-lisbon-south.valhalla.tar',
+    });
+    await MapsRepository.updateRegionRouting(regionId, {
+      routingStatus: 'ready',
+      routingProgress: 1,
+      routingGraphUri: readyGraphUri,
+    });
+    mockFiles.set(readyGraphUri, { isDirectory: false, size: 1024, text: 'valhalla' });
+    mockNativeRoutingError = new Error('No suitable edges near destination.');
+
+    const session = await OfflineMapService.startNavigation({
+      origin: { latitude: 38.72, longitude: -9.14 },
+      destination: { latitude: 38.73, longitude: -9.12 },
+      destinationTitle: 'North spring',
+      profile: 'pedestrian',
+      regionId,
+    });
+
+    expect(session.route.routingMode).toBe('direct');
+    expect(session.route.routingFallbackReason).toBe('route_calculation_failed');
+    expect(session.route.routingFallbackMessage).toContain('No suitable edges near destination');
+  });
+
+  test('routing data diagnostics distinguish ready graphs from stale ready rows', async () => {
+    const readyGraphUri = 'file:///ark-test/maps/lisbon-routing.valhalla.tar';
+    const readyRegionId = await OfflineMapService.createRegionDownload({
+      name: 'Lisbon ready navigation',
+      bounds: { north: 39, south: 38.4, east: -8.7, west: -9.6 },
+      minZoom: 8,
+      maxZoom: 14,
+      routingPackUrl:
+        'https://github.com/rodrgds/ark/releases/download/routing-v1/pt-lisbon-south.valhalla.tar',
+    });
+    await MapsRepository.updateRegionRouting(readyRegionId, {
+      routingStatus: 'ready',
+      routingProgress: 1,
+      routingGraphUri: readyGraphUri,
+    });
+    mockFiles.set(readyGraphUri, { isDirectory: false, size: 1024, text: 'valhalla' });
+
+    let status = await OfflineRoutingService.getRoutingDataStatus();
+    expect(status.readyCount).toBe(1);
+    expect(status.readyRegionNames).toEqual(['Lisbon ready navigation']);
+    expect(status.missingGraphCount).toBe(0);
+    expect(status.message).toContain('Navigation data ready');
+
+    mockFiles.delete(readyGraphUri);
+    status = await OfflineRoutingService.getRoutingDataStatus();
+    expect(status.readyCount).toBe(0);
+    expect(status.missingGraphCount).toBe(1);
+    expect(status.message).toContain('graph file is missing');
   });
 
   test('map location service reports denied permission without reading GPS', async () => {
@@ -2666,8 +3127,8 @@ describe('service integration', () => {
 
   test('model manager only selects chat models and llama loads the selected one', async () => {
     await ContentRepository.createPack({
-      id: 'embedding-nomic-v15-q4-k-m',
-      title: 'Nomic Embed Text v1.5 Q4_K_M',
+      id: 'custom-embedding-model-test',
+      title: 'Custom retrieval model',
       description: 'Installed embedding model for retrieval.',
       category: 'AI Models',
       format: 'gguf',
@@ -2702,7 +3163,7 @@ describe('service integration', () => {
     });
 
     await expect(
-      ModelManagerService.setSelectedModel('embedding-nomic-v15-q4-k-m')
+      ModelManagerService.setSelectedModel('custom-embedding-model-test')
     ).rejects.toThrow('Choose a chat model');
     await ModelManagerService.setSelectedModel('custom-model-bravo-test');
     resetLlamaAdapterForTests();
@@ -2775,7 +3236,11 @@ describe('service integration', () => {
     expect(customChatModel?.modelRole).toBe('chat');
     expect(
       (await ModelManagerService.listAvailableEmbeddingModels()).map((model) => model.id)
-    ).toEqual(['executorch-multi-qa-minilm-l6-cos-v1', 'executorch-multi-qa-mpnet-base-dot-v1']);
+    ).toEqual([
+      RAG_HASH_EMBEDDING_MODEL_ID,
+      'executorch-multi-qa-minilm-l6-cos-v1',
+      'executorch-multi-qa-mpnet-base-dot-v1',
+    ]);
     expect(
       (await ModelManagerService.listAvailableChatModels()).map((model) => model.id)
     ).toContain(customChatModel?.id);
@@ -2805,7 +3270,7 @@ describe('service integration', () => {
     );
   });
 
-  test('RAG uses the built-in ExecuTorch text embedding model', async () => {
+  test('RAG uses the battery-safe hash embedding model by default', async () => {
     resetEmbeddingServiceForTests();
     resetLlamaAdapterForTests();
 
@@ -2826,11 +3291,12 @@ describe('service integration', () => {
        WHERE s.source_ref = ?`,
       [note.id]
     );
-    expect(embeddedChunk?.embedding_model_id).toBe('executorch-multi-qa-minilm-l6-cos-v1');
-    expect(embeddedChunk?.embedding_blob?.byteLength).toBe(384 * 4);
+    expect(embeddedChunk?.embedding_model_id).toBe(RAG_HASH_EMBEDDING_MODEL_ID);
+    expect(embeddedChunk?.embedding_blob?.byteLength).toBe(RAG_HASH_EMBEDDING_DIMENSIONS * 4);
 
     const status = await ModelManagerService.getStatus();
     expect(status.adapter).toBe('mock');
+    expect(status.selectedEmbeddingModelId).toBe(null);
   });
 
   test('source search can switch to the stronger ExecuTorch embedding model', async () => {
@@ -2858,10 +3324,76 @@ describe('service integration', () => {
     expect(embeddedChunk?.embedding_blob?.byteLength).toBe(768 * 4);
   });
 
+  test('source search rebuild reports coverage as batches finish', async () => {
+    resetEmbeddingServiceForTests();
+    for (const title of ['Water cache one', 'Water cache two']) {
+      const note = await NotesRepository.create({
+        title,
+        body: 'Store drinking water in clean sealed containers before storms.',
+        tags: ['water'],
+      });
+      await RagService.indexNote(note.id);
+    }
+    await PreferencesService.setSelectedEmbeddingModelId('executorch-multi-qa-mpnet-base-dot-v1');
+    resetEmbeddingServiceForTests();
+    const progress: Array<{ embedded: number; total: number; phase: string }> = [];
+
+    await RagService.rebuildEmbeddingsForActiveModel({
+      batchSize: 1,
+      onProgress: async (event) => {
+        progress.push(event);
+        if (event.phase !== 'embedding') return;
+        const indexed = await testDb.getFirstAsync<{ count: number }>(
+          'SELECT COUNT(*) AS count FROM chunk_embeddings WHERE model_id = ?',
+          [event.modelId]
+        );
+        expect(indexed?.count).toBe(event.embedded);
+      },
+    });
+
+    expect(progress.some((event) => event.phase === 'embedding' && event.embedded === 1)).toBe(
+      true
+    );
+    expect(progress.at(-1)).toMatchObject({ phase: 'complete' });
+  });
+
+  test('source search rebuild keeps the previous primary index if the new model fails', async () => {
+    resetEmbeddingServiceForTests();
+    for (const title of ['Primary search one', 'Primary search two']) {
+      const note = await NotesRepository.create({
+        title,
+        body: 'Keep water purification notes searchable during model changes.',
+        tags: ['water'],
+      });
+      await RagService.indexNote(note.id);
+    }
+    mockExecutorchEmbeddingForwardCalls = 0;
+    mockExecutorchEmbeddingFailAfter = 1;
+    await PreferencesService.setSelectedEmbeddingModelId('executorch-multi-qa-mpnet-base-dot-v1');
+    resetEmbeddingServiceForTests();
+
+    await expect(
+      RagService.rebuildEmbeddingsForActiveModel({ batchSize: 1 })
+    ).rejects.toThrow('Source-search model failed');
+
+    const partialMpnet = await testDb.getFirstAsync<{ count: number }>(
+      "SELECT COUNT(*) AS count FROM chunk_embeddings WHERE model_id = 'executorch-multi-qa-mpnet-base-dot-v1'"
+    );
+    const primaryModels = await testDb.getAllAsync<{ embedding_model_id: string | null }>(
+      'SELECT DISTINCT embedding_model_id FROM rag_chunks'
+    );
+
+    expect(partialMpnet?.count).toBe(1);
+    expect(primaryModels.map((row) => row.embedding_model_id)).toEqual([RAG_HASH_EMBEDDING_MODEL_ID]);
+  });
+
   test('diagnostics reports the actual AI runtime status', async () => {
     let report = await DiagnosticsService.getReport();
     expect(report.aiAdapter).toBe('mock');
     expect(report.aiStatusMessage).toContain('No answer model');
+    expect(report.ftsAvailable).toBe(true);
+    expect(report.routingData.readyCount).toBe(0);
+    expect(report.routingData.message).toContain('No offline navigation data');
 
     await ContentRepository.createPack({
       id: 'custom-model-diagnostics-test',
@@ -2911,18 +3443,4 @@ function mockLocation(latitude: number, longitude: number): MockLocationObject {
     coords: { latitude, longitude, accuracy: 25 },
     timestamp: Date.now(),
   };
-}
-
-async function deriveV2VerifierForTest(password: string, salt: string) {
-  let digest = `${salt}:${password}`;
-  for (let i = 0; i < 5000; i += 1) {
-    const buffer = await crypto.subtle.digest(
-      'SHA-512',
-      new TextEncoder().encode(`${salt}:${i}:${digest}`)
-    );
-    digest = Array.from(new Uint8Array(buffer), (byte) => byte.toString(16).padStart(2, '0')).join(
-      ''
-    );
-  }
-  return `ark-v2:sha512:5000:${digest}`;
 }

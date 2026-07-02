@@ -7,6 +7,7 @@ import { Download, ShieldCheck, Zap } from 'lucide-react-native';
 
 export default function FinishScreen() {
   const completeOnboarding = useAppStore((state) => state.completeOnboarding);
+  const vault = useAppStore((state) => state.vault);
 
   return (
     <OnboardingFrame
@@ -23,8 +24,12 @@ export default function FinishScreen() {
       <View className="gap-4">
         <OnboardingFeature
           icon={ShieldCheck}
-          title="Private by default"
-          description="Your notes and documents stay behind the vault passphrase you set."
+          title={vault?.isInitialized ? 'Vault ready' : 'Fast access'}
+          description={
+            vault?.isInitialized
+              ? 'Secure notes stay behind your passphrase.'
+              : 'Passphrase protection is off for now. Turn it on later in Settings.'
+          }
         />
         <OnboardingFeature
           icon={Zap}

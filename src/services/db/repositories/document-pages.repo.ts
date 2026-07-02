@@ -50,13 +50,13 @@ export class DocumentPagesRepository {
   ) {
     const db = await DatabaseClient.getDb();
     const timestamp = now();
-    await db.withTransactionAsync(async () => {
-      await db.runAsync('DELETE FROM document_pages_fts WHERE document_id = ?', [documentId]);
-      await db.runAsync('DELETE FROM document_pages WHERE document_id = ?', [documentId]);
+    await db.withTransactionAsync(async (tx) => {
+      await tx.runAsync('DELETE FROM document_pages_fts WHERE document_id = ?', [documentId]);
+      await tx.runAsync('DELETE FROM document_pages WHERE document_id = ?', [documentId]);
       for (const page of pages) {
         const id = randomUUID();
         const text = page.text.trim();
-        await db.runAsync(
+        await tx.runAsync(
           `INSERT INTO document_pages
             (id, document_id, page_number, text, extraction_method, confidence, indexed_at, created_at)
            VALUES (?, ?, ?, ?, ?, ?, NULL, ?)`,
@@ -71,7 +71,7 @@ export class DocumentPagesRepository {
           ]
         );
         if (text) {
-          await db.runAsync(
+          await tx.runAsync(
             'INSERT INTO document_pages_fts (page_id, document_id, text, title) VALUES (?, ?, ?, ?)',
             [id, documentId, text, title]
           );
@@ -91,9 +91,9 @@ export class DocumentPagesRepository {
 
   static async deleteForDocument(documentId: string) {
     const db = await DatabaseClient.getDb();
-    await db.withTransactionAsync(async () => {
-      await db.runAsync('DELETE FROM document_pages_fts WHERE document_id = ?', [documentId]);
-      await db.runAsync('DELETE FROM document_pages WHERE document_id = ?', [documentId]);
+    await db.withTransactionAsync(async (tx) => {
+      await tx.runAsync('DELETE FROM document_pages_fts WHERE document_id = ?', [documentId]);
+      await tx.runAsync('DELETE FROM document_pages WHERE document_id = ?', [documentId]);
     });
   }
 }

@@ -3,25 +3,6 @@ import { DatabaseClient } from '@/services/db/client';
 import { sqliteBoolean } from '@/services/db/sqlite-values';
 import type { ContentPack } from '@/types/content';
 
-const LEGACY_PLACEHOLDER_PACK_IDS = [
-  'first-aid-basics',
-  'survival-basics',
-  'emergency-medicine',
-  'portugal-weather-cache',
-  'local-map-region',
-  'simple-wikipedia-zim-placeholder',
-  'wikivoyage-portugal-placeholder',
-  'mushrooms-safety-placeholder',
-];
-
-const REMOVED_STARTER_PACK_IDS = [
-  ...LEGACY_PLACEHOLDER_PACK_IDS,
-  'model-gemma3-1b-it-q4-0',
-  'embedding-nomic-v15-q4-k-m',
-  'embedding-qwen3-06b-q8',
-  'usda-special-forest-products-harvest',
-];
-
 function now() {
   return Date.now();
 }
@@ -99,9 +80,6 @@ export class ContentRepository {
   static async seedStarterPacks() {
     const db = await DatabaseClient.getDb();
     const timestamp = now();
-    for (const id of REMOVED_STARTER_PACK_IDS) {
-      await db.runAsync('DELETE FROM content_packs WHERE id = ?', [id]);
-    }
     for (const pack of STARTER_PACKS) {
       await db.runAsync(
         `INSERT OR IGNORE INTO content_packs

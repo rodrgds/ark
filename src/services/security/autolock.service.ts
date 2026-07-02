@@ -1,8 +1,12 @@
 import { AppState, type AppStateStatus } from 'react-native';
-import { useAuthStore } from '@/stores/auth-store';
-import { SettingsRepository } from '@/services/db/repositories/settings.repo';
+import {
+  getAuthStateForService,
+  lockVaultForService,
+  markVaultActivityForService,
+} from '@/stores/auth-store';
 
 type AppStateListener = (state: AppStateStatus) => void;
+type VaultAutoLockState = { autoLockMinutes: number };
 
 export type AppStateAdapter = {
   addEventListener: (event: string, listener: AppStateListener) => { remove: () => void };
@@ -21,28 +25,27 @@ const appStateListeners = new Set<AppStateListener>();
 
 let backgroundedAt: number | null = null;
 let timer: ReturnType<typeof setTimeout> | null = null;
-let activeVault: { autoLockMinutes: number } | null = null;
+let vaultStateLoader: () => Promise<VaultAutoLockState> = loadVaultState;
 
 const FIFTEEN_SECONDS = 15_000;
 const MAX_RETRY_TIMEOUT_MS = FIFTEEN_SECONDS;
 
 export class AutoLockService {
-  static async touch() {
-    useAuthStore.getState().markActivity();
+  static touch() {
+    markVaultActivityForService();
   }
 
   static async enforce() {
-    const state = useAuthStore.getState();
+    const state = getAuthStateForService();
     if (!state.unlocked) return;
-    const vault = activeVault ?? (await SettingsRepository.getVaultState());
-    activeVault = { autoLockMinutes: vault.autoLockMinutes };
+    const vault = await vaultStateLoader();
     const thresholdMs = vault.autoLockMinutes * 60 * 1000;
 
     if (backgroundedAt != null) {
       const idleMs = Date.now() - backgroundedAt;
       backgroundedAt = null;
       if (idleMs >= thresholdMs) {
-        useAuthStore.getState().lock();
+        lockVaultForService();
         return;
       }
     }
@@ -55,12 +58,12 @@ export class AutoLockService {
       clearTimeout(timer);
       timer = null;
     }
-    const state = useAuthStore.getState();
+    const state = getAuthStateForService();
     if (!state.unlocked) return;
     const elapsed = Date.now() - state.lastActivityAt;
     const remaining = thresholdMs - elapsed;
     if (remaining <= 0) {
-      useAuthStore.getState().lock();
+      lockVaultForService();
       return;
     }
     timer = setTimeout(
@@ -73,14 +76,13 @@ export class AutoLockService {
   }
 
   static onAppStateChange(state: AppStateStatus) {
-    const auth = useAuthStore.getState();
+    const auth = getAuthStateForService();
     if (state === 'active') {
-      backgroundedAt = null;
       if (auth.unlocked) {
         void AutoLockService.enforce();
       }
     } else {
-      if (auth.unlocked) {
+      if (auth.unlocked && backgroundedAt == null) {
         backgroundedAt = Date.now();
       }
       if (timer) {
@@ -121,11 +123,20 @@ export class AutoLockService {
       clearTimeout(timer);
       timer = null;
     }
-    activeVault = null;
     appStateListeners.clear();
+    vaultStateLoader = loadVaultState;
+  }
+
+  static setVaultStateLoaderForTests(loader: (() => Promise<VaultAutoLockState>) | null) {
+    vaultStateLoader = loader ?? loadVaultState;
   }
 
   static get backgroundedAtForTests() {
     return backgroundedAt;
   }
+}
+
+async function loadVaultState() {
+  const { SettingsRepository } = await import('@/services/db/repositories/settings.repo');
+  return SettingsRepository.getVaultState();
 }

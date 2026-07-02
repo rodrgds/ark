@@ -220,9 +220,9 @@ export class NotesRepository {
       updatedAt: now,
       deletedAt: null,
     };
-    await db.withTransactionAsync(async () => {
-      note.sortOrder = await this.getNextSortOrder(db);
-      await db.runAsync(
+    await db.withTransactionAsync(async (tx) => {
+      note.sortOrder = await this.getNextSortOrder(tx);
+      await tx.runAsync(
         `INSERT INTO notes
           (id, title, body, content_html, content_json, content_format, tags_json, theme_id, sort_order, is_favorite, created_at, updated_at, deleted_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, NULL)`,
@@ -240,7 +240,7 @@ export class NotesRepository {
           now,
         ]
       );
-      await this.syncFts(note);
+      await this.syncFtsInDb(tx, note);
     });
     void HapticsService.success();
     this.notify();
@@ -266,8 +266,8 @@ export class NotesRepository {
       updatedAt: Date.now(),
     };
     const db = await DatabaseClient.getDb();
-    await db.withTransactionAsync(async () => {
-      await db.runAsync(
+    await db.withTransactionAsync(async (tx) => {
+      await tx.runAsync(
         `UPDATE notes SET title = ?, body = ?, content_html = ?, content_json = ?, content_format = ?, tags_json = ?, theme_id = ?, is_favorite = ?, updated_at = ?
          WHERE id = ?`,
         [
@@ -284,7 +284,7 @@ export class NotesRepository {
         ]
       );
       if (patchAffectsFts(normalizedPatch)) {
-        await this.syncFtsInDb(db, next);
+        await this.syncFtsInDb(tx, next);
       }
     });
     void HapticsService.selection();
@@ -320,9 +320,9 @@ export class NotesRepository {
     const shouldSyncFts = Array.from(normalizedPatches.values()).some(patchAffectsFts);
     const db = await DatabaseClient.getDb();
 
-    await db.withTransactionAsync(async () => {
+    await db.withTransactionAsync(async (tx) => {
       for (const note of nextNotes) {
-        await db.runAsync(
+        await tx.runAsync(
           `UPDATE notes SET title = ?, body = ?, content_html = ?, content_json = ?, content_format = ?, tags_json = ?, theme_id = ?, is_favorite = ?, updated_at = ?
            WHERE id = ? AND deleted_at IS NULL`,
           [
@@ -339,7 +339,7 @@ export class NotesRepository {
           ]
         );
         if (shouldSyncFts) {
-          await this.syncFtsInDb(db, note);
+          await this.syncFtsInDb(tx, note);
         }
       }
     });
@@ -365,14 +365,14 @@ export class NotesRepository {
     }));
     const db = await DatabaseClient.getDb();
 
-    await db.withTransactionAsync(async () => {
+    await db.withTransactionAsync(async (tx) => {
       for (const note of nextNotes) {
-        await db.runAsync('UPDATE notes SET tags_json = ?, updated_at = ? WHERE id = ?', [
+        await tx.runAsync('UPDATE notes SET tags_json = ?, updated_at = ? WHERE id = ?', [
           JSON.stringify(note.tags),
           note.updatedAt,
           note.id,
         ]);
-        await this.syncFtsInDb(db, note);
+        await this.syncFtsInDb(tx, note);
       }
     });
 
@@ -401,14 +401,14 @@ export class NotesRepository {
     if (!nextNotes.length) return [];
 
     const db = await DatabaseClient.getDb();
-    await db.withTransactionAsync(async () => {
+    await db.withTransactionAsync(async (tx) => {
       for (const note of nextNotes) {
-        await db.runAsync('UPDATE notes SET tags_json = ?, updated_at = ? WHERE id = ?', [
+        await tx.runAsync('UPDATE notes SET tags_json = ?, updated_at = ? WHERE id = ?', [
           JSON.stringify(note.tags),
           note.updatedAt,
           note.id,
         ]);
-        await this.syncFtsInDb(db, note);
+        await this.syncFtsInDb(tx, note);
       }
     });
 
@@ -419,13 +419,13 @@ export class NotesRepository {
 
   static async softDelete(id: string) {
     const db = await DatabaseClient.getDb();
-    await db.withTransactionAsync(async () => {
-      await db.runAsync('UPDATE notes SET deleted_at = ?, updated_at = ? WHERE id = ?', [
+    await db.withTransactionAsync(async (tx) => {
+      await tx.runAsync('UPDATE notes SET deleted_at = ?, updated_at = ? WHERE id = ?', [
         Date.now(),
         Date.now(),
         id,
       ]);
-      await db.runAsync('DELETE FROM notes_fts WHERE note_id = ?', [id]);
+      await tx.runAsync('DELETE FROM notes_fts WHERE note_id = ?', [id]);
     });
     await RagCleanupService.removeSource(`note:${id}`);
     this.notify();
@@ -438,13 +438,13 @@ export class NotesRepository {
     const db = await DatabaseClient.getDb();
     const now = Date.now();
     const placeholders = noteIds.map(() => '?').join(', ');
-    await db.withTransactionAsync(async () => {
-      await db.runAsync(
+    await db.withTransactionAsync(async (tx) => {
+      await tx.runAsync(
         `UPDATE notes SET deleted_at = ?, updated_at = ?
          WHERE deleted_at IS NULL AND id IN (${placeholders})`,
         [now, now, ...noteIds]
       );
-      await db.runAsync(`DELETE FROM notes_fts WHERE note_id IN (${placeholders})`, noteIds);
+      await tx.runAsync(`DELETE FROM notes_fts WHERE note_id IN (${placeholders})`, noteIds);
     });
 
     for (const id of noteIds) {
@@ -458,9 +458,9 @@ export class NotesRepository {
     if (!orderedIds.length) return [];
 
     const db = await DatabaseClient.getDb();
-    await db.withTransactionAsync(async () => {
+    await db.withTransactionAsync(async (tx) => {
       for (const [index, id] of orderedIds.entries()) {
-        await db.runAsync('UPDATE notes SET sort_order = ? WHERE id = ? AND deleted_at IS NULL', [
+        await tx.runAsync('UPDATE notes SET sort_order = ? WHERE id = ? AND deleted_at IS NULL', [
           (index + 1) * 1000,
           id,
         ]);

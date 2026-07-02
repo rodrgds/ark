@@ -19,7 +19,7 @@ export default function SecurityScreen() {
   const hasPassphrase = password.trim().length > 0;
   const passwordMeetsLength = hasPassphrase && password.length >= 8;
   const passwordsMatch = hasPassphrase && password === confirmPassword;
-  const canContinue = passwordMeetsLength && passwordsMatch;
+  const canContinue = !hasPassphrase || (passwordMeetsLength && passwordsMatch);
 
   React.useEffect(() => {
     BiometricsService.getStatus().then((status) =>
@@ -28,6 +28,11 @@ export default function SecurityScreen() {
   }, []);
 
   async function initialize() {
+    if (!hasPassphrase) {
+      const result = await VaultService.disableVaultProtection();
+      if (!result.ok) setError(result.reason ?? 'Unable to skip passphrase protection.');
+      return result.ok;
+    }
     if (!passwordMeetsLength) {
       setError('Use at least 8 characters for the vault passphrase.');
       return false;
@@ -49,7 +54,7 @@ export default function SecurityScreen() {
     <OnboardingFrame
       title="Secure your vault"
       nextHref="/onboarding/permissions"
-      nextLabel="Set Passphrase"
+      nextLabel={hasPassphrase ? 'Set Passphrase' : 'Skip for now'}
       nextDisabled={!canContinue}
       hideBranding
       arkyPose="secure"
@@ -58,8 +63,8 @@ export default function SecurityScreen() {
       onNext={initialize}>
       <View className="gap-4">
         <Text className="text-foreground leading-6">
-          Choose a passphrase you can remember under pressure. Confirm it now; Ark cannot recover
-          private notes or files without it.
+          A passphrase is optional. Turn it on when privacy matters; skip it when fast access and
+          battery life matter more. You can change this later in Settings.
         </Text>
 
         <View className="gap-2">
@@ -128,13 +133,15 @@ export default function SecurityScreen() {
         <Button
           variant={biometrics ? 'default' : 'outline'}
           onPress={() => setBiometrics((value) => !value)}
-          disabled={!available}
+          disabled={!available || !hasPassphrase}
           className="rounded-xl">
           <Text>
-            {available
-              ? biometrics
-                ? 'Biometrics enabled'
-                : 'Enable biometric unlock'
+            {!hasPassphrase
+              ? 'Add a passphrase to use biometrics'
+              : available
+                ? biometrics
+                  ? 'Biometrics enabled'
+                  : 'Enable biometric unlock'
               : 'Biometrics unavailable'}
           </Text>
         </Button>

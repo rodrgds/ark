@@ -36,6 +36,7 @@ const DEFAULT_KDF: Required<Pick<ScryptOpts, 'N' | 'r' | 'p' | 'dkLen'>> = {
 
 export const BACKUP_SETTING_KEYS = [
   'theme.preference',
+  'theme.accentPreference',
   'label.registry',
   'label.colors',
   'notes.sortMode',
@@ -378,9 +379,9 @@ export class BackupService {
     const restoredDocuments = await restoreDocumentFiles(manifest.documents, zip);
     const db = await DatabaseClient.getDb();
 
-    await db.withTransactionAsync(async () => {
+    await db.withTransactionAsync(async (tx) => {
       for (const setting of manifest.settings) {
-        await db.runAsync(
+        await tx.runAsync(
           `INSERT INTO app_settings (key, value, updated_at)
            VALUES (?, ?, ?)
            ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
@@ -389,7 +390,7 @@ export class BackupService {
       }
 
       for (const note of manifest.notes) {
-        await db.runAsync(
+        await tx.runAsync(
           `INSERT INTO notes
             (id, title, body, content_html, content_json, content_format, tags_json, theme_id,
              sort_order, is_favorite, created_at, updated_at, deleted_at)
@@ -422,17 +423,17 @@ export class BackupService {
             note.updatedAt,
           ]
         );
-        await db.runAsync('DELETE FROM notes_fts WHERE note_id = ?', [note.id]);
-        await db.runAsync(
+        await tx.runAsync('DELETE FROM notes_fts WHERE note_id = ?', [note.id]);
+        await tx.runAsync(
           'INSERT INTO notes_fts (note_id, title, body, tags) VALUES (?, ?, ?, ?)',
           [note.id, note.title || 'Untitled note', note.body, note.tags.join(' ')]
         );
       }
 
       for (const document of restoredDocuments) {
-        await db.runAsync('DELETE FROM document_pages_fts WHERE document_id = ?', [document.id]);
-        await db.runAsync('DELETE FROM document_pages WHERE document_id = ?', [document.id]);
-        await db.runAsync(
+        await tx.runAsync('DELETE FROM document_pages_fts WHERE document_id = ?', [document.id]);
+        await tx.runAsync('DELETE FROM document_pages WHERE document_id = ?', [document.id]);
+        await tx.runAsync(
           `INSERT INTO documents
             (id, title, mime_type, local_uri, size_bytes, sha256, source, is_personal,
              encryption_status, extracted_text, ocr_text, ocr_status, ocr_error, indexed_at,
@@ -472,7 +473,7 @@ export class BackupService {
       }
 
       for (const marker of manifest.mapMarkers) {
-        await db.runAsync(
+        await tx.runAsync(
           `INSERT INTO map_markers
             (id, title, description, pin_type, is_emergency, latitude, longitude, photo_uri, icon,
              color, created_at, updated_at)
@@ -507,7 +508,7 @@ export class BackupService {
       }
 
       for (const route of manifest.routes) {
-        await db.runAsync(
+        await tx.runAsync(
           `INSERT INTO routes
             (id, title, points_json, distance_meters, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?, ?)
@@ -529,7 +530,7 @@ export class BackupService {
       }
 
       for (const feed of manifest.rssFeeds) {
-        await db.runAsync(
+        await tx.runAsync(
           `INSERT INTO rss_feeds
             (id, title, url, enabled, last_fetched_at, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -554,7 +555,7 @@ export class BackupService {
 
       const restoredPageDocumentIds = new Set<string>();
       for (const page of manifest.documentPages ?? []) {
-        await db.runAsync(
+        await tx.runAsync(
           `INSERT INTO document_pages
             (id, document_id, page_number, text, extraction_method, confidence, indexed_at,
              created_at)
@@ -580,8 +581,8 @@ export class BackupService {
       }
 
       for (const page of manifest.documentPages ?? []) {
-        await db.runAsync('DELETE FROM document_pages_fts WHERE page_id = ?', [page.id]);
-        await db.runAsync(
+        await tx.runAsync('DELETE FROM document_pages_fts WHERE page_id = ?', [page.id]);
+        await tx.runAsync(
           `INSERT INTO document_pages_fts (page_id, document_id, text, title)
            VALUES (?, ?, ?, ?)`,
           [page.id, page.documentId, page.text, '']
@@ -589,7 +590,7 @@ export class BackupService {
       }
 
       for (const thread of manifest.chatThreads ?? []) {
-        await db.runAsync(
+        await tx.runAsync(
           `INSERT INTO chat_threads
             (id, title, selected_model_id, chat_model_disabled, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?, ?)
@@ -611,7 +612,7 @@ export class BackupService {
       }
 
       for (const message of manifest.chatMessages ?? []) {
-        await db.runAsync(
+        await tx.runAsync(
           `INSERT INTO chat_messages
             (id, thread_id, role, content, citations_json, reasoning, metadata_json,
              deleted_at, created_at)

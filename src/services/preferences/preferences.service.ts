@@ -1,5 +1,5 @@
 import { SettingsRepository } from '@/services/db/repositories/settings.repo';
-import { BATTERY_REDUCE_MODE_KEY, LEGACY_MOTION_ENABLED_KEY } from '@/constants/battery';
+import { BATTERY_REDUCE_MODE_KEY } from '@/constants/battery';
 
 const CHECKLIST_STATE_KEY = 'tools.readiness-checklist';
 const AI_MODEL_PICKER_ENABLED_KEY = 'ai.modelPickerEnabled';
@@ -8,20 +8,38 @@ const AI_SELECTED_EMBEDDING_MODEL_ID_KEY = 'ai.selectedEmbeddingModelId';
 const AI_SELECTED_VOICE_MODEL_ID_KEY = 'ai.selectedVoiceModelId';
 const AI_CHAT_MODEL_DISABLED_KEY = 'ai.chatModelDisabled';
 const DOWNLOADS_WIFI_ONLY_KEY = 'downloads.wifiOnly';
+const TOP_HEADER_ENABLED_KEY = 'layout.topHeaderEnabled';
+
+type TopHeaderListener = (enabled: boolean) => void;
+const topHeaderListeners = new Set<TopHeaderListener>();
 
 export type ReadinessChecklistState = Record<string, boolean>;
 
 export class PreferencesService {
   static async getBatteryReduceModeEnabled() {
     const value = await SettingsRepository.get(BATTERY_REDUCE_MODE_KEY);
-    if (value !== null) return value === 'true';
-
-    const legacyMotionEnabled = await SettingsRepository.get(LEGACY_MOTION_ENABLED_KEY);
-    return legacyMotionEnabled === 'false';
+    return value === 'true';
   }
 
   static async setBatteryReduceModeEnabled(enabled: boolean) {
     await SettingsRepository.set(BATTERY_REDUCE_MODE_KEY, enabled ? 'true' : 'false');
+  }
+
+  static async getTopHeaderEnabled() {
+    const value = await SettingsRepository.get(TOP_HEADER_ENABLED_KEY);
+    return value !== 'false';
+  }
+
+  static async setTopHeaderEnabled(enabled: boolean) {
+    await SettingsRepository.set(TOP_HEADER_ENABLED_KEY, enabled ? 'true' : 'false');
+    for (const listener of topHeaderListeners) listener(enabled);
+  }
+
+  static subscribeTopHeaderEnabled(listener: TopHeaderListener) {
+    topHeaderListeners.add(listener);
+    return () => {
+      topHeaderListeners.delete(listener);
+    };
   }
 
   static async getMotionEnabled() {

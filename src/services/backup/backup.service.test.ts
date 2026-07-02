@@ -98,10 +98,10 @@ class TestSQLiteDatabase {
     return this.db.query(sql).all(...this.normalize(params)) as T[];
   }
 
-  async withTransactionAsync(callback: () => Promise<void>) {
+  async withTransactionAsync(callback: (tx: TestSQLiteDatabase) => Promise<void>) {
     this.db.exec('BEGIN');
     try {
-      await callback();
+      await callback(this);
       this.db.exec('COMMIT');
     } catch (error) {
       this.db.exec('ROLLBACK');
@@ -184,6 +184,7 @@ describe('encrypted Ark backups', () => {
       'label.colors',
       'label.registry',
       'notes.sortMode',
+      'theme.accentPreference',
       'theme.preference',
       'tools.readiness-checklist',
     ]);
@@ -228,16 +229,18 @@ describe('encrypted Ark backups', () => {
 
     const settings = await Promise.all([
       SettingsRepository.get('theme.preference'),
+      SettingsRepository.get('theme.accentPreference'),
       SettingsRepository.get('label.registry'),
       PreferencesService.getReadinessChecklist(),
       PreferencesService.getBatteryReduceModeEnabled(),
       PreferencesService.getWifiOnlyDownloadsEnabled(),
     ]);
     expect(settings[0]).toBe('oled');
-    expect(settings[1]).toContain('water');
-    expect(settings[2]).toEqual({ water: true });
-    expect(settings[3]).toBe(true);
+    expect(settings[1]).toBe('amber');
+    expect(settings[2]).toContain('water');
+    expect(settings[3]).toEqual({ water: true });
     expect(settings[4]).toBe(true);
+    expect(settings[5]).toBe(true);
 
     const documents = await DocumentsRepository.list();
     expect(documents).toHaveLength(1);
@@ -323,6 +326,7 @@ describe('encrypted Ark backups', () => {
 
 async function seedBackupData() {
   await SettingsRepository.set('theme.preference', 'oled');
+  await SettingsRepository.set('theme.accentPreference', 'amber');
   await SettingsRepository.set('label.registry', JSON.stringify(['water']));
   await SettingsRepository.set('label.colors', JSON.stringify({ water: '#0f766e' }));
   await SettingsRepository.set('notes.sortMode', 'manual');

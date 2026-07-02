@@ -7,6 +7,7 @@ import { DownloadManagerService } from '@/services/files/download-manager.servic
 import { AuthoredGuideSeedService } from '@/services/content/authored-guide-seed.service';
 import { MapService } from '@/services/maps/map.service';
 import { useThemeStore } from '@/stores/theme-store';
+import { unlockVaultForService } from '@/stores/auth-store';
 import type { OnboardingState, VaultState } from '@/types/db';
 
 type AppState = {
@@ -56,12 +57,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       SettingsRepository.getOnboardingState(),
       SettingsRepository.getVaultState(),
     ]);
+    if (!vault.isInitialized) unlockVaultForService();
     set({ onboarding, vault });
   },
   completeOnboarding: async () => {
     await SettingsRepository.updateOnboardingState({
       hasSeenIntro: true,
-      hasCreatedVault: true,
       completedAt: Date.now(),
     });
     await get().refresh();
@@ -102,6 +103,7 @@ async function runBoot(
       SettingsRepository.getOnboardingState(),
       SettingsRepository.getVaultState(),
     ]);
+    if (!vault.isInitialized) unlockVaultForService();
     set({
       bootProgress: 1,
       bootStatus: 'Ready',

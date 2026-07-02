@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
-import { __test__ as downloadInternals } from '@/services/files/download-manager.service';
+import { arkDownloadHeaders, arkUserAgent } from '@/services/files/http-headers';
+import { stripFailedImageTags } from '@/services/files/snapshot-html';
 
-const { stripFailedImageTags } = downloadInternals;
 const BASE_URL =
   'https://www.cdc.gov/water-emergency/safety/guidelines-for-personal-hygiene-during-an-emergency.html';
 
@@ -37,5 +37,31 @@ describe('stripFailedImageTags', () => {
     const failed = new Set<string>(['https://example.com/other.png']);
     const out = stripFailedImageTags(html, BASE_URL, failed);
     expect(out).toContain('x.png');
+  });
+});
+
+describe('arkDownloadHeaders', () => {
+  test('uses an Android user agent only for Android downloads', () => {
+    const headers = arkDownloadHeaders({ platform: 'android' });
+
+    expect(headers['User-Agent']).toContain('Android');
+    expect(headers['Accept-Encoding']).toBe('identity');
+  });
+
+  test('does not identify iOS downloads as Android', () => {
+    const userAgent = arkUserAgent('ios');
+
+    expect(userAgent).toContain('iPhone');
+    expect(userAgent).not.toContain('Android');
+  });
+
+  test('preserves snapshot-specific Accept headers', () => {
+    const headers = arkDownloadHeaders({
+      accept: 'text/html,application/xhtml+xml,*/*',
+      platform: 'ios',
+    });
+
+    expect(headers.Accept).toBe('text/html,application/xhtml+xml,*/*');
+    expect(headers['User-Agent']).toContain('iPhone');
   });
 });

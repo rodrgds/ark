@@ -1,10 +1,16 @@
 import { randomUUID } from 'expo-crypto';
+import { DatabaseClient } from '@/services/db/client';
 import { SettingsRepository } from '@/services/db/repositories/settings.repo';
+import { DatabaseEncryptionService } from '@/services/db/encryption.service';
 import { HapticsService } from '@/services/device/haptics.service';
 import { parseOrThrow, vaultPasswordSchema } from '@/lib/validation';
 import { BiometricsService } from '@/services/security/biometrics.service';
 import { KeychainService } from '@/services/security/keychain.service';
-import { useAuthStore } from '@/stores/auth-store';
+import {
+  getAuthStateForService,
+  lockVaultForService,
+  unlockVaultForService,
+} from '@/stores/auth-store';
 import type { VaultUnlockResult } from '@/types/security';
 
 const RATE_LIMIT_TIERS = [
@@ -59,13 +65,53 @@ export class VaultService {
       updatedAt: now,
       lastUnlockedAt: now,
     });
-    useAuthStore.getState().unlock();
+    await SettingsRepository.updateOnboardingState({ hasCreatedVault: true });
+    unlockVaultForService();
+    void HapticsService.success();
+    return { ok: true };
+  }
+
+  static async disableVaultProtection(currentPassword?: string): Promise<VaultUnlockResult> {
+    const vault = await SettingsRepository.getVaultState();
+    if (vault.isInitialized) {
+      const expected = await KeychainService.getPasswordVerifier();
+      if (!vault.kdfSalt || !expected) {
+        return { ok: false, reason: 'Vault verifier is missing.' };
+      }
+      if (!currentPassword) {
+        return { ok: false, reason: 'Current passphrase is required to disable protection.' };
+      }
+      const matches = await KeychainService.verifyPassword(currentPassword, vault.kdfSalt, expected);
+      if (!matches) return { ok: false, reason: 'Current passphrase did not match.' };
+    }
+
+    const now = Date.now();
+    await KeychainService.deletePasswordVerifier();
+    await KeychainService.deleteBiometricToken();
+    await SettingsRepository.updateVaultState({
+      isInitialized: false,
+      passwordHint: null,
+      kdfSalt: null,
+      updatedAt: now,
+      lastUnlockedAt: now,
+      failedAttempts: 0,
+      lockedUntil: null,
+    });
+    await SettingsRepository.updateOnboardingState({
+      hasCreatedVault: false,
+      hasConfiguredBiometrics: false,
+    });
+    unlockVaultForService();
     void HapticsService.success();
     return { ok: true };
   }
 
   static async unlockWithPassword(password: string): Promise<VaultUnlockResult> {
     const vault = await SettingsRepository.getVaultState();
+    if (!vault.isInitialized) {
+      unlockVaultForService();
+      return { ok: true };
+    }
     const now = Date.now();
     if (vault.lockedUntil && vault.lockedUntil > now) {
       return {
@@ -94,23 +140,22 @@ export class VaultService {
       }
       return { ok: false, reason: 'Passphrase did not match.' };
     }
-    if (KeychainService.needsVerifierUpgrade(expected)) {
-      await KeychainService.savePasswordVerifier(
-        await KeychainService.derivePasswordVerifier(password, vault.kdfSalt)
-      );
-    }
     await SettingsRepository.updateVaultState({
       lastUnlockedAt: now,
       failedAttempts: 0,
       lockedUntil: null,
     });
-    useAuthStore.getState().unlock();
+    unlockVaultForService();
     void HapticsService.success();
     return { ok: true };
   }
 
   static async unlockWithBiometrics(): Promise<VaultUnlockResult> {
     const vault = await SettingsRepository.getVaultState();
+    if (!vault.isInitialized) {
+      unlockVaultForService();
+      return { ok: true };
+    }
     const now = Date.now();
     if (vault.lockedUntil && vault.lockedUntil > now) {
       return {
@@ -132,18 +177,18 @@ export class VaultService {
       failedAttempts: 0,
       lockedUntil: null,
     });
-    useAuthStore.getState().unlock();
+    unlockVaultForService();
     void HapticsService.success();
     return { ok: true };
   }
 
   static lock() {
-    useAuthStore.getState().lock();
+    lockVaultForService();
     void HapticsService.selection();
   }
 
   static isUnlocked() {
-    return useAuthStore.getState().unlocked;
+    return getAuthStateForService().unlocked;
   }
 
   static async changePassword(input: {
@@ -162,19 +207,36 @@ export class VaultService {
     }
     const vault = await SettingsRepository.getVaultState();
     const expected = await KeychainService.getPasswordVerifier();
-    if (!vault.kdfSalt || !expected) return { ok: false, reason: 'Vault is not initialized.' };
+    if (!vault.isInitialized || !vault.kdfSalt || !expected) {
+      return { ok: false, reason: 'Passphrase protection is off.' };
+    }
     const currentMatches = await KeychainService.verifyPassword(
       input.currentPassword,
       vault.kdfSalt,
       expected
     );
     if (!currentMatches) return { ok: false, reason: 'Current passphrase did not match.' };
-    const next = await KeychainService.derivePasswordVerifier(nextPassword, vault.kdfSalt);
+    const nextSalt = await KeychainService.generateSalt();
+    const next = await KeychainService.derivePasswordVerifier(nextPassword, nextSalt);
+    try {
+      await DatabaseEncryptionService.rotateDatabaseKey(await DatabaseClient.getDb());
+    } catch {
+      return {
+        ok: false,
+        reason: 'Unable to rotate the encrypted database key. Passphrase was not changed.',
+      };
+    }
     await KeychainService.savePasswordVerifier(next);
-    await SettingsRepository.updateVaultState({
-      passwordHint: input.passwordHint?.trim() || vault.passwordHint,
-      updatedAt: Date.now(),
-    });
+    try {
+      await SettingsRepository.updateVaultState({
+        passwordHint: input.passwordHint?.trim() || vault.passwordHint,
+        kdfSalt: nextSalt,
+        updatedAt: Date.now(),
+      });
+    } catch (error) {
+      await KeychainService.savePasswordVerifier(expected);
+      throw error;
+    }
     void HapticsService.success();
     return { ok: true };
   }
@@ -188,6 +250,10 @@ export class VaultService {
       await KeychainService.deleteBiometricToken();
       await SettingsRepository.updateOnboardingState({ hasConfiguredBiometrics: false });
       return { ok: true };
+    }
+    const vault = await SettingsRepository.getVaultState();
+    if (!vault.isInitialized) {
+      return { ok: false, reason: 'Turn on passphrase protection before enabling biometrics.' };
     }
     const status = await BiometricsService.getStatus();
     if (!status.available || !status.enrolled) {

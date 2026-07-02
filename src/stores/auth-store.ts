@@ -1,17 +1,37 @@
-import { create } from 'zustand';
+import { useStore } from 'zustand';
+import { createStore } from 'zustand/vanilla';
 
 type AuthState = {
   unlocked: boolean;
   lastActivityAt: number;
-  unlock: () => void;
-  lock: () => void;
-  markActivity: () => void;
 };
 
-export const useAuthStore = create<AuthState>((set) => ({
+const authStore = createStore<AuthState>(() => ({
   unlocked: false,
   lastActivityAt: Date.now(),
-  unlock: () => set({ unlocked: true, lastActivityAt: Date.now() }),
-  lock: () => set({ unlocked: false }),
-  markActivity: () => set({ lastActivityAt: Date.now() }),
 }));
+
+export function useAuthStore<T>(selector: (state: AuthState) => T) {
+  return useStore(authStore, selector);
+}
+
+export function getAuthStateForService() {
+  return authStore.getState();
+}
+
+export function unlockVaultForService() {
+  authStore.setState({ unlocked: true, lastActivityAt: Date.now() });
+}
+
+export function lockVaultForService() {
+  authStore.setState({ unlocked: false });
+}
+
+export function markVaultActivityForService() {
+  if (!authStore.getState().unlocked) return;
+  authStore.setState({ lastActivityAt: Date.now() });
+}
+
+export function setAuthStateForTests(patch: Partial<AuthState>) {
+  authStore.setState(patch);
+}

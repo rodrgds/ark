@@ -7,6 +7,8 @@ import { RagService } from '@/services/ai/rag.service';
 import { FileDigestService } from '@/services/files/file-digest.service';
 import { DownloadNotificationService } from '@/services/files/download-notifications.service';
 import { ZimHeaderParser } from '@/services/content/zim-header';
+import { arkDownloadHeaders } from '@/services/files/http-headers';
+import { stripFailedImageTags } from '@/services/files/snapshot-html';
 import type { AppDirectory } from '@/constants/app';
 import type { DownloadKind, DownloadRow } from '@/types/downloads';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -32,13 +34,6 @@ type DownloadRunInput = {
   expectedChecksumSha256?: string | null;
   resumeData?: string | null;
   expectedSizeBytes?: number | null;
-};
-
-const DOWNLOAD_HEADERS = {
-  Accept: 'application/pdf,application/zim,application/octet-stream,*/*',
-  'Accept-Encoding': 'identity',
-  'User-Agent':
-    'Mozilla/5.0 (Linux; Android 14; Ark Offline) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125 Mobile Safari/537.36',
 };
 
 const MAX_ACTIVE_DOWNLOADS = 3;
@@ -227,21 +222,6 @@ function rewriteSnapshotContent(html: string, baseUrl: string, imageMap: Map<str
     }
   );
 }
-
-function stripFailedImageTags(html: string, baseUrl: string, failedUrls: Set<string>): string {
-  if (!failedUrls.size) return html;
-  return html.replace(/<img\b[^>]*>/gi, (full) => {
-    const srcMatch = full.match(/\bsrc=(["'])(.*?)\1/i);
-    if (!srcMatch) return full;
-    const absoluteUrl = toAbsoluteUrl(srcMatch[2] ?? '', baseUrl);
-    if (absoluteUrl && failedUrls.has(absoluteUrl)) {
-      return '';
-    }
-    return full;
-  });
-}
-
-export const __test__ = { stripFailedImageTags };
 
 function wrapSnapshotHtml(input: { title: string; sourceUrl: string; body: string }) {
   return `<!doctype html>
@@ -631,7 +611,7 @@ export class DownloadManagerService {
         {
           md5: true,
           sessionType: FileSystem.FileSystemSessionType.BACKGROUND,
-          headers: DOWNLOAD_HEADERS,
+          headers: arkDownloadHeaders(),
         },
         (event) => {
           const totalBytes = event.totalBytesExpectedToWrite || null;
@@ -782,8 +762,7 @@ export class DownloadManagerService {
 
       const response = await fetch(input.sourceUrl, {
         headers: {
-          ...DOWNLOAD_HEADERS,
-          Accept: SNAPSHOT_ACCEPT_HEADER,
+          ...arkDownloadHeaders({ accept: SNAPSHOT_ACCEPT_HEADER }),
         },
         signal: controller.signal,
       });
@@ -816,7 +795,7 @@ export class DownloadManagerService {
         currentAssetDownload = FileSystem.createDownloadResumable(imageUrl, destinationUri, {
           md5: false,
           sessionType: FileSystem.FileSystemSessionType.BACKGROUND,
-          headers: DOWNLOAD_HEADERS,
+          headers: arkDownloadHeaders(),
         });
 
         try {
@@ -996,8 +975,7 @@ export class DownloadManagerService {
 
       const response = await fetch(input.sourceUrl, {
         headers: {
-          ...DOWNLOAD_HEADERS,
-          Accept: SNAPSHOT_ACCEPT_HEADER,
+          ...arkDownloadHeaders({ accept: SNAPSHOT_ACCEPT_HEADER }),
         },
         signal: controller.signal,
       });
@@ -1034,7 +1012,7 @@ export class DownloadManagerService {
         currentAssetDownload = FileSystem.createDownloadResumable(imageUrl, destinationUri, {
           md5: false,
           sessionType: FileSystem.FileSystemSessionType.BACKGROUND,
-          headers: DOWNLOAD_HEADERS,
+          headers: arkDownloadHeaders(),
         });
 
         try {

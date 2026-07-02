@@ -1,5 +1,4 @@
 export const BATTERY_REDUCE_MODE_KEY = 'battery.reduceModeEnabled';
-export const LEGACY_MOTION_ENABLED_KEY = 'motion.enabled';
 
 export const BATTERY_SENSOR_INTERVALS_MS = {
   compass: { normal: 100, reduced: 500 },

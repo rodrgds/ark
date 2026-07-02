@@ -29,7 +29,7 @@ Notifications.setNotificationHandler({
 
 export class DownloadNotificationService {
   static async configure() {
-    await ensureNotificationsReady();
+    await ensureNotificationChannel();
   }
 
   static async progress(input: DownloadNotificationInput) {
@@ -100,16 +100,7 @@ async function ensureNotificationsReady() {
     permissionPromise = (async () => {
       const platformOS = await getPlatformOS();
       if (platformOS === 'web') return false;
-      if (platformOS === 'android') {
-        await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
-          name: 'Downloads',
-          description: 'Progress for offline maps, wiki archives, PDFs, and models.',
-          importance: Notifications.AndroidImportance.LOW,
-          sound: null,
-          enableVibrate: false,
-          showBadge: false,
-        }).catch(() => undefined);
-      }
+      await ensureNotificationChannel(platformOS);
       const existing = await Notifications.getPermissionsAsync().catch(() => null);
       if (existing?.granted) return true;
       const requested = await Notifications.requestPermissionsAsync().catch(() => null);
@@ -117,6 +108,19 @@ async function ensureNotificationsReady() {
     })();
   }
   return permissionPromise;
+}
+
+async function ensureNotificationChannel(platformOS?: string) {
+  const os = platformOS ?? (await getPlatformOS());
+  if (os !== 'android') return;
+  await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
+    name: 'Downloads',
+    description: 'Progress for offline maps, wiki archives, PDFs, and models.',
+    importance: Notifications.AndroidImportance.LOW,
+    sound: null,
+    enableVibrate: false,
+    showBadge: false,
+  }).catch(() => undefined);
 }
 
 async function getPlatformOS() {

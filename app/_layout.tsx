@@ -1,13 +1,13 @@
 import '../polyfills';
 import '@/global.css';
 
-import { NAV_THEME } from '@/lib/theme';
+import { getNavigationTheme } from '@/lib/theme';
 import { BottomSheetProvider } from '@swmansion/react-native-bottom-sheet';
 import { ThemeProvider } from '@react-navigation/native';
 import { initExecutorch } from 'react-native-executorch';
 import { ExpoResourceFetcher } from 'react-native-executorch-expo-resource-fetcher';
 import { PortalHost } from '@rn-primitives/portal';
-import { Stack } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as React from 'react';
@@ -46,6 +46,7 @@ export default function RootLayout() {
   const booting = useAppStore((state) => state.booting);
   const error = useAppStore((state) => state.error);
   const effectiveTheme = useThemeStore((state) => state.effectiveTheme);
+  const accentPreference = useThemeStore((state) => state.accentPreference);
 
   React.useEffect(() => {
     boot();
@@ -100,7 +101,11 @@ export default function RootLayout() {
     <GestureHandlerRootView className="bg-background flex-1">
       <SafeAreaProvider>
         <ArkKeyboardProvider>
-          <ThemedNavigator effectiveTheme={effectiveTheme} error={error} />
+          <ThemedNavigator
+            accentPreference={accentPreference}
+            effectiveTheme={effectiveTheme}
+            error={error}
+          />
         </ArkKeyboardProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
@@ -108,44 +113,92 @@ export default function RootLayout() {
 }
 
 function ThemedNavigator({
+  accentPreference,
   effectiveTheme,
   error,
 }: {
-  effectiveTheme: 'oled' | 'dark' | 'light';
+  accentPreference: ReturnType<typeof useThemeStore.getState>['accentPreference'];
+  effectiveTheme: ReturnType<typeof useThemeStore.getState>['effectiveTheme'];
   error: string | null;
 }) {
-  const themeColors = React.useMemo(() => NAV_THEME[effectiveTheme].colors, [effectiveTheme]);
+  const navTheme = React.useMemo(
+    () => getNavigationTheme(effectiveTheme, accentPreference),
+    [accentPreference, effectiveTheme]
+  );
+  const themeColors = navTheme.colors;
+  useDownloadNotificationNavigation();
 
   return (
-    <ThemeProvider value={NAV_THEME[effectiveTheme]}>
+    <ThemeProvider value={navTheme}>
       <BottomSheetProvider>
         <SheetAlertProvider>
-          <StatusBar style={effectiveTheme === 'light' ? 'dark' : 'light'} />
-          <Stack
-            screenOptions={{
-              headerStyle: { backgroundColor: themeColors.background },
-              headerTintColor: themeColors.text,
-              contentStyle: { backgroundColor: themeColors.background },
-            }}>
-            <Stack.Screen name="index" options={{ headerShown: false }} />
-            <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="chat" options={{ headerShown: false }} />
-            <Stack.Screen name="tools" options={{ headerShown: false }} />
-            <Stack.Screen name="content" options={{ headerShown: false }} />
-            <Stack.Screen name="documents" options={{ headerShown: false }} />
-            <Stack.Screen name="library" options={{ headerShown: false }} />
-            <Stack.Screen name="easter-egg" options={{ headerShown: false }} />
-            <Stack.Screen name="notes" options={{ headerShown: false }} />
-          </Stack>
-          {error ? (
-            <View className="bg-destructive p-3">
-              <Text className="text-white">{error}</Text>
-            </View>
-          ) : null}
-          <PortalHost />
+          <View className="flex-1" onTouchStart={AutoLockService.touch}>
+            <StatusBar style={effectiveTheme === 'light' ? 'dark' : 'light'} />
+            <Stack
+              screenOptions={{
+                headerStyle: { backgroundColor: themeColors.background },
+                headerTintColor: themeColors.text,
+                contentStyle: { backgroundColor: themeColors.background },
+              }}>
+              <Stack.Screen name="index" options={{ headerShown: false }} />
+              <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="chat" options={{ headerShown: false }} />
+              <Stack.Screen name="tools" options={{ headerShown: false }} />
+              <Stack.Screen name="content" options={{ headerShown: false }} />
+              <Stack.Screen name="documents" options={{ headerShown: false }} />
+              <Stack.Screen name="library" options={{ headerShown: false }} />
+              <Stack.Screen name="easter-egg" options={{ headerShown: false }} />
+              <Stack.Screen name="notes" options={{ headerShown: false }} />
+            </Stack>
+            {error ? (
+              <View className="bg-destructive p-3">
+                <Text className="text-white">{error}</Text>
+              </View>
+            ) : null}
+            <PortalHost />
+          </View>
         </SheetAlertProvider>
       </BottomSheetProvider>
     </ThemeProvider>
   );
+}
+
+function useDownloadNotificationNavigation() {
+  React.useEffect(() => {
+    let subscription: { remove: () => void } | null = null;
+    const handled = new Set<string>();
+
+    function handleResponse(response: {
+      notification?: {
+        request?: {
+          identifier?: string;
+          content?: { data?: Record<string, unknown> };
+        };
+      };
+    } | null) {
+      const request = response?.notification?.request;
+      const data = request?.content?.data;
+      if (!data?.downloadId) return;
+      const key = request?.identifier ?? String(data.downloadId);
+      if (handled.has(key)) return;
+      handled.add(key);
+      const downloadId = String(data.downloadId);
+      router.push({
+        pathname: '/(tabs)/settings',
+        params: { tab: 'downloads', downloadId },
+      });
+    }
+
+    void import('expo-notifications')
+      .then((Notifications) => {
+        subscription = Notifications.addNotificationResponseReceivedListener(handleResponse);
+        void Notifications.getLastNotificationResponseAsync?.()
+          .then(handleResponse)
+          .catch(() => undefined);
+      })
+      .catch(() => undefined);
+
+    return () => subscription?.remove();
+  }, []);
 }

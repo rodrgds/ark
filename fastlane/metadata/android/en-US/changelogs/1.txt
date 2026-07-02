@@ -1,0 +1,1 @@
+Initial open-source beta metadata for Ark. Core app flows include onboarding, offline library, maps, notes, local search, downloads, field tools, and release-candidate device testing paths.

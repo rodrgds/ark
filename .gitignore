@@ -21,8 +21,8 @@ web-build/
 *.p12
 *.key
 *.mobileprovision
-android/
-ios/
+/android/
+/ios/
 !modules/*/android/
 !modules/*/android/**
 !modules/*/ios/

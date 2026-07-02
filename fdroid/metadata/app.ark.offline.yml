@@ -1,0 +1,32 @@
+Categories:
+  - Navigation
+  - Science & Education
+License: MIT
+AuthorName: Rodrigo Dias
+SourceCode: https://github.com/rodrgds/ark
+IssueTracker: https://github.com/rodrgds/ark/issues
+Changelog: https://github.com/rodrgds/ark/releases
+AutoName: Ark
+Summary: Offline maps, knowledge, notes, and field tools.
+Description: |-
+  Ark is an offline-first survival computer for mobile.
+
+  It combines downloadable maps, emergency knowledge packs, secure notes and documents,
+  local source search, optional on-device AI, cached feeds and weather, recorded tracks,
+  and practical sensor tools.
+
+  Ark has no backend account system, no ads, no analytics, and no cloud sync.
+
+RepoType: git
+Repo: https://github.com/rodrgds/ark.git
+Builds:
+  - versionName: 1.0.0
+    versionCode: 1
+    commit: TODO_TAG_FOR_FIRST_FDROID_RC
+    disable: Requires a real fdroidserver scanner pass after the first tagged Android release candidate.
+    subdir: android
+    gradle: yes
+MaintainerNotes: |-
+  Draft metadata only. Ark is an Expo/React Native app and must be prebuilt before the
+  fdroiddata build block can be finalized. Expected scanner hot spots are native Expo/RN
+  artifacts, llama.rn, ExecuTorch, MapLibre, Skia, valhalla-mobile, and Kiwix/ZIM artifacts.

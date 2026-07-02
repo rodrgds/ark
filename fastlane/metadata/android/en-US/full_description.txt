@@ -1,0 +1,12 @@
+Ark is an offline-first survival computer for Android.
+
+It helps you prepare useful phone data before connectivity fails: offline maps, routing packs, first-aid and survival references, ZIM knowledge archives, private notes, imported documents, cached weather and RSS, local source search, and practical field tools.
+
+Core data stays on device unless you export or share it. Ark has no backend account system, no ads, no analytics, and no cloud sync.
+
+Current beta limitations:
+
+- Native-heavy behavior still needs release-candidate device proof.
+- Local AI requires installed model files and a compatible native build.
+- Road routing requires downloaded routing packs for the selected region.
+- Ark is not a substitute for emergency services, medical professionals, official local instructions, or verified field training.

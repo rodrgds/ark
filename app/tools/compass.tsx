@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { getMapPinMeta } from '@/constants/map-pins';
-import { NAV_COLORS } from '@/constants/theme';
+import type { ThemeColors } from '@/constants/theme';
 import { useBatteryReduceMode } from '@/hooks/use-battery-reduce-mode';
 import { useMotionEnabled } from '@/hooks/use-motion-enabled';
 import { useHeadingStability } from '@/hooks/use-sensor-subscription';
@@ -41,7 +41,7 @@ import Svg, {
   Text as SvgText,
 } from 'react-native-svg';
 
-type ToolPalette = (typeof NAV_COLORS)[keyof typeof NAV_COLORS];
+type ToolPalette = ThemeColors;
 
 const W = Dimensions.get('window').width;
 const SIZE = W - 48;
@@ -340,8 +340,7 @@ const ArcOverlay = React.memo(function ArcOverlay({
 });
 
 export default function CompassTool() {
-  const theme = useThemeStore((state) => state.effectiveTheme);
-  const palette = NAV_COLORS[theme];
+  const palette = useThemeStore((state) => state.colors);
   const setStoreHeading = useSensorStore((state) => state.setHeading);
   const reduceModeEnabled = useBatteryReduceMode();
   const motionEnabled = useMotionEnabled();

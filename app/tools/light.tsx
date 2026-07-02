@@ -1,6 +1,5 @@
 import { Screen } from '@/components/layout/screen';
 import { Text } from '@/components/ui/text';
-import { NAV_COLORS } from '@/constants/theme';
 import { useMotionEnabled } from '@/hooks/use-motion-enabled';
 import { useSensorSubscription } from '@/hooks/use-sensor-subscription';
 import { hexToRgba } from '@/lib/colors';
@@ -46,7 +45,7 @@ const RAY_ANGLES = Array.from({ length: RAY_COUNT }, (_, i) => (i * 360) / RAY_C
 
 export default function LightTool() {
   const theme = useThemeStore((state) => state.effectiveTheme);
-  const palette = NAV_COLORS[theme];
+  const palette = useThemeStore((state) => state.colors);
   const motionEnabled = useMotionEnabled();
   const setStoreLux = useSensorStore((state) => state.setLux);
   const { available, value: lux } = useSensorSubscription(LightMeterService, setStoreLux);

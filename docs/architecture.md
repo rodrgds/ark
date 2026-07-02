@@ -49,7 +49,7 @@ AI output must remain caveated. It is useful for offline search and summarizatio
 
 ## Maps and routing
 
-Map surfaces use MapLibre when the native module exists. Offline map packs are managed by app services, not assumed to be globally available. Routing packs are separate downloadable artifacts and may be larger than map style/tile data. Android routing uses the local `ark-routing` module; iOS routing remains a future native path unless documented otherwise.
+Map surfaces use MapLibre when the native module exists. Offline map packs are managed by app services, not assumed to be globally available. Routing packs are separate downloadable artifacts and may be larger than map style/tile data. Android and iOS routing use the local `ark-routing` module, with Android linked through the Maven `valhalla-mobile` artifact. iOS routing links valhalla-mobile through the app target and calls the ObjC wrapper dynamically from ArkRouting to avoid duplicate SwiftPM symbols in the static pod. When road routing cannot run, Ark keeps a direct-line route active and stores the fallback reason on the route so the UI can distinguish missing maps, missing navigation data, missing native engine, and route-calculation failures.
 
 ## Native-heavy features
 

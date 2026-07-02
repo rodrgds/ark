@@ -10,8 +10,8 @@ Use this checklist before sharing Ark publicly on Reddit, Hacker News, app direc
 - [x] Contributing guide.
 - [x] Security policy.
 - [x] Code of conduct.
-- [ ] Real screenshots committed and linked from README.
-- [ ] Issue templates enabled.
+- [x] Core screenshots committed and linked from README.
+- [x] Issue templates enabled.
 - [ ] First GitHub release/tag created.
 - [ ] Release APK attached or installation path documented.
 
@@ -32,15 +32,12 @@ Avoid claiming:
 
 ## Screenshots
 
-Commit screenshots under `docs/screenshots/` before linking them from the README:
+Core screenshots live under `docs/screenshots/` and are linked from the README:
 
-- `home.png`
 - `library.png`
 - `map.png`
 - `chat.png`
 - `notes.png`
-- `tools.png`
-- `settings.png`
 
 See `docs/screenshots.md` for exact capture notes.
 
@@ -63,7 +60,7 @@ Before tagging a beta:
 - [ ] Content pack download, pause, resume, cancel, delete, and open work.
 - [ ] Low-storage path does not corrupt download state.
 - [ ] Map renders in dev build and downloaded region survives restart/airplane mode.
-- [ ] Routing pack downloads and can calculate at least one local route on Android.
+- [ ] Routing pack downloads, Diagnostics shows navigation data ready, and Android can calculate at least one local route.
 - [ ] RSS/weather refresh fails gracefully offline.
 - [ ] AI chat works with fallback and with one installed GGUF model on a target Android device.
 - [ ] Diagnostics accurately reports unavailable native modules.

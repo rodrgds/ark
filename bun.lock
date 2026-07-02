@@ -21,6 +21,7 @@
         "ai": "^6.0.191",
         "ark-ocr": "./modules/ark-ocr",
         "ark-routing": "./modules/ark-routing",
+        "ark-system-colors": "./modules/ark-system-colors",
         "ark-zim": "./modules/ark-zim",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
@@ -905,6 +906,8 @@
     "ark-ocr": ["ark-ocr@file:modules/ark-ocr", { "peerDependencies": { "expo": "*", "expo-modules-core": "*" } }],
 
     "ark-routing": ["ark-routing@file:modules/ark-routing", { "dependencies": { "expo-modules-core": "*" }, "devDependencies": { "expo": "*" } }],
+
+    "ark-system-colors": ["ark-system-colors@file:modules/ark-system-colors", { "dependencies": { "expo-modules-core": "*" }, "devDependencies": { "expo": "*" } }],
 
     "ark-zim": ["ark-zim@file:modules/ark-zim", { "peerDependencies": { "expo": "*", "expo-modules-core": "*", "react-native": "*" } }],
 

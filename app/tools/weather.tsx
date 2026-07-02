@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { BATTERY_POLL_INTERVALS_MS } from '@/constants/battery';
-import { NAV_COLORS } from '@/constants/theme';
+import type { ThemeColors } from '@/constants/theme';
 import { useBatteryReduceMode } from '@/hooks/use-battery-reduce-mode';
 import {
   type CachedForecastDay,
@@ -39,7 +39,7 @@ import {
 import Svg, { Circle, Line, Polyline, Rect } from 'react-native-svg';
 
 type CachedWeather = Awaited<ReturnType<typeof WeatherCacheService.getLatest>>;
-type WeatherPalette = (typeof NAV_COLORS)[keyof typeof NAV_COLORS];
+type WeatherPalette = ThemeColors;
 
 const FORECAST_DAYS = 14;
 
@@ -61,7 +61,7 @@ export default function WeatherTool() {
   const [message, setMessage] = React.useState<string | null>(null);
   const theme = useThemeStore((state) => state.effectiveTheme);
   const reduceModeEnabled = useBatteryReduceMode();
-  const palette = NAV_COLORS[theme];
+  const palette = useThemeStore((state) => state.colors);
 
   React.useEffect(() => {
     let active = true;

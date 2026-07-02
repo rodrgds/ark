@@ -9,7 +9,7 @@ Ark is designed as a local-first app:
 - No account is required for core use.
 - No backend is required for app launch.
 - Notes, imported documents, saved spots, routes, settings, RSS cache, download metadata, and indexes are stored locally.
-- Backups are user-initiated local files.
+- Backups are user-initiated encrypted `.arkbackup` files.
 - AI/RAG is designed to work over local files when native model support is available.
 
 ## Network access

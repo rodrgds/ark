@@ -4,23 +4,26 @@
 
 ## Recent changes
 
-- Offline navigation wiring: `startPresetRegionDownload` accepts `includeNavigation` (default true) and downloads the routing pack alongside map tiles when a region's catalog entry carries `routingPackUrl`. `OfflineRoutingService.downloadRoutingPack` is now idempotent, gates re-entry with `activeRoutingRegionId`, verifies SHA-256 (when advertised), guards 0-byte downloads, posts `DownloadNotificationService` progress/terminal events, and reuses an existing ready graph. `OfflineMapService.deleteRegion` removes the local routing graph too. Portugal Mainland catalog entries (`pt-portugal-overview`, `pt-north-centre`, `pt-lisbon-south`) advertise Valhalla `.tar` packs hosted on GitHub Releases under `routing-v1` and carry the published SHA-256 + actual built size. `map-storage.ts` gained `presetIncludesNavigation`, `presetTotalSizeMb`, `formatPresetTotalSize`, and `routingStatusLabel`; Settings Offline Maps card, Onboarding maps badges, and the map screen MissingRegionPrompt now show "Map + navigation" totals and routing-status lines. `modules/ark-routing/README.md` documents the GitHub Releases static-hosting model and the `.github/workflows/routing-packs.yml` rebuild flow (manual + `routing-v*` tag push).
+- v1-prep Android feedback pass: `PRODUCT.md`, `DESIGN.md`, and `docs/v1-prep-plan.md` now capture product/design context and the remaining device-test checklist. Autolock now refreshes activity globally from the root layout, checks the latest vault timeout on each enforcement, and has focused coverage. Failed DB boot promises reset so the root "Try again" path can retry. The app-bar vault control now switches from Lock to Unlock and opens the vault unlock path while locked. Content reader header actions were consolidated into a More bottom sheet, TTS now suspends the audio context on stop/finish, TTS controls distinguish Preparing from active playback across guide/document/ZIM/web readers, reader WebView navigation is origin-limited, and curated PDF chapter targets were corrected against physical PDF pages with regression coverage for Hesperian First Aid, Where There Is No Doctor, and FM 21-76. ZIM articles now use a dark-reader wrapper for tables/infoboxes, support in-reader back navigation, and group read aloud plus plaintext sharing behind an Article Actions sheet. Note editor actions now export the current note as PDF or plaintext. Chat Markdown links bare `[1]` citation markers when a citation target exists, and chat process/progress details now collapse behind a short Steps/Sources/Reasoning status row. The document detail screen now keeps Open file as the primary action, groups read aloud/rename/delete in a Document Actions sheet, and keeps OCR retry/status in one offline-search panel. AI Settings now shows current answer/search/install status up front and moves custom GGUF/import URL inputs into an Add answer model sheet. Source-search model rebuilds now update coverage incrementally and keep the previous primary index if a switch fails. Appearance settings now include a real System theme preference plus persisted accent swatches that update Uniwind and navigation colors. Map search now merges local saved data with cached/online Photon place results using a separate `place` result kind and labels them as Online place or Cached place; reverse geocoding reuses cached names and falls back to the bundled map catalog offline so known regions do not degrade to "this area"; map active-download polling includes queued packs; dynamic missing-region prompt state resets on viewport changes. Download notifications deep-link to Settings > Advanced > Downloads and open a focused details/recovery sheet for the selected download, map, or navigation resource. Routing unavailable copy no longer says "install a dev build" on production builds, route fallback now records the direct-line reason, routing graph downloads preflight storage using catalog graph sizes, and Diagnostics now separates routing engine availability from local navigation-data readiness/missing graph files. AI Settings now labels source search as Fast/Thorough and hides the hash fallback unless Battery Reduce Mode is active. RAG embedding rebuild, starter seeding, and search/citation ranking moved from `rag.service.ts` into `src/services/ai/rag/`.
+- CI now includes an iOS simulator native build lane. `scripts/ios-simulator-build.sh` regenerates the iOS project when requested, installs CocoaPods, and runs unsigned `xcodebuild`; `.github/workflows/ci.yml` calls it on macOS as `bun run ios:build:sim`.
+- Security cleanup: vault passphrase protection is optional during onboarding and can be turned on/off later in Settings > Security. When enabled, vault password verifiers default to `ark-v4:argon2id` via `@noble/hashes` (`t=2`, `m=19456 KiB`, `p=1`, `dkLen=32`), are saved with `SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY`, compare without normal string equality, and rotate salt on passphrase changes. SQLCipher database encryption is optional too: fresh installs open plaintext by default for fast/battery-frugal access, Security can encrypt or return to plaintext when SQLCipher is available, and Diagnostics separates runtime availability from actual DB state (`Encrypted database`, `Plaintext database`, `Not enforced in this build`, or `Needs inspection`). Encrypted DBs use a purpose-derived SecureStore device root and rotate that root during vault passphrase changes. Real-device proof of encrypted/plaintext migration and rekey remains unresolved.
+- Offline navigation wiring: `startPresetRegionDownload` accepts `includeNavigation` (default true) and downloads the routing pack alongside map tiles when a region's catalog entry carries `routingPackUrl`. `OfflineRoutingService.downloadRoutingPack` is now idempotent, gates re-entry with `activeRoutingRegionId`, verifies SHA-256 (when advertised), guards 0-byte downloads, posts `DownloadNotificationService` progress/terminal events, and reuses an existing ready graph. `OfflineMapService.deleteRegion` removes the local routing graph too. Portugal Mainland catalog entries (`pt-portugal-overview`, `pt-north-centre`, `pt-lisbon-south`) advertise Valhalla `.tar` packs hosted on GitHub Releases under `routing-v1` and carry the published SHA-256 + actual built size. `map-storage.ts` gained `presetIncludesNavigation`, `presetTotalSizeMb`, `formatPresetTotalSize`, and `routingStatusLabel`; Settings Offline Maps card, Onboarding maps badges, and the map screen MissingRegionPrompt now show "Map + navigation" totals and routing-status lines. `modules/ark-routing/README.md` documents the GitHub Releases static-hosting model and the `.github/workflows/routing-packs.yml` rebuild flow (manual + `routing-v*` tag push). iOS ArkRouting now uses a prebuild/CocoaPods post-install hook to attach the `valhalla-mobile` Swift Package to the app target and calls the same raw Valhalla route API shape as Android through the ObjC runtime; it still needs device route proof with a ready graph.
 - Tab reorganization: `NativeTabs` from `expo-router/unstable-native-tabs` with `TabPreferencesService` for user-configurable tab order/visibility. Tools tab hidden by default; chat + settings locked. `FunctionSearch` filters entries by enabled tabs.
-- `app/(tabs)/settings.tsx` refactored from 1982 → 679 lines. Each tab section now lives in `src/components/settings/`. `AppearanceSection`, `SecuritySection`, `BackupSection`, `AboutSection` (smallest), then `AiSection`, `OfflineMapsCard`, `DownloadsCard`, `DiagnosticsCard`, `EmbeddingIndexCard`, `ModelSection` (bigger). Local state (password inputs, model title/url/checksum, map search/browse) moved into the owning section.
-- Vault security: rate-limit with exponential backoff (5→30s, 10→5min, 15→1hr), autolock rewrite with background/active lifecycle, boot mutex idempotency, vault gates on editor save.
+- `app/(tabs)/settings.tsx` refactored from 1982 lines to under 800. Each tab section now lives in `src/components/settings/`. `AppearanceSection`, `SecuritySection`, `BackupSection`, `AboutSection` (smallest), then `AiSection`, `OfflineMapsCard`, `DownloadsCard`, `DiagnosticsCard`, `EmbeddingIndexCard`, `ModelSection` (bigger). Local state (password inputs, model title/url/checksum, map search/browse) moved into the owning section; download recovery detail UI lives in `DownloadsCard`.
+- Vault security: rate-limit with exponential backoff (5→30s, 10→5min, 15→1hr), autolock rewrite with background/active lifecycle, boot mutex idempotency, selector-only auth hook, vault gates on editor save.
 - Content: Markdown-based authored guides, Defuddle for remote HTML → Markdown extraction, enhanced rich editor with toolbar, high-quality PDF rendering, TTS in document/content readers.
 - `src/lib/errors.ts` (ArkError) **deleted** — zero callers.
-- 8 unused `package.json` deps removed: `defuddle`, `tailwindcss-animate`, `expo-splash-screen`, `expo-system-ui`, `expo-updates`, `expo-battery`, `expo-linking`, `punycode`.
-- Migration 18 added `vault_state.failed_attempts` + `locked_until` columns; sqlite_master guard kept (defensive for users who never created a vault).
+- 6 unused `package.json` deps removed: `tailwindcss-animate`, `expo-system-ui`, `expo-updates`, `expo-battery`, `expo-linking`, `punycode`. `defuddle` and `expo-splash-screen` are currently installed.
+- Database schema history was collapsed to a fresh v1 baseline for pre-release testing; old pre-v1 databases should be cleared instead of migrated.
 - Backup format bumped to v2: now includes `chat_threads`, `chat_messages`, `document_pages` + FTS rebuild. v1 rejected with "Re-export the backup from this app version."
-- `services/db/migrations.ts` gained `hasColumn(db, table, column)` and `addColumnIfMissing(db, table, column, definition)` helpers for future migrations.
+- `services/db/migrations.ts` now creates the current schema from a single fresh baseline and rejects older pre-release database versions.
 - `services/content/zim-html-sanitizer.ts` (new): `sanitizeArticleHtml` strips scripts, void tags, iframes, event handlers, javascript: URLs from ZIM article bodies. `ZimService.articleHtml` pipes through it.
 - `src/stores/app-store.ts` boot is now an idempotent mutex with a Pressable "Try again" error splash in `app/_layout.tsx`.
 - `app/(tabs)/chat/[threadId].tsx` and `services/ai/ai.service.ts` use a `Map<threadId, ActiveAiRequest>` for targeted cancellation; new requests for the same thread supersede prior in-flight responses.
 - `services/files/download-manager.service.ts`: queue mutex (`withQueueLock`), 0-byte guard, free-space math subtracts already-on-disk bytes, `MAX_ACTIVE_DOWNLOADS` 1→3, resumeData invalidation after 30 min.
 - `src/components/ui/input.tsx` and `src/services/ai/rag.service.ts` use proper React-subscribed Zustand selectors (no more `getState` outside React).
 - `src/constants/map-pins.ts` exposes `BRAND_AMBER`; literal `#F2B84B` replaced throughout.
-- Valhalla routing linked on Android: `ArkRoutingModule.kt` rewritten to delegate to [valhalla-mobile](https://github.com/Rallista/valhalla-mobile) v0.1.1 (prebuilt `libvalhalla-wrapper.so` from Maven Central). C++ CMake build removed from `modules/ark-routing/android/build.gradle` — no more cross-compilation. `getEngineStatus()` returns `available: true` when `libvalhalla-wrapper.so` loads. iOS stub unchanged.
+- Valhalla routing linked natively: Android `ArkRoutingModule.kt` delegates to [valhalla-mobile](https://github.com/Rallista/valhalla-mobile) v0.1.1 (prebuilt `libvalhalla-wrapper.so` from Maven Central; newer Android artifacts require Kotlin 2.3), and iOS `ArkRoutingModule.swift` calls the package's `ValhallaObjc` wrapper dynamically through `plugins/with-ark-routing.js` plus `ArkRouting.podspec` post-install wiring. C++ CMake build removed from `modules/ark-routing/android/build.gradle` — no more cross-compilation. `getEngineStatus()` returns `available: true` when the native bridge is linked. Android and iOS still need real route proof against downloaded `.valhalla.tar` graphs.
 
 ## Identity
 
@@ -39,7 +42,7 @@
 | Styling         | Tailwind CSS v4 + Uniwind v1.6     | `global.css` defines OLED/dark/light themes                                                                                                                                       |
 | UI primitives   | shadcn-style (CVA + RN Primitives) | 11 components in `src/components/ui/` (Button, Text, Input, Card, Icon, plus Sheet, Skeleton, Markdown, Progress, ConfirmModal, BottomSheet)                                      |
 | State           | Zustand v5                         | 4 stores in `src/stores/` (app, auth, theme, sensor)                                                                                                                              |
-| Database        | expo-sqlite + custom migrations    | `PRAGMA user_version` pattern, FTS5 virtual tables, versioned to 18                                                                                                               |
+| Database        | expo-sqlite + custom migrations    | `PRAGMA user_version` pattern, FTS5 virtual tables, versioned to 1                                                                                                               |
 | Icons           | lucide-react-native                | Wrapped via `src/components/ui/icon.tsx`                                                                                                                                          |
 | Date handling   | date-fns v4                        |                                                                                                                                                                                   |
 | Validation      | zod v4                             | Installed but barely used                                                                                                                                                         |
@@ -64,9 +67,9 @@ app/                          # Expo Router file-based routes
 │   ├── index.tsx             # Step 1: intro cards
 │   ├── security.tsx          # Step 2: create vault + biometrics
 │   ├── permissions.tsx       # Step 3: location + sensor permission
-│   ├── packs.tsx             # Step 4: starter pack selection
+│   ├── maps.tsx              # Step 4: map region primer
 │   ├── power.tsx             # Step 5: battery-reduce-mode + low-power guidance
-│   ├── maps.tsx              # Step 6: map region primer
+│   ├── packs.tsx             # Step 6: starter pack selection
 │   ├── models.tsx            # Step 7: on-device model primer
 │   └── finish.tsx            # Step 8: AI notes + "Enter Ark"
 ├── (tabs)/                   # 7 bottom tabs
@@ -184,8 +187,8 @@ src/
 ```
 Boot → index.tsx
   ├── onboarding not completed → /onboarding (8-step stack)
-  │   1. intro → 2. security → 3. permissions → 4. packs
-  │   5. power → 6. maps → 7. models → 8. finish → replace(/(tabs))
+  │   1. intro → 2. security → 3. permissions → 4. maps
+  │   5. power → 6. packs → 7. models → 8. finish → replace(/(tabs))
   └── onboarding completed → /(tabs) (7 bottom tabs)
        Home | Chat | Map | Library | Notes | Tools | Settings
        └── Tools → push stack screens (compass, barometer, level, pedometer,
@@ -196,9 +199,9 @@ Boot → index.tsx
 
 ## Database Schema
 
-24 base tables + 3 FTS5 virtual tables
-(notes_fts, document_pages_fts, rag_chunks_fts). Migrations run via
-`PRAGMA user_version` and are versioned to 18.
+26 base tables + 4 FTS5 virtual tables
+(notes_fts, document_pages_fts, rag_chunks_fts, map_places_fts). Migrations run via
+`PRAGMA user_version` and are versioned to 1.
 
 **Key tables actually used by screens:**
 
@@ -217,18 +220,18 @@ Boot → index.tsx
 - `rss_feeds` + `rss_items` — official emergency feed refresh and cached item list
 - `weather_cache` + `sensor_snapshots` — cached weather + barometer history
 
-**Encryption:** SQLCipher is configured in `app.json` and the DB client applies a SecureStore-backed key when the native SQLCipher build is available. Diagnostics reports cipher availability and key state. Plaintext migration/re-key strategy and real-device proof are still launch blockers.
+**Encryption:** SQLCipher is configured in `app.json`, but database encryption is user-controlled instead of mandatory. Fresh installs default to plaintext so Ark can stay fast and battery-frugal in survival use. Settings > Security can encrypt a plaintext DB or export an encrypted DB back to plaintext when the native SQLCipher runtime is available; each swap keeps a timestamped backup of the prior database. Diagnostics reports SQLCipher runtime availability separately from the opened DB state. Encrypted installs use a purpose-derived SQLCipher key from a SecureStore device root, and vault passphrase changes rotate that device root when the DB is encrypted. Fresh encrypted/plaintext migration proof, real-device rekey proof, and the final device-root vs vault-derived SQLCipher decision remain launch blockers.
 
 ## What's Real vs What's Mock/Stub/Placeholder
 
 ### REAL (works now):
 
 - OLED/Dark/Light/System theme switching, persisted to SQLite
-- SQLite database with full migrations (24 base + 3 FTS5 tables), FTS5 search
+- SQLite database with a fresh baseline schema (26 base + 4 FTS5 tables), FTS5 search
 - Repository layer — all CRUD is against real SQLite
 - Secure notes: create, FTS search, favorite, soft-delete (gated by vault unlock)
 - Onboarding wizard: 8-step flow with state persistence
-- Vault service: versioned stretched SHA-512 verifier with legacy upgrade, password change, biometric unlock via LocalAuthentication, auto-lock lifecycle enforcement
+- Vault service: optional passphrase protection, Argon2id verifier, password change/disable, biometric unlock via LocalAuthentication when passphrase protection is on, auto-lock lifecycle enforcement
 - AI chat: messages stored to DB, mock fallback adapter, llama.rn adapter in dev builds when a GGUF model is installed, streaming tokens, Stop action
 - RAG: hybrid FTS plus embeddings, deterministic offline `ark-hash-v2` fallback, ExecuTorch (`react-native-executorch`) text-embedding contexts for the registered `executorch-multi-qa-minilm-l6-cos-v1` (default) and `executorch-multi-qa-mpnet-base-dot-v1` models, installed guide chunks, note indexing, imported document text, PDF page text, imported image OCR text, section/page/document citations, and lazy ZIM paragraph citations when ArkZim is available
 - Pressure trend: rising/stable/falling from barometer snapshot history
@@ -246,37 +249,26 @@ Boot → index.tsx
 
 | Feature                 | Status  | What's missing                                                                                                                                                                                                 |
 | ----------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Map rendering           | PARTIAL | MapLibre is installed and dynamically loaded; native map rendering needs on-device dev-build verification and a production style URL.                                                                          |
-| Offline map downloading | PARTIAL | MapLibre `OfflineManager.createPack()` is wired when native MapLibre exists; still needs real-device validation, drawn bounds, and offline geocoder/PMTiles index.                                             |
+| Map rendering           | PARTIAL | MapLibre is installed and dynamically loaded, with OpenFreeMap Liberty/Dark as the production fallback style and `EXPO_PUBLIC_ARK_MAP_STYLE_URL` for overrides; native map rendering still needs on-device dev-build verification.                                                                          |
+| Offline map downloading | PARTIAL | MapLibre `OfflineManager.createPack()` is wired when native MapLibre exists, and the map can save the current visible viewport as a custom region; bundled/cached offline place search is wired, but full OSM-derived POI/PMTiles coverage still needs a larger index decision.                                             |
 | Local LLM inference     | PARTIAL | llama.rn is installed and dynamically loads installed GGUF models; still needs device memory tuning and runtime verification.                                                                                  |
-| DB encryption           | PARTIAL | SecureStore SQLCipher key path is wired; still needs fresh encrypted DB proof, plaintext migration, and final vault-passphrase/device-key decision.                                                            |
-| Password KDF            | PARTIAL | v3 SHA-512 stretching is in place with legacy upgrades; still needs a custom Expo native libsodium Argon2id `ark-kdf` module before production.                                                                |
-| ZIM reader              | PARTIAL | Android ArkZim module compiles with libkiwix/libzim and the UI can search/open articles when native is available; iOS CoreKiwix binding and real-archive device testing remain.                                |
+| DB encryption           | PARTIAL | Optional SQLCipher is wired: fresh installs default plaintext, Settings > Security can encrypt or return to plaintext, swaps keep timestamped backups, encrypted DBs use a purpose-derived SecureStore device root; still needs fresh encrypted/plaintext migration proof, rekey device proof, and final vault-passphrase/device-root decision. |
+| Password KDF            | PARTIAL | Optional vault passphrase protection uses v4 Argon2id verifiers and can be enabled/disabled from Settings; still needs real-device latency/memory calibration before production claims.                          |
+| ZIM reader              | PARTIAL | ArkZim compiles on Android with libkiwix/libzim and has an iOS CoreKiwix bridge wired; both platforms still need real-archive device testing.                                |
 | OCR/PDF indexing        | PARTIAL | Android `ark-ocr` compiles with ML Kit and PDFBox, images use on-device OCR, PDFs use text-layer extraction before OCR fallback; still needs real-device verification with scanned/searchable PDFs.            |
-| Component tests         | PARTIAL | 6 RNTL screen tests added (tab preferences, function search, chat index, tabs layout, note editor autosave); broader mounted coverage still growing. Detox onboarding coverage is intentionally deprioritized. |
+| Component tests         | PARTIAL | 13 RNTL mounted tests added (tab preferences, diagnostics, AI Settings, Downloads recovery, guide reader actions, Library search/import, document detail, Map fallback/search/offline controls, function search, chat index, tabs layout, note editor autosave); broader mounted coverage still growing. Detox onboarding coverage is intentionally deprioritized. |
 
 ## Theme System
 
-Defined in `global.css`. Three themes as CSS variables:
+Defined in `global.css`, `src/constants/theme.ts`, and `src/stores/theme-store.ts`.
 
-| Token                  | OLED (default)    | Dark      | Light     |
-| ---------------------- | ----------------- | --------- | --------- |
-| `--background`         | `#000000`         | `#09090B` | `#FFFFFF` |
-| `--card`               | `#000000`         | `#18181B` | `#FFFFFF` |
-| `--popover`            | `#000000`         | `#18181B` | `#FFFFFF` |
-| `--sidebar`            | `#000000`         | `#1A1A1A` | `#F2F2F2` |
-| `--foreground`         | `#FAFAFA`         | `#FAFAFA` | `#0A0A0A` |
-| `--card-foreground`    | `#FAFAFA`         | `#FAFAFA` | `#0A0A0A` |
-| `--primary`            | `#F2B84B` (amber) | `#F2B84B` | `#996515` |
-| `--primary-foreground` | `#0A0A0A`         | `#0A0A0A` | `#FFFFFF` |
-| `--muted`              | `#27272A`         | `#27272A` | `#F4F4F5` |
-| `--muted-foreground`   | `#A1A1AA`         | `#A1A1AA` | `#71717A` |
-| `--border`             | `#27272A`         | `#27272A` | `#E4E4E7` |
-| `--destructive`        | `#EF4444`         | `#EF4444` | `#DC2626` |
-
-Brand color tokens are exported from `src/lib/colors.ts`; import from there instead
-of hardcoding `#F2B84B` (or any other theme color) in new code. Applied via
-`Uniwind.setTheme()` called from `theme-store.ts`.
+- Effective themes: `oled`, `dark`, `light`.
+- Saved theme preferences: `system`, `oled`, `dark`, `light`; `system` follows the phone light/dark setting.
+- Accent preferences: `moss`, `amber`, `clay`, `blue`, `violet`.
+- `theme-store.ts` calls `Uniwind.setTheme()` for the effective theme and `Uniwind.updateCSSVariables()` for accent variables.
+- Runtime color consumers should prefer `useThemeStore((state) => state.colors)` when they need concrete colors for native APIs, WebViews, maps, or navigation.
+- New Tailwind-styled UI should use semantic classes (`bg-primary`, `text-primary`, `border-border`, etc.) rather than hard-coded hex values.
+- Android Material You accent extraction is wired through the `ark-system-colors` native bridge for the System accent option. Keep Moss as the deterministic fallback in JS and do not claim final dynamic-color quality until it has Android 12+ device visual proof.
 
 ## Key Architectural Decisions
 
@@ -289,13 +281,13 @@ of hardcoding `#F2B84B` (or any other theme color) in new code. Applied via
 
 ## Anti-Patterns & Known Issues
 
-1. **Native verification remains the main risk:** SQLCipher, MapLibre offline packs, ArkZim, ArkOcr, and llama.rn all need real-device verification in development builds.
-2. **iOS ZIM support is still missing:** Android ArkZim compiles; iOS still needs CoreKiwix.xcframework integration.
-3. **iOS Valhalla routing is a stub:** Android uses valhalla-mobile from Maven Central; iOS needs the same project's Swift Package integrated into `ios/ArkRoutingModule.swift`.
-4. **Password KDF is improved but not production-grade:** v3 SHA-512 stretching replaced the old weak verifier path, but a native libsodium Argon2id module is still required.
+1. **Native verification remains the main risk:** SQLCipher, MapLibre offline packs, Valhalla routing, ArkZim, ArkOcr, llama.rn, and ExecuTorch embeddings all need real-device verification in development builds.
+2. **ZIM support still needs real-archive proof:** Android ArkZim compiles and iOS is wired through CoreKiwix, but both paths still need device testing with large Wikipedia/Medical Wikipedia archives.
+3. **Valhalla routing still needs native route proof:** Android and iOS both use valhalla-mobile, but each platform still needs route-calculation proof with a downloaded `.valhalla.tar` graph before turn-by-turn can be treated as ready.
+4. **Password KDF still needs device calibration:** v4 Argon2id replaced the old SHA verifier path for new passphrase writes, but real-device latency/memory proof is still required.
 5. **RAG embeddings need device validation:** ExecuTorch (`react-native-executorch`) text-embedding contexts for the `executorch-multi-qa-minilm-l6-cos-v1` (default) and `executorch-multi-qa-mpnet-base-dot-v1` models are wired with an `ark-hash-v2` fallback, but real-device quality, memory, and sqlite-vec KNN behavior still need verification.
-6. **Mounted UI tests are still absent:** current coverage is route/static/service-level, not React Native render tests. E2E onboarding coverage is intentionally deprioritized for now.
-7. **Big screens:** `app/(tabs)/map.tsx`, `app/(tabs)/chat/[threadId].tsx`, and `src/services/ai/rag.service.ts` are each over 1k lines and should be split before further feature work. `app/(tabs)/settings.tsx` was extracted to 679 lines via `src/components/settings/`.
+6. **Mounted UI tests are still growing:** current coverage includes focused RNTL tests for tab preferences, diagnostics, AI Settings, Downloads recovery, guide reader actions, Library search/import, document detail, Map fallback/search/offline controls, function search, chat index, tab layout, and note editor autosave; broader mounted coverage is still needed. E2E onboarding coverage is intentionally deprioritized for now.
+7. **Big screens:** route files are now thin or under 1k: `app/(tabs)/map.tsx` re-exports `src/components/map/map-screen.tsx`, `app/chat/[threadId].tsx` is under 1k after attachment/page helpers moved to `src/components/chat/chat-thread-utils.ts`, `app/(tabs)/settings.tsx` was extracted via `src/components/settings/`, and `src/services/ai/rag.service.ts` now delegates seed/search/embed internals to `src/services/ai/rag/`. Continue splitting `src/components/map/map-screen*.tsx` before adding more map UI.
 
 ## Build / Run Commands
 
@@ -306,6 +298,7 @@ bun run ios          # Start for iOS
 bun run android      # Start for Android
 bun run web          # Start for web
 bun run check        # typecheck + lint + tests
+bun run ios:build:sim # Regenerate/build unsigned iOS simulator app
 ```
 
 TypeScript check: `npx tsc --noEmit`

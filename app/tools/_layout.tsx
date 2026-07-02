@@ -1,4 +1,3 @@
-import { NAV_THEME } from '@/lib/theme';
 import { useThemeStore } from '@/stores/theme-store';
 import { Stack } from 'expo-router';
 
@@ -18,14 +17,13 @@ const titles: Record<string, string> = {
 };
 
 export default function ToolsLayout() {
-  const theme = useThemeStore((state) => state.effectiveTheme);
-  const colors = NAV_THEME[theme].colors;
+  const colors = useThemeStore((state) => state.colors);
 
   return (
     <Stack
       screenOptions={{
         headerStyle: { backgroundColor: colors.background },
-        headerTintColor: colors.text,
+        headerTintColor: colors.foreground,
         contentStyle: { backgroundColor: colors.background },
       }}>
       {Object.entries(titles).map(([name, title]) => (

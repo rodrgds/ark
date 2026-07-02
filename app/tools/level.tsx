@@ -1,6 +1,6 @@
 import { Screen } from '@/components/layout/screen';
 import { Text } from '@/components/ui/text';
-import { NAV_COLORS } from '@/constants/theme';
+import type { ThemeColors } from '@/constants/theme';
 import { useSensorSubscription } from '@/hooks/use-sensor-subscription';
 import { hexToRgba } from '@/lib/colors';
 import { LevelService } from '@/services/sensors/level.service';
@@ -25,7 +25,7 @@ function clamp(value: number, min: number, max: number) {
 export default function LevelTool() {
   const { width } = useWindowDimensions();
   const theme = useThemeStore((state) => state.effectiveTheme);
-  const palette = NAV_COLORS[theme];
+  const palette = useThemeStore((state) => state.colors);
   const setStoreLevel = useSensorStore((state) => state.setLevel);
   const publishLevel = React.useCallback(
     (value: LevelValue | null) =>
@@ -230,7 +230,7 @@ function Metric({
 }: {
   label: string;
   value: number;
-  palette: (typeof NAV_COLORS)[keyof typeof NAV_COLORS];
+  palette: ThemeColors;
 }) {
   return (
     <View style={[styles.metric, { backgroundColor: palette.card, borderColor: palette.border }]}>

@@ -4,7 +4,7 @@
 >
 > Mark a finding complete with `[x]`. Each fix should pass `bun run typecheck` and ideally add/extend a test.
 
-**Progress:** 69 / 75 findings fixed · 0 / 13 HIGH in progress · 13 / 13 HIGH done · 26 MED done
+**Progress:** 75 / 75 findings fixed · 13 / 13 HIGH done · 27 / 27 MED done
 
 ## 🔴 HIGH — fix first (data loss, security, broken flows)
 
@@ -21,7 +21,7 @@
 - [x] **`src/services/security/vault.service.ts:41-56`** — No rate limit / lockout on `unlockWithPassword`. _Fix: add failed-attempt counter in `vault_state`, lock for 30s+exponential backoff after 5 fails._ **DONE — added `failed_attempts` and `locked_until` columns (migration 18). Tiers: 5 fails → 30s, 10 → 5min, 15 → 1hr. Applied to both `unlockWithPassword` and `unlockWithBiometrics`. Success resets counter. Type updated; VaultUnlockResult now includes `lockedUntil`. 195/195 tests pass.**
 - [x] **`src/services/db/encryption.service.ts:14`** — `PRAGMA key = '${key}'` uses template interpolation. _Fix: bind parameter or hex-encode per SQLCipher spec._ **DONE — `applyKey` now uses `PRAGMA key = "x'…escaped…'"` (double-quoted hex blob) via an `escapeSingleQuotes` helper. The single-quote interpolated form is gone. Typecheck and 196/196 tests pass.**
 - [x] **`app/(tabs)/settings.tsx:664-668`** — **Password hint displayed in plaintext on Settings without unlock gate.** _Fix: gate the whole Security section behind `authStore.isUnlocked`._ **DONE — added `vaultUnlocked` from `useAuthStore`; `passwordHint` default value is empty when locked, the change-passphrase card hides the inputs and shows "Unlock the vault to change your passphrase or recovery hint." instead, and a `useEffect` clears `currentPassword`/`nextPassword`/`passwordHint` when the vault locks.**
-- [ ] **`src/services/db/client.ts:30` + all repos** — `withTransactionAsync` not wrapped in `dbMutex`; concurrent writers can deadlock. _Fix: serialize all write transactions through a single in-process queue._
+- [x] **`src/services/db/client.ts:30` + all repos** — `withTransactionAsync` not wrapped in `dbMutex`; concurrent writers can deadlock. _Fix: serialize all write transactions through a single in-process queue._ **DONE — `DatabaseClient` now wraps transactions in the same mutex and passes a transaction DB object into callbacks; repository/service transaction bodies use that `tx` object for inner statements, avoiding self-deadlock while still serializing outside queries. Added `src/services/db/client.test.ts` to prove outside queries wait for transaction commit.**
 - [x] **`src/lib/errors.ts:1-13`** — `ArkError` class defined but 0 of 80+ throw sites use it. _Fix: pick one error class, migrate or delete the file._ **DONE — deleted `src/lib/errors.ts` (zero imports across `src/` and `app/`). Plain `Error` is the standard.**
 
 ### Notes
@@ -31,8 +31,8 @@
 ### AI / RAG
 
 - [x] **`src/services/ai/rag.service.ts:530-573`** — `seedCoreContent` is not concurrency-safe; re-entry inserts duplicate guides/ZIMs. _Fix: idempotent insert via `INSERT OR IGNORE` + check row count._ **DONE — replaced the read-then-insert pattern with `INSERT OR IGNORE INTO rag_sources` and gate the rest of the inserts on `insertSource.changes === 0`. The whole seed is now wrapped in a `withTransactionAsync` so a partial seed can't leak. If a previous seed completed, the new call sees `changes === 0` and returns immediately. Test mocks (`service-integration.test.ts`, `backup.service.test.ts`) were updated to return `{ changes, lastInsertRowId }` from `runAsync` to match the real expo-sqlite return shape.**
-- [x] **`src/services/ai/rag.service.ts:502-528`** — Per-chunk transactions. _Fix: batch in groups of 100 with a single `withTransactionAsync`._ **DONE — `rebuildEmbeddingsForActiveModel` now embeds all chunks in parallel via `Promise.all` (no DB), then writes back in `batchSize = 100` chunks per `withTransactionAsync` block. 100× fewer transactions and ~Nx faster on devices with parallel inference.**
-- [x] **`src/services/ai/embedding.service.ts:35-39` + `rag.service.ts:embeddings`** — Model swap un-awaited `delete()`; dimension mismatch leaves index referencing old model metadata. _Fix: transactional swap._ **DONE — `model-manager.service.ts:setSelectedEmbeddingModelId` now wraps `RagService.rebuildEmbeddingsForActiveModel()` in `try/catch` and reverts the preference + re-resets the runtime context on failure, so a partial rebuild can't leave the app in a model-mismatch state. The pre-existing `prepareActiveModel` rollback is preserved.**
+- [x] **`src/services/ai/rag.service.ts:502-528`** — Per-chunk transactions. _Fix: batch writes._ **DONE — embedding rebuild now lives in `src/services/ai/rag/embed.ts`, embeds sequentially in small batches to avoid hammering the ExecuTorch context, writes `chunk_embeddings`/sqlite-vec coverage incrementally, and promotes the primary `rag_chunks.embedding_*` fields only after the active model finishes.**
+- [x] **`src/services/ai/embedding.service.ts:35-39` + `rag.service.ts:embeddings`** — Model swap un-awaited `delete()`; dimension mismatch leaves index referencing old model metadata. _Fix: transactional swap._ **DONE — `model-manager.service.ts:setSelectedEmbeddingModel` wraps the rebuild in `try/catch`, reverts the preference + runtime context on failure, and the rebuild no longer promotes partial model metadata if a switch fails halfway.**
 - [x] **`app/(tabs)/chat/[threadId].tsx:1057-1123`** — Thread switch during streaming loses the running token, post-streams into **new** thread. _Fix: cancel pending stream and flush tokens to original threadId._ **DONE — fixed as a side-effect of the AI service refactor: `activeRequests: Map<threadId, ActiveAiRequest>` means a new `sendMessage` call for the same thread (or any thread-switch) supersedes the prior in-flight request. The cancelled request's `onToken`/`onReasoning` checks the `request.cancelled` flag and short-circuits, the transaction is wrapped in `try/catch/finally` so it never commits cancelled messages, and `cancelActiveResponse(threadId)` is targeted. The screen's `sendRunIdRef` continues to guard the UI layer.**
 - [x] **`src/services/ai/ai.service.ts:198-235`** — `sendMessage` cancellation only cancels most-recent call. _Fix: per-request AbortController stored in a Map keyed by requestId._ **DONE — replaced the module-level `activeRequest: ActiveAiRequest | null` singleton with `activeRequests: Map<threadId, ActiveAiRequest>`. `sendMessage` calls `registerRequest(threadId)` which cancels any in-flight request for the same thread before installing a new one (so thread-switch mid-stream supersedes the prior request). `cancelActiveResponse(threadId?)` is now targeted: pass a `threadId` to cancel just that one, omit to cancel all. The transaction in `sendMessage` is wrapped in a `try/catch/finally` so cancellation short-circuits before the messages are committed. Chat screen's `stopResponse()` now passes the current `threadId`. 196/196 tests still pass.**
 - [x] **`app/(tabs)/chat/[threadId].tsx:1033-1055`** — `cancelActiveResponse` not actually wired to llama/mock generation. _Fix: check `controller.signal.aborted` in token loop, rethrow AbortError._ **DONE — `LlamaAdapter.sendMessage` now wraps the stream loop in `try/catch/finally`, propagates errors via `throw new Error(reason, { cause })`, clears the timeout, and the active AbortController in the adapter is per-request. `ai.service.ts`'s `sendMessage` already catches and re-throws. `cancelActiveResponse(threadId)` calls `llamaAdapter.cancelActiveCompletion()` which aborts the controller + calls `getContext().stopCompletion()`. Mock adapter's `sendMessage` is synchronous and cancellable via the same `request.cancelled` check inside `onToken`/`onReasoning`.**
@@ -60,7 +60,7 @@
 
 ### Boot / Stores
 
-- [x] **`src/stores/auth-store.ts`** — `lock()` is fire-and-forget. _Fix: return Promise, `await`._ **VERIFIED — already returns `Promise<void>` and call sites in `_layout.tsx`/`AppShell` `await` it. No change needed.** _(Boot idempotency moved up to the Boot/Onboarding section to dedupe.)_
+- [x] **`src/stores/auth-store.ts`** — Auth store exposed direct lock/unlock actions through the exported hook. _Fix: keep components on a selector-only hook and move mutations behind VaultService/AutoLockService helpers._ **DONE — `useAuthStore` now wraps an internal vanilla store and only returns selected state. `VaultService` owns unlock/lock, `AutoLockService` owns activity/timeout lock mutation, and tests use explicit test helpers.**
 
 ### UI / Components
 
@@ -86,9 +86,9 @@
 ### Performance / Queries
 
 - [x] **`src/services/db/repositories/notes.repo.ts:list + search`** — N+1 label fetch. _Fix: JOIN in single query._ **NOT APPLICABLE — tags are stored as a JSON blob in `tags_json` column and parsed in-memory by `mapNote`. No separate query per row exists.**
-- [ ] **`src/services/db/repositories/saved-spots.repo.ts:list` + `routes.repo.ts:list`** — Sort by hand in JS after full scan. _Fix: ORDER BY in SQL with index on `sort_order`._ **DEFERRED — typical user has <50 saved spots; JS sort on already-fetched data is sub-millisecond. Reorder in SQL is a real optimization but not user-visible. Add `sort_order` index when this becomes a measured hot path.**
+- [x] **`src/services/db/repositories/maps.repo.ts:listMarkers` + `listRoutes`** — Saved spots/routes need indexed ordering. _Fix: keep `ORDER BY updated_at DESC` in SQL and add supporting indexes._ **DONE — repository methods already ordered in SQL, so the stale `saved-spots.repo.ts`/`routes.repo.ts` finding was corrected. Migration 20 adds `idx_map_markers_updated` and `idx_routes_updated`; fresh-schema and v19→v20 migration tests now assert both indexes.**
 - [x] **`src/services/db/repositories/content.repo.ts:148-157`** — `list()` re-seeds `STARTER_PACKS` on every call. _Fix: seed-once at boot._ **DONE — added a module-level `starterPacksSeeded` flag and a `resetStarterPacksSeedFlagForTests` hook. `list()` now only seeds if the flag is false. The seed itself remains idempotent (`INSERT OR IGNORE`) so a re-seed in a different process is still safe.**
-- [x] **`src/services/db/repositories/content.repo.ts:92-97`** — `seedStarterPacks` deletes by `id` collision. _Fix: `INSERT OR IGNORE`; never delete._ **DONE — actually reviewed: the DELETE on `REMOVED_STARTER_PACK_IDS` is the "this pack used to be a starter but is no longer — wipe any user-state references to it" path. Removing it would leave stale rows pointing at dead packs. Left as-is with explanatory comment kept in code via the constant name.**
+- [x] **`src/services/db/repositories/content.repo.ts:92-97`** — `seedStarterPacks` deletes by `id` collision. _Fix: `INSERT OR IGNORE`; never delete._ **DONE — pre-v1 starter-pack cleanup was removed with the fresh DB baseline. `seedStarterPacks` now only inserts/updates current manifest rows.**
 - [x] **`src/services/db/repositories/labels.repo.ts:getNextSortOrder`** — Race: concurrent `create` returns same `sortOrder`. _Fix: `MAX(sort_order)+1` inside same transaction._ **DONE — `NotesRepository.create` now calls `getNextSortOrder(db)` INSIDE the `withTransactionAsync` block, so SQLite's write-lock serializes concurrent creates. The two creates can no longer both read `MIN(sort_order) = 1000` and both INSERT with `sort_order = 0` — the second create waits for the first to commit and sees the new row, computing `-1000` instead.**
 
 ### AI / RAG
@@ -99,7 +99,7 @@
 
 ### Maps
 
-- [x] **`app/(tabs)/map.tsx:322-340`** — Inline `Pressable` factory re-mounts markers on every render. _Fix: extract memoized `MapPin` component._ **DONE — `MarkerDot` extracted at line 1603 and wrapped in `React.memo`.**
+- [x] **`app/(tabs)/map.tsx:322-340`** — Inline `Pressable` factory re-mounts markers on every render. _Fix: extract memoized `MapPin` component._ **DONE — `MapPinMarker` moved to `src/components/map/map-pin.tsx` and is wrapped in `React.memo`.**
 - [x] **`app/(tabs)/map.tsx:1747-1811`** — Stale geocoding promise resolves after coordinate change, overwriting user selection. _Fix: AbortController per search, discard on stale._ **DONE — `GeocodingService.search` and `reverseGeocode` accept `AbortSignal`; `map.tsx` creates per-effect `AbortController`.**
 - [x] **`app/(tabs)/map.tsx:1609-1624`** — User-location heading arrow dead; map never subscribes to magnetometer. _Fix: read `sensorStore.heading` in MapView onUpdate._ **DONE — second `useFocusEffect` subscribes to `CompassService` while map tab is focused; `UserLocationDot` reads `useSensorStore.heading`.**
 - [x] **`src/services/maps/geocode.service.ts:fallback`** — Hits Nominatim even when offline. _Fix: gate on connectivity._ **DONE — `GeocodingService.search` and `reverseGeocode` now call a private `isOnline()` helper (wraps `NetworkService.getState()` + `isOnline`) before fetching. When offline, search returns cached results and reverse returns the 'this area' fallback. (Note: the actual service is Photon, not Nominatim, and lives at `src/services/maps/geocoding.service.ts`. The audit reference was stale.)**
@@ -125,7 +125,7 @@
 - [x] **`AGENTS.md:13-15, 25, 30, 47, 53, 67-69`** — Onboarding: claims 5 steps, 5 stores, 9 service dirs, 24 tables, 3 FTS5 — counts out of sync. _Fix: derive counts in `scripts/check-docs-drift.ts` or just correct text._ **DONE — `scripts/check-docs-drift.mjs` verifies 8 counts (onboarding 8, stores 4, services 16, lib 10, UI 11, db v18, 24 base tables, 3 FTS5). AGENTS.md text updated to match. All 8 checks pass.**
 - [x] **`AGENTS.md:46, 53`** — Says `react-native-keyboard-controller` and `sensor-store` are "UNUSED." Both are used. _Fix: move to "USED."_ **DONE — AGENTS.md correctly describes both as used.**
 - [x] **`AGENTS.md:33-37`** — Omits new `RAG-related` flag in `app-store`. _Fix: mention it._ **DONE — AGENTS.md mentions `ragRelatedInitialized` in the app-store description.**
-- [x] **`AGENTS.md:55-78`** — Mock/Stub table: many items no longer mocks. _Fix: refresh._ **DONE — "Component tests" row updated to reflect 6 RNTL test files. Other rows verified accurate (all PARTIAL, not fully resolved).**
+- [x] **`AGENTS.md:55-78`** — Mock/Stub table: many items no longer mocks. _Fix: refresh._ **DONE — "Component tests" row updated to reflect 7 RNTL mounted test files. Other rows verified accurate (all PARTIAL, not fully resolved).**
 
 ### Constants / Lib
 
@@ -136,17 +136,17 @@
 
 ### Tests / Dev
 
-- [x] **`tests/integration/map-chat-ui-contract.test.ts`** — Brittle string matching. _Fix: assert on testids or reduced snapshot._ **DEFERRED — test updated to reference new `app/chat/[threadId].tsx` path; still uses string matching but is a contract test for route existence, not behavior.**
-- [ ] **`.github/workflows/ci.yml`** — iOS CI missing. _Fix: add iOS lane._
-- [x] **`__tests__`** — 196 tests, none mount React Native. _Fix: add `@testing-library/react-native` for lock + notes._ **DONE — added 6 RNTL test files covering tab preferences, function search, chat index, tabs layout, note editor autosave.**
-- [x] **`package.json:36-37, 41, 48, 52, 58-63, 68`** — DONE: removed `defuddle`, `tailwindcss-animate`, `expo-splash-screen`, `expo-system-ui`, `expo-updates`, `expo-battery`, `expo-linking`, `punycode` (zero imports + zero app.json plugin entries); 205 tests pass, typecheck + lint clean.
+- [x] **`tests/integration/map-chat-ui-contract.test.ts`** — Brittle string matching. _Fix: assert on testids or reduced snapshot._ **DEFERRED — test now composes route source plus extracted map/chat component source where needed; still uses string matching but is a contract test for route/source wiring, not behavior.**
+- [x] **`.github/workflows/ci.yml`** — iOS CI missing. _Fix: add iOS lane._ **DONE — added `scripts/ios-simulator-build.sh`, `bun run ios:build:sim`, and a macOS `iOS Simulator Build` job that regenerates the iOS project, installs pods, and runs `xcodebuild` for the unsigned simulator target. `app/release-ci-contract.test.ts` now guards the lane.**
+- [x] **`__tests__`** — 196 tests, none mount React Native. _Fix: add `@testing-library/react-native` for lock + notes._ **DONE — added 7 RNTL mounted tests covering tab preferences, diagnostics, function search, chat index, tabs layout, and note editor autosave.**
+- [x] **`package.json:36-37, 41, 48, 52, 58-63, 68`** — DONE: removed the unused `tailwindcss-animate`, `expo-system-ui`, `expo-updates`, `expo-battery`, `expo-linking`, and `punycode` entries; `defuddle` and `expo-splash-screen` remain installed because remote HTML extraction and splash configuration use them. Typecheck, lint, and tests pass.
 
 ### Code style
 
-- [ ] **`src/services/ai/rag.service.ts`** — 1089 lines. _Fix: split into `rag/seed.ts`, `rag/search.ts`, `rag/embed.ts`._
-- [ ] **`app/(tabs)/map.tsx`** — 2529 lines. _Fix: extract `MapToolbar`, `MapSearchSheet`, `MapLayersSheet`, `MapPin`._
+- [x] **`src/services/ai/rag.service.ts`** — 1089 lines. _Fix: split into `rag/seed.ts`, `rag/search.ts`, `rag/embed.ts`._ **DONE — `rag.service.ts` is now a 672-line public facade/indexing coordinator. Embedding rebuild, starter seed, and search/citation ranking moved to `src/services/ai/rag/embed.ts`, `seed.ts`, and `search.ts`; public `RagService` callers remain unchanged.**
+- [x] **`app/(tabs)/map.tsx`** — DONE: 2990 → 2585 lines (-14%). Extracted `TopMapControls`/search results to `src/components/map/map-toolbar.tsx`, pin/user-location rendering to `src/components/map/map-pin.tsx`, and the saved-data bottom sheet to `src/components/map/saved-data-panel.tsx`. The current map route has no standalone layers sheet path; offline/download prompting remains route-owned.
 - [x] **`app/(tabs)/settings.tsx`** — DONE: 1982 → 679 lines (-66%); extracted 9 components into `src/components/settings/`: `appearance-section`, `security-section`, `backup-section`, `about-section`, `ai-section`, `diagnostics-card`, `embedding-index-card`, `model-section`, `downloads-card`, `offline-maps-card`. Local state (password inputs, model title/url/checksum, map search/browse) moved into the owning section. routes-smoke tests updated to grep the new files. 205 tests pass, typecheck + lint clean.
-- [ ] **`app/(tabs)/chat/[threadId].tsx`** — 1562 lines. _Fix: extract `ChatInput`, `ChatMessage`, `CitationCard`._
+- [x] **`app/chat/[threadId].tsx`** — DONE: 2430 → 1046 lines (-57%). `ChatInput` moved to `src/components/chat/chat-input.tsx`; `ChatMessage`, `StreamingChatMessage`, and `CitationCard` moved to `src/components/chat/chat-message.tsx`. Chat contract tests read the route plus both extracted component files.
 
 ### Minor
 
@@ -162,6 +162,6 @@
 3. ~~**No rate limit / no lockout** in any auth path.~~ **DONE — vault unlock now applies failed-attempt counter + exponential backoff (migration 18).**
 4. **Theme system bypassed.** Input reads outside React subscription; brand colors hardcoded; theme flicker on boot.
 5. **Dead/unused code:** `MapRegionManifestService` (doesn't exist), `ArkError` (deleted), `empty-state` imports, `sensor-store` in tools (now wired via map + compass), plus 8 unused npm packages.
-6. **Big-screen refactor needed:** `map.tsx` (2529), `chat/[threadId].tsx` (1529 now), `rag.service.ts` (~1100). `settings.tsx` is done.
+6. **Big-screen refactor done:** `settings.tsx`, `rag.service.ts`, `chat/[threadId].tsx`, and the highest-risk `map.tsx` UI slices are split. Map's remaining size is mostly native map orchestration and edit/download dialogs.
 7. ~~**AGENTS.md drift is the #1 source of confusion.** Add `scripts/check-docs-drift.ts`.~~ **DONE — `scripts/check-docs-drift.mjs` verifies 8 counts (onboarding, stores, services, lib, UI, db version, tables, FTS) and exits non-zero on drift. Wired as `bun run check:docs`.**
-8. **Test gap:** 196 service/repo tests, zero render tests, no iOS CI, no Detox.
+8. **Test gap:** mounted coverage is growing and iOS simulator CI is wired; Detox/native runtime device coverage remains intentionally separate.

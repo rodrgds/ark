@@ -9,9 +9,8 @@ are not listed here.
 ## ZIM
 
 Kiwix ZIM archive packs. The content detail screen first tries Ark's
-native ZIM reader module when an archive is installed (Android only,
-behind dev builds). Builds without the native reader keep the OS handoff
-to Kiwix or another reader.
+native ZIM reader module when an archive is installed. Builds without the
+native reader keep the OS handoff to Kiwix or another reader.
 
 Kiwix publishes SHA-256 sidecars by appending `.sha256` to the ZIM URL.
 Ark stores those official checksum links in pack metadata, resolves the
@@ -122,10 +121,9 @@ native module, no installed model).
 | `executorch-multi-qa-minilm-l6-cos-v1`  | 384       | ExecuTorch | ExecuTorch multi-qa MiniLM source search | Default. Balanced mobile retrieval with lower memory and faster indexing.      |
 | `executorch-multi-qa-mpnet-base-dot-v1` | 768       | ExecuTorch | ExecuTorch multi-qa MPNet source search  | Higher-quality retrieval for newer phones, with more memory and indexing cost. |
 
-The `isEmbeddingModelPack` helper in `src/services/ai/embedding-models.ts`
-still recognises the legacy `embedding-` id prefix and any title
-containing "embedding", so historical manifests keep loading until they
-are pruned by `REMOVED_STARTER_PACK_IDS`.
+The source-search model registry now lives in `src/services/ai/embedding-models.ts`.
+Historical content-pack model IDs are not carried forward in the fresh
+pre-release database baseline.
 
 ## Safety Notes
 

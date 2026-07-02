@@ -3,7 +3,6 @@ import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { BATTERY_POLL_INTERVALS_MS } from '@/constants/battery';
-import { NAV_COLORS } from '@/constants/theme';
 import { useBatteryReduceMode } from '@/hooks/use-battery-reduce-mode';
 import { hexToRgba } from '@/lib/colors';
 import { RssService } from '@/services/rss/rss.service';
@@ -28,7 +27,7 @@ type Drain = 'low' | 'medium' | 'high';
 
 function DrainBadge({ level }: { level: Drain }) {
   const theme = useThemeStore((state) => state.effectiveTheme);
-  const palette = NAV_COLORS[theme];
+  const palette = useThemeStore((state) => state.colors);
   const colors: Record<Drain, { text: string; label: string }> = {
     low: { text: '#22c55e', label: 'Low' },
     medium: { text: '#f59e0b', label: 'Med' },

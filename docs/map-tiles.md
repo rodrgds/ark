@@ -4,19 +4,14 @@ Ark's Map tab stores manifest-backed offline regions, saved emergency pins, rout
 
 ## Online Style URL
 
-For the first native pass, use a style JSON from one of:
+Ark defaults to OpenFreeMap Liberty for light mode
+(`https://tiles.openfreemap.org/styles/liberty`) and OpenFreeMap Dark for dark/OLED
+(`https://tiles.openfreemap.org/styles/dark`). Set `EXPO_PUBLIC_ARK_MAP_STYLE_URL` only when a
+deployment needs a custom or self-hosted MapLibre style. Region-specific overrides are stored in
+`map_regions.style_url`. Do not hardcode private API keys into source control.
 
-- MapTiler free tier: `https://api.maptiler.com/maps/streets/style.json?key=YOUR_KEY`
-- OpenMapTiles-hosted styles if available for the target deployment.
-
-Set `EXPO_PUBLIC_ARK_MAP_STYLE_URL` for the default runtime style. Region-specific overrides are
-stored in `map_regions.style_url`. Do not hardcode private API keys into source control.
-
-The source fallback is OpenFreeMap (`https://tiles.openfreemap.org/styles/liberty` for light,
-`https://tiles.openfreemap.org/styles/dark` for dark/OLED). Treat public tile services as
-development or early deployment sources until Ark has its own tile hosting contract or
-self-hosted vector tile pipeline. The legacy MapLibre demo style is intentionally detected as a
-demo source and should not be used as Ark's built-in default.
+The legacy MapLibre demo style is intentionally detected as a demo source and should not be used as
+Ark's built-in default.
 
 ## Region Catalog
 
@@ -86,7 +81,10 @@ Preferred storage model:
 and persists native pack IDs in `offline_pack_id`. PMTiles/MBTiles/vector-pack manifest rows are
 accepted and preserved for the future self-hosted tile path, but this app version deliberately does
 not treat those pack URLs as MapLibre native offline packs; download attempts fail with a clear
-unsupported-pack message until a local pack renderer/importer exists. Ark also searches saved spots,
-planned regions, and route drafts offline. Remaining map work is Android/iOS dev-build verification,
-production style/source configuration, local PMTiles rendering, and a real offline geocoder/place
-index.
+unsupported-pack message until a local pack renderer/importer exists. Ark searches saved spots,
+planned regions, route drafts, bundled place seeds, and Photon-enriched local place rows offline.
+The UI labels those rows as Offline place, Online place, or Cached place so users know what came
+from the device versus the network. Reverse-geocode prompts reuse cached names and then fall back to
+bundled catalog regions before showing "this area." Remaining map work is Android/iOS dev-build
+verification, local PMTiles rendering, and a larger OSM-derived POI index if Ark needs full POI
+coverage.

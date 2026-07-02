@@ -1,7 +1,6 @@
 import { Screen } from '@/components/layout/screen';
 import { Card } from '@/components/ui/card';
 import { Text } from '@/components/ui/text';
-import { NAV_COLORS } from '@/constants/theme';
 import { hexToRgba } from '@/lib/colors';
 import { PedometerService } from '@/services/sensors/pedometer.service';
 import { useSensorStore } from '@/stores/sensor-store';
@@ -13,7 +12,7 @@ type Status = 'idle' | 'requesting' | 'denied' | 'unavailable' | 'ready';
 
 export default function PedometerTool() {
   const theme = useThemeStore((state) => state.effectiveTheme);
-  const palette = NAV_COLORS[theme];
+  const palette = useThemeStore((state) => state.colors);
   const [status, setStatus] = React.useState<Status>('idle');
   const [baseSteps, setBaseSteps] = React.useState(0);
   const [session, setSession] = React.useState(0);

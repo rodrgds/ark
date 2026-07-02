@@ -1,6 +1,11 @@
-# Ark — Comprehensive Code Review
+# Ark — Historical Comprehensive Code Review
 
 > Generated 2026-06-03. Covers all areas: services, stores, UI, routes, native modules, types, constants, lib, hooks, tests, and build config.
+>
+> Current status lives in `docs/code-review-findings.md`, `TODO.md`, and `docs/v1-prep-plan.md`.
+> Several high-severity findings below have since been fixed, including SQLCipher key interpolation,
+> vault rate limiting, autolock wiring, DB transaction serialization, download guards, and RAG
+> rebuild behavior. Treat this document as the original audit snapshot, not the live blocker list.
 
 ---
 

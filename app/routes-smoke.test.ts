@@ -71,6 +71,7 @@ describe('app route contracts', () => {
 
   test('settings keeps downloads inside advanced diagnostics', () => {
     const settings = readFileSync(join(appDir, '(tabs)/settings.tsx'), 'utf8');
+    const rootLayout = readFileSync(join(appDir, '_layout.tsx'), 'utf8');
     const downloadsCard = readFileSync(
       join(process.cwd(), 'src/components/settings/downloads-card.tsx'),
       'utf8'
@@ -84,8 +85,15 @@ describe('app route contracts', () => {
     expect(downloadsCard).toContain('Resume all');
     expect(downloadsCard).toContain('Retry failed');
     expect(downloadsCard).toContain('Clean completed');
+    expect(downloadsCard).toContain('DownloadDetailsSheet');
+    expect(downloadsCard).toContain('Retry navigation');
+    expect(downloadsCard).toContain('`routing-${region.id}`');
+    expect(rootLayout).toContain('addNotificationResponseReceivedListener');
+    expect(rootLayout).toContain("params: { tab: 'downloads', downloadId }");
     expect(settings).toContain('PreferencesService.getWifiOnlyDownloadsEnabled');
     expect(settings).toContain('DownloadManagerService.deleteCompletedWhereSafe');
+    expect(settings).toContain('selectedResourceId={selectedDownloadResourceId}');
+    expect(settings).toContain('onRetryRoutingDownload={retryRoutingDownload}');
     expect(settings).toContain("{ value: 'advanced', label: 'Advanced' }");
     expect(settings).toContain("activeTab === 'advanced'");
     expect(settings).toContain('<DownloadsCard');
@@ -164,7 +172,8 @@ describe('app route contracts', () => {
     expect(settings).toContain("setPreference('oled')");
     expect(settings).not.toContain('toggleMotion');
     expect(preferences).toContain('BATTERY_REDUCE_MODE_KEY');
-    expect(preferences).toContain('LEGACY_MOTION_ENABLED_KEY');
+    expect(preferences).not.toContain('LEGACY_MOTION_ENABLED_KEY');
+    expect(preferences).not.toContain('motion.enabled');
   });
 
   test('notes screen exposes selection and bulk action contracts', () => {
@@ -197,6 +206,12 @@ describe('app route contracts', () => {
     expect(editor).toContain('contentFormat');
     expect(editor).toContain('NotesRepository.update');
     expect(editor).toContain('NotesRepository.create');
+    expect(editor).toContain('function NoteActionsSheet');
+    expect(editor).toContain('accessibilityLabel="Note actions"');
+    expect(editor).toContain('NotePdfService.export');
+    expect(editor).toContain('FileSystem.writeAsStringAsync');
+    expect(editor).toContain('Sharing.shareAsync');
+    expect(editor).toContain('Share text');
     expect(richEditor).toContain('useEditorBridge');
     expect(richEditor).toContain('toggleBold');
     expect(richEditor).toContain('toggleItalic');

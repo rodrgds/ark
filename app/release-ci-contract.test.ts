@@ -15,7 +15,25 @@ describe('release CI contracts', () => {
     expect(pkg.scripts.check).toContain('bun run test');
     expect(pkg.scripts.test).toContain('bun test');
     expect(pkg.scripts.test).toContain('tab-preferences-card.rntl.tsx');
+    expect(pkg.scripts.test).toContain('diagnostics-card.rntl.tsx');
+    expect(pkg.scripts.test).toContain('security-section.rntl.tsx');
+    expect(pkg.scripts.test).toContain('ai-section.rntl.tsx');
+    expect(pkg.scripts.test).toContain('downloads-card.rntl.tsx');
+    expect(pkg.scripts.test).toContain('document-reader.rntl.tsx');
+    expect(pkg.scripts.test).toContain('content-reader.rntl.tsx');
+    expect(pkg.scripts.test).toContain('library-screen.rntl.tsx');
+    expect(pkg.scripts.test).toContain('map-screen.rntl.tsx');
     expect(pkg.scripts['android:build:dev']).toContain('assembleDebug');
+    expect(pkg.scripts['ios:build:sim']).toBe('bash scripts/ios-simulator-build.sh');
+
+    const iosBuildScript = readFileSync(
+      join(process.cwd(), 'scripts/ios-simulator-build.sh'),
+      'utf8'
+    );
+    expect(iosBuildScript).toContain('ARK_IOS_SIM_ARCHS');
+    expect(iosBuildScript).toContain('ARK_IOS_XCODEBUILD_QUIET');
+    expect(iosBuildScript).toContain('ARK_IOS_XCODEBUILD_LOG');
+    expect(iosBuildScript).toContain('ARCHS="${ios_sim_archs}"');
   });
 
   test('pre-commit runs the same local checks as release gates', () => {
@@ -53,6 +71,7 @@ describe('release CI contracts', () => {
     expect(workflow).toContain("'devenv.yaml'");
     expect(workflow).toContain("'devenv.lock'");
     expect(workflow).toContain("'scripts/**'");
+    expect(workflow).toContain('iOS Simulator Build');
 
     const devShellName = (name: string) =>
       // Either the dev-shell script name appears in the workflow OR the
@@ -61,9 +80,11 @@ describe('release CI contracts', () => {
     expect(devShellName('typecheck')).toBe(true);
     expect(devShellName('lint')).toBe(true);
     expect(workflow).toContain('bun run test');
+    expect(workflow).toContain('bun run ios:build:sim');
+    expect(workflow).toContain('ARK_IOS_PREBUILD');
   });
 
-  test('GitHub Actions runs install, checks, and tests (Android build is wired elsewhere)', () => {
+  test('GitHub Actions runs install, checks, tests, and an iOS simulator build', () => {
     // Ark delegates Android debug builds to a separate project for now;
     // the in-repo CI runs devenv shell scripts (format-check / typecheck
     // / lint) and `bun run test` for the rntl-suite. The Android gate is
@@ -79,13 +100,16 @@ describe('release CI contracts', () => {
     expect(workflow).not.toContain('bun run android:build:dev');
     expect(workflow).not.toContain('actions/upload-artifact@v4');
     expect(workflow).not.toContain('android/app/build/outputs/apk/debug/*.apk');
-    // format-check / typecheck / lint / bun run test stay wired.
+    // format-check / typecheck / lint / bun run test stay wired,
+    // and the macOS lane builds the generated iOS simulator project.
     expect(workflow).toMatch(/(^|\s)format-check(\s|$)/m);
     const devShellName = (name: string) =>
       workflow.includes(name) || workflow.includes(`bun run ${name}`);
     expect(devShellName('typecheck')).toBe(true);
     expect(devShellName('lint')).toBe(true);
     expect(workflow).toContain('bun run test');
+    expect(workflow).toContain('runs-on: macos-15');
+    expect(workflow).toContain('bun run ios:build:sim');
   });
 
   test('store permission declarations match runtime capabilities', () => {
@@ -137,8 +161,29 @@ describe('release CI contracts', () => {
       'App Store privacy labels',
       'low-end Android',
       'SQLCipher',
+      'docs/android-device-smoke.md',
     ]) {
       expect(readiness).toContain(phrase);
+    }
+  });
+
+  test('Android device smoke checklist covers native runtime launch risks', () => {
+    const smokePath = join(process.cwd(), 'docs/android-device-smoke.md');
+    expect(existsSync(smokePath)).toBe(true);
+
+    const smoke = readFileSync(smokePath, 'utf8');
+    for (const phrase of [
+      'Plaintext database',
+      'Encrypt DB',
+      'Routing engine: active',
+      'Routing data: ready',
+      'Download visible area',
+      'Document Actions',
+      'ark-hash-v2',
+      'Android Material You',
+      'optional SQLCipher',
+    ]) {
+      expect(smoke).toContain(phrase);
     }
   });
 });

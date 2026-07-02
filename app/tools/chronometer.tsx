@@ -1,6 +1,5 @@
 import { Screen } from '@/components/layout/screen';
 import { Text } from '@/components/ui/text';
-import { NAV_COLORS } from '@/constants/theme';
 import { hexToRgba } from '@/lib/colors';
 import { useThemeStore } from '@/stores/theme-store';
 import * as React from 'react';
@@ -28,7 +27,7 @@ type Lap = { index: number; split: number; total: number };
 
 export default function ChronometerTool() {
   const theme = useThemeStore((state) => state.effectiveTheme);
-  const palette = NAV_COLORS[theme];
+  const palette = useThemeStore((state) => state.colors);
   const [running, setRunning] = React.useState(false);
   const [elapsed, setElapsed] = React.useState(0);
   const [laps, setLaps] = React.useState<Lap[]>([]);

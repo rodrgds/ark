@@ -1,6 +1,6 @@
 # Release Checklist
 
-Ark is not production-released yet. Use this list before the first promoted build.
+Use this list before each promoted build or public APK release.
 
 ## Code Gates
 
@@ -10,6 +10,7 @@ Ark is not production-released yet. Use this list before the first promoted buil
 - GitHub `CI` green on `main`
 - GitHub `React Doctor` reviewed
 - Docs deploy green or intentionally skipped because Cloudflare secrets are not configured
+- GitHub `Android Release APKs` green for tagged releases
 
 ## Android Proof
 
@@ -32,6 +33,7 @@ Ark is not production-released yet. Use this list before the first promoted buil
 - Docs site explains both user and developer paths
 - Screenshots contain no private data
 - Known limitations are explicit
+- GitHub Releases include Android APK assets and `SHA256SUMS.txt`
 - F-Droid metadata exists, but F-Droid scanner findings are still unresolved until a real fdroidserver test runs
 
 See [release readiness](/release-readiness) for the durable risk log.

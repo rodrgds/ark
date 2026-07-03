@@ -25,6 +25,8 @@ describe('release CI contracts', () => {
     expect(pkg.scripts.test).toContain('library-screen.rntl.tsx');
     expect(pkg.scripts.test).toContain('map-screen.rntl.tsx');
     expect(pkg.scripts['android:build:dev']).toContain('assembleDebug');
+    expect(pkg.scripts['android:build:prod']).toContain('assembleRelease');
+    expect(pkg.scripts['android:release:apks']).toBe('bash scripts/android-release-apks.sh');
     expect(pkg.scripts['ios:build:sim']).toBe('bash scripts/ios-simulator-build.sh');
 
     const iosBuildScript = readFileSync(
@@ -83,6 +85,7 @@ describe('release CI contracts', () => {
     expect(workflow).toContain("'devenv.yaml'");
     expect(workflow).toContain("'devenv.lock'");
     expect(workflow).toContain("'scripts/**'");
+    expect(workflow).toContain("'plugins/**'");
     expect(workflow).toContain('iOS Simulator Build');
 
     const devShellName = (name: string) =>
@@ -122,6 +125,44 @@ describe('release CI contracts', () => {
     expect(workflow).toContain('bun run test');
     expect(workflow).toContain('runs-on: macos-26');
     expect(workflow).toContain('bun run ios:build:sim');
+  });
+
+  test('Android release workflow builds signed APK assets for GitHub releases', () => {
+    const workflowPath = join(process.cwd(), '.github/workflows/android-release.yml');
+    expect(existsSync(workflowPath)).toBe(true);
+
+    const workflow = readFileSync(workflowPath, 'utf8');
+    expect(workflow).toContain('types: [published]');
+    expect(workflow).toContain('workflow_dispatch');
+    expect(workflow).toContain('contents: write');
+    expect(workflow).toContain('ARK_ANDROID_KEYSTORE_BASE64');
+    expect(workflow).toContain('ARK_ANDROID_KEYSTORE_PASSWORD');
+    expect(workflow).toContain('ARK_ANDROID_KEY_ALIAS');
+    expect(workflow).toContain('ARK_ANDROID_KEY_PASSWORD');
+    expect(workflow).toContain('bun run android:release:apks');
+    expect(workflow).toContain('gh release upload');
+    expect(workflow).toContain('SHA256SUMS.txt');
+
+    const app = JSON.parse(readFileSync(join(process.cwd(), 'app.json'), 'utf8')) as {
+      expo: { plugins: Array<string | [string, Record<string, unknown>]> };
+    };
+    expect(app.expo.plugins).toContain('./plugins/with-ark-android-release');
+
+    const releasePlugin = readFileSync(
+      join(process.cwd(), 'plugins/with-ark-android-release.js'),
+      'utf8'
+    );
+    expect(releasePlugin).toContain('universalApk true');
+    expect(releasePlugin).toContain('"arm64-v8a"');
+    expect(releasePlugin).toContain('ARK_ANDROID_KEYSTORE_PATH');
+
+    const releaseScript = readFileSync(
+      join(process.cwd(), 'scripts/android-release-apks.sh'),
+      'utf8'
+    );
+    expect(releaseScript).toContain('bun run android:build:prod');
+    expect(releaseScript).toContain('APK_MANIFEST.txt');
+    expect(releaseScript).toContain('SHA256SUMS.txt');
   });
 
   test('store permission declarations match runtime capabilities', () => {

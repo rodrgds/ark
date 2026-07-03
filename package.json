@@ -2,7 +2,7 @@
   "name": "ark",
   "description": "Noé's Ark for the offline age: an offline-first survival computer for mobile.",
   "main": "expo-router/entry",
-  "version": "1.0.0-beta.0",
+  "version": "1.0.0",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -11,7 +11,7 @@
   "bugs": {
     "url": "https://github.com/rodrgds/ark/issues"
   },
-  "homepage": "https://github.com/rodrgds/ark#readme",
+  "homepage": "https://ark.rgo.pt",
   "keywords": [
     "offline-first",
     "survival",
@@ -41,6 +41,7 @@
     "clean": "rm -rf .expo node_modules",
     "android:build:dev": "expo prebuild --platform android --no-install --no-clean && cd android && ./gradlew assembleDebug",
     "android:build:prod": "expo prebuild --platform android --no-install --no-clean && cd android && ./gradlew assembleRelease",
+    "android:release:apks": "bash scripts/android-release-apks.sh",
     "ios:build:sim": "bash scripts/ios-simulator-build.sh",
     "build-send": "node scripts/build-send.mjs",
     "build-send:dev": "node scripts/build-send.mjs --dev",

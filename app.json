@@ -128,6 +128,7 @@
       "@maplibre/maplibre-react-native",
       "./plugins/with-ark-routing",
       "./plugins/with-ark-gradle-memory",
+      "./plugins/with-ark-android-release",
       [
         "expo-build-properties",
         {

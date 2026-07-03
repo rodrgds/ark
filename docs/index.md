@@ -50,6 +50,6 @@ features:
 
 ## Current Release Posture
 
-Ark is open source beta software. Core flows exist, but the first production release still needs full device proof for the native-heavy paths: SQLCipher, MapLibre offline packs, Valhalla routing, background track recording, ArkZim, ArkOcr, llama.rn, and ExecuTorch source-search models.
+Ark publishes installable Android APKs through GitHub Releases. Core flows exist, but store-ready production still needs full device proof for the native-heavy paths: SQLCipher, MapLibre offline packs, Valhalla routing, background track recording, ArkZim, ArkOcr, llama.rn, and ExecuTorch source-search models.
 
 Use the [release checklist](/release/release-checklist) before presenting Ark as production-ready.

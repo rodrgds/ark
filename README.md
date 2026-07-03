@@ -15,6 +15,7 @@
   <img alt="React Native 0.86" src="https://img.shields.io/badge/React%20Native-0.86-61dafb.svg" />
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-6.0-3178c6.svg" />
   <img alt="Offline first" src="https://img.shields.io/badge/offline--first-yes-2f855a.svg" />
+  <a href="https://ark.rgo.pt"><img alt="Docs" src="https://img.shields.io/badge/docs-ark.rgo.pt-29302a.svg" /></a>
 </p>
 
 Ark is an offline-first survival computer for iOS and Android. It combines downloadable maps, emergency knowledge packs, secure notes/documents, local search, on-device AI/RAG, cached feeds/weather, and practical sensor tools in one mobile app that remains useful after the internet disappears.
@@ -39,12 +40,14 @@ Good references in the same orbit are offline navigation apps like OsmAnd/Organi
 
 ## Screenshots
 
-<p align="center">
-  <img src="docs/screenshots/library.png" alt="Ark library" width="245" />
-  <img src="docs/screenshots/map.png" alt="Ark offline map" width="245" />
-  <img src="docs/screenshots/chat.png" alt="Ask Arky" width="245" />
-  <img src="docs/screenshots/notes.png" alt="Ark notes" width="245" />
-</p>
+<table>
+  <tr>
+    <td><img src="docs/screenshots/library.png" alt="Ark library" width="170" /></td>
+    <td><img src="docs/screenshots/map.png" alt="Ark offline map" width="170" /></td>
+    <td><img src="docs/screenshots/chat.png" alt="Ask Arky" width="170" /></td>
+    <td><img src="docs/screenshots/notes.png" alt="Ark notes" width="170" /></td>
+  </tr>
+</table>
 
 ## Stack
 
@@ -75,18 +78,19 @@ bun run android:install
 
 ## Documentation
 
-- [User guide](docs/user/getting-started.md)
-- [Maps and navigation](docs/user/maps-navigation.md)
-- [Vault, notes, and backups](docs/user/vault-notes-backups.md)
-- [Developer setup](docs/developer/setup.md)
-- [Architecture](docs/developer/architecture.md)
-- [Native builds](docs/developer/native-builds.md)
-- [Release checklist](docs/release/release-checklist.md)
-- [F-Droid preparation](docs/release/fdroid.md)
+- [Documentation website](https://ark.rgo.pt)
+- [User guide](https://ark.rgo.pt/user/getting-started)
+- [Maps and navigation](https://ark.rgo.pt/user/maps-navigation)
+- [Vault, notes, and backups](https://ark.rgo.pt/user/vault-notes-backups)
+- [Developer setup](https://ark.rgo.pt/developer/setup)
+- [Architecture](https://ark.rgo.pt/developer/architecture)
+- [Native builds](https://ark.rgo.pt/developer/native-builds)
+- [Release checklist](https://ark.rgo.pt/release/release-checklist)
+- [F-Droid preparation](https://ark.rgo.pt/release/fdroid)
 
 ## Project status
 
-Ark is beta-stage software. Core app flows exist, but this is not a polished store release yet. The most important remaining work is native-device verification, security hardening, checksum coverage, and real-world usability testing.
+Ark publishes installable Android APKs through GitHub Releases. Core app flows exist, but this is not a polished store release yet. The most important remaining work is native-device verification, security hardening, checksum coverage, and real-world usability testing.
 
 ## Contributing
 

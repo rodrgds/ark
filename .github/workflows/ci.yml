@@ -55,6 +55,7 @@ jobs:
               - 'metro.config.js'
               - 'global.css'
               - 'polyfills.ts'
+              - 'plugins/**'
               - 'tsconfig.json'
               - 'package.json'
               - 'bun.lock'

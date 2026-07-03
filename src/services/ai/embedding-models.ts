@@ -19,6 +19,7 @@ export type EmbeddingModelConfig = {
 export const EXECUTORCH_TEXT_EMBEDDING_MODEL_ID = 'executorch-multi-qa-minilm-l6-cos-v1';
 export const EXECUTORCH_TEXT_EMBEDDING_DIMENSIONS = 384;
 export const EXECUTORCH_TEXT_EMBEDDING_TITLE = 'ExecuTorch multi-qa MiniLM source search';
+export const DEFAULT_EMBEDDING_MODEL_ID = EXECUTORCH_TEXT_EMBEDDING_MODEL_ID;
 export const EXECUTORCH_MPNET_EMBEDDING_MODEL_ID = 'executorch-multi-qa-mpnet-base-dot-v1';
 export const EXECUTORCH_MPNET_EMBEDDING_DIMENSIONS = 768;
 export const EXECUTORCH_MPNET_EMBEDDING_TITLE = 'ExecuTorch multi-qa MPNet source search';
@@ -67,8 +68,8 @@ export const EXECUTORCH_EMBEDDING_MODEL_OPTIONS = [
 ];
 
 export const EMBEDDING_MODEL_OPTIONS = [
-  EMBEDDING_MODEL_CONFIGS[RAG_HASH_EMBEDDING_MODEL_ID],
   ...EXECUTORCH_EMBEDDING_MODEL_OPTIONS,
+  EMBEDDING_MODEL_CONFIGS[RAG_HASH_EMBEDDING_MODEL_ID],
 ];
 
 export function isEmbeddingModelPack(pack: Pick<ContentPack, 'id' | 'title' | 'modelRole'>) {
@@ -76,7 +77,7 @@ export function isEmbeddingModelPack(pack: Pick<ContentPack, 'id' | 'title' | 'm
 }
 
 export function getEmbeddingModelConfig(pack?: Pick<ContentPack, 'id' | 'title'> | null) {
-  if (!pack) return EMBEDDING_MODEL_CONFIGS[RAG_HASH_EMBEDDING_MODEL_ID];
+  if (!pack) return EMBEDDING_MODEL_CONFIGS[DEFAULT_EMBEDDING_MODEL_ID];
   const known = EMBEDDING_MODEL_CONFIGS[pack.id];
   if (known) return known;
   return null;

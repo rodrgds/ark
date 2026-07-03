@@ -34,7 +34,7 @@ describe('TabPreferencesCard', () => {
     expect(mapToggle).toBeEnabled();
     expect(view.getByLabelText('Turn Arky tab off')).toBeDisabled();
     expect(view.getByLabelText('Turn Settings tab off')).toBeDisabled();
-    expect(view.getByLabelText('Turn Notes tab on')).toBeDisabled();
+    expect(view.getByLabelText('Turn Notes tab on')).toBeEnabled();
 
     await user.press(mapToggle);
 
@@ -55,7 +55,7 @@ describe('TabPreferencesCard', () => {
     expect(await view.findByLabelText('Turn Map tab on')).toBeEnabled();
   });
 
-  test('waits until drop to reorder tabs and persists only after apply', async () => {
+  test('reorders while dragging and persists only after apply', async () => {
     const { TabPreferencesCard } = await import('@/components/settings/tab-preferences-card');
     const user = userEvent.setup();
 
@@ -75,13 +75,12 @@ describe('TabPreferencesCard', () => {
     });
 
     expect(settingsSet).not.toHaveBeenCalled();
-    expect(view.queryByText('Apply Changes')).toBeNull();
+    const applyButton = await view.findByText('Apply Changes');
 
     await act(async () => {
       gesture.testOnlyHandlers?.onFinalize?.({ translationY: 70 });
     });
 
-    const applyButton = await view.findByText('Apply Changes');
     await user.press(applyButton);
 
     await waitFor(() => {

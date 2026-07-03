@@ -20,6 +20,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { router } from 'expo-router';
 import Animated, {
   Easing,
+  LinearTransition,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -186,29 +187,34 @@ function TabPreferenceRow({
 }) {
   const translateY = useSharedValue(0);
   const dragging = useSharedValue(0);
+  const dragStartIndex = useSharedValue(index);
+  const lastTargetIndex = useSharedValue(index);
 
   const pan = React.useMemo(
     () =>
       Gesture.Pan()
         .onBegin(() => {
           dragging.value = 1;
+          dragStartIndex.value = index;
+          lastTargetIndex.value = index;
         })
         .onUpdate((event) => {
-          translateY.value = event.translationY;
-        })
-        .onFinalize((event) => {
           const offset = Math.round(event.translationY / ROW_HEIGHT);
-          const targetIndex = Math.max(0, Math.min(count - 1, index + offset));
+          const targetIndex = Math.max(0, Math.min(count - 1, dragStartIndex.value + offset));
+          translateY.value = event.translationY - (targetIndex - dragStartIndex.value) * ROW_HEIGHT;
+          if (targetIndex !== lastTargetIndex.value) {
+            lastTargetIndex.value = targetIndex;
+            scheduleOnRN(onMoveToIndex, tab.id, targetIndex);
+          }
+        })
+        .onFinalize(() => {
           translateY.value = withTiming(0, {
             duration: 140,
             easing: Easing.out(Easing.cubic),
           });
           dragging.value = 0;
-          if (targetIndex !== index) {
-            scheduleOnRN(onMoveToIndex, tab.id, targetIndex);
-          }
         }),
-    [count, dragging, index, onMoveToIndex, tab.id, translateY]
+    [count, dragStartIndex, dragging, index, lastTargetIndex, onMoveToIndex, tab.id, translateY]
   );
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -219,7 +225,9 @@ function TabPreferenceRow({
   }));
 
   return (
-    <Animated.View style={animatedStyle}>
+    <Animated.View
+      layout={LinearTransition.duration(120).easing(Easing.out(Easing.cubic))}
+      style={animatedStyle}>
       <View
         className="border-border bg-background flex-row items-center gap-2 rounded-md border px-2 py-2"
         style={{ minHeight: ROW_HEIGHT }}>

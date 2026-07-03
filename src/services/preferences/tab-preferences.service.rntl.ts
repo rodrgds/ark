@@ -42,7 +42,7 @@ describe('TabPreferencesService', () => {
 
     await expect(TabPreferencesService.getPreferences()).resolves.toEqual({
       order: ['chat', 'tracks', 'map', 'library', 'notes', 'tools', 'settings'],
-      enabled: ['chat', 'tracks', 'map', 'library', 'settings'],
+      enabled: ['chat', 'tracks', 'map', 'library', 'notes', 'settings'],
     });
   });
 

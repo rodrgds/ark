@@ -1,5 +1,6 @@
 import { ContentPackService } from '@/services/content/content-pack.service';
 import {
+  DEFAULT_EMBEDDING_MODEL_ID,
   EMBEDDING_MODEL_OPTIONS,
   EMBEDDING_MODEL_CONFIGS,
   isEmbeddingModelPack,
@@ -178,7 +179,7 @@ export class ModelManagerService {
         } = {}
   ) {
     const callbacks = typeof options === 'function' ? { onDownloadProgress: options } : options;
-    const nextModelId = modelId ?? RAG_HASH_EMBEDDING_MODEL_ID;
+    const nextModelId = modelId ?? DEFAULT_EMBEDDING_MODEL_ID;
     const nextModel = EMBEDDING_MODEL_CONFIGS[nextModelId];
     if (!nextModel) {
       throw new Error('Choose a supported source-search model.');
@@ -195,7 +196,7 @@ export class ModelManagerService {
     const model = await EmbeddingService.prepareActiveModel(callbacks.onDownloadProgress);
     if (nextModel.family === 'executorch' && !model) {
       await PreferencesService.setSelectedEmbeddingModelId(
-        previousModelId ?? RAG_HASH_EMBEDDING_MODEL_ID
+        previousModelId ?? DEFAULT_EMBEDDING_MODEL_ID
       );
       resetEmbeddingRuntimeContext();
       throw new Error('Unable to download or load the source-search model.');
@@ -206,7 +207,7 @@ export class ModelManagerService {
       });
     } catch (error) {
       await PreferencesService.setSelectedEmbeddingModelId(
-        previousModelId ?? RAG_HASH_EMBEDDING_MODEL_ID
+        previousModelId ?? DEFAULT_EMBEDDING_MODEL_ID
       );
       resetEmbeddingRuntimeContext();
       throw error;

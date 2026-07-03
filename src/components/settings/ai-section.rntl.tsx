@@ -55,7 +55,7 @@ const modelStatus: ModelStatus = {
   availableEmbeddingModels: 3,
   availableVoiceModels: 0,
   selectedModelId: gemmaModel.id,
-  selectedEmbeddingModelId: RAG_HASH_EMBEDDING_MODEL_ID,
+  selectedEmbeddingModelId: EXECUTORCH_TEXT_EMBEDDING_MODEL_ID,
   selectedVoiceModelId: null,
   modelPickerEnabled: false,
   chatModelDisabled: false,
@@ -95,13 +95,13 @@ function renderAiSection(props: Partial<AiSectionProps> = {}) {
       activeEmbeddingModel={EMBEDDING_MODEL_OPTIONS[0]}
       embeddingModels={EMBEDDING_MODEL_OPTIONS}
       embeddingIndexStatus={[
+        indexStatus(),
         indexStatus({
           id: RAG_HASH_EMBEDDING_MODEL_ID,
           title: `${RAG_HASH_EMBEDDING_TITLE} (256d)`,
-          active: true,
+          active: false,
           installed: true,
         }),
-        indexStatus(),
         indexStatus({
           id: EXECUTORCH_MPNET_EMBEDDING_MODEL_ID,
           title: 'ExecuTorch multi-qa MPNet source search (768d)',

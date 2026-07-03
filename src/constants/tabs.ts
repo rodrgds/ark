@@ -85,4 +85,6 @@ export const ARK_TABS: ArkTabDefinition[] = [
 
 export const DEFAULT_TAB_ORDER = ARK_TABS.map((tab) => tab.id);
 export const DEFAULT_ENABLED_TABS: ArkTabId[] = ['chat', 'tracks', 'map', 'library', 'settings'];
-export const MAX_VISIBLE_NATIVE_TABS = 5;
+// Expo NativeTabs uses react-native-screens' Material BottomNavigationView on Android.
+// Material 1.13 reports a max item count of 6, so persisted preferences are capped here.
+export const MAX_VISIBLE_NATIVE_TABS = 6;

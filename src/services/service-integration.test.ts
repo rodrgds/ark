@@ -782,7 +782,8 @@ let resetEmbeddingServiceForTests: typeof import('@/services/ai/embedding.servic
 let VoiceRuntimeService: typeof import('@/services/ai/voice-runtime.service').VoiceRuntimeService;
 let resetVoiceRuntimeForTests: typeof import('@/services/ai/voice-runtime.service').resetVoiceRuntimeForTests;
 let RAG_HASH_EMBEDDING_MODEL_ID: typeof import('@/services/ai/rag-embedding').RAG_HASH_EMBEDDING_MODEL_ID;
-let RAG_HASH_EMBEDDING_DIMENSIONS: typeof import('@/services/ai/rag-embedding').RAG_HASH_EMBEDDING_DIMENSIONS;
+let EXECUTORCH_TEXT_EMBEDDING_MODEL_ID: typeof import('@/services/ai/embedding-models').EXECUTORCH_TEXT_EMBEDDING_MODEL_ID;
+let EXECUTORCH_TEXT_EMBEDDING_DIMENSIONS: typeof import('@/services/ai/embedding-models').EXECUTORCH_TEXT_EMBEDDING_DIMENSIONS;
 let useAppStore: typeof import('@/stores/app-store').useAppStore;
 let ContentRepository: typeof import('@/services/db/repositories/content.repo').ContentRepository;
 let resetStarterPacksSeedFlagForTests: () => void;
@@ -821,8 +822,9 @@ beforeAll(async () => {
   ({ resetEmbeddingServiceForTests } = await import('@/services/ai/embedding.service'));
   ({ VoiceRuntimeService, resetVoiceRuntimeForTests } =
     await import('@/services/ai/voice-runtime.service'));
-  ({ RAG_HASH_EMBEDDING_MODEL_ID, RAG_HASH_EMBEDDING_DIMENSIONS } =
-    await import('@/services/ai/rag-embedding'));
+  ({ RAG_HASH_EMBEDDING_MODEL_ID } = await import('@/services/ai/rag-embedding'));
+  ({ EXECUTORCH_TEXT_EMBEDDING_MODEL_ID, EXECUTORCH_TEXT_EMBEDDING_DIMENSIONS } =
+    await import('@/services/ai/embedding-models'));
   ({ useAppStore } = await import('@/stores/app-store'));
   ({ ContentRepository, resetStarterPacksSeedFlagForTests } =
     await import('@/services/db/repositories/content.repo'));
@@ -1148,8 +1150,10 @@ describe('service integration', () => {
        WHERE s.source_ref = ? AND c.chunk_index = 2`,
       ['hesperian-first-aid']
     );
-    expect(embeddedChunk?.embedding_model_id).toBe(RAG_HASH_EMBEDDING_MODEL_ID);
-    expect(embeddedChunk?.embedding_blob?.byteLength).toBe(RAG_HASH_EMBEDDING_DIMENSIONS * 4);
+    expect(embeddedChunk?.embedding_model_id).toBe(EXECUTORCH_TEXT_EMBEDDING_MODEL_ID);
+    expect(embeddedChunk?.embedding_blob?.byteLength).toBe(
+      EXECUTORCH_TEXT_EMBEDDING_DIMENSIONS * 4
+    );
   });
 
   test('installed HTML snapshot packs are indexed from their downloaded body text', async () => {
@@ -3255,9 +3259,9 @@ describe('service integration', () => {
     expect(
       (await ModelManagerService.listAvailableEmbeddingModels()).map((model) => model.id)
     ).toEqual([
-      RAG_HASH_EMBEDDING_MODEL_ID,
       'executorch-multi-qa-minilm-l6-cos-v1',
       'executorch-multi-qa-mpnet-base-dot-v1',
+      RAG_HASH_EMBEDDING_MODEL_ID,
     ]);
     expect(
       (await ModelManagerService.listAvailableChatModels()).map((model) => model.id)
@@ -3288,7 +3292,7 @@ describe('service integration', () => {
     );
   });
 
-  test('RAG uses the battery-safe hash embedding model by default', async () => {
+  test('RAG uses the MiniLM embedding model by default', async () => {
     resetEmbeddingServiceForTests();
     resetLlamaAdapterForTests();
 
@@ -3309,8 +3313,10 @@ describe('service integration', () => {
        WHERE s.source_ref = ?`,
       [note.id]
     );
-    expect(embeddedChunk?.embedding_model_id).toBe(RAG_HASH_EMBEDDING_MODEL_ID);
-    expect(embeddedChunk?.embedding_blob?.byteLength).toBe(RAG_HASH_EMBEDDING_DIMENSIONS * 4);
+    expect(embeddedChunk?.embedding_model_id).toBe(EXECUTORCH_TEXT_EMBEDDING_MODEL_ID);
+    expect(embeddedChunk?.embedding_blob?.byteLength).toBe(
+      EXECUTORCH_TEXT_EMBEDDING_DIMENSIONS * 4
+    );
 
     const status = await ModelManagerService.getStatus();
     expect(status.adapter).toBe('mock');
@@ -3403,7 +3409,7 @@ describe('service integration', () => {
 
     expect(partialMpnet?.count).toBe(1);
     expect(primaryModels.map((row) => row.embedding_model_id)).toEqual([
-      RAG_HASH_EMBEDDING_MODEL_ID,
+      EXECUTORCH_TEXT_EMBEDDING_MODEL_ID,
     ]);
   });
 

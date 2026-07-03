@@ -9,9 +9,42 @@ OUTPUT_DIR="android/app/build/outputs/apk/release"
 VERSION_NAME="$(node -e "process.stdout.write(require('./app.json').expo.version)")"
 VERSION_CODE="$(node -e "process.stdout.write(String(require('./app.json').expo.android.versionCode))")"
 RELEASE_TAG="${ARK_RELEASE_TAG:-${GITHUB_REF_NAME:-v${VERSION_NAME}}}"
+WORKLETS_PREWARM_DIR="${ARK_WORKLETS_PREWARM_DIR:-${RUNNER_TEMP:-/tmp}/ark-worklets-prewarm}"
+WORKLETS_PREWARM_LOG="${ARK_WORKLETS_PREWARM_LOG:-${WORKLETS_PREWARM_DIR}/metro.log}"
+
+prewarm_worklets_bundle_mode() {
+  local attempt
+  for attempt in 1 2; do
+    rm -rf "$WORKLETS_PREWARM_DIR"
+    mkdir -p "$WORKLETS_PREWARM_DIR/assets"
+
+    echo "Prewarming Worklets bundle-mode files with Metro (attempt ${attempt}/2)..."
+    if NODE_ENV=production bunx expo export:embed \
+      --platform android \
+      --dev false \
+      --entry-file node_modules/expo-router/entry.js \
+      --bundle-output "$WORKLETS_PREWARM_DIR/index.android.bundle" \
+      --assets-dest "$WORKLETS_PREWARM_DIR/assets" \
+      2>&1 | tee "$WORKLETS_PREWARM_LOG"; then
+      return 0
+    fi
+
+    if ! grep -Eq 'Failed to get the SHA-1 for: .*/node_modules/react-native-worklets/\.worklets/.*\.js' "$WORKLETS_PREWARM_LOG"; then
+      echo "Worklets prewarm failed for an unexpected reason." >&2
+      return 1
+    fi
+
+    echo "Metro hit the expected Worklets generated-file SHA-1 race; retrying with generated files present."
+  done
+
+  echo "Worklets prewarm did not complete after retry." >&2
+  return 1
+}
 
 rm -rf "$DIST_DIR"
 mkdir -p "$DIST_DIR"
+
+prewarm_worklets_bundle_mode
 
 bun run android:build:prod
 

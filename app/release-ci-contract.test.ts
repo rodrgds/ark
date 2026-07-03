@@ -160,6 +160,9 @@ describe('release CI contracts', () => {
       join(process.cwd(), 'scripts/android-release-apks.sh'),
       'utf8'
     );
+    expect(releaseScript).toContain('prewarm_worklets_bundle_mode');
+    expect(releaseScript).toContain('expo export:embed');
+    expect(releaseScript).toContain('react-native-worklets/\\.worklets/');
     expect(releaseScript).toContain('bun run android:build:prod');
     expect(releaseScript).toContain('APK_MANIFEST.txt');
     expect(releaseScript).toContain('SHA256SUMS.txt');

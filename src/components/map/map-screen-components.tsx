@@ -39,10 +39,23 @@ import {
   getMapPackFormatLabel,
   getUnsupportedMapPackReason,
 } from '@/services/maps/map-pack-format';
-import { formatMapRegionStorage, routingStatusLabel } from '@/services/maps/map-storage';
+import {
+  estimatedMapRegionBytes,
+  formatMapRegionStorage,
+  routingStatusLabel,
+} from '@/services/maps/map-storage';
 import { isPresetDownloaded } from '@/services/maps/map-region-utils';
+import { estimatedBundledRoutingPackBytesForRegion } from '@/services/maps/routing-storage';
 import { useThemeStore } from '@/stores/theme-store';
-import type { MapMarker, MapRegion, NavigationSession, SavedRoute } from '@/types/maps';
+import type {
+  MapMarker,
+  MapRegion,
+  NavigationSession,
+  RoutingPackStatus,
+  RoutingPreferences,
+  RoutingProfile,
+  SavedRoute,
+} from '@/types/maps';
 import type { UnitSystem } from '@/types/tracks';
 import {
   AlertTriangle,
@@ -78,7 +91,6 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
-import type { RoutingPreferences, RoutingProfile } from '@/types/maps';
 
 type ManagerTab = 'downloaded' | 'browse';
 
@@ -420,6 +432,111 @@ export function LocationNoticeCard({
   );
 }
 
+type DownloadProgressRow = {
+  key: string;
+  label: string;
+  statusLabel: string;
+  value: number;
+  weight: number;
+};
+
+function clampProgress(value?: number | null) {
+  if (!Number.isFinite(value ?? NaN)) return 0;
+  return Math.max(0, Math.min(1, value ?? 0));
+}
+
+function mapDownloadProgress(region: MapRegion) {
+  if (region.status === 'downloaded') return 1;
+  if (region.status === 'downloading' || region.status === 'paused') {
+    return clampProgress(region.progress);
+  }
+  return 0;
+}
+
+function routingDownloadProgress(region: MapRegion) {
+  if (region.routingStatus === 'ready') return 1;
+  if (region.routingStatus === 'downloading' || region.routingStatus === 'paused') {
+    return clampProgress(region.routingProgress);
+  }
+  return 0;
+}
+
+function mapDownloadStatusLabel(region: MapRegion) {
+  switch (region.status) {
+    case 'downloaded':
+      return 'Ready';
+    case 'downloading':
+      return `${Math.round(mapDownloadProgress(region) * 100)}%`;
+    case 'queued':
+      return 'Queued';
+    case 'paused':
+      return `Paused ${Math.round(mapDownloadProgress(region) * 100)}%`;
+    case 'failed':
+      return 'Failed';
+    default:
+      return 'Waiting';
+  }
+}
+
+function routingDownloadStatusLabel(status: RoutingPackStatus, progress: number) {
+  switch (status) {
+    case 'ready':
+      return 'Ready';
+    case 'downloading':
+      return `${Math.round(progress * 100)}%`;
+    case 'queued':
+      return 'Queued';
+    case 'paused':
+      return `Paused ${Math.round(progress * 100)}%`;
+    case 'failed':
+      return 'Failed';
+    default:
+      return 'Waiting';
+  }
+}
+
+function downloadProgressRows(region: MapRegion): DownloadProgressRow[] {
+  const includesRouting = Boolean(
+    region.routingPackUrl || region.routingStatus !== 'not_downloaded'
+  );
+  const mapEstimatedBytes = estimatedMapRegionBytes(region);
+  const routingEstimatedBytes = includesRouting
+    ? estimatedBundledRoutingPackBytesForRegion(region)
+    : null;
+  const hasByteWeights =
+    mapEstimatedBytes != null && (!includesRouting || routingEstimatedBytes != null);
+  const mapWeight = hasByteWeights ? (mapEstimatedBytes ?? 1) : 1;
+  const routingWeight = hasByteWeights ? (routingEstimatedBytes ?? 0) : 1;
+  const rows: DownloadProgressRow[] = [
+    {
+      key: 'map',
+      label: 'Map tiles',
+      statusLabel: mapDownloadStatusLabel(region),
+      value: mapDownloadProgress(region),
+      weight: mapWeight,
+    },
+  ];
+
+  if (includesRouting) {
+    const routingProgress = routingDownloadProgress(region);
+    rows.push({
+      key: 'routing',
+      label: 'Navigation graph',
+      statusLabel: routingDownloadStatusLabel(region.routingStatus, routingProgress),
+      value: routingProgress,
+      weight: routingWeight,
+    });
+  }
+
+  return rows;
+}
+
+function combinedDownloadProgress(rows: DownloadProgressRow[]) {
+  const totalWeight = rows.reduce((total, row) => total + row.weight, 0);
+  if (totalWeight <= 0) return 0;
+  return rows.reduce((total, row) => total + row.value * row.weight, 0) / totalWeight;
+}
+
 export function MissingRegionPromptModal({
   visible,
   busy,
@@ -473,19 +590,20 @@ export function MissingRegionPromptModal({
     return () => abortController.abort();
   }, [visible, region?.id, region?.center?.[0], region?.center?.[1]]);
 
-  if (!visible || !region) return null;
+  if (!visible || (!region && !downloadingRegion)) return null;
 
-  const activeRegion = dynamicPreset?.id === region.id ? dynamicPreset : region;
+  const activeRegion = region && dynamicPreset?.id === region.id ? dynamicPreset : region;
   const size = activeRegion?.estimatedSizeMb
     ? `About ${Math.round(activeRegion.estimatedSizeMb)} MB`
     : activeRegion?.estimatedSize;
-  const name = activeRegion?.name || downloadingRegion?.name;
+  const name = downloadingRegion?.name || activeRegion?.name;
   const preset = activeRegion;
-  const routingLabel = downloadingRegion ? routingStatusLabel(downloadingRegion) : null;
   const unsupportedReason = preset ? getUnsupportedMapPackReason(preset) : null;
   const unsupported = Boolean(unsupportedReason);
   const downloaded = downloadingRegion?.status === 'downloaded';
   const updateAvailable = false;
+  const progressRows = downloadingRegion ? downloadProgressRows(downloadingRegion) : [];
+  const combinedProgress = combinedDownloadProgress(progressRows);
 
   return (
     <Animated.View
@@ -503,8 +621,7 @@ export function MissingRegionPromptModal({
             </Text>
             {downloadingRegion ? (
               <Text className="text-muted-foreground text-sm font-medium">
-                Downloading... {Math.round((downloadingRegion.progress || 0) * 100)}%
-                {routingLabel ? ` · ${routingLabel}` : ''}
+                Downloading... {Math.round(combinedProgress * 100)}%
               </Text>
             ) : (
               <Text className="text-muted-foreground text-sm font-medium">
@@ -514,8 +631,18 @@ export function MissingRegionPromptModal({
             )}
           </View>
           {downloadingRegion ? (
-            <View className="mt-2">
-              <Progress value={downloadingRegion.progress || 0} />
+            <View className="mt-2 gap-3">
+              {progressRows.map((row) => (
+                <View key={row.key} className="gap-1.5">
+                  <View className="flex-row items-center justify-between gap-3">
+                    <Text className="text-sm font-medium">{row.label}</Text>
+                    <Text className="text-muted-foreground text-xs font-semibold">
+                      {row.statusLabel}
+                    </Text>
+                  </View>
+                  <Progress value={row.value} />
+                </View>
+              ))}
             </View>
           ) : (
             <Button

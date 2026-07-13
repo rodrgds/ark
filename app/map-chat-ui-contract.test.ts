@@ -379,7 +379,9 @@ describe('map and chat UI contracts', () => {
 
     expect(source).toContain('hasActiveMapDownloads');
     expect(source).toContain('mapCanUseNetwork');
-    expect(source).toContain("region.status === 'downloading' || region.status === 'queued'");
+    expect(source).toContain('regionHasActiveDownload');
+    expect(source).toContain("region.routingStatus === 'downloading'");
+    expect(source).toContain("region.routingStatus === 'queued'");
     expect(source).toContain(
       'MapService.setNetworkConnected(maplibre, mapCanUseNetwork || hasActiveMapDownloads)'
     );
@@ -407,6 +409,19 @@ describe('map and chat UI contracts', () => {
     expect(source).toContain('MapPresetsService.getRegionsForBoundingBox(viewedBounds)');
   });
 
+  test('active map downloads show progress instead of another download prompt', () => {
+    const source = mapScreenSource();
+
+    expect(source).toContain('findActiveDownloadRegion(regions)');
+    expect(source).toContain('downloadPromptRegion');
+    expect(source).toContain('showMissingRegionPromptModal');
+    expect(source).toContain('region={downloadPromptRegion ? null : visibleMissingRegionPrompt}');
+    expect(source).toContain('downloadingRegion={downloadPromptRegion}');
+    expect(source).toContain('Map tiles');
+    expect(source).toContain('Navigation graph');
+    expect(source).toContain('combinedDownloadProgress');
+  });
+
   test('map can download the current visible bounds as a custom offline region', () => {
     const source = mapScreenSource();
     const offlineMapSource = readFileSync(
@@ -429,11 +444,17 @@ describe('map and chat UI contracts', () => {
 
     expect(source).toContain('MapPresetsService.refreshCatalog');
     expect(source).toContain('MapLocationService.getGrantedLocation');
+    expect(source).toContain('recommendationsLoading');
+    expect(source).toContain('Finding recommended maps');
+    expect(source).toContain('selectionTouchedRef');
     expect(source).toContain('queuePresetRegionDownload');
     expect(source).toContain('DownloadNotificationService.requestPermission');
     expect(source).toContain('startDelayMs: 0');
     expect(source).toContain('getUnsupportedMapPackReason');
     expect(source).toContain('Start Downloads');
+    expect(source).not.toContain(
+      'React.useState<MapPreset[]>(() =>\n    MapPresetsService.recommendedForLocation(null)'
+    );
     expect(source).not.toContain("from 'expo-location'");
     expect(source).not.toContain("new Set(['portugal-overview'])");
   });

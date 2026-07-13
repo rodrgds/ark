@@ -15,6 +15,9 @@ describe('release CI contracts', () => {
     expect(pkg.scripts.check).toContain('bun run lint');
     expect(pkg.scripts.check).toContain('bun run test');
     expect(pkg.scripts.test).toContain('bun test');
+    expect(pkg.scripts.verify).toContain('bun run format:check');
+    expect(pkg.scripts.verify).toContain('bun run check');
+    expect(pkg.scripts.verify).toContain('bun run build-or-docs');
     expect(pkg.scripts.test).toContain('tab-preferences-card.rntl.tsx');
     expect(pkg.scripts.test).toContain('diagnostics-card.rntl.tsx');
     expect(pkg.scripts.test).toContain('security-section.rntl.tsx');
@@ -88,13 +91,14 @@ describe('release CI contracts', () => {
     expect(workflow).toContain("'plugins/**'");
     expect(workflow).toContain('iOS Simulator Build');
 
+    const workflowUsesVerify = /(^|\s)verify(\s|$)/m.test(workflow);
     const devShellName = (name: string) =>
       // Either the dev-shell script name appears in the workflow OR the
       // workflow invokes the package.json script directly via `bun run`.
       workflow.includes(name) || workflow.includes(`bun run ${name}`);
-    expect(devShellName('typecheck')).toBe(true);
-    expect(devShellName('lint')).toBe(true);
-    expect(workflow).toContain('bun run test');
+    expect(workflowUsesVerify || devShellName('typecheck')).toBe(true);
+    expect(workflowUsesVerify || devShellName('lint')).toBe(true);
+    expect(workflowUsesVerify || workflow.includes('bun run test')).toBe(true);
     expect(workflow).toContain('bun run ios:build:sim');
     expect(workflow).toContain('ARK_IOS_PREBUILD');
   });
@@ -115,14 +119,15 @@ describe('release CI contracts', () => {
     expect(workflow).not.toContain('bun run android:build:dev');
     expect(workflow).not.toContain('actions/upload-artifact@v4');
     expect(workflow).not.toContain('android/app/build/outputs/apk/debug/*.apk');
-    // format-check / typecheck / lint / bun run test stay wired,
-    // and the macOS lane builds the generated iOS simulator project.
-    expect(workflow).toMatch(/(^|\s)format-check(\s|$)/m);
+    // CI may call the package-level `verify` umbrella or the individual
+    // gates. The package contract above proves what `verify` expands to.
+    const workflowUsesVerify = /(^|\s)verify(\s|$)/m.test(workflow);
+    expect(workflowUsesVerify || /(^|\s)format-check(\s|$)/m.test(workflow)).toBe(true);
     const devShellName = (name: string) =>
       workflow.includes(name) || workflow.includes(`bun run ${name}`);
-    expect(devShellName('typecheck')).toBe(true);
-    expect(devShellName('lint')).toBe(true);
-    expect(workflow).toContain('bun run test');
+    expect(workflowUsesVerify || devShellName('typecheck')).toBe(true);
+    expect(workflowUsesVerify || devShellName('lint')).toBe(true);
+    expect(workflowUsesVerify || workflow.includes('bun run test')).toBe(true);
     expect(workflow).toContain('runs-on: macos-26');
     expect(workflow).toContain('bun run ios:build:sim');
   });

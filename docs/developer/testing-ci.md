@@ -3,14 +3,11 @@
 ## Local Gates
 
 ```sh
-bun run typecheck
-bun run lint
-bun run test
-bun run check:docs
-bun run docs:build
+install
+verify
 ```
 
-Use `devenv shell -- format-check` before committing larger changes that touch many files.
+`install` is frozen and `verify` runs formatting, typecheck, lint, tests, and documentation checks/build. It excludes all native builds. Ark deliberately installs no commit hook, so commits do not reinstall dependencies or run the full suite.
 
 ## GitHub Actions
 

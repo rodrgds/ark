@@ -59,7 +59,9 @@ jobs:
               - 'tsconfig.json'
               - 'package.json'
               - 'bun.lock'
+              - '.envrc'
               - '.gitignore'
+              - 'AGENTS.md'
               - 'devenv.nix'
               - 'devenv.yaml'
               - 'devenv.lock'
@@ -108,7 +110,7 @@ jobs:
           gc-max-store-size-linux: 3G
 
   checks:
-    name: Format, typecheck, lint, and test
+    name: Install and verify source/docs
     runs-on: ubuntu-latest
     needs: [changes, setup-nix-store]
     if: needs.changes.outputs.app == 'true' || needs.changes.outputs.ci == 'true'
@@ -146,7 +148,7 @@ jobs:
           restore-keys: |
             bun-${{ runner.os }}-
 
-      - name: Run relevant checks
+      - name: Install and run relevant checks
         shell: devenv shell bash -- -e {0}
         env:
           APP_CHANGED: ${{ needs.changes.outputs.app }}
@@ -156,14 +158,10 @@ jobs:
           # the full suite so a workflow tweak never lands without the
           # checks actually being valid.
           if [[ "$APP_CHANGED" == "true" || "$CI_CHANGED" == "true" ]]; then
-            format-check
-            typecheck
-            lint
-            # `test` is a Bash builtin; with no args it returns 1 and
-            # would short-circuit `set -e` before bun test runs. Use
-            # `bun run test` to go through package.json's script and
-            # pick up the project's rntl-suite wiring.
-            bun run test
+            install
+            # Source and docs gates only. Native simulator/device builds are
+            # separate jobs and are intentionally excluded from `verify`.
+            verify
           fi
 
   ios-simulator-build:

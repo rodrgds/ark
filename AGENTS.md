@@ -314,16 +314,16 @@ Defined in `global.css`, `src/constants/theme.ts`, and `src/stores/theme-store.t
 ## Build / Run Commands
 
 ```sh
-bun install          # Install dependencies
-bun run dev          # Start Expo dev server (clears cache)
-bun run ios          # Start for iOS
-bun run android      # Start for Android
-bun run web          # Start for web
-bun run check        # typecheck + lint + tests
-bun run ios:build:sim # Regenerate/build unsigned iOS simulator app
+devenv shell   # Official Bun 1.3.3 linux-x64-baseline on Hermes/NAS; includes tar/gzip for llama.rn postinstall
+setup          # Frozen install; preserves live links to local modules and never writes env files
+dev            # Start Expo (clears cache)
+check          # Typecheck + lint + tests
+format-check   # Check formatting
+build-or-docs  # Docs drift check + VitePress build
+verify         # Source/docs gates only; no native or Android build
 ```
 
-TypeScript check: `npx tsc --noEmit`
+Keep Hermes/NAS checkouts under `/workspace` so `node_modules` is durable; do not depend on `/tmp`. Bun wrappers parse `.env` and `.env.local` as data through Node and invoke raw Bun with `--no-env-file`; never source/eval dotenv. Run native, device, prebuild, Gradle, or deployment commands only when explicitly requested.
 
 ## Dev Group Delivery
 

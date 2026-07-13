@@ -24,6 +24,15 @@ function estimateZoomFromBounds(bounds: [number, number, number, number]): numbe
   return Math.max(0, Math.min(20, Math.log2(360 / lngSpan)));
 }
 
+function isActiveRegionDownload(region: MapRegion | any) {
+  return (
+    region.status === 'downloading' ||
+    region.status === 'queued' ||
+    region.routingStatus === 'downloading' ||
+    region.routingStatus === 'queued'
+  );
+}
+
 /**
  * Pure, synchronous suggestion function.
  *
@@ -99,16 +108,15 @@ function getMissingRegionCandidate(input: MissingRegionPromptInput): MapPreset |
       return false;
     });
 
+    const active = isActiveRegionDownload(r);
     if (matched) {
       if (r.status === 'downloaded') downloadedRegionIds.add(matched.id);
-      else if (r.status === 'downloading' || r.status === 'queued')
-        activeDownloadRegionIds.add(matched.id);
+      else if (active) activeDownloadRegionIds.add(matched.id);
     } else {
       const directId = r.manifestRegionId || r.regionId || r.id;
       if (directId) {
         if (r.status === 'downloaded') downloadedRegionIds.add(directId);
-        else if (r.status === 'downloading' || r.status === 'queued')
-          activeDownloadRegionIds.add(directId);
+        else if (active) activeDownloadRegionIds.add(directId);
       }
     }
   }
@@ -141,15 +149,17 @@ function getMissingRegionCandidate(input: MissingRegionPromptInput): MapPreset |
       if ((r.maxZoom ?? 14) < 14) return false;
       if (!isCoordinateInsideRegion(input.latitude, input.longitude, r.bbox)) return false;
       return input.downloadedRegions.some(
-        (dl) => (dl.manifestRegionId === r.id || dl.name === r.name) && dl.status === 'downloaded'
+        (dl) =>
+          (dl.manifestRegionId === r.id || dl.name === r.name) &&
+          (dl.status === 'downloaded' || isActiveRegionDownload(dl))
       );
     });
     if (isPredefinedCovered) return null;
 
-    // 2. Check if ANY dynamic region covering this coordinate is already downloaded
+    // 2. Check if ANY dynamic region covering this coordinate is already downloaded or active.
     const isCenterCovered = input.downloadedRegions.some((dlRegion) => {
       const r = dlRegion as any;
-      if (r.status !== 'downloaded') return false;
+      if (r.status !== 'downloaded' && !isActiveRegionDownload(r)) return false;
       const maxZ = r.maxZoom ?? 14;
       if (maxZ < 14) return false; // Not covered by high-detail map
 
@@ -184,7 +194,9 @@ function getMissingRegionCandidate(input: MissingRegionPromptInput): MapPreset |
     const dynamicId = `dynamic-${Math.round(bounds[0] * 10)}-${Math.round(bounds[1] * 10)}`;
 
     const isDynamicDownloaded = input.downloadedRegions.some(
-      (r) => (r.id === dynamicId || r.manifestRegionId === dynamicId) && r.status === 'downloaded'
+      (r) =>
+        (r.id === dynamicId || r.manifestRegionId === dynamicId) &&
+        (r.status === 'downloaded' || isActiveRegionDownload(r))
     );
     if (isDynamicDownloaded) return null;
 

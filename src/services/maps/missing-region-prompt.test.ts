@@ -42,6 +42,25 @@ describe('missing region prompt logic', () => {
     expect(prompt).toBeNull();
   });
 
+  test('does not prompt while a matching navigation graph download is active', () => {
+    const prompt = getMissingRegionPrompt({
+      latitude: 38.5,
+      longitude: -9.5,
+      regions: [lisbon],
+      downloadedRegions: [
+        {
+          manifestRegionId: 'pt-lisbon',
+          status: 'not_downloaded',
+          routingStatus: 'downloading',
+          name: 'Lisbon',
+        },
+      ],
+      zoom: 10,
+    });
+
+    expect(prompt).toBeNull();
+  });
+
   test('prompts for a dynamic region when center is outside any predefined high-detail region', () => {
     const prompt = getMissingRegionPrompt({
       latitude: 37.0, // outside lisbon south (38.0)

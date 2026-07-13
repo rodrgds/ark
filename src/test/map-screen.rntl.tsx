@@ -65,6 +65,7 @@ const geocodeSearch = mock(
   ]
 );
 const refreshCatalog = mock(async () => catalogMeta);
+let netInfoIsConnected: boolean | null = false;
 
 const catalogMeta = {
   version: 1,
@@ -171,7 +172,7 @@ mock.module('expo-router', () => ({
 }));
 
 mock.module('@react-native-community/netinfo', () => ({
-  useNetInfo: () => ({ isConnected: false }),
+  useNetInfo: () => ({ isConnected: netInfoIsConnected }),
 }));
 
 mock.module('@/services/db/repositories/tracks.repo', () => ({
@@ -235,6 +236,7 @@ mock.module('@/services/maps/map.service', () => ({
     getDefaultStyleUrl: () => 'https://tiles.example/style.json',
     getLocalStyle: () => ({ version: 8, sources: {}, layers: [] }),
     getOverviewStyle: () => ({ version: 8, sources: {}, layers: [] }),
+    getThemedStyle: () => ({ version: 8, sources: {}, layers: [] }),
     getRuntimeStatus: (_maplibre: unknown, checked: boolean) => ({
       available: false,
       checking: !checked,
@@ -313,6 +315,7 @@ mock.module('@/stores/sensor-store', () => ({
 
 describe('MapScreen', () => {
   beforeEach(() => {
+    netInfoIsConnected = false;
     setChromeHidden.mockClear();
     setNetworkConnected.mockClear();
     loadMapLibre.mockClear();
@@ -322,6 +325,20 @@ describe('MapScreen', () => {
     searchOffline.mockClear();
     geocodeSearch.mockClear();
     refreshCatalog.mockClear();
+  });
+
+  test('shows active map and navigation download progress instead of a download prompt', async () => {
+    netInfoIsConnected = true;
+    const { default: MapScreen } = await import('@/app/(tabs)/map');
+
+    const view = await render(<MapScreen />);
+
+    expect(await view.findByText('Porto offline region')).toBeOnTheScreen();
+    expect(view.getByText('Map tiles')).toBeOnTheScreen();
+    expect(view.getByText('Queued')).toBeOnTheScreen();
+    expect(view.getByText('Navigation graph')).toBeOnTheScreen();
+    expect(view.getByText('25%')).toBeOnTheScreen();
+    expect(view.queryByText('Download Map')).toBeNull();
   });
 
   test('mounts fallback map search, saved data, and offline map recovery controls', async () => {

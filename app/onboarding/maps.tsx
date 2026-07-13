@@ -14,23 +14,27 @@ import { Check, Map } from 'lucide-react-native';
 import * as React from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
 
+const RECOMMENDATION_LOCATION_TIMEOUT_MS = 2500;
+
 export default function MapsOnboardingScreen() {
   const theme = useThemeStore((state) => state.effectiveTheme);
-  const [presets, setPresets] = React.useState<MapPreset[]>(() =>
-    MapPresetsService.recommendedForLocation(null)
-  );
-  const [selected, setSelected] = React.useState(() =>
-    defaultSelectedPresetIds(MapPresetsService.recommendedForLocation(null))
-  );
+  const [presets, setPresets] = React.useState<MapPreset[]>([]);
+  const [selected, setSelected] = React.useState<Set<string>>(() => new Set());
+  const [recommendationsLoading, setRecommendationsLoading] = React.useState(true);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const selectionTouchedRef = React.useRef(false);
 
   React.useEffect(() => {
     let canceled = false;
     async function loadRecommendations() {
       const [, position] = await Promise.all([
         MapPresetsService.refreshCatalog().catch(() => undefined),
-        MapLocationService.getGrantedLocation().catch(() => null),
+        withTimeout(
+          MapLocationService.getGrantedLocation().catch(() => null),
+          RECOMMENDATION_LOCATION_TIMEOUT_MS,
+          null
+        ),
       ]);
       if (canceled) return;
       const nextPresets = MapPresetsService.recommendedForLocation(
@@ -42,13 +46,15 @@ export default function MapsOnboardingScreen() {
           : null
       );
       setPresets(nextPresets);
-      setSelected(defaultSelectedPresetIds(nextPresets));
+      if (!selectionTouchedRef.current) setSelected(defaultSelectedPresetIds(nextPresets));
+      setRecommendationsLoading(false);
     }
     loadRecommendations().catch(() => {
       if (!canceled) {
         const nextPresets = MapPresetsService.recommendedForLocation(null);
         setPresets(nextPresets);
-        setSelected(defaultSelectedPresetIds(nextPresets));
+        if (!selectionTouchedRef.current) setSelected(defaultSelectedPresetIds(nextPresets));
+        setRecommendationsLoading(false);
       }
     });
     return () => {
@@ -57,6 +63,7 @@ export default function MapsOnboardingScreen() {
   }, []);
 
   async function startDownloads() {
+    if (recommendationsLoading) return false;
     if (selected.size === 0) return true;
     setBusy(true);
     setError(null);
@@ -84,7 +91,10 @@ export default function MapsOnboardingScreen() {
     <OnboardingFrame
       title="Offline Maps"
       nextHref="/onboarding/power"
-      nextLabel={nothingSelected ? 'Skip Maps' : 'Start Downloads'}
+      nextLabel={
+        recommendationsLoading ? 'Finding Maps' : nothingSelected ? 'Skip Maps' : 'Start Downloads'
+      }
+      nextDisabled={recommendationsLoading || busy}
       hideBranding
       arkyPose="navigator"
       step={4}
@@ -96,22 +106,30 @@ export default function MapsOnboardingScreen() {
         </Text>
 
         <View className="gap-3">
-          {presets.map((preset) => (
-            <MapPresetCard
-              key={preset.id}
-              preset={preset}
-              selected={selected.has(preset.id)}
-              onToggle={() =>
-                setSelected((current) => {
-                  if (getUnsupportedMapPackReason(preset)) return current;
-                  const next = new Set(current);
-                  if (next.has(preset.id)) next.delete(preset.id);
-                  else next.add(preset.id);
-                  return next;
-                })
-              }
-            />
-          ))}
+          {recommendationsLoading ? (
+            <View className="bg-muted/40 flex-row items-center gap-3 rounded-xl p-4">
+              <ActivityIndicator />
+              <Text variant="muted">Finding recommended maps...</Text>
+            </View>
+          ) : (
+            presets.map((preset) => (
+              <MapPresetCard
+                key={preset.id}
+                preset={preset}
+                selected={selected.has(preset.id)}
+                onToggle={() => {
+                  selectionTouchedRef.current = true;
+                  setSelected((current) => {
+                    if (getUnsupportedMapPackReason(preset)) return current;
+                    const next = new Set(current);
+                    if (next.has(preset.id)) next.delete(preset.id);
+                    else next.add(preset.id);
+                    return next;
+                  });
+                }}
+              />
+            ))
+          )}
         </View>
 
         {busy ? (
@@ -125,6 +143,20 @@ export default function MapsOnboardingScreen() {
       </View>
     </OnboardingFrame>
   );
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T) {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((resolve) => {
+        timeout = setTimeout(() => resolve(fallback), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
 }
 
 function defaultSelectedPresetIds(presets: MapPreset[]) {

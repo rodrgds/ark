@@ -131,6 +131,33 @@ const SEARCH_GESTURE_SUPPRESS_MS = 450;
 const FLOATING_CONTROL_BOTTOM = 12;
 const OFFLINE_MAP_BROWSE_INITIAL_LIMIT = 18;
 const OFFLINE_MAP_BROWSE_SEARCH_LIMIT = 48;
+
+function regionHasActiveDownload(region: MapRegion) {
+  return (
+    region.status === 'downloading' ||
+    region.status === 'queued' ||
+    region.routingStatus === 'downloading' ||
+    region.routingStatus === 'queued'
+  );
+}
+
+function activeDownloadPriority(region: MapRegion) {
+  if (region.status === 'downloading') return 0;
+  if (region.routingStatus === 'downloading') return 1;
+  if (region.status === 'queued') return 2;
+  if (region.routingStatus === 'queued') return 3;
+  return 4;
+}
+
+function findActiveDownloadRegion(regions: MapRegion[]) {
+  let best: MapRegion | null = null;
+  for (const region of regions) {
+    if (!regionHasActiveDownload(region)) continue;
+    if (!best || activeDownloadPriority(region) < activeDownloadPriority(best)) best = region;
+  }
+  return best;
+}
+
 export default function MapScreen() {
   const navigation = useNavigation();
   const { chromeHidden: fullscreen, setChromeHidden } = useTabsChrome();
@@ -239,7 +266,7 @@ export default function MapScreen() {
     return hasTrackedViewport ? zoom : mapInitialZoom;
   }, [zoom, mapInitialZoom]);
   const hasActiveMapDownloads = React.useMemo(
-    () => regions.some((region) => region.status === 'downloading' || region.status === 'queued'),
+    () => regions.some(regionHasActiveDownload),
     [regions]
   );
   const mapStyle = React.useMemo(() => {
@@ -1148,8 +1175,16 @@ export default function MapScreen() {
   const routingBusy = busy?.startsWith('navigate:') ?? false;
 
   const activeDownloadingRegion = React.useMemo(() => {
-    return regions.find((r) => r.status === 'downloading' || r.status === 'queued') || null;
+    return findActiveDownloadRegion(regions);
   }, [regions]);
+  const downloadPromptRegion =
+    !activePanel && !isPlacing && !navigationSession && netInfo.isConnected !== false
+      ? activeDownloadingRegion
+      : null;
+  const showMissingRegionPromptModal = Boolean(
+    downloadPromptRegion ||
+    (!navigationSession && visibleMissingRegionPrompt && netInfo.isConnected)
+  );
 
   const bottomControlOffset = Math.max(
     insets.bottom + FLOATING_CONTROL_BOTTOM,
@@ -1481,19 +1516,14 @@ export default function MapScreen() {
       />
 
       <MissingRegionPromptModal
-        visible={Boolean(visibleMissingRegionPrompt && netInfo.isConnected && !navigationSession)}
+        visible={showMissingRegionPromptModal}
         busy={Boolean(
-          visibleMissingRegionPrompt && busy === `download:${visibleMissingRegionPrompt.id}`
-        )}
-        region={visibleMissingRegionPrompt}
-        downloadingRegion={
-          activeDownloadingRegion &&
+          !downloadPromptRegion &&
           visibleMissingRegionPrompt &&
-          (activeDownloadingRegion.manifestRegionId === visibleMissingRegionPrompt.id ||
-            activeDownloadingRegion.name === visibleMissingRegionPrompt.name)
-            ? activeDownloadingRegion
-            : null
-        }
+          busy === `download:${visibleMissingRegionPrompt.id}`
+        )}
+        region={downloadPromptRegion ? null : visibleMissingRegionPrompt}
+        downloadingRegion={downloadPromptRegion}
         onDownload={(updatedPreset) => {
           if (updatedPreset) downloadMissingRegion(updatedPreset);
           else if (visibleMissingRegionPrompt) downloadMissingRegion(visibleMissingRegionPrompt);

@@ -27,6 +27,10 @@ export class FileSystemService {
   }
 
   static async deleteByUri(uri: string) {
+    const base = this.baseDir();
+    if (!isManagedFileUri(base, uri)) {
+      throw new Error('Refusing to delete a file outside Ark-managed storage.');
+    }
     const info = await FileSystem.getInfoAsync(uri);
     if (info.exists) await FileSystem.deleteAsync(uri, { idempotent: true });
   }
@@ -123,5 +127,16 @@ export class FileSystemService {
       .replace(/[^\w.\- ]+/g, '_')
       .replace(/\s+/g, '-')
       .slice(0, 120);
+  }
+}
+
+function isManagedFileUri(base: string, uri: string) {
+  if (!base.startsWith('file://') || !uri.startsWith(base) || uri.includes('\0')) return false;
+  try {
+    const basePath = decodeURIComponent(new URL(base).pathname);
+    const decodedPath = decodeURIComponent(new URL(uri).pathname);
+    return decodedPath.startsWith(basePath) && !decodedPath.split('/').includes('..');
+  } catch {
+    return false;
   }
 }

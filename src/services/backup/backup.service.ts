@@ -31,6 +31,14 @@ import type { Track, TrackMarker, TrackPoint } from '@/types/tracks';
 const BACKUP_VERSION = 3;
 const BACKUP_AAD = strToU8('ark-backup-v3');
 const BACKUP_FILE_PREFIX = 'Ark backup';
+const MAX_BACKUP_ENVELOPE_BYTES = 96 * 1024 * 1024;
+const MAX_BACKUP_UNCOMPRESSED_BYTES = 64 * 1024 * 1024;
+const MAX_BACKUP_ENTRY_BYTES = 32 * 1024 * 1024;
+const MAX_BACKUP_RECORDS = 200_000;
+const MAX_SCRYPT_N = 2 ** 16;
+const MAX_SCRYPT_R = 8;
+const MAX_SCRYPT_P = 2;
+const SAFE_BACKUP_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/;
 const DEFAULT_KDF: Required<Pick<ScryptOpts, 'N' | 'r' | 'p' | 'dkLen'>> = {
   N: 2 ** 15,
   r: 8,
@@ -229,7 +237,9 @@ export class BackupService {
   static async createEncryptedBackup(passphrase: string, options: BackupOptions = {}) {
     const backupPassphrase = parseOrThrow(vaultPasswordSchema, passphrase);
     const { manifest, zipBytes } = await this.createZipPayload();
-    const envelope = await encryptZip(zipBytes, backupPassphrase, options.kdf ?? DEFAULT_KDF);
+    const kdf = options.kdf ?? DEFAULT_KDF;
+    assertSafeKdf(kdf);
+    const envelope = await encryptZip(zipBytes, backupPassphrase, kdf);
     const bytes = strToU8(JSON.stringify(envelope));
     return {
       bytes,
@@ -276,6 +286,10 @@ export class BackupService {
   }
 
   static async importFromFile(uri: string, passphrase: string) {
+    const info = await FileSystem.getInfoAsync(uri);
+    if (info.exists && 'size' in info && (info.size ?? 0) > MAX_BACKUP_ENVELOPE_BYTES) {
+      throw new Error('Backup is too large to import safely on this device.');
+    }
     const base64 = await FileSystem.readAsStringAsync(uri, {
       encoding: FileSystem.EncodingType.Base64,
     });
@@ -283,10 +297,11 @@ export class BackupService {
   }
 
   static async importEncryptedBackup(bytes: Uint8Array, passphrase: string) {
+    assertSafeEnvelopeSize(bytes);
     const backupPassphrase = parseOrThrow(vaultPasswordSchema, passphrase);
     const envelope = parseEnvelope(strFromU8(bytes));
     const zipBytes = await decryptZip(envelope, backupPassphrase);
-    const zip = unzipSync(zipBytes);
+    const zip = unzipBackup(zipBytes);
     const manifestBytes = zip['manifest.json'];
     if (!manifestBytes) throw new Error('Backup manifest is missing.');
     const manifest = parseManifest(strFromU8(manifestBytes));
@@ -307,9 +322,10 @@ export class BackupService {
   }
 
   static async inspectEncryptedBackup(bytes: Uint8Array, passphrase: string) {
+    assertSafeEnvelopeSize(bytes);
     const backupPassphrase = parseOrThrow(vaultPasswordSchema, passphrase);
     const envelope = parseEnvelope(strFromU8(bytes));
-    const zip = unzipSync(await decryptZip(envelope, backupPassphrase));
+    const zip = unzipBackup(await decryptZip(envelope, backupPassphrase));
     const manifestBytes = zip['manifest.json'];
     if (!manifestBytes) throw new Error('Backup manifest is missing.');
     return { manifest: parseManifest(strFromU8(manifestBytes)), entries: Object.keys(zip).sort() };
@@ -471,9 +487,14 @@ export class BackupService {
     };
 
     zipEntries['manifest.json'] = strToU8(JSON.stringify(manifest));
+    assertSafeZipEntriesSize(zipEntries);
+    const zipBytes = zipSync(zipEntries, { level: 6, mtime: new Date('1980-01-01T00:00:00Z') });
+    if (zipBytes.byteLength > MAX_BACKUP_UNCOMPRESSED_BYTES) {
+      throw new Error('Backup is too large to create safely on this device.');
+    }
     return {
       manifest,
-      zipBytes: zipSync(zipEntries, { level: 6, mtime: new Date('1980-01-01T00:00:00Z') }),
+      zipBytes,
     };
   }
 
@@ -890,12 +911,14 @@ async function addDocumentToZip(zipEntries: Record<string, Uint8Array>, document
   if (!document.local_uri) return null;
   const info = await FileSystem.getInfoAsync(document.local_uri).catch(() => null);
   if (!info?.exists) return null;
+  assertSafeExportEntrySize('document', document.title, 'size' in info ? info.size : null);
   const fileName = FileSystemService.safeFileName(document.title || `${document.id}.document`);
   const path = `documents/${document.id}/${fileName}`;
   const base64 = await FileSystem.readAsStringAsync(document.local_uri, {
     encoding: FileSystem.EncodingType.Base64,
   });
   zipEntries[path] = base64ToBytes(base64);
+  assertSafeZipEntriesSize(zipEntries);
   return path;
 }
 
@@ -906,12 +929,14 @@ async function addTrackMarkerPhotoToZip(
   if (!marker.photo_uri) return null;
   const info = await FileSystem.getInfoAsync(marker.photo_uri).catch(() => null);
   if (!info?.exists) return null;
+  assertSafeExportEntrySize('track photo', marker.title, 'size' in info ? info.size : null);
   const fileName = FileSystemService.safeFileName(marker.title || `${marker.id}.jpg`);
   const path = `track-markers/${marker.id}/${fileName}`;
   const base64 = await FileSystem.readAsStringAsync(marker.photo_uri, {
     encoding: FileSystem.EncodingType.Base64,
   });
   zipEntries[path] = base64ToBytes(base64);
+  assertSafeZipEntriesSize(zipEntries);
   return path;
 }
 
@@ -942,7 +967,7 @@ async function restoreTrackMarkerPhotos(
 ) {
   const restored: TrackMarker[] = [];
   for (const marker of markers) {
-    let photoUri = marker.photoUri;
+    let photoUri: string | null = null;
     if (marker.backupPath) {
       const bytes = zip[marker.backupPath];
       if (!bytes) throw new Error(`Backup track photo is missing: ${marker.title}`);
@@ -1181,7 +1206,17 @@ function parseEnvelope(value: string): ArkBackupEnvelope {
     parsed.version !== BACKUP_VERSION ||
     parsed.crypto?.algorithm !== 'AES-256-GCM' ||
     parsed.crypto?.kdf !== 'scrypt' ||
-    !parsed.payload
+    typeof parsed.crypto.salt !== 'string' ||
+    typeof parsed.crypto.nonce !== 'string' ||
+    typeof parsed.payload !== 'string'
+  ) {
+    throw new Error('This is not a supported Ark backup file.');
+  }
+  assertSafeKdf(parsed.crypto);
+  if (
+    !isCanonicalBase64(parsed.crypto.salt, 16) ||
+    !isCanonicalBase64(parsed.crypto.nonce, 12) ||
+    !isCanonicalBase64(parsed.payload)
   ) {
     throw new Error('This is not a supported Ark backup file.');
   }
@@ -1189,8 +1224,8 @@ function parseEnvelope(value: string): ArkBackupEnvelope {
 }
 
 function parseManifest(value: string): ArkBackupManifest {
-  const parsed = JSON.parse(value) as ArkBackupManifest;
-  if (parsed.format !== 'ark-backup') {
+  const parsed = JSON.parse(value) as unknown;
+  if (!isRecord(parsed) || parsed.format !== 'ark-backup') {
     throw new Error('Backup manifest format is not supported.');
   }
   if (parsed.version !== BACKUP_VERSION) {
@@ -1198,7 +1233,193 @@ function parseManifest(value: string): ArkBackupManifest {
       `Backup manifest version ${parsed.version} is not supported. Re-export the backup from this app version.`
     );
   }
-  return parsed;
+  validateManifestShape(parsed);
+  return sanitizeManifestUris(parsed as ArkBackupManifest);
+}
+
+function assertSafeEnvelopeSize(bytes: Uint8Array) {
+  if (bytes.byteLength > MAX_BACKUP_ENVELOPE_BYTES) {
+    throw new Error('Backup is too large to import safely on this device.');
+  }
+}
+
+function assertSafeKdf(kdf: Required<Pick<ScryptOpts, 'N' | 'r' | 'p' | 'dkLen'>>) {
+  if (
+    !Number.isInteger(kdf.N) ||
+    kdf.N < 2 ** 10 ||
+    kdf.N > MAX_SCRYPT_N ||
+    (kdf.N & (kdf.N - 1)) !== 0 ||
+    !Number.isInteger(kdf.r) ||
+    kdf.r < 1 ||
+    kdf.r > MAX_SCRYPT_R ||
+    !Number.isInteger(kdf.p) ||
+    kdf.p < 1 ||
+    kdf.p > MAX_SCRYPT_P ||
+    kdf.dkLen !== 32
+  ) {
+    throw new Error('Backup encryption parameters are outside Ark safety limits.');
+  }
+}
+
+function unzipBackup(bytes: Uint8Array) {
+  if (bytes.byteLength > MAX_BACKUP_UNCOMPRESSED_BYTES) {
+    throw new Error('Backup archive is too large to expand safely.');
+  }
+  let expandedBytes = 0;
+  return unzipSync(bytes, {
+    filter(file) {
+      if (!isSafeBackupPath(file.name) || file.originalSize > MAX_BACKUP_ENTRY_BYTES) {
+        throw new Error('Backup contains an unsafe archive entry.');
+      }
+      expandedBytes += file.originalSize;
+      if (expandedBytes > MAX_BACKUP_UNCOMPRESSED_BYTES) {
+        throw new Error('Backup expands beyond the safe import limit.');
+      }
+      return true;
+    },
+  });
+}
+
+function assertSafeExportEntrySize(kind: string, title: string, size: number | null | undefined) {
+  if (size != null && size > MAX_BACKUP_ENTRY_BYTES) {
+    throw new Error(`${kind} is too large to back up safely: ${title}`);
+  }
+}
+
+function assertSafeZipEntriesSize(entries: Record<string, Uint8Array>) {
+  const total = Object.values(entries).reduce((sum, entry) => sum + entry.byteLength, 0);
+  if (total > MAX_BACKUP_UNCOMPRESSED_BYTES) {
+    throw new Error('Backup contents are too large to process safely on this device.');
+  }
+}
+
+function isSafeBackupPath(path: string) {
+  return (
+    path === 'manifest.json' ||
+    (/^(documents|track-markers)\/[^/]+\/[^/]+$/.test(path) &&
+      !path.includes('..') &&
+      !path.includes('\\') &&
+      !path.includes('\0'))
+  );
+}
+
+function isCanonicalBase64(value: string, expectedBytes?: number) {
+  if (
+    !value ||
+    value.length > MAX_BACKUP_ENVELOPE_BYTES * 2 ||
+    !/^[A-Za-z0-9+/]*={0,2}$/.test(value)
+  ) {
+    return false;
+  }
+  try {
+    const bytes = base64ToBytes(value);
+    return expectedBytes == null || bytes.byteLength === expectedBytes;
+  } catch {
+    return false;
+  }
+}
+
+function validateManifestShape(manifest: Record<string, unknown>) {
+  const collectionKeys = [
+    'settings',
+    'notes',
+    'documents',
+    'documentPages',
+    'mapMarkers',
+    'routes',
+    'rssFeeds',
+    'chatThreads',
+    'chatMessages',
+    'tracks',
+    'trackPoints',
+    'trackMarkers',
+  ] as const;
+  let recordCount = 0;
+  for (const key of collectionKeys) {
+    if (!Array.isArray(manifest[key])) throw new Error(`Backup manifest ${key} is invalid.`);
+    recordCount += manifest[key].length;
+  }
+  if (recordCount > MAX_BACKUP_RECORDS) throw new Error('Backup contains too many records.');
+
+  const idsByCollection = new Map<string, Set<string>>();
+  for (const key of [
+    'notes',
+    'documents',
+    'documentPages',
+    'mapMarkers',
+    'routes',
+    'rssFeeds',
+    'chatThreads',
+    'chatMessages',
+    'tracks',
+    'trackPoints',
+    'trackMarkers',
+  ] as const) {
+    const ids = new Set<string>();
+    for (const item of manifest[key] as unknown[]) {
+      if (!isRecord(item) || typeof item.id !== 'string' || !SAFE_BACKUP_ID.test(item.id)) {
+        throw new Error(`Backup manifest ${key} contains an invalid identifier.`);
+      }
+      if (ids.has(item.id))
+        throw new Error(`Backup manifest ${key} contains duplicate identifiers.`);
+      ids.add(item.id);
+    }
+    idsByCollection.set(key, ids);
+  }
+
+  validateReferences(manifest, idsByCollection);
+  validatePayloadPaths(manifest.documents as unknown[], 'documents');
+  validatePayloadPaths(manifest.trackMarkers as unknown[], 'track-markers');
+}
+
+function validateReferences(manifest: Record<string, unknown>, ids: Map<string, Set<string>>) {
+  const checks = [
+    ['documentPages', 'documentId', 'documents'],
+    ['chatMessages', 'threadId', 'chatThreads'],
+    ['trackPoints', 'trackId', 'tracks'],
+    ['trackMarkers', 'trackId', 'tracks'],
+  ] as const;
+  for (const [collection, foreignKey, parentCollection] of checks) {
+    for (const item of manifest[collection] as unknown[]) {
+      if (
+        !isRecord(item) ||
+        typeof item[foreignKey] !== 'string' ||
+        !ids.get(parentCollection)?.has(item[foreignKey] as string)
+      ) {
+        throw new Error(`Backup manifest ${collection} contains an invalid reference.`);
+      }
+    }
+  }
+}
+
+function validatePayloadPaths(items: unknown[], root: 'documents' | 'track-markers') {
+  for (const item of items) {
+    if (!isRecord(item)) throw new Error(`Backup manifest ${root} is invalid.`);
+    const backupPath = item.backupPath;
+    if (backupPath == null) continue;
+    if (
+      typeof backupPath !== 'string' ||
+      !isSafeBackupPath(backupPath) ||
+      !backupPath.startsWith(`${root}/${item.id as string}/`)
+    ) {
+      throw new Error(`Backup manifest ${root} contains an unsafe payload path.`);
+    }
+  }
+}
+
+function sanitizeManifestUris(manifest: ArkBackupManifest): ArkBackupManifest {
+  return {
+    ...manifest,
+    mapMarkers: manifest.mapMarkers.map((marker) => ({ ...marker, photoUri: null })),
+    trackMarkers: manifest.trackMarkers.map((marker) => ({
+      ...marker,
+      photoUri: null,
+    })),
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
 function getRestoredDocumentOcrStatus(document: ArkBackupDocument): ArkDocument['ocrStatus'] {

@@ -1,6 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { Database } from 'bun:sqlite';
-import { unzipSync } from 'fflate';
+import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 
 const files = new Map<string, { data: Uint8Array; isDirectory?: boolean }>();
 
@@ -13,7 +13,7 @@ mock.module('expo-sqlite', () => ({
 mock.module('expo-crypto', () => ({
   CryptoDigestAlgorithm: { SHA256: 'SHA-256' },
   digest: async (algorithm: AlgorithmIdentifier, data: Uint8Array) =>
-    crypto.subtle.digest(algorithm, data),
+    crypto.subtle.digest(algorithm, data as Uint8Array<ArrayBuffer>),
   getRandomBytesAsync: async (length: number) => crypto.getRandomValues(new Uint8Array(length)),
   randomUUID: () => crypto.randomUUID(),
 }));
@@ -113,7 +113,7 @@ class TestSQLiteDatabase {
     this.db.close();
   }
 
-  private normalize(params: Params) {
+  private normalize(params: Params): any[] {
     return Array.from(params ?? [], (value) => (value === undefined ? null : value));
   }
 }
@@ -129,6 +129,7 @@ let RssRepository: typeof import('@/services/db/repositories/rss.repo').RssRepos
 let SettingsRepository: typeof import('@/services/db/repositories/settings.repo').SettingsRepository;
 let TracksRepository: typeof import('@/services/db/repositories/tracks.repo').TracksRepository;
 let PreferencesService: typeof import('@/services/preferences/preferences.service').PreferencesService;
+let FileSystemService: typeof import('@/services/files/filesystem.service').FileSystemService;
 
 let testDb: TestSQLiteDatabase;
 
@@ -146,6 +147,7 @@ beforeAll(async () => {
   ({ SettingsRepository } = await import('@/services/db/repositories/settings.repo'));
   ({ TracksRepository } = await import('@/services/db/repositories/tracks.repo'));
   ({ PreferencesService } = await import('@/services/preferences/preferences.service'));
+  ({ FileSystemService } = await import('@/services/files/filesystem.service'));
 });
 
 beforeEach(async () => {
@@ -361,6 +363,73 @@ describe('encrypted Ark backups', () => {
     );
     expect(ftsRow?.count ?? 0).toBeGreaterThan(0);
   });
+
+  test('rejects attacker-controlled scrypt work factors before decryption', async () => {
+    await seedBackupData();
+    const backup = await BackupService.createEncryptedBackup('correct horse battery', { kdf });
+    const envelope = JSON.parse(new TextDecoder().decode(backup.bytes));
+    envelope.crypto.N = 2 ** 20;
+
+    await expect(
+      BackupService.inspectEncryptedBackup(
+        new TextEncoder().encode(JSON.stringify(envelope)),
+        'correct horse battery'
+      )
+    ).rejects.toThrow('outside Ark safety limits');
+  });
+
+  test('rejects unsafe archive paths and manifest identifiers', async () => {
+    await seedBackupData();
+    const backup = await BackupService.createEncryptedBackup('correct horse battery', { kdf });
+
+    const unsafeEntry = await rewriteBackup(backup.bytes, (zip) => {
+      zip['../outside.txt'] = strToU8('unsafe');
+    });
+    await expect(
+      BackupService.inspectEncryptedBackup(unsafeEntry, 'correct horse battery')
+    ).rejects.toThrow('unsafe archive entry');
+
+    const unsafeManifest = await rewriteBackup(backup.bytes, (zip) => {
+      const manifest = JSON.parse(strFromU8(zip['manifest.json']!));
+      manifest.documents[0].id = '../outside';
+      zip['manifest.json'] = strToU8(JSON.stringify(manifest));
+    });
+    await expect(
+      BackupService.inspectEncryptedBackup(unsafeManifest, 'correct horse battery')
+    ).rejects.toThrow('invalid identifier');
+  });
+
+  test('does not restore unpackaged file URIs from a backup manifest', async () => {
+    await seedBackupData();
+    const backup = await BackupService.createEncryptedBackup('correct horse battery', { kdf });
+    const crafted = await rewriteBackup(backup.bytes, (zip) => {
+      const manifest = JSON.parse(strFromU8(zip['manifest.json']!));
+      manifest.mapMarkers[0].photoUri = 'file:///ark-test/ark/imports/unrelated.txt';
+      zip['manifest.json'] = strToU8(JSON.stringify(manifest));
+    });
+
+    await BackupService.importEncryptedBackup(crafted, 'correct horse battery');
+
+    expect((await MapsRepository.listMarkers())[0]?.photoUri).toBeNull();
+  });
+
+  test('only deletes files inside Ark-managed storage', async () => {
+    const managedUri = 'file:///ark-test/ark/imports/document.pdf';
+    files.set(managedUri, { data: strToU8('managed') });
+
+    await FileSystemService.deleteByUri(managedUri);
+    expect(files.has(managedUri)).toBe(false);
+
+    const outsideUri = 'file:///ark-test/unrelated.txt';
+    files.set(outsideUri, { data: strToU8('outside') });
+    await expect(FileSystemService.deleteByUri(outsideUri)).rejects.toThrow(
+      'outside Ark-managed storage'
+    );
+    await expect(
+      FileSystemService.deleteByUri('file:///ark-test/ark/imports/%2E%2E/%2E%2E/unrelated.txt')
+    ).rejects.toThrow('outside Ark-managed storage');
+    expect(files.has(outsideUri)).toBe(true);
+  });
 });
 
 async function seedBackupData() {
@@ -534,6 +603,28 @@ async function decryptForShapeOnly(bytes: Uint8Array) {
     base64ToBytes(envelope.crypto.nonce),
     new TextEncoder().encode('ark-backup-v3')
   ).decrypt(base64ToBytes(envelope.payload));
+}
+
+async function rewriteBackup(bytes: Uint8Array, mutate: (zip: Record<string, Uint8Array>) => void) {
+  const envelope = JSON.parse(new TextDecoder().decode(bytes)) as {
+    crypto: { salt: string; nonce: string; N: number; r: number; p: number; dkLen: 32 };
+    payload: string;
+  };
+  const { scryptAsync } = await import('@noble/hashes/scrypt.js');
+  const { gcm } = await import('@noble/ciphers/aes.js');
+  const key = await scryptAsync('correct horse battery', base64ToBytes(envelope.crypto.salt), {
+    N: envelope.crypto.N,
+    r: envelope.crypto.r,
+    p: envelope.crypto.p,
+    dkLen: envelope.crypto.dkLen,
+    asyncTick: 10,
+  });
+  const nonce = base64ToBytes(envelope.crypto.nonce);
+  const aad = new TextEncoder().encode('ark-backup-v3');
+  const zip = unzipSync(gcm(key, nonce, aad).decrypt(base64ToBytes(envelope.payload)));
+  mutate(zip);
+  envelope.payload = bytesToBase64(gcm(key, nonce, aad).encrypt(zipSync(zip, { level: 6 })));
+  return new TextEncoder().encode(JSON.stringify(envelope));
 }
 
 function bytesToBase64(bytes: Uint8Array) {

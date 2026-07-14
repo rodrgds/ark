@@ -39,6 +39,8 @@ let foregroundLocationTrackId: string | null = null;
 let appStateSubscription: { remove: () => void } | null = null;
 
 export class TrackRecordingService {
+  private static operationQueue: Promise<void> = Promise.resolve();
+
   static subscribe(listener: Listener) {
     listeners.add(listener);
     return () => {
@@ -65,7 +67,14 @@ export class TrackRecordingService {
     };
   }
 
-  static async startRecording(input: { activityType: TrackActivityType; title?: string }) {
+  static startRecording(input: { activityType: TrackActivityType; title?: string }) {
+    return this.enqueueOperation(() => this.processStartRecording(input));
+  }
+
+  private static async processStartRecording(input: {
+    activityType: TrackActivityType;
+    title?: string;
+  }) {
     const permissions = await this.ensureForegroundPermission();
     if (!permissions.foregroundPermissionGranted) {
       throw new Error('Location permission is required before Ark can record a track.');
@@ -95,7 +104,11 @@ export class TrackRecordingService {
     return track;
   }
 
-  static async pauseRecording(trackId: string) {
+  static pauseRecording(trackId: string) {
+    return this.enqueueOperation(() => this.processPauseRecording(trackId));
+  }
+
+  private static async processPauseRecording(trackId: string) {
     const track = await requireActiveTrack(trackId);
     const previousPoint = await TracksRepository.getLastPoint(track.id);
     await TracksRepository.insertPoints(track.id, [
@@ -106,7 +119,11 @@ export class TrackRecordingService {
     emitChange();
   }
 
-  static async resumeRecording(trackId: string) {
+  static resumeRecording(trackId: string) {
+    return this.enqueueOperation(() => this.processResumeRecording(trackId));
+  }
+
+  private static async processResumeRecording(trackId: string) {
     const track = await requireActiveTrack(trackId);
     const previousPoint = await TracksRepository.getLastPoint(track.id);
     await TracksRepository.updateTrackStatus(track.id, 'recording');
@@ -117,7 +134,11 @@ export class TrackRecordingService {
     emitChange();
   }
 
-  static async finishRecording(trackId: string) {
+  static finishRecording(trackId: string) {
+    return this.enqueueOperation(() => this.processFinishRecording(trackId));
+  }
+
+  private static async processFinishRecording(trackId: string) {
     const track = await requireActiveTrack(trackId);
     const previousPoint = await TracksRepository.getLastPoint(track.id);
     await TracksRepository.insertPoints(track.id, [
@@ -129,7 +150,11 @@ export class TrackRecordingService {
     emitChange();
   }
 
-  static async discardRecording(trackId: string) {
+  static discardRecording(trackId: string) {
+    return this.enqueueOperation(() => this.processDiscardRecording(trackId));
+  }
+
+  private static async processDiscardRecording(trackId: string) {
     await TracksRepository.softDeleteTrack(trackId);
     await this.stopLocationUpdates();
     emitChange();
@@ -158,7 +183,11 @@ export class TrackRecordingService {
     }
   }
 
-  static async handleLocationBatch(locations: LocationObject[]) {
+  static handleLocationBatch(locations: LocationObject[]) {
+    return this.enqueueOperation(() => this.processLocationBatch(locations));
+  }
+
+  private static async processLocationBatch(locations: LocationObject[]) {
     if (!locations.length) return;
     const track = await TracksRepository.getActiveTrack();
     if (!track || track.status !== 'recording') return;
@@ -173,6 +202,19 @@ export class TrackRecordingService {
     if (!drafts.length) return;
     await TracksRepository.insertPoints(track.id, drafts);
     emitChange();
+  }
+
+  private static enqueueOperation<T>(operation: () => Promise<T>): Promise<T> {
+    const next = this.operationQueue.then(operation, operation);
+    this.operationQueue = next.then(
+      () => undefined,
+      () => undefined
+    );
+    return next;
+  }
+
+  static resetOperationQueueForTests() {
+    this.operationQueue = Promise.resolve();
   }
 
   static async recordTaskError(message: string) {

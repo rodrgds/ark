@@ -540,7 +540,7 @@ export function getAccentCssVariables(
   theme: EffectiveTheme,
   accentPreference: AccentPreference,
   systemAccentColors: AccentColorsByTheme = DEFAULT_SYSTEM_ACCENT_COLORS
-) {
+): Record<string, string> {
   const colors = getThemeColors(theme, accentPreference, systemAccentColors);
   const hsl = hexToHsl(colors.primary);
   const secondaryScale = toneScale(hsl, theme, theme === 'light' ? 0.48 : 0.42);

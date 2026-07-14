@@ -9,7 +9,10 @@ describe('release CI contracts', () => {
       scripts: Record<string, string>;
     };
 
-    expect(pkg.scripts.typecheck).toBe('tsc --noEmit');
+    expect(pkg.scripts.typecheck).toContain('bun run typecheck:app');
+    expect(pkg.scripts.typecheck).toContain('bun run typecheck:tests');
+    expect(pkg.scripts['typecheck:app']).toBe('tsc --noEmit');
+    expect(pkg.scripts['typecheck:tests']).toContain('tsconfig.tests.json');
     expect(pkg.scripts.lint).toContain('eslint .');
     expect(pkg.scripts.check).toContain('bun run typecheck');
     expect(pkg.scripts.check).toContain('bun run lint');

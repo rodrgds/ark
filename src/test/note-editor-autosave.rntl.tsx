@@ -14,16 +14,14 @@ const createdNote: Note = {
   body: 'Pack radio and water',
   contentHtml: '<p>Pack radio and water</p>',
   contentJson: '{"type":"doc"}',
-  contentFormat: 'html',
+  contentFormat: 'tiptap-json-v1',
   themeId: 'default',
-  labels: [],
   tags: [],
   isFavorite: false,
-  isArchived: false,
-  isDeleted: false,
   sortOrder: 0,
   createdAt: 1_700_000_000_000,
   updatedAt: 1_700_000_000_000,
+  deletedAt: null,
 };
 
 const createNote = mock(async (_input: unknown) => createdNote);
@@ -88,7 +86,7 @@ mock.module('@/components/notes/rich-note-editor', () => ({
       onChangeText: (nextBody: string) =>
         onChange({
           body: nextBody,
-          contentFormat: 'html',
+          contentFormat: 'tiptap-json-v1',
           contentHtml: `<p>${nextBody}</p>`,
           contentJson: JSON.stringify({
             content: [{ content: [{ text: nextBody, type: 'text' }], type: 'paragraph' }],
@@ -159,7 +157,7 @@ describe('NoteEditorScreen autosave', () => {
         expect(createNote).toHaveBeenCalledWith(
           expect.objectContaining({
             body: 'Pack radio and water',
-            contentFormat: 'html',
+            contentFormat: 'tiptap-json-v1',
             contentHtml: '<p>Pack radio and water</p>',
             title: 'Storm prep',
           })

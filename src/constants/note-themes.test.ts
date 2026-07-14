@@ -32,7 +32,7 @@ describe('note themes', () => {
       'beach',
       'forest',
     ]);
-    expect(NOTE_THEME_OPTIONS.map((theme) => theme.id)).toEqual(NOTE_THEME_IDS);
+    expect(NOTE_THEME_OPTIONS.map((theme) => theme.id)).toEqual(Array.from(NOTE_THEME_IDS));
   });
 
   test('normalizes unknown theme ids to default', () => {

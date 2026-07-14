@@ -118,7 +118,7 @@ mock.module('expo-crypto', () => ({
     SHA512: 'SHA-512',
   },
   digest: async (algorithm: AlgorithmIdentifier, data: Uint8Array) =>
-    crypto.subtle.digest(algorithm, data),
+    crypto.subtle.digest(algorithm, data as Uint8Array<ArrayBuffer>),
   digestStringAsync: async (algorithm: AlgorithmIdentifier, data: string) => {
     const buffer = await crypto.subtle.digest(algorithm, new TextEncoder().encode(data));
     return Array.from(new Uint8Array(buffer), (byte) => byte.toString(16).padStart(2, '0')).join(
@@ -718,7 +718,7 @@ class TestSQLiteDatabase {
     this.db.close();
   }
 
-  private normalize(params: Params) {
+  private normalize(params: Params): any[] {
     return Array.from(params ?? [], (value) => (value === undefined ? null : value));
   }
 }
@@ -885,7 +885,7 @@ beforeEach(async () => {
         text: async () => '',
         json: async () => ({}),
         headers: { get: () => 'text/plain' },
-      } as Response;
+      } as unknown as Response;
     }
     return {
       ok: mockFetchStatus >= 200 && mockFetchStatus < 300,
@@ -895,8 +895,8 @@ beforeEach(async () => {
       headers: {
         get: (name: string) => (name.toLowerCase() === 'content-type' ? 'text/html' : null),
       },
-    } as Response;
-  }) as typeof fetch;
+    } as unknown as Response;
+  }) as unknown as typeof fetch;
   resetLlamaAdapterForTests?.();
   resetEmbeddingServiceForTests?.();
   resetVoiceRuntimeForTests?.();
@@ -927,7 +927,7 @@ describe('service integration', () => {
     globalThis.fetch = (async () => {
       fetchCalls += 1;
       throw new Error('Network disabled for offline launch test.');
-    }) as typeof fetch;
+    }) as unknown as typeof fetch;
 
     try {
       await useAppStore.getState().boot();
@@ -1659,7 +1659,7 @@ describe('service integration', () => {
         getPacks: async () => [],
         deletePack: async () => undefined,
         addListener: async () => undefined,
-        createPack: async (options) => {
+        createPack: async (options: any) => {
           createPackOptions = options;
           return {
             id: 'native-pack-pt-overview',
@@ -1739,7 +1739,7 @@ describe('service integration', () => {
         getPacks: async () => [],
         deletePack: async () => undefined,
         addListener: async () => undefined,
-        createPack: async (options) => ({
+        createPack: async (options: any) => ({
           id: 'native-pack-no-nav',
           metadata: options.metadata,
           pause: async () => undefined,
@@ -1986,7 +1986,7 @@ describe('service integration', () => {
     globalThis.fetch = (async () => {
       fetchCalls += 1;
       throw new Error('offline map search must not fetch');
-    }) as typeof fetch;
+    }) as unknown as typeof fetch;
 
     try {
       const results = await OfflineMapService.searchOffline('lisbon');
@@ -2082,7 +2082,7 @@ describe('service integration', () => {
       const error = new Error('Aborted');
       error.name = 'AbortError';
       throw error;
-    }) as typeof fetch;
+    }) as unknown as typeof fetch;
     delete (globalThis as any).DOMException;
 
     try {
@@ -3265,7 +3265,7 @@ describe('service integration', () => {
     ]);
     expect(
       (await ModelManagerService.listAvailableChatModels()).map((model) => model.id)
-    ).toContain(customChatModel?.id);
+    ).toContain(customChatModel!.id);
   });
 
   test('imported local search models are rejected because source search is built in', async () => {

@@ -2,7 +2,8 @@ import { describe, expect, mock, test } from 'bun:test';
 
 mock.module('expo-crypto', () => ({
   CryptoDigestAlgorithm: { SHA256: 'SHA-256' },
-  digest: (_algorithm: string, data: Uint8Array) => crypto.subtle.digest('SHA-256', data),
+  digest: (_algorithm: string, data: Uint8Array) =>
+    crypto.subtle.digest('SHA-256', data as Uint8Array<ArrayBuffer>),
 }));
 
 describe('FileDigestService', () => {

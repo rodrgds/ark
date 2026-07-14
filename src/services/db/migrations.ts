@@ -110,7 +110,8 @@ export async function migrateDbIfNeeded(db: ArkSQLiteDatabase) {
         confidence REAL,
         indexed_at INTEGER,
         created_at INTEGER NOT NULL,
-        UNIQUE(document_id, page_number)
+        UNIQUE(document_id, page_number),
+        FOREIGN KEY(document_id) REFERENCES documents(id) ON DELETE CASCADE
       );
 
       CREATE VIRTUAL TABLE IF NOT EXISTS document_pages_fts USING fts5(
@@ -353,7 +354,8 @@ export async function migrateDbIfNeeded(db: ArkSQLiteDatabase) {
         published_at INTEGER,
         saved_offline INTEGER DEFAULT 1,
         read_at INTEGER,
-        created_at INTEGER
+        created_at INTEGER,
+        FOREIGN KEY(feed_id) REFERENCES rss_feeds(id) ON DELETE CASCADE
       );
 
       CREATE TABLE IF NOT EXISTS weather_cache (
@@ -406,7 +408,8 @@ export async function migrateDbIfNeeded(db: ArkSQLiteDatabase) {
         reasoning TEXT,
         metadata_json TEXT,
         deleted_at INTEGER,
-        created_at INTEGER
+        created_at INTEGER,
+        FOREIGN KEY(thread_id) REFERENCES chat_threads(id) ON DELETE CASCADE
       );
 
       CREATE TABLE IF NOT EXISTS rag_sources (
@@ -426,7 +429,8 @@ export async function migrateDbIfNeeded(db: ArkSQLiteDatabase) {
         token_count INTEGER,
         embedding_model_id TEXT,
         embedding_blob BLOB,
-        created_at INTEGER
+        created_at INTEGER,
+        FOREIGN KEY(source_id) REFERENCES rag_sources(id) ON DELETE CASCADE
       );
 
       CREATE VIRTUAL TABLE IF NOT EXISTS rag_chunks_fts USING fts5(
@@ -457,7 +461,9 @@ export async function migrateDbIfNeeded(db: ArkSQLiteDatabase) {
         dimension INTEGER NOT NULL,
         embedding_blob BLOB NOT NULL,
         created_at INTEGER NOT NULL,
-        PRIMARY KEY(chunk_id, model_id)
+        PRIMARY KEY(chunk_id, model_id),
+        FOREIGN KEY(chunk_id) REFERENCES rag_chunks(id) ON DELETE CASCADE,
+        FOREIGN KEY(model_id) REFERENCES embedding_models(id) ON DELETE CASCADE
       );
 
       CREATE TABLE IF NOT EXISTS zim_articles_cache (
@@ -481,7 +487,8 @@ export async function migrateDbIfNeeded(db: ArkSQLiteDatabase) {
         paragraph_index INTEGER NOT NULL,
         text TEXT NOT NULL,
         token_estimate INTEGER,
-        created_at INTEGER NOT NULL
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY(article_cache_id) REFERENCES zim_articles_cache(id) ON DELETE CASCADE
       );
 
       CREATE INDEX IF NOT EXISTS idx_notes_deleted_updated ON notes(deleted_at, updated_at);

@@ -41,8 +41,9 @@ describe('map preset download mapping', () => {
 });
 
 function region(input: Partial<MapPreset> & { id: string }): MapPreset {
+  const { id, ...overrides } = input;
   return {
-    id: input.id,
+    id,
     name: 'Lisbon field area',
     description: 'Compact operating area for Lisbon.',
     countryCode: 'PT',
@@ -55,6 +56,6 @@ function region(input: Partial<MapPreset> & { id: string }): MapPreset {
     estimatedSize: '180-420 MB',
     estimatedSizeMb: 420,
     tags: ['Portugal', 'Lisbon'],
-    ...input,
+    ...overrides,
   };
 }

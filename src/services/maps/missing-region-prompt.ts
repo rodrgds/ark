@@ -9,8 +9,28 @@ export type MissingRegionPromptInput = {
   longitude: number;
   viewedBounds?: [number, number, number, number] | null;
   regions: MapPreset[];
-  downloadedRegions: Array<MapRegion | any>;
+  downloadedRegions: DownloadedRegionState[];
   zoom?: number;
+};
+
+export type DownloadedRegionState = Partial<
+  Pick<
+    MapRegion,
+    | 'id'
+    | 'name'
+    | 'manifestRegionId'
+    | 'status'
+    | 'routingStatus'
+    | 'north'
+    | 'south'
+    | 'east'
+    | 'west'
+    | 'maxZoom'
+  >
+> & {
+  regionId?: string | null;
+  bbox?: [number, number, number, number] | null;
+  bounds?: { north?: number; south?: number; east?: number; west?: number } | null;
 };
 
 /**
@@ -24,7 +44,7 @@ function estimateZoomFromBounds(bounds: [number, number, number, number]): numbe
   return Math.max(0, Math.min(20, Math.log2(360 / lngSpan)));
 }
 
-function isActiveRegionDownload(region: MapRegion | any) {
+function isActiveRegionDownload(region: DownloadedRegionState) {
   return (
     region.status === 'downloading' ||
     region.status === 'queued' ||
@@ -85,35 +105,30 @@ function getMissingRegionCandidate(input: MissingRegionPromptInput): MapPreset |
   // Resolve downloaded / downloading / dismissed IDs
   const downloadedRegionIds = new Set<string>();
   const activeDownloadRegionIds = new Set<string>();
+  const presetsById = new Map(input.regions.map((preset) => [preset.id, preset]));
+  const presetsByName = new Map(input.regions.map((preset) => [preset.name, preset]));
+  const presetsByBounds = new Map(
+    input.regions.map((preset) => [boundsKey(preset.bbox), preset] as const)
+  );
 
   for (const r of input.downloadedRegions) {
-    const matched = input.regions.find((preset) => {
-      const rId = r.manifestRegionId || r.regionId || r.id;
-      if (preset.id === rId || preset.name === r.name) return true;
-
-      const rWest = r.west ?? r.bbox?.[0];
-      const rSouth = r.south ?? r.bbox?.[1];
-      const rEast = r.east ?? r.bbox?.[2];
-      const rNorth = r.north ?? r.bbox?.[3];
-
-      if (rWest != null && rSouth != null && rEast != null && rNorth != null) {
-        const delta = 0.000001;
-        return (
-          Math.abs(preset.bbox[0] - rWest) < delta &&
-          Math.abs(preset.bbox[1] - rSouth) < delta &&
-          Math.abs(preset.bbox[2] - rEast) < delta &&
-          Math.abs(preset.bbox[3] - rNorth) < delta
-        );
-      }
-      return false;
-    });
+    const directId = r.manifestRegionId || r.regionId || r.id;
+    const rWest = r.west ?? r.bbox?.[0];
+    const rSouth = r.south ?? r.bbox?.[1];
+    const rEast = r.east ?? r.bbox?.[2];
+    const rNorth = r.north ?? r.bbox?.[3];
+    const matched =
+      (directId ? presetsById.get(directId) : undefined) ??
+      (r.name ? presetsByName.get(r.name) : undefined) ??
+      (rWest != null && rSouth != null && rEast != null && rNorth != null
+        ? presetsByBounds.get(boundsKey([rWest, rSouth, rEast, rNorth]))
+        : undefined);
 
     const active = isActiveRegionDownload(r);
     if (matched) {
       if (r.status === 'downloaded') downloadedRegionIds.add(matched.id);
       else if (active) activeDownloadRegionIds.add(matched.id);
     } else {
-      const directId = r.manifestRegionId || r.regionId || r.id;
       if (directId) {
         if (r.status === 'downloaded') downloadedRegionIds.add(directId);
         else if (active) activeDownloadRegionIds.add(directId);
@@ -145,28 +160,24 @@ function getMissingRegionCandidate(input: MissingRegionPromptInput): MapPreset |
   // Dynamic region fallback: only when zoomed in enough
   if (zoom >= 8) {
     // 1. Check if ANY predefined region covering this coordinate is already downloaded
+    const coveredPresetIds = new Set([...downloadedRegionIds, ...activeDownloadRegionIds]);
     const isPredefinedCovered = input.regions.some((r) => {
       if ((r.maxZoom ?? 14) < 14) return false;
       if (!isCoordinateInsideRegion(input.latitude, input.longitude, r.bbox)) return false;
-      return input.downloadedRegions.some(
-        (dl) =>
-          (dl.manifestRegionId === r.id || dl.name === r.name) &&
-          (dl.status === 'downloaded' || isActiveRegionDownload(dl))
-      );
+      return coveredPresetIds.has(r.id);
     });
     if (isPredefinedCovered) return null;
 
     // 2. Check if ANY dynamic region covering this coordinate is already downloaded or active.
     const isCenterCovered = input.downloadedRegions.some((dlRegion) => {
-      const r = dlRegion as any;
-      if (r.status !== 'downloaded' && !isActiveRegionDownload(r)) return false;
-      const maxZ = r.maxZoom ?? 14;
+      if (dlRegion.status !== 'downloaded' && !isActiveRegionDownload(dlRegion)) return false;
+      const maxZ = dlRegion.maxZoom ?? 14;
       if (maxZ < 14) return false; // Not covered by high-detail map
 
-      const south = r.south ?? r.bounds?.south;
-      const north = r.north ?? r.bounds?.north;
-      const west = r.west ?? r.bounds?.west;
-      const east = r.east ?? r.bounds?.east;
+      const south = dlRegion.south ?? dlRegion.bounds?.south;
+      const north = dlRegion.north ?? dlRegion.bounds?.north;
+      const west = dlRegion.west ?? dlRegion.bounds?.west;
+      const east = dlRegion.east ?? dlRegion.bounds?.east;
       if (south != null && north != null && west != null && east != null) {
         return (
           input.latitude >= south &&
@@ -222,4 +233,8 @@ function getMissingRegionCandidate(input: MissingRegionPromptInput): MapPreset |
   }
 
   return null;
+}
+
+function boundsKey(bounds: [number, number, number, number]) {
+  return bounds.map((value) => value.toFixed(6)).join(':');
 }

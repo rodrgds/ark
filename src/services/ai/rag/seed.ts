@@ -7,6 +7,7 @@ import {
   serializeEmbedding,
 } from '@/services/ai/rag-embedding';
 import { RagVectorService } from '@/services/ai/rag-vector.service';
+import { ensureEmbeddingModelRecord } from '@/services/ai/rag/embedding-model-registry';
 
 export async function seedCoreContent() {
   const db = await DatabaseClient.getDb();
@@ -25,6 +26,7 @@ export async function seedCoreContent() {
     const text =
       'Ark starter guide: keep downloaded maps, first aid references, emergency contacts, weather cache, and private notes available before going offline.';
     const embedding = serializeEmbedding(embedText(text));
+    await ensureEmbeddingModelRecord(tx, RAG_HASH_EMBEDDING_MODEL_ID, timestamp);
 
     await tx.runAsync(
       `INSERT INTO rag_chunks

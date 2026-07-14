@@ -33,7 +33,7 @@ mock.module('expo-crypto', () => ({
     SHA256: 'SHA-256',
   },
   digest: async (algorithm: AlgorithmIdentifier, data: Uint8Array) =>
-    crypto.subtle.digest(algorithm, data),
+    crypto.subtle.digest(algorithm, data as Uint8Array<ArrayBuffer>),
   getRandomBytesAsync: async (length: number) => new Uint8Array(length).fill(randomByte),
   randomUUID: () => crypto.randomUUID(),
 }));
@@ -113,6 +113,7 @@ class FakeSQLiteDatabase {
       runtimeActive?: boolean;
       failWhenKeyed?: boolean;
       failWhenUnkeyed?: boolean;
+      failOnClose?: boolean;
     } = {}
   ) {}
 
@@ -158,6 +159,7 @@ class FakeSQLiteDatabase {
   }
 
   async closeAsync() {
+    if (this.options.failOnClose) throw new Error('close failed');
     this.closed = true;
   }
 }
@@ -345,6 +347,24 @@ describe('DatabaseClient transaction mutex', () => {
         },
       ])
     );
+  });
+
+  test('aborts an encryption swap when the active database cannot close', async () => {
+    const plaintextDb = new FakeSQLiteDatabase('plaintext', {
+      runtimeActive: true,
+      failOnClose: true,
+    });
+    mockFiles.add('file:///tmp/ark.db');
+    mockOpenDatabaseAsync = async () => plaintextDb;
+
+    await DatabaseClient.getDb();
+
+    await expect(
+      DatabaseClient.migratePlaintextDatabaseToEncrypted({ fileSystem: mockFileSystem })
+    ).rejects.toThrow('close failed');
+
+    expect(fileMoves).toEqual([]);
+    expect(mockFiles.has('file:///tmp/ark.db')).toBe(true);
   });
 
   test('rotates the SQLCipher key for an encrypted database', async () => {

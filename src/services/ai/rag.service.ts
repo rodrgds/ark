@@ -24,6 +24,7 @@ import {
   type RagSearchDeps,
 } from '@/services/ai/rag/search';
 import { seedCoreContent as seedRagCoreContent } from '@/services/ai/rag/seed';
+import { ensureEmbeddingModelRecord } from '@/services/ai/rag/embedding-model-registry';
 import { GuideService } from '@/services/content/guide.service';
 import { type ZimArticle } from '@/services/content/zim.service';
 import { OcrService } from '@/services/ocr/ocr.service';
@@ -105,6 +106,11 @@ export class RagService {
           [input.id]
         );
         await tx.runAsync('DELETE FROM rag_chunks WHERE source_id = ?', [input.id]);
+        for (const modelId of new Set(
+          embeddedChunks.map(({ embeddingResult }) => embeddingResult.modelId)
+        )) {
+          await ensureEmbeddingModelRecord(tx, modelId, timestamp);
+        }
         for (let index = 0; index < embeddedChunks.length; index += 1) {
           const { text, embeddingResult, embedding } = embeddedChunks[index];
           const id = randomUUID();

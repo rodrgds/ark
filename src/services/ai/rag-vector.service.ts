@@ -7,6 +7,7 @@ import {
 } from '@/services/ai/embedding-models';
 
 const HASH_VECTOR_TABLE = 'rag_chunk_vectors_v2';
+const SQLITE_DELETE_BATCH_SIZE = 400;
 const VECTOR_TABLES: Record<string, { table: string; dimensions: number }> = {
   'ark-hash-v2': { table: HASH_VECTOR_TABLE, dimensions: RAG_HASH_EMBEDDING_DIMENSIONS },
   [EXECUTORCH_TEXT_EMBEDDING_MODEL_ID]: {
@@ -51,8 +52,10 @@ export class RagVectorService {
     for (const modelId of Object.keys(VECTOR_TABLES)) {
       if (!(await this.isAvailable(db, modelId))) continue;
       const table = VECTOR_TABLES[modelId];
-      for (const chunkId of chunkIds) {
-        await db.runAsync(`DELETE FROM ${table.table} WHERE chunk_id = ?`, [chunkId]);
+      for (let offset = 0; offset < chunkIds.length; offset += SQLITE_DELETE_BATCH_SIZE) {
+        const batch = chunkIds.slice(offset, offset + SQLITE_DELETE_BATCH_SIZE);
+        const placeholders = batch.map(() => '?').join(', ');
+        await db.runAsync(`DELETE FROM ${table.table} WHERE chunk_id IN (${placeholders})`, batch);
       }
     }
   }

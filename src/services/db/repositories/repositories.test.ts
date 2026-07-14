@@ -13,7 +13,7 @@ mock.module('expo-crypto', () => ({
     SHA256: 'SHA-256',
   },
   digest: async (algorithm: AlgorithmIdentifier, data: Uint8Array) =>
-    crypto.subtle.digest(algorithm, data),
+    crypto.subtle.digest(algorithm, data as Uint8Array<ArrayBuffer>),
   getRandomBytesAsync: async (length: number) => crypto.getRandomValues(new Uint8Array(length)),
   randomUUID: () => crypto.randomUUID(),
 }));
@@ -73,7 +73,7 @@ class TestSQLiteDatabase {
     this.db.close();
   }
 
-  private normalize(params: Params) {
+  private normalize(params: Params): any[] {
     return Array.from(params ?? [], (value) => (value === undefined ? null : value));
   }
 }
@@ -274,6 +274,36 @@ describe('database migrations', () => {
       ['filter']
     );
     expect(rows[0]?.note_id).toBe('note-1');
+  });
+
+  test('enforces parent ownership for durable child records', async () => {
+    const expectedForeignKeys: Record<string, Array<{ from: string; table: string }>> = {
+      document_pages: [{ from: 'document_id', table: 'documents' }],
+      chat_messages: [{ from: 'thread_id', table: 'chat_threads' }],
+      rag_chunks: [{ from: 'source_id', table: 'rag_sources' }],
+      chunk_embeddings: [
+        { from: 'chunk_id', table: 'rag_chunks' },
+        { from: 'model_id', table: 'embedding_models' },
+      ],
+      rss_items: [{ from: 'feed_id', table: 'rss_feeds' }],
+      zim_paragraph_chunks: [{ from: 'article_cache_id', table: 'zim_articles_cache' }],
+    };
+
+    for (const [table, expected] of Object.entries(expectedForeignKeys)) {
+      const keys = await testDb.getAllAsync<{ from: string; table: string }>(
+        `PRAGMA foreign_key_list(${table})`
+      );
+      expect(keys.map(({ from, table: parent }) => ({ from, table: parent }))).toEqual(
+        expect.arrayContaining(expected)
+      );
+    }
+
+    await expect(
+      testDb.runAsync(
+        `INSERT INTO chat_messages (id, thread_id, role, content, created_at)
+         VALUES ('orphan-message', 'missing-thread', 'user', 'unsafe', 1)`
+      )
+    ).rejects.toThrow();
   });
 
   test('rejects pre-release database schemas instead of carrying compatibility migrations', async () => {

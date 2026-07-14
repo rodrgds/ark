@@ -152,7 +152,7 @@ async function closeRawDatabase(db: SQLiteDatabase) {
     return;
   }
   if (typeof db.closeAsync === 'function') {
-    await db.closeAsync().catch(() => undefined);
+    await db.closeAsync();
   }
 }
 
@@ -173,7 +173,7 @@ export class DatabaseClient {
         try {
           await DatabaseEncryptionService.applyKey(wrappedDb);
         } catch (error) {
-          await closeRawDatabase(db);
+          await closeRawDatabase(db).catch(() => undefined);
           throw error;
         }
         await migrateDbIfNeeded(wrappedDb);

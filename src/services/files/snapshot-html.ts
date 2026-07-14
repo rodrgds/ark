@@ -27,3 +27,8 @@ export function stripFailedImageTags(
     return full;
   });
 }
+
+export function sanitizeSnapshotHtml(html: string): string {
+  return sanitizeArticleHtml(html);
+}
+import { sanitizeArticleHtml } from '@/services/content/zim-html-sanitizer';

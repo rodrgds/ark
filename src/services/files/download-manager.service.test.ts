@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { arkDownloadHeaders, arkUserAgent } from '@/services/files/http-headers';
-import { stripFailedImageTags } from '@/services/files/snapshot-html';
+import { sanitizeSnapshotHtml, stripFailedImageTags } from '@/services/files/snapshot-html';
 
 const BASE_URL =
   'https://www.cdc.gov/water-emergency/safety/guidelines-for-personal-hygiene-during-an-emergency.html';
@@ -37,6 +37,25 @@ describe('stripFailedImageTags', () => {
     const failed = new Set<string>(['https://example.com/other.png']);
     const out = stripFailedImageTags(html, BASE_URL, failed);
     expect(out).toContain('x.png');
+  });
+});
+
+describe('sanitizeSnapshotHtml', () => {
+  test('removes scripts, event handlers, embedded frames, and active URLs', () => {
+    const html = `
+      <p onclick="globalThis.compromised = true">Safe text</p>
+      <script>globalThis.compromised = true</script>
+      <iframe src="https://attacker.test"></iframe>
+      <a href="javascript:globalThis.compromised=true">Open</a>
+    `;
+
+    const sanitized = sanitizeSnapshotHtml(html);
+
+    expect(sanitized).toContain('Safe text');
+    expect(sanitized).not.toContain('onclick');
+    expect(sanitized).not.toContain('<script');
+    expect(sanitized).not.toContain('<iframe');
+    expect(sanitized).not.toContain('javascript:');
   });
 });
 

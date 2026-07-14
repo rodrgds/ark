@@ -174,4 +174,23 @@ describe('GuideReaderScreen', () => {
     expect(view.getByText('Make water safe to drink.')).toBeOnTheScreen();
     expect(view.getByText('p.3')).toBeOnTheScreen();
   });
+
+  test('disables active WebView content for downloaded snapshots', async () => {
+    prepareContent.mockImplementationOnce(async () => ({
+      uri: 'file:///guides/water/index.html',
+      allowReadAccessToURL: 'file:///guides/water/',
+      allowsActiveContent: false,
+      format: 'html',
+      title: guidePack.title,
+    }));
+    const { default: GuideReaderScreen } = await import('@/app/content/reader');
+
+    const view = await render(<GuideReaderScreen />);
+    const webView = await view.findByTestId('reader-webview');
+
+    expect(webView.props.javaScriptEnabled).toBe(false);
+    expect(webView.props.domStorageEnabled).toBe(false);
+    expect(webView.props.injectedJavaScript).toBeUndefined();
+    expect(webView.props.allowFileAccess).toBe(true);
+  });
 });

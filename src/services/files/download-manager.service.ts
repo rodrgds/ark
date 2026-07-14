@@ -8,7 +8,7 @@ import { FileDigestService } from '@/services/files/file-digest.service';
 import { DownloadNotificationService } from '@/services/files/download-notifications.service';
 import { ZimHeaderParser } from '@/services/content/zim-header';
 import { arkDownloadHeaders } from '@/services/files/http-headers';
-import { stripFailedImageTags } from '@/services/files/snapshot-html';
+import { sanitizeSnapshotHtml, stripFailedImageTags } from '@/services/files/snapshot-html';
 import type { AppDirectory } from '@/constants/app';
 import type { DownloadKind, DownloadRow } from '@/types/downloads';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -35,6 +35,11 @@ type DownloadRunInput = {
   resumeData?: string | null;
   expectedSizeBytes?: number | null;
 };
+
+type SnapshotRunInput = Pick<
+  DownloadRunInput,
+  'id' | 'kind' | 'title' | 'packId' | 'sourceUrl' | 'localUri'
+>;
 
 const MAX_ACTIVE_DOWNLOADS = 3;
 const MIN_EXPECTED_SIZE_RATIO = 0.98;
@@ -709,227 +714,27 @@ export class DownloadManagerService {
     }
   }
 
-  private static async runHtmlSnapshot(input: {
-    id: string;
-    kind: DownloadKind;
-    title: string;
-    packId?: string | null;
-    sourceUrl: string;
-    localUri: string;
-  }) {
-    const controller = new AbortController();
-    const snapshotRoot = parentDirectory(input.localUri);
-    const assetRoot = `${snapshotRoot}assets/`;
-    let currentAssetDownload: FileSystem.DownloadResumable | null = null;
-    let active: ActiveDownload | null = null;
-
-    try {
-      active = {
-        kind: input.kind,
-        packId: input.packId,
-        progress: 0,
-        localUri: input.localUri,
-        cancel: async () => {
-          controller.abort();
-          if (currentAssetDownload) {
-            await currentAssetDownload.cancelAsync().catch(() => undefined);
-          }
-          await FileSystem.deleteAsync(snapshotRoot, { idempotent: true }).catch(() => undefined);
-        },
-      };
-      this.activeDownloads.set(input.id, active);
-      void DownloadNotificationService.progress({
-        id: input.id,
-        kind: input.kind,
-        title: input.title,
-        progress: 0,
-        status: 'downloading',
-      });
-      if (input.packId) {
-        await ContentRepository.updateInstallStatus({
-          id: input.packId,
-          status: 'downloading',
-          progress: 0,
-          localUri: input.localUri,
-        });
-      }
-
-      await FileSystem.deleteAsync(snapshotRoot, { idempotent: true }).catch(() => undefined);
-      await FileSystem.makeDirectoryAsync(snapshotRoot, { intermediates: true }).catch(
-        () => undefined
-      );
-      await this.updateProgressState(input.id, input.packId, input.localUri, input.title, 0.08);
-
-      const response = await fetch(input.sourceUrl, {
-        headers: {
-          ...arkDownloadHeaders({ accept: SNAPSHOT_ACCEPT_HEADER }),
-        },
-        signal: controller.signal,
-      });
-      if (!response.ok) throw new Error(`Download failed with HTTP ${response.status}.`);
-
-      const rawHtml = await response.text();
-      const readableBody = filterSnapshotChrome(extractReadableBody(rawHtml), input.sourceUrl);
-      const pageTitle = extractTitle(rawHtml, input.title);
-      const imageUrls = collectImageUrls(readableBody, input.sourceUrl);
-      const imageMap = new Map<string, string>();
-      const failedImageUrls = new Set<string>();
-      const downloadedAssetUris: string[] = [];
-
-      if (imageUrls.length) {
-        await FileSystem.makeDirectoryAsync(assetRoot, { intermediates: true }).catch(
-          () => undefined
-        );
-      }
-
-      await this.updateProgressState(input.id, input.packId, input.localUri, input.title, 0.2);
-
-      for (let index = 0; index < imageUrls.length; index += 1) {
-        if (controller.signal.aborted) throw new Error('Download canceled.');
-        const imageUrl = imageUrls[index];
-        const assetFileName = `${String(index + 1).padStart(2, '0')}-${inferFileName(
-          imageUrl,
-          'image'
-        )}`;
-        const destinationUri = `${assetRoot}${assetFileName}`;
-        currentAssetDownload = FileSystem.createDownloadResumable(imageUrl, destinationUri, {
-          md5: false,
-          sessionType: FileSystem.FileSystemSessionType.BACKGROUND,
-          headers: arkDownloadHeaders(),
-        });
-
-        try {
-          const result = await currentAssetDownload.downloadAsync();
-          if (result?.uri && (!result.status || (result.status >= 200 && result.status < 300))) {
-            imageMap.set(imageUrl, `assets/${assetFileName}`);
-            downloadedAssetUris.push(result.uri);
-          } else {
-            failedImageUrls.add(imageUrl);
-            await FileSystem.deleteAsync(destinationUri, { idempotent: true }).catch(
-              () => undefined
-            );
-          }
-        } catch (downloadError) {
-          failedImageUrls.add(imageUrl);
-          await FileSystem.deleteAsync(destinationUri, { idempotent: true }).catch(() => undefined);
-        } finally {
-          currentAssetDownload = null;
-        }
-
-        const progress = 0.2 + ((index + 1) / Math.max(imageUrls.length, 1)) * 0.65;
-        await this.updateProgressState(
-          input.id,
-          input.packId,
-          input.localUri,
-          input.title,
-          progress
-        );
-      }
-
-      const strippedBody = stripFailedImageTags(readableBody, input.sourceUrl, failedImageUrls);
-      const snapshotHtml = wrapSnapshotHtml({
-        title: pageTitle,
-        sourceUrl: input.sourceUrl,
-        body: rewriteSnapshotContent(strippedBody, input.sourceUrl, imageMap),
-      });
-      await FileSystem.writeAsStringAsync(input.localUri, snapshotHtml, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
-
-      const assetInfos = await Promise.all(
-        downloadedAssetUris.map((uri) => FileSystem.getInfoAsync(uri).catch(() => null))
-      );
-      const totalBytes =
-        utf8ByteLength(snapshotHtml) +
-        assetInfos.reduce((sum, info) => {
-          if (!info || !info.exists || !('size' in info)) return sum;
-          return sum + (info.size ?? 0);
-        }, 0);
-
-      await this.finalizeDownloadedFile({
-        id: input.id,
-        kind: input.kind,
-        title: input.title,
-        packId: input.packId,
-        resultUri: input.localUri,
-        resolvedSizeBytes: totalBytes,
-      });
-    } catch (error) {
-      if (active?.stopReason === 'paused') {
-        await DownloadsRepository.updateStatus(input.id, 'paused', active.progress, null);
-        await DownloadNotificationService.terminal({
-          id: input.id,
-          kind: input.kind,
-          title: input.title,
-          progress: active.progress,
-          status: 'paused',
-        });
-        if (input.packId) {
-          await ContentRepository.updateInstallStatus({
-            id: input.packId,
-            status: 'paused',
-            progress: active.progress,
-            localUri: input.localUri,
-          });
-        }
-        return;
-      }
-
-      if (controller.signal.aborted || active?.stopReason === 'canceled') {
-        await DownloadsRepository.updateStatus(input.id, 'canceled', active?.progress ?? 0, null);
-        await DownloadNotificationService.terminal({
-          id: input.id,
-          kind: input.kind,
-          title: input.title,
-          progress: active?.progress ?? 0,
-          status: 'canceled',
-        });
-        if (input.packId) {
-          await ContentRepository.updateInstallStatus({
-            id: input.packId,
-            status: 'not_installed',
-            progress: 0,
-            localUri: null,
-          });
-        }
-        return;
-      }
-
-      await FileSystem.deleteAsync(snapshotRoot, { idempotent: true }).catch(() => undefined);
-      const message = error instanceof Error ? error.message : 'Download failed.';
-      await DownloadsRepository.updateStatus(input.id, 'failed', 0, message);
-      await DownloadNotificationService.terminal({
-        id: input.id,
-        kind: input.kind,
-        title: input.title,
-        progress: 0,
-        status: 'failed',
-      });
-      if (input.packId) {
-        await ContentRepository.updateInstallStatus({
-          id: input.packId,
-          status: 'failed',
-          progress: 0,
-          localUri: input.localUri,
-        });
-      }
-    } finally {
-      if (this.activeDownloads.get(input.id) === active) {
-        this.activeDownloads.delete(input.id);
-      }
-      this.downloadPackIds.delete(input.id);
-      this.drainQueueSoon();
-    }
+  private static runHtmlSnapshot(input: SnapshotRunInput) {
+    return this.runSnapshot(input, async (rawHtml) => ({
+      body: extractReadableBody(rawHtml),
+      title: extractTitle(rawHtml, input.title),
+    }));
   }
 
-  private static async runUserWebSnapshot(input: {
-    id: string;
-    kind: DownloadKind;
-    title: string;
-    packId?: string | null;
-    sourceUrl: string;
-    localUri: string;
-  }) {
+  private static runUserWebSnapshot(input: SnapshotRunInput) {
+    return this.runSnapshot(input, async (rawHtml) => {
+      const extracted = await extractUserWebBody(rawHtml, input.sourceUrl);
+      return {
+        body: extracted.html,
+        title: extracted.title || extractTitle(rawHtml, input.title),
+      };
+    });
+  }
+
+  private static async runSnapshot(
+    input: SnapshotRunInput,
+    extract: (rawHtml: string, input: SnapshotRunInput) => Promise<{ body: string; title: string }>
+  ) {
     const controller = new AbortController();
     const snapshotRoot = parentDirectory(input.localUri);
     const assetRoot = `${snapshotRoot}assets/`;
@@ -982,12 +787,11 @@ export class DownloadManagerService {
       if (!response.ok) throw new Error(`Download failed with HTTP ${response.status}.`);
 
       const rawHtml = await response.text();
-      const { html: defuddleHtml, title: defuddleTitle } = await extractUserWebBody(
-        rawHtml,
-        input.sourceUrl
+      const extracted = await extract(rawHtml, input);
+      const readableBody = sanitizeSnapshotHtml(
+        filterSnapshotChrome(extracted.body, input.sourceUrl)
       );
-      const pageTitle = defuddleTitle || extractTitle(rawHtml, input.title) || input.title;
-      const readableBody = filterSnapshotChrome(defuddleHtml, input.sourceUrl);
+      const pageTitle = extracted.title || extractTitle(rawHtml, input.title);
       const imageUrls = collectImageUrls(readableBody, input.sourceUrl);
       const imageMap = new Map<string, string>();
       const failedImageUrls = new Set<string>();
@@ -1047,7 +851,7 @@ export class DownloadManagerService {
       const snapshotHtml = wrapSnapshotHtml({
         title: pageTitle,
         sourceUrl: input.sourceUrl,
-        body: rewriteSnapshotContent(strippedBody, input.sourceUrl, imageMap),
+        body: sanitizeSnapshotHtml(rewriteSnapshotContent(strippedBody, input.sourceUrl, imageMap)),
       });
       await FileSystem.writeAsStringAsync(input.localUri, snapshotHtml, {
         encoding: FileSystem.EncodingType.UTF8,

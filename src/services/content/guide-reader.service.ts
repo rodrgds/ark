@@ -15,6 +15,7 @@ export type ReaderContent = {
   sectionTargets?: string[];
   page?: number;
   allowReadAccessToURL?: string;
+  allowsActiveContent?: boolean;
 };
 
 function getReaderThemeCss(theme: EffectiveTheme) {
@@ -178,6 +179,7 @@ export class GuideReaderService {
         return {
           uri: pack.localUri,
           allowReadAccessToURL: parentDirectory(pack.localUri),
+          allowsActiveContent: false,
           format: 'html',
           title: pack.title,
           sectionTitle: section?.title,

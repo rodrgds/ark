@@ -440,7 +440,8 @@ function getReaderNavigationPrefixes(content: ReaderContent) {
 
 function isReaderNavigationAllowed(content: ReaderContent, url: string) {
   if (!url || url === 'about:blank' || url.startsWith('about:blank#')) return true;
-  if (url.startsWith('data:') || url.startsWith('#')) return true;
+  if (url.startsWith('data:')) return false;
+  if (url.startsWith('#')) return true;
   return getReaderNavigationPrefixes(content).some((prefix) => url.startsWith(prefix));
 }
 
@@ -479,6 +480,7 @@ function ReaderContentView({
   theme,
   colors,
 }: ReaderContentViewProps) {
+  const allowsActiveContent = content?.allowsActiveContent !== false;
   return (
     <View className="flex-1">
       {content &&
@@ -493,6 +495,7 @@ function ReaderContentView({
           />
         ) : (
           <WebView
+            testID="reader-webview"
             ref={webViewRef}
             originWhitelist={getReaderNavigationPrefixes(content)}
             source={
@@ -500,13 +503,19 @@ function ReaderContentView({
                 ? { uri: content.uri }
                 : { html: content.html!, baseUrl: content.allowReadAccessToURL }
             }
-            allowFileAccess
+            allowFileAccess={Boolean(content.allowReadAccessToURL)}
             allowingReadAccessToURL={content.allowReadAccessToURL}
+            javaScriptEnabled={allowsActiveContent}
+            javaScriptCanOpenWindowsAutomatically={false}
+            setSupportMultipleWindows={false}
+            domStorageEnabled={allowsActiveContent}
             style={{ flex: 1, backgroundColor: colors.background }}
             scalesPageToFit={isPdf}
-            injectedJavaScript={!isPdf ? readerThemeScript(theme, colors) : undefined}
+            injectedJavaScript={
+              !isPdf && allowsActiveContent ? readerThemeScript(theme, colors) : undefined
+            }
             injectedJavaScriptBeforeContentLoaded={
-              !isPdf ? readerThemeScript(theme, colors) : undefined
+              !isPdf && allowsActiveContent ? readerThemeScript(theme, colors) : undefined
             }
             onShouldStartLoadWithRequest={(request) =>
               isReaderNavigationAllowed(content, request.url)

@@ -42,8 +42,7 @@ export default function ChecklistTool() {
       <Card className="gap-3">
         <Text variant="large">Readiness Checklist</Text>
         <Text variant="muted">
-          A compact offline checklist for leaving service. It is intentionally practical and local,
-          not a wall of advice.
+          A short, practical checklist for preparing to leave network coverage.
         </Text>
         <Progress value={progress} />
         <Text variant="muted">

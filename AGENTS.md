@@ -334,3 +334,14 @@ When asked to build and send to the dev group:
 3. If Beeper is unauthenticated, run `beeper setup --yes`.
 4. Send to `beeper://select-thread/whatsapp/!Hf5OYEW7nA8jd9xaPncq:beeper.local` with:
    `beeper send file --to '!Hf5OYEW7nA8jd9xaPncq:beeper.local' --file android/app/build/outputs/apk/release/app-release.apk --mime application/vnd.android.package-archive --caption '<short build note + SHA-256>' --wait --wait-timeout 120000 --timeout 5m --json --yes`
+
+## Writing and product copy
+
+- Avoid stock metaphors, similes, idioms, and figures of speech.
+- Prefer short, familiar words where they keep the exact meaning.
+- Cut words and sections that add no meaning.
+- Prefer active voice when it makes the actor and action clearer.
+- Replace jargon, foreign phrases, and needless scientific or academic terms with everyday English.
+- Break any rule when required for accuracy, natural phrasing, serious tone, safety, legal meaning, accessibility, survival, medical or technical precision, or readability.
+- Preserve code, commands, API fields, proper nouns, citations, quotes, safety and medical wording, legal text, and exact technical terms unless they are the copy under review.
+- Review every changed line one by one before finishing. Apply these rules in context; do not use blind replacement.

@@ -399,7 +399,8 @@ export default function NotesScreen() {
           <Arky pose="secure" size={160} />
           <Text variant="h2">Vault Locked</Text>
           <Text variant="muted" className="px-4 text-center">
-            Secure notes and personal documents are inaccessible until the vault is unlocked.
+            Passphrase-protected notes are unavailable until the vault is unlocked. Documents and
+            other local data remain available.
           </Text>
           <View className="mt-4 w-full gap-3">
             <Input

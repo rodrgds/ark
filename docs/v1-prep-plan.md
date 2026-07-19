@@ -96,7 +96,11 @@
 
 ## Security And Backup
 
-- Current boundary: notes are runtime vault-gated only when passphrase protection is on; documents, chat history, map markers/routes, and RSS data are local sensitive data and included in encrypted backups, but are not individually vault-gated yet. Decide whether to expand runtime vault gating beyond notes before production.
+- Security boundary: passphrase protection locks secure notes only. Documents, chat history,
+  map markers/routes, and RSS data remain available for emergency access. They stay local, are
+  included in encrypted backups, and receive whole-database protection only when optional SQLCipher
+  encryption is enabled. UI and release copy must not imply that locking secure notes gates those
+  other surfaces.
 - Clear app data before testing this build; old pre-v1 DB/key compatibility paths have been removed. Fresh SQLCipher-capable builds should show `Plaintext database` by default. Use Settings > Security > `Encrypt DB` and `Use Plaintext` to test both directions, and keep the reported backup until the restarted DB is verified.
 - SQLCipher now uses a purpose-derived key from a SecureStore device root when enabled. Device-root rotation is wired for encrypted DBs during vault passphrase changes. It still needs Android proof across restart, and it does not yet prove a vault-derived SQLCipher design.
 - Device-calibrate the v4 Argon2id verifier on Android/iOS, then decide whether native libsodium is needed for performance/hardening.

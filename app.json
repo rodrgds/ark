@@ -10,13 +10,13 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSFaceIDUsageDescription": "Allow Ark to protect your offline vault with Face ID.",
-        "NSMotionUsageDescription": "Allow Ark to use motion sensors for compass, level, and survival tools.",
+        "NSFaceIDUsageDescription": "Allow Ark to unlock your passphrase-protected notes with Face ID.",
+        "NSMotionUsageDescription": "Allow Ark to use motion sensors for the compass, level, and other field tools.",
         "NSLocationWhenInUseUsageDescription": "Allow Ark to show your position, save map spots, and record tracks while Ark is open.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow Ark to keep recording an active track when the screen is locked or Ark is in the background.",
         "NSMicrophoneUsageDescription": "Allow Ark to record short voice prompts for offline transcription.",
-        "NSCameraUsageDescription": "Allow Ark to attach photos to tracks, saved map locations, and Ask Arky chats.",
-        "NSPhotoLibraryUsageDescription": "Allow Ark to choose photos for tracks, saved map locations, and Ask Arky chats.",
+        "NSCameraUsageDescription": "Allow Ark to attach photos to tracks, saved spots, and Ask Arky chats.",
+        "NSPhotoLibraryUsageDescription": "Allow Ark to choose photos for tracks, saved spots, and Ask Arky chats.",
         "UIBackgroundModes": ["location"]
       },
       "bundleIdentifier": "app.ark.offline"
@@ -65,7 +65,7 @@
       [
         "expo-local-authentication",
         {
-          "faceIDPermission": "Allow Ark to protect your offline vault with Face ID."
+          "faceIDPermission": "Allow Ark to unlock your passphrase-protected notes with Face ID."
         }
       ],
       [
@@ -90,8 +90,8 @@
       [
         "expo-image-picker",
         {
-          "cameraPermission": "Allow Ark to attach photos to tracks, saved map locations, and Ask Arky chats.",
-          "photosPermission": "Allow Ark to choose photos for tracks, saved map locations, and Ask Arky chats.",
+          "cameraPermission": "Allow Ark to attach photos to tracks, saved spots, and Ask Arky chats.",
+          "photosPermission": "Allow Ark to choose photos for tracks, saved spots, and Ask Arky chats.",
           "microphonePermission": "Allow Ark to record short voice prompts for offline transcription."
         }
       ],
@@ -106,7 +106,7 @@
       [
         "expo-sensors",
         {
-          "motionPermission": "Allow Ark to use motion sensors for compass, level, and survival tools."
+          "motionPermission": "Allow Ark to use motion sensors for the compass, level, and other field tools."
         }
       ],
       [

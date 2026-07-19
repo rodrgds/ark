@@ -1,6 +1,7 @@
 # Knowledge Library
 
-The Library is the offline content hub for guides, PDFs, ZIM archives, models, RSS, and imported documents.
+Keep guides, PDFs, ZIM archives, RSS items, imported documents, and optional model packs on your
+device for offline use.
 
 ## Content Types
 

@@ -237,7 +237,7 @@ describe('map and chat UI contracts', () => {
     expect(source).not.toContain('keyboardInset');
     expect(source).toContain('modelChoiceDirtyRef');
     expect(source).toContain('if (!threadId && modelChoiceDirtyRef.current) return;');
-    expect(source).toContain('className="h-9 w-9 rounded-full"');
+    expect(source).toContain('className="h-11 w-11 rounded-full"');
   });
 
   test('chat voice input works around native VAD arguments and streams spoken responses', () => {

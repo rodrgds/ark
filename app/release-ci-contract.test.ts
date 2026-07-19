@@ -17,23 +17,31 @@ describe('release CI contracts', () => {
     expect(pkg.scripts.check).toContain('bun run typecheck');
     expect(pkg.scripts.check).toContain('bun run lint');
     expect(pkg.scripts.check).toContain('bun run test');
-    expect(pkg.scripts.test).toContain('bun test');
+    expect(pkg.scripts.test).toBe('bun scripts/run-tests.mjs');
     expect(pkg.scripts.verify).toContain('bun run format:check');
     expect(pkg.scripts.verify).toContain('bun run check');
     expect(pkg.scripts.verify).toContain('bun run build-or-docs');
-    expect(pkg.scripts.test).toContain('tab-preferences-card.rntl.tsx');
-    expect(pkg.scripts.test).toContain('diagnostics-card.rntl.tsx');
-    expect(pkg.scripts.test).toContain('security-section.rntl.tsx');
-    expect(pkg.scripts.test).toContain('ai-section.rntl.tsx');
-    expect(pkg.scripts.test).toContain('downloads-card.rntl.tsx');
-    expect(pkg.scripts.test).toContain('document-reader.rntl.tsx');
-    expect(pkg.scripts.test).toContain('content-reader.rntl.tsx');
-    expect(pkg.scripts.test).toContain('library-screen.rntl.tsx');
-    expect(pkg.scripts.test).toContain('map-screen.rntl.tsx');
+    const testRunner = readFileSync(join(process.cwd(), 'scripts/run-tests.mjs'), 'utf8');
+    expect(testRunner).toContain("const TEST_ROOTS = ['app', 'src', 'modules']");
+    expect(testRunner).toContain('UNIT_TEST_PATTERN');
+    expect(testRunner).toContain('RNTL_TEST_PATTERN');
+    expect(testRunner).toContain("for (const test of unitTests) run(['test', test])");
+    expect(testRunner).toContain(
+      "for (const test of mountedTests) run(['test', test, '--timeout', '12000'])"
+    );
     expect(pkg.scripts['android:build:dev']).toContain('assembleDebug');
     expect(pkg.scripts['android:build:prod']).toContain('assembleRelease');
     expect(pkg.scripts['android:release:apks']).toBe('bash scripts/android-release-apks.sh');
     expect(pkg.scripts['ios:build:sim']).toBe('bash scripts/ios-simulator-build.sh');
+    expect(pkg.scripts.web).toBe('node scripts/start-web.mjs');
+
+    const webScript = readFileSync(join(process.cwd(), 'scripts/start-web.mjs'), 'utf8');
+    const metroConfig = readFileSync(join(process.cwd(), 'metro.config.js'), 'utf8');
+    expect(webScript).toContain("ARK_DISABLE_WORKLETS_BUNDLE_MODE: '1'");
+    expect(metroConfig).toContain('react-native-executorch.web.ts');
+    expect(metroConfig).toContain('react-native-bottom-sheet.web.ts');
+    expect(metroConfig).toContain("Cross-Origin-Embedder-Policy', 'require-corp'");
+    expect(metroConfig).toContain("Cross-Origin-Opener-Policy', 'same-origin'");
 
     const iosBuildScript = readFileSync(
       join(process.cwd(), 'scripts/ios-simulator-build.sh'),

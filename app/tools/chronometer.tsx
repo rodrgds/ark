@@ -3,12 +3,7 @@ import { Text } from '@/components/ui/text';
 import { hexToRgba } from '@/lib/colors';
 import { useThemeStore } from '@/stores/theme-store';
 import * as React from 'react';
-import { Dimensions, FlatList, StyleSheet, TouchableOpacity, View } from 'react-native';
-
-const { width: SW, height: SH } = Dimensions.get('window');
-const RING_SIZE = SW - 24;
-const RING_R = RING_SIZE / 2;
-const INNER_SIZE = RING_SIZE - 28;
+import { FlatList, StyleSheet, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 
 function pad(n: number, len = 2) {
   return String(n).padStart(len, '0');
@@ -26,6 +21,10 @@ function formatTime(ms: number) {
 type Lap = { index: number; split: number; total: number };
 
 export default function ChronometerTool() {
+  const { width, height } = useWindowDimensions();
+  const ringSize = Math.min(width - 24, 460);
+  const ringRadius = ringSize / 2;
+  const innerSize = ringSize - 28;
   const theme = useThemeStore((state) => state.effectiveTheme);
   const palette = useThemeStore((state) => state.colors);
   const [running, setRunning] = React.useState(false);
@@ -90,9 +89,9 @@ export default function ChronometerTool() {
         style={[
           styles.ring,
           {
-            width: RING_SIZE,
-            height: RING_SIZE,
-            borderRadius: RING_R,
+            width: ringSize,
+            height: ringSize,
+            borderRadius: ringRadius,
             backgroundColor: palette.card,
             borderColor: palette.border,
           },
@@ -101,9 +100,9 @@ export default function ChronometerTool() {
           style={[
             styles.ringInner,
             {
-              width: INNER_SIZE,
-              height: INNER_SIZE,
-              borderRadius: INNER_SIZE / 2,
+              width: innerSize,
+              height: innerSize,
+              borderRadius: innerSize / 2,
               borderColor: hexToRgba(palette.foreground, 0.12),
             },
           ]}>
@@ -119,7 +118,7 @@ export default function ChronometerTool() {
         </View>
       </View>
 
-      <View style={styles.controls}>
+      <View style={[styles.controls, { width: Math.min(width - 32, 460) }]}>
         <View style={styles.btnSlot}>
           <TouchableOpacity
             style={[
@@ -171,8 +170,8 @@ export default function ChronometerTool() {
           style={[
             styles.lapList,
             {
-              width: SW - 32,
-              height: SH * 0.34,
+              width: Math.min(width - 32, 460),
+              height: height * 0.34,
               backgroundColor: palette.card,
               borderColor: palette.border,
             },
@@ -279,7 +278,6 @@ const styles = StyleSheet.create({
 
   controls: {
     flexDirection: 'row',
-    width: SW - 32,
     alignItems: 'center',
     justifyContent: 'center',
   },

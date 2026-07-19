@@ -513,7 +513,7 @@ export default function NoteEditorScreen() {
           headerLeft: () => (
             <Button
               accessibilityLabel="Back to notes"
-              className="mr-2 h-9 w-9 rounded-full"
+              className="mr-2 h-11 w-11 rounded-full"
               size="icon"
               variant="ghost"
               onPress={() => router.back()}>
@@ -523,7 +523,7 @@ export default function NoteEditorScreen() {
           headerRight: () => (
             <Button
               accessibilityLabel="Note actions"
-              className="ml-2 h-9 w-9 rounded-full"
+              className="ml-2 h-11 w-11 rounded-full"
               size="icon"
               variant="ghost"
               disabled={loading || !hasSavableContent}

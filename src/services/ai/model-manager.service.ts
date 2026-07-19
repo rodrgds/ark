@@ -19,7 +19,7 @@ import { DatabaseClient } from '@/services/db/client';
 import { LlamaAdapter, resetLlamaRuntimeContext } from '@/services/ai/llama-adapter';
 import { PreferencesService } from '@/services/preferences/preferences.service';
 import type { RagEmbeddingRebuildProgress } from '@/services/ai/rag/embed';
-import type { AiRuntimeAdapter } from '@/types/ai';
+import { resolveAiRuntimeAdapter } from '@/services/ai/model-runtime';
 
 const llamaAdapter = new LlamaAdapter();
 
@@ -385,12 +385,4 @@ export class ModelManagerService {
   }
 }
 
-export function resolveAiRuntimeAdapter(input: {
-  moduleAvailable: boolean;
-  modelUri: string | null | undefined;
-  installedChatModels: number;
-}): AiRuntimeAdapter {
-  if (input.moduleAvailable && input.modelUri) return 'llama';
-  if (input.installedChatModels > 0 && !input.moduleAvailable) return 'llama-unavailable';
-  return 'mock';
-}
+export { resolveAiRuntimeAdapter } from '@/services/ai/model-runtime';

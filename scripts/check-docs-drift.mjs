@@ -33,7 +33,11 @@ const checks = [
     expected: 12,
     actual: await countFiles(
       'src/components/ui',
-      (name) => name.endsWith('.tsx') && !name.endsWith('.test.tsx')
+      (name) =>
+        name.endsWith('.tsx') &&
+        !name.endsWith('.test.tsx') &&
+        !name.endsWith('.web.tsx') &&
+        !name.endsWith('.native.tsx')
     ),
   },
   {
@@ -58,6 +62,12 @@ const todo = await readFile(resolve(repoRoot, 'TODO.md'), 'utf8');
 const contentPackUrls = await readFile(resolve(repoRoot, 'docs/content-pack-urls.md'), 'utf8');
 const architecture = await readFile(resolve(repoRoot, 'docs/architecture.md'), 'utf8');
 const v1PrepPlan = await readFile(resolve(repoRoot, 'docs/v1-prep-plan.md'), 'utf8');
+const appConfig = JSON.parse(await readFile(resolve(repoRoot, 'app.json'), 'utf8'));
+const packageConfig = JSON.parse(await readFile(resolve(repoRoot, 'package.json'), 'utf8'));
+const readme = await readFile(resolve(repoRoot, 'README.md'), 'utf8');
+const docsIndex = await readFile(resolve(repoRoot, 'docs/index.md'), 'utf8');
+const openSourceRelease = await readFile(resolve(repoRoot, 'docs/open-source-release.md'), 'utf8');
+const testRunner = await readFile(resolve(repoRoot, 'scripts/run-tests.mjs'), 'utf8');
 const arkRoutingReadme = await readFile(resolve(repoRoot, 'modules/ark-routing/README.md'), 'utf8');
 const arkZimIos = {
   podspec: await readFile(resolve(repoRoot, 'modules/ark-zim/ios/ArkZim.podspec'), 'utf8').catch(
@@ -90,6 +100,59 @@ for (const { name, expected, actual } of checks) {
   const status = actual === expected ? 'OK' : 'DRIFT';
   if (actual !== expected) drift += 1;
   console.log(`${status.padEnd(4)} ${name}: AGENTS.md says ${expected}, code has ${actual}`);
+}
+
+const sqlitePlugin = appConfig.expo.plugins.find(
+  (plugin) => Array.isArray(plugin) && plugin[0] === 'expo-sqlite'
+);
+const sqliteOptions = Array.isArray(sqlitePlugin) ? sqlitePlugin[1] : null;
+if (sqliteOptions?.useSQLCipher !== true || sqliteOptions?.withSQLiteVecExtension !== true) {
+  drift += 1;
+  console.log('DRIFT native SQLite contract: SQLCipher and sqlite-vec must be enabled in app.json');
+} else {
+  console.log('OK   native SQLite contract: SQLCipher and sqlite-vec are enabled');
+}
+
+if (/OLED is already the default|OLED \(Recommended/i.test(todo)) {
+  drift += 1;
+  console.log('DRIFT theme docs: TODO.md contradicts the System theme/System accent default');
+} else {
+  console.log('OK   theme docs: System theme default is not contradicted by TODO.md');
+}
+
+if (!/- \[x\] First GitHub release\/tag created/.test(openSourceRelease)) {
+  drift += 1;
+  console.log('DRIFT release docs: the existing GitHub release is still marked incomplete');
+} else {
+  console.log('OK   release docs: the existing GitHub release is recorded');
+}
+
+if (
+  packageConfig.scripts?.test !== 'bun scripts/run-tests.mjs' ||
+  !testRunner.includes("const TEST_ROOTS = ['app', 'src', 'modules']")
+) {
+  drift += 1;
+  console.log('DRIFT test gate: package.json is not using repository-wide deterministic discovery');
+} else {
+  console.log('OK   test gate: repository-wide deterministic discovery is active');
+}
+
+for (const [surface, text] of [
+  ['README.md', readme],
+  ['docs/index.md', docsIndex],
+]) {
+  const references = [...text.matchAll(/(?:docs\/)?screenshots\/([a-z0-9-]+\.png)/gi)].map(
+    (match) => match[1]
+  );
+  for (const filename of references) {
+    const exists = await readFile(resolve(repoRoot, 'docs/screenshots', filename), 'utf8')
+      .then(() => true)
+      .catch(() => false);
+    if (!exists) {
+      drift += 1;
+      console.log(`DRIFT public screenshots: ${surface} references missing ${filename}`);
+    }
+  }
 }
 
 if (hasArkZimIosBridge(arkZimIos)) {

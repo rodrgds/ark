@@ -283,7 +283,11 @@ export default function EasterEggRunnerScreen() {
           alignItems: 'center',
           justifyContent: 'space-between',
         }}>
-        <Button size="icon" variant="ghost" onPress={() => router.replace('/(tabs)/chat')}>
+        <Button
+          accessibilityLabel="Back to chat"
+          size="icon"
+          variant="ghost"
+          onPress={() => router.replace('/(tabs)/chat')}>
           <Icon as={ArrowLeft} className="text-foreground size-5" />
         </Button>
         <View className="items-end">

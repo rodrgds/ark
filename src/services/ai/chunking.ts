@@ -1,8 +1,6 @@
-import { RecursiveCharacterTextSplitter } from 'react-native-rag';
-
 const DEFAULT_CHUNK_SIZE = 900;
 const DEFAULT_CHUNK_OVERLAP = 120;
-const splitters = new Map<string, RecursiveCharacterTextSplitter>();
+const PREFERRED_BOUNDARIES = ['\n\n', '\n', '. ', '; ', ', ', ' '];
 
 export function chunkText(text: string, chunkSize = 900) {
   const normalized = text.replace(/\s+/g, ' ').trim();
@@ -31,25 +29,47 @@ export async function splitTextForRag(
 
   if (!normalized) return [];
 
-  try {
-    const splitter = getSplitter(chunkSize, chunkOverlap);
-    const chunks = await splitter.splitText(normalized);
-    return chunks.map((chunk) => chunk.trim()).filter(Boolean);
-  } catch {
-    return chunkText(normalized, chunkSize);
-  }
+  return splitAtNaturalBoundaries(normalized, chunkSize, chunkOverlap);
 }
 
 export function estimateTokens(text: string) {
   return Math.ceil(text.length / 4);
 }
 
-function getSplitter(chunkSize: number, chunkOverlap: number) {
-  const key = `${chunkSize}:${chunkOverlap}`;
-  const existing = splitters.get(key);
-  if (existing) return existing;
+function splitAtNaturalBoundaries(text: string, chunkSize: number, chunkOverlap: number) {
+  const safeChunkSize = Math.max(32, Math.floor(chunkSize));
+  const safeOverlap = Math.max(0, Math.min(Math.floor(chunkOverlap), safeChunkSize - 1));
+  const minimumBoundary = Math.floor(safeChunkSize * 0.55);
+  const chunks: string[] = [];
+  let start = 0;
 
-  const splitter = new RecursiveCharacterTextSplitter({ chunkSize, chunkOverlap });
-  splitters.set(key, splitter);
-  return splitter;
+  while (start < text.length) {
+    const hardEnd = Math.min(text.length, start + safeChunkSize);
+    let end = hardEnd;
+
+    if (hardEnd < text.length) {
+      for (const boundary of PREFERRED_BOUNDARIES) {
+        const candidate = text.lastIndexOf(boundary, hardEnd - boundary.length);
+        if (candidate >= start + minimumBoundary) {
+          end = candidate + boundary.length;
+          break;
+        }
+      }
+    }
+
+    const chunk = text.slice(start, end).trim();
+    if (chunk) chunks.push(chunk);
+    if (end >= text.length) break;
+
+    const nextStart = Math.max(start + 1, end - safeOverlap);
+    start = skipLeadingWhitespace(text, nextStart);
+  }
+
+  return chunks;
+}
+
+function skipLeadingWhitespace(text: string, start: number) {
+  let index = start;
+  while (index < text.length && /\s/.test(text[index] ?? '')) index += 1;
+  return index;
 }

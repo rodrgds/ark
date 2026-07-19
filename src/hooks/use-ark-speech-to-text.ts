@@ -82,7 +82,6 @@ export function useArkSpeechToText() {
       setDownloadProgress(1);
     } else {
       setError(VoiceRuntimeService.getSpeechToTextError());
-      void load().catch(() => undefined);
     }
 
     return () => {
@@ -90,13 +89,16 @@ export function useArkSpeechToText() {
       unsubscribe();
       moduleRef.current = null;
     };
-  }, [load]);
+  }, []);
+
+  React.useEffect(() => VoiceRuntimeService.retainSpeechToText(), []);
 
   return {
     error,
     downloadProgress,
     isGenerating,
     isReady,
+    prepare: retry,
     retry,
     transcribe,
   };

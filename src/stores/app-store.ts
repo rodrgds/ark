@@ -10,6 +10,7 @@ import { TrackRecordingService } from '@/services/tracks/track-recording.service
 import { useThemeStore } from '@/stores/theme-store';
 import { unlockVaultForService } from '@/stores/auth-store';
 import type { OnboardingState, VaultState } from '@/types/db';
+import { logger } from '@/lib/logger';
 
 type AppState = {
   booting: boolean;
@@ -117,11 +118,27 @@ async function runBoot(
       error: null,
     });
   } catch (error) {
+    logger.error('App boot failed', error);
     set({
       booting: false,
       booted: false,
-      error: error instanceof Error ? error.message : String(error),
+      error: describeBootError(error),
     });
     void get;
   }
+}
+
+function describeBootError(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === 'object' && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  try {
+    const serialized = JSON.stringify(error);
+    if (serialized && serialized !== '{}') return serialized;
+  } catch {
+    // Fall back to the normal string conversion below.
+  }
+  return String(error);
 }

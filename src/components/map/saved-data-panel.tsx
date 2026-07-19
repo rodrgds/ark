@@ -130,7 +130,11 @@ function MapBottomSheetPanel({
         <Text variant="h3" className="min-w-0 flex-1">
           {title}
         </Text>
-        <Button size="icon" variant="outline" onPress={onClose}>
+        <Button
+          accessibilityLabel={`Close ${title}`}
+          size="icon"
+          variant="outline"
+          onPress={onClose}>
           <Icon as={X} className="size-4" />
         </Button>
       </View>

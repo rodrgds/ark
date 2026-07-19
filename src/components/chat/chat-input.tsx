@@ -58,6 +58,7 @@ const EMPTY_THREAD_PROMPTS = [
   'Look up water purification guidance',
 ];
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+type VoiceInputState = 'idle' | 'preparing' | 'recording' | 'transcribing';
 
 export type ChatInputAttachment = AiAttachment & {
   localId: string;
@@ -109,13 +110,13 @@ export function ChatInput({
   const voiceActivity = useArkVoiceActivity();
   const motionEnabled = useMotionEnabled();
   const voiceTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const voiceStateRef = React.useRef<'idle' | 'recording' | 'transcribing'>('idle');
+  const voiceStateRef = React.useRef<VoiceInputState>('idle');
   const voiceRecordingSessionRef = React.useRef(0);
   const waveformSampleCountRef = React.useRef(WAVEFORM_INITIAL_SAMPLES);
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
   const colors = useThemeStore((state) => state.colors);
-  const [voiceState, setVoiceState] = React.useState<'idle' | 'recording' | 'transcribing'>('idle');
+  const [voiceState, setVoiceState] = React.useState<VoiceInputState>('idle');
   const [inputHeight, setInputHeight] = React.useState(COMPOSER_HEIGHT);
   const [waveformSampleCount, setWaveformSampleCount] = React.useState(WAVEFORM_INITIAL_SAMPLES);
   const keyboardProgress = useSharedValue(0);
@@ -318,29 +319,18 @@ export function ChatInput({
 
   async function startVoiceRecording() {
     if (disabled || voiceState !== 'idle' || hasText) return;
+    const recordingSession = voiceRecordingSessionRef.current + 1;
+    voiceRecordingSessionRef.current = recordingSession;
+    voiceStateRef.current = 'preparing';
+    setVoiceState('preparing');
     try {
-      if (!speechToText.isReady) {
-        if (speechToText.error) {
-          void speechToText.retry();
-        }
-        onVoiceError(
-          speechToText.error?.message ??
-            `Voice transcription model is loading${speechToText.downloadProgress > 0 ? ` (${Math.round(speechToText.downloadProgress * 100)}%)` : ''}.`
-        );
+      await Promise.all([speechToText.prepare(), voiceActivity.prepare()]);
+      if (
+        voiceRecordingSessionRef.current !== recordingSession ||
+        voiceStateRef.current !== 'preparing'
+      ) {
         return;
       }
-      if (!voiceActivity.isReady) {
-        if (voiceActivity.error) {
-          void voiceActivity.retry();
-        }
-        onVoiceError(
-          voiceActivity.error?.message ??
-            `Voice activity model is loading${voiceActivity.downloadProgress > 0 ? ` (${Math.round(voiceActivity.downloadProgress * 100)}%)` : ''}.`
-        );
-        return;
-      }
-      const recordingSession = voiceRecordingSessionRef.current + 1;
-      voiceRecordingSessionRef.current = recordingSession;
       await SpeechRecordingService.start((level) => {
         if (
           voiceRecordingSessionRef.current !== recordingSession ||
@@ -585,7 +575,13 @@ export function ChatInput({
 
           <AnimatedPressable
             accessibilityRole="button"
-            accessibilityLabel={voiceActive ? 'Stop voice input' : 'Start voice input'}
+            accessibilityLabel={
+              voiceState === 'preparing'
+                ? 'Preparing voice input'
+                : voiceActive
+                  ? 'Stop voice input'
+                  : 'Start voice input'
+            }
             disabled={disabled || voiceState === 'transcribing' || (!voiceActive && hasText)}
             onPress={() => {
               if (voiceState === 'recording') {
@@ -595,7 +591,7 @@ export function ChatInput({
               }
             }}
             style={[styles.micButton, micButtonStyle]}>
-            {voiceState === 'transcribing' ? (
+            {voiceState === 'preparing' || voiceState === 'transcribing' ? (
               <ActivityIndicator size="small" />
             ) : voiceActive ? (
               <Icon as={Square} className="text-primary size-5" />

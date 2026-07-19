@@ -3,19 +3,26 @@ import { Button } from '@/components/ui/button';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import type { DiagnosticReport } from '@/types/sensors';
-import { ShieldCheck, Smartphone } from 'lucide-react-native';
+import type { AiEvaluationResult } from '@/services/ai/evaluation';
+import { BrainCircuit, ShieldCheck, Smartphone } from 'lucide-react-native';
 import { View } from 'react-native';
 
 type DiagnosticsCardProps = {
   report: DiagnosticReport | null;
   migrationBusy?: boolean;
   onMigratePlaintextDatabase?: () => void;
+  aiEvaluationBusy?: boolean;
+  aiEvaluationResults?: AiEvaluationResult[] | null;
+  onRunAiEvaluation?: () => void;
 };
 
 export function DiagnosticsCard({
   report,
   migrationBusy = false,
   onMigratePlaintextDatabase,
+  aiEvaluationBusy = false,
+  aiEvaluationResults,
+  onRunAiEvaluation,
 }: DiagnosticsCardProps) {
   if (!report) {
     return (
@@ -77,6 +84,33 @@ export function DiagnosticsCard({
           </View>
         ))}
       </View>
+      {onRunAiEvaluation ? (
+        <View className="border-border gap-2 border-t pt-3">
+          <View className="flex-row items-center gap-2">
+            <Icon as={BrainCircuit} className="text-primary size-4" />
+            <Text className="font-medium">Offline answer safety check</Text>
+          </View>
+          <Text variant="muted">
+            Checks three offline answers for source mismatch, citation quality, and unsupported
+            medical dosing. Ark removes the temporary chats afterward.
+          </Text>
+          <Button variant="outline" disabled={aiEvaluationBusy} onPress={onRunAiEvaluation}>
+            <Text>{aiEvaluationBusy ? 'Running safety check...' : 'Run safety check'}</Text>
+          </Button>
+          {aiEvaluationResults?.map((result) => (
+            <View key={result.caseId} className="flex-row justify-between gap-3">
+              <Text className="min-w-0 flex-1" numberOfLines={2}>
+                {result.title}
+              </Text>
+              <Text className={result.pass ? 'text-primary' : 'text-destructive'}>
+                {result.pass
+                  ? 'Pass'
+                  : `${result.failures.length} issue${result.failures.length === 1 ? '' : 's'}`}
+              </Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
     </Card>
   );
 }

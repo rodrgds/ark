@@ -446,7 +446,12 @@ export default function NotesScreen() {
               <Text variant="large">
                 {selectedCount === 1 ? '1 selected' : `${selectedCount} selected`}
               </Text>
-              <Button size="icon" variant="ghost" className="h-9 w-9" onPress={exitSelection}>
+              <Button
+                accessibilityLabel="Exit note selection"
+                size="icon"
+                variant="ghost"
+                className="h-11 w-11"
+                onPress={exitSelection}>
                 <Icon as={X} className="size-5" />
               </Button>
             </View>
@@ -711,6 +716,7 @@ export default function NotesScreen() {
               className="flex-1"
             />
             <Button
+              accessibilityLabel="Add label to selected notes"
               size="icon"
               variant="outline"
               disabled={!bulkLabelDraft.trim()}

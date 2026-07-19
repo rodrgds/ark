@@ -5,9 +5,10 @@ import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { showSheetAlert } from '@/components/ui/sheet-alert';
 import { useArkTextToSpeech } from '@/hooks/use-ark-text-to-speech';
-import OcrService from '@/modules/ark-ocr';
+import { getNativePdf } from '@/components/readers/native-pdf';
 import { ContentPackService } from '@/services/content/content-pack.service';
 import { GuideReaderService, type ReaderContent } from '@/services/content/guide-reader.service';
+import { OcrService } from '@/services/ocr/ocr.service';
 import type { EffectiveTheme, ThemeColors } from '@/constants/theme';
 import { useThemeStore } from '@/stores/theme-store';
 import { GuidePdfService } from '@/services/content/guide-pdf.service';
@@ -29,14 +30,6 @@ import { ActivityIndicator, BackHandler, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import * as Sharing from 'expo-sharing';
-
-function getNativePdf() {
-  try {
-    return require('react-native-pdf').default;
-  } catch {
-    return null;
-  }
-}
 
 function readerThemeScript(theme: EffectiveTheme, colors: ThemeColors) {
   const selection = theme === 'light' ? 'rgba(74, 87, 66, 0.18)' : 'rgba(149, 167, 139, 0.28)';

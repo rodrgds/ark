@@ -704,7 +704,7 @@ export default function ChatScreen() {
           headerLeft: () => (
             <Button
               accessibilityLabel="Back to chats"
-              className="h-9 w-9 rounded-full"
+              className="h-11 w-11 rounded-full"
               size="icon"
               variant="ghost"
               onPress={() => router.replace('/(tabs)/chat' as never)}>
@@ -714,16 +714,18 @@ export default function ChatScreen() {
           headerRight: () => (
             <View className="flex-row items-center gap-1">
               <Button
+                accessibilityLabel="Answer model details"
                 size="icon"
                 variant="ghost"
-                className="h-9 w-9 rounded-full"
+                className="h-11 w-11 rounded-full"
                 onPress={() => setModelInfoOpen(true)}>
                 <Icon as={Bot} className="text-foreground size-4" />
               </Button>
               <Button
+                accessibilityLabel="Clear chat"
                 size="icon"
                 variant="ghost"
-                className="h-9 w-9 rounded-full"
+                className="h-11 w-11 rounded-full"
                 disabled={!threadId || sending}
                 onPress={confirmClear}>
                 <Icon as={Trash2} className="text-foreground size-4" />

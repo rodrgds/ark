@@ -11,7 +11,6 @@ import { Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
 type Status = 'idle' | 'requesting' | 'denied' | 'unavailable' | 'ready';
 
 export default function PedometerTool() {
-  const theme = useThemeStore((state) => state.effectiveTheme);
   const palette = useThemeStore((state) => state.colors);
   const [status, setStatus] = React.useState<Status>('idle');
   const [baseSteps, setBaseSteps] = React.useState(0);
@@ -117,9 +116,7 @@ export default function PedometerTool() {
           <TouchableOpacity
             style={[styles.btn, { backgroundColor: palette.primary }]}
             onPress={retryAfterDenied}>
-            <Text style={[styles.btnText, { color: theme === 'light' ? '#FFFFFF' : '#0A0A0A' }]}>
-              Try Again
-            </Text>
+            <Text style={[styles.btnText, { color: palette.primaryForeground }]}>Try Again</Text>
           </TouchableOpacity>
         </Card>
       </Screen>

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { resolveAiRuntimeAdapter } from '@/services/ai/model-manager.service';
+import { resolveAiRuntimeAdapter } from '@/services/ai/model-runtime';
 
 describe('resolveAiRuntimeAdapter', () => {
   test('reports llama only when the native runtime and model are both available', () => {

@@ -14,24 +14,10 @@ import {
   isPdfDocument,
 } from '@/services/files/document-text.service';
 import { FileSystemService } from '@/services/files/filesystem.service';
+import { normalizeAndValidateWebUrl } from '@/services/files/web-url';
 import type { ContentPack } from '@/types/content';
 
-function normalizeAndValidateWebUrl(rawUrl: string) {
-  const value = rawUrl.trim();
-  if (!value) throw new Error('Enter a URL to save.');
-  let parsed: URL;
-  try {
-    parsed = new URL(value);
-  } catch {
-    throw new Error('Enter a valid http(s) URL.');
-  }
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    throw new Error('Only http(s) URLs are supported.');
-  }
-  return parsed.toString();
-}
-
-export { normalizeAndValidateWebUrl };
+export { normalizeAndValidateWebUrl } from '@/services/files/web-url';
 
 export class ImportService {
   static async pickDocument() {

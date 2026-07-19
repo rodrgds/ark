@@ -422,7 +422,7 @@ export function StreamingChatMessage({
               Arky
             </Text>
           </View>
-          <Button size="icon" variant="ghost" onPress={onStop}>
+          <Button accessibilityLabel="Stop answer" size="icon" variant="ghost" onPress={onStop}>
             <Icon as={StopCircle} className="size-4" />
           </Button>
         </View>

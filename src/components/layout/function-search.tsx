@@ -77,8 +77,8 @@ const FUNCTION_ENTRIES: SearchEntry[] = [
   },
   {
     title: 'Secure Notes',
-    subtitle: 'Vault-gated notes and search',
-    keywords: 'notes vault secure private documents',
+    subtitle: 'Passphrase-protected notes and search',
+    keywords: 'notes vault secure private',
     icon: NotebookPen,
     href: '/(tabs)/notes',
   },
@@ -298,7 +298,7 @@ export function FunctionSearchButton() {
         variant="ghost"
         accessibilityLabel="Open function search"
         onPress={() => setOpen(true)}
-        className="h-9 w-9 rounded-full">
+        className="h-11 w-11 rounded-full">
         <Icon as={Search} className="size-4" />
       </Button>
 

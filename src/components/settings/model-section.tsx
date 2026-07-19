@@ -111,6 +111,7 @@ export function ModelSection({
                   model.installStatus === 'verifying' ||
                   model.installStatus === 'paused') && (
                   <Button
+                    accessibilityLabel={`Remove ${model.title}`}
                     size="icon"
                     variant="outline"
                     disabled={removeBusy}

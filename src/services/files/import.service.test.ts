@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { normalizeAndValidateWebUrl } from '@/services/files/import.service';
+import { normalizeAndValidateWebUrl } from '@/services/files/web-url';
 
 describe('normalizeAndValidateWebUrl', () => {
   test('returns the canonical https URL when given a valid https URL', () => {

@@ -113,13 +113,18 @@ export default function WebReaderScreen() {
           headerShown: true,
           title: article.siteName || 'Web Reader',
           headerLeft: () => (
-            <Button variant="ghost" size="icon" onPress={() => router.back()}>
+            <Button
+              accessibilityLabel="Back"
+              variant="ghost"
+              size="icon"
+              onPress={() => router.back()}>
               <Icon as={ChevronLeft} className="text-foreground" />
             </Button>
           ),
           headerRight: () => (
             <View className="flex-row gap-1">
               <Button
+                accessibilityLabel={speaking ? 'Stop reading aloud' : 'Read aloud'}
                 variant="ghost"
                 size="icon"
                 disabled={!article && !speaking}
@@ -130,7 +135,11 @@ export default function WebReaderScreen() {
                   <Icon as={speaking ? VolumeX : Volume2} className="text-foreground" />
                 )}
               </Button>
-              <Button variant="ghost" size="icon" onPress={() => void handleShare()}>
+              <Button
+                accessibilityLabel="Share article"
+                variant="ghost"
+                size="icon"
+                onPress={() => void handleShare()}>
                 <Icon as={Share2} className="text-foreground" />
               </Button>
             </View>

@@ -209,7 +209,7 @@ function ToolbarButton({
       disabled={disabled}
       hitSlop={6}
       onPress={action.onPress}
-      className="h-10 w-10 items-center justify-center rounded-md border"
+      className="h-11 w-11 items-center justify-center rounded-md border"
       style={{
         backgroundColor: action.active ? noteTheme.chipBackground : 'transparent',
         borderColor: action.active ? noteTheme.foreground : noteTheme.border,

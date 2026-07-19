@@ -240,7 +240,11 @@ function MapPresetRow({
           ) : null}
         </View>
         {downloaded && region ? (
-          <Button size="icon" variant="ghost" onPress={onOpenRegion}>
+          <Button
+            accessibilityLabel={`Open ${preset.name} actions`}
+            size="icon"
+            variant="ghost"
+            onPress={onOpenRegion}>
             <Icon as={MoreVertical} className="size-4" />
           </Button>
         ) : (
@@ -284,7 +288,11 @@ function MapDownloadedRegionRow({ region, onOpen }: { region: MapRegion; onOpen:
           {formatMapRegionStorage(region)}
         </Text>
       </View>
-      <Button size="icon" variant="ghost" onPress={onOpen}>
+      <Button
+        accessibilityLabel={`Open ${region.name} actions`}
+        size="icon"
+        variant="ghost"
+        onPress={onOpen}>
         <Icon as={MoreVertical} className="size-4" />
       </Button>
     </View>

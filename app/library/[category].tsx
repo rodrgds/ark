@@ -334,6 +334,7 @@ function DocumentList({
               <Text>View</Text>
             </Button>
             <Button
+              accessibilityLabel={`Delete ${document.title}`}
               size="icon"
               variant="outline"
               disabled={workingId === document.id}
@@ -514,6 +515,7 @@ function PackCard({
               <Text>Verifying</Text>
             </Button>
             <Button
+              accessibilityLabel={`Cancel ${pack.title} download`}
               size="icon"
               variant="outline"
               disabled={workingId === pack.id}
@@ -573,6 +575,7 @@ function PackCard({
               <Text>Resume</Text>
             </Button>
             <Button
+              accessibilityLabel={`Cancel ${pack.title} download`}
               size="icon"
               variant="outline"
               onPress={() =>
@@ -871,6 +874,7 @@ function UserWebPageList({
                 <Text>Open</Text>
               </Button>
               <Button
+                accessibilityLabel={`Delete ${page.title}`}
                 size="icon"
                 variant="outline"
                 disabled={isWorking}

@@ -123,7 +123,7 @@ function DraggableOrganizeRow({
           <View
             accessibilityRole="adjustable"
             accessibilityLabel={`Drag ${note.title || 'note'} to reorder`}
-            className="h-9 w-9 items-center justify-center rounded-md">
+            className="h-11 w-11 items-center justify-center rounded-md">
             <Icon as={GripVertical} className="size-5" color={noteTheme.mutedForeground} />
           </View>
         </GestureDetector>

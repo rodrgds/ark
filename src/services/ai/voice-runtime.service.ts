@@ -19,10 +19,13 @@ type RuntimeState<T extends VoiceRuntimeModule> = {
   progress: number;
   error: Error | null;
   listeners: Set<ProgressListener>;
+  consumers: number;
+  idleTimer: ReturnType<typeof setTimeout> | null;
 };
 
 const TTS_MODEL = models.text_to_speech.kokoro.en_us.heart();
 const TRANSIENT_LOAD_ATTEMPTS = 2;
+const VOICE_RUNTIME_IDLE_MS = 60_000;
 
 const ttsState: RuntimeState<TextToSpeechModule> = createRuntimeState();
 const vadState: RuntimeState<VADModule> = createRuntimeState();
@@ -35,6 +38,40 @@ function createRuntimeState<T extends VoiceRuntimeModule>(): RuntimeState<T> {
     progress: 0,
     error: null,
     listeners: new Set(),
+    consumers: 0,
+    idleTimer: null,
+  };
+}
+
+function cancelIdleCleanup<T extends VoiceRuntimeModule>(state: RuntimeState<T>) {
+  if (!state.idleTimer) return;
+  clearTimeout(state.idleTimer);
+  state.idleTimer = null;
+}
+
+function disposeRuntime<T extends VoiceRuntimeModule>(state: RuntimeState<T>) {
+  cancelIdleCleanup(state);
+  state.module?.delete();
+  state.module = null;
+  state.promise = null;
+  state.progress = 0;
+}
+
+function scheduleIdleCleanup<T extends VoiceRuntimeModule>(state: RuntimeState<T>) {
+  cancelIdleCleanup(state);
+  if (state.consumers > 0 || !state.module) return;
+  state.idleTimer = setTimeout(() => {
+    state.idleTimer = null;
+    if (state.consumers === 0) disposeRuntime(state);
+  }, VOICE_RUNTIME_IDLE_MS);
+}
+
+function retainRuntime<T extends VoiceRuntimeModule>(state: RuntimeState<T>) {
+  state.consumers += 1;
+  cancelIdleCleanup(state);
+  return () => {
+    state.consumers = Math.max(0, state.consumers - 1);
+    scheduleIdleCleanup(state);
   };
 }
 
@@ -101,6 +138,7 @@ function loadRuntime<T extends VoiceRuntimeModule>(
   fallbackError: string,
   factory: (onProgress: ProgressListener) => Promise<T>
 ) {
+  cancelIdleCleanup(state);
   if (state.module) return Promise.resolve(state.module);
   if (!state.promise) {
     state.error = null;
@@ -112,6 +150,7 @@ function loadRuntime<T extends VoiceRuntimeModule>(
         state.module = moduleInstance;
         state.error = null;
         publishProgress(state, 1);
+        scheduleIdleCleanup(state);
         return moduleInstance;
       })
       .catch((error) => {
@@ -124,6 +163,18 @@ function loadRuntime<T extends VoiceRuntimeModule>(
 }
 
 export class VoiceRuntimeService {
+  static retainTextToSpeech() {
+    return retainRuntime(ttsState);
+  }
+
+  static retainVoiceActivity() {
+    return retainRuntime(vadState);
+  }
+
+  static retainSpeechToText() {
+    return retainRuntime(sttState);
+  }
+
   static loadTextToSpeech() {
     return loadRuntime(ttsState, 'Unable to load voice playback.', (onProgress) =>
       TextToSpeechModule.fromModelName(TTS_MODEL, onProgress)
@@ -189,12 +240,13 @@ export class VoiceRuntimeService {
 }
 
 export function resetVoiceRuntimeForTests() {
-  [ttsState, vadState, sttState].forEach((state) => {
-    state.module?.delete();
-    state.module = null;
-    state.promise = null;
-    state.progress = 0;
+  const reset = <T extends VoiceRuntimeModule>(state: RuntimeState<T>) => {
+    disposeRuntime(state);
     state.error = null;
     state.listeners.clear();
-  });
+    state.consumers = 0;
+  };
+  reset(ttsState);
+  reset(vadState);
+  reset(sttState);
 }

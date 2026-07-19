@@ -133,7 +133,11 @@ export default function TrackDetailScreen() {
               {new Date(track.startedAt).toLocaleString()} · {track.activityType}
             </Text>
           </View>
-          <Button size="icon" variant="outline" onPress={() => setRenameOpen(true)}>
+          <Button
+            accessibilityLabel="Rename track"
+            size="icon"
+            variant="outline"
+            onPress={() => setRenameOpen(true)}>
             <Icon as={Pencil} className="size-4" />
           </Button>
         </View>

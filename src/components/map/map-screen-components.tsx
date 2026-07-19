@@ -833,7 +833,11 @@ export function OfflineMapsPanel({
         <Text variant="h3" className="min-w-0 flex-1">
           Offline maps
         </Text>
-        <Button size="icon" variant="outline" onPress={onClose}>
+        <Button
+          accessibilityLabel="Close offline maps"
+          size="icon"
+          variant="outline"
+          onPress={onClose}>
           <Icon as={X} className="size-4" />
         </Button>
       </View>
@@ -1086,7 +1090,7 @@ function PinTypeSelector({
                 key={optionColor}
                 accessibilityLabel={`Use marker color ${optionColor}`}
                 className={
-                  selected ? 'border-primary bg-background h-10 w-10 border-2 p-0' : 'h-10 w-10 p-0'
+                  selected ? 'border-primary bg-background h-11 w-11 border-2 p-0' : 'h-11 w-11 p-0'
                 }
                 size="icon"
                 variant="outline"

@@ -46,14 +46,14 @@ export function LockStateBar() {
               }
               router.push('/(tabs)/notes');
             }}
-            className="h-9 w-9 rounded-full">
+            className="h-11 w-11 rounded-full">
             <Icon
               as={unlocked ? Lock : Unlock}
               className={unlocked ? 'text-primary size-4' : 'text-muted-foreground size-4'}
             />
           </Button>
         ) : (
-          <View className="h-9 w-9" />
+          <View className="h-11 w-11" />
         )}
 
         <View className="flex-row items-center gap-2">

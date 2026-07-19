@@ -114,6 +114,7 @@ export function useArkTextToSpeech() {
   );
 
   React.useEffect(() => {
+    const releaseRuntime = VoiceRuntimeService.retainTextToSpeech();
     const unsubscribe = VoiceRuntimeService.subscribeTextToSpeechProgress(setDownloadProgress);
     const existingModule = VoiceRuntimeService.getTextToSpeechModule();
     if (existingModule) {
@@ -123,7 +124,10 @@ export function useArkTextToSpeech() {
     } else {
       setError(VoiceRuntimeService.getTextToSpeechError());
     }
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+      releaseRuntime();
+    };
   }, []);
 
   const isPreparing = isGenerating && !isPlaying;

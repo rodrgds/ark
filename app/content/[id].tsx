@@ -536,6 +536,7 @@ export default function ContentDetailScreen() {
                     </Text>
                   </Button>
                   <Button
+                    accessibilityLabel={`Cancel ${pack.title} download`}
                     size="icon"
                     variant="outline"
                     className="border-border active:bg-muted"
@@ -693,6 +694,7 @@ export default function ContentDetailScreen() {
                     }
                   />
                   <Button
+                    accessibilityLabel="Search offline archive"
                     size="icon"
                     variant="outline"
                     className="border-border active:bg-muted"

@@ -220,6 +220,7 @@ export default function NewsScreen() {
                   <Text>{feed.enabled ? 'On' : 'Off'}</Text>
                 </Button>
                 <Button
+                  accessibilityLabel={`Remove ${feed.title}`}
                   size="icon"
                   variant="ghost"
                   onPress={() => {

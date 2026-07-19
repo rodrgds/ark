@@ -44,8 +44,7 @@ export function OnboardingFrame({
   const motionEnabled = useMotionEnabled();
   const [isLoading, setIsLoading] = React.useState(false);
   const insets = useSafeAreaInsets();
-  const effectiveTheme = useThemeStore((state) => state.effectiveTheme);
-  const spinnerColor = effectiveTheme === 'light' ? '#FFFFFF' : '#0A0A0A';
+  const spinnerColor = useThemeStore((state) => state.colors.primaryForeground);
 
   async function handleNext() {
     if (isLoading) return;

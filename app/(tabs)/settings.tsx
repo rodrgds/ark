@@ -22,6 +22,8 @@ import { BATTERY_POLL_INTERVALS_MS } from '@/constants/battery';
 import { BackupService } from '@/services/backup/backup.service';
 import { ContentPackService } from '@/services/content/content-pack.service';
 import { ModelManagerService } from '@/services/ai/model-manager.service';
+import { AiEvaluationService } from '@/services/ai/ai-evaluation.service';
+import type { AiEvaluationResult } from '@/services/ai/evaluation';
 import type { EmbeddingModelConfig } from '@/services/ai/embedding-models';
 import { DatabaseClient } from '@/services/db/client';
 import { SettingsRepository } from '@/services/db/repositories/settings.repo';
@@ -218,6 +220,9 @@ export default function SettingsScreen() {
   const [downloads, setDownloads] = React.useState<DownloadRow[]>([]);
   const [mapRegions, setMapRegions] = React.useState<MapRegion[]>([]);
   const [diagnostics, setDiagnostics] = React.useState<DiagnosticReport | null>(null);
+  const [aiEvaluationResults, setAiEvaluationResults] = React.useState<AiEvaluationResult[] | null>(
+    null
+  );
   const [modelStatus, setModelStatus] = React.useState<Awaited<
     ReturnType<typeof ModelManagerService.getStatus>
   > | null>(null);
@@ -769,6 +774,16 @@ export default function SettingsScreen() {
     }
   }
 
+  async function runAiEvaluation() {
+    setBusy('ai-evaluation');
+    setAiEvaluationResults(null);
+    try {
+      setAiEvaluationResults(await AiEvaluationService.runAll());
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function exportBackup(passphrase: string) {
     setBusy('backup-export');
     setBackupMessage(null);
@@ -1029,6 +1044,9 @@ export default function SettingsScreen() {
             report={diagnostics}
             migrationBusy={busy === 'db-migration'}
             onMigratePlaintextDatabase={confirmDatabaseMigration}
+            aiEvaluationBusy={busy === 'ai-evaluation'}
+            aiEvaluationResults={aiEvaluationResults}
+            onRunAiEvaluation={() => void runAiEvaluation()}
           />
 
           <AboutSection version="1.0.0 MVP" onBuildTap={handleBuildTap} />

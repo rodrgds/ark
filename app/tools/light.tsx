@@ -7,12 +7,8 @@ import { LightMeterService } from '@/services/sensors/light.service';
 import { useSensorStore } from '@/stores/sensor-store';
 import { useThemeStore } from '@/stores/theme-store';
 import * as React from 'react';
-import { Animated, Dimensions, Easing, StyleSheet, View } from 'react-native';
+import { Animated, Easing, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
-
-const SCREEN_WIDTH = Dimensions.get('window').width;
-const DISC_SIZE = SCREEN_WIDTH - 64;
-const DISC_R = DISC_SIZE / 2;
 
 // Lux reference points for labelling
 const LUX_ZONES = [
@@ -44,6 +40,9 @@ const RAY_COUNT = 16;
 const RAY_ANGLES = Array.from({ length: RAY_COUNT }, (_, i) => (i * 360) / RAY_COUNT);
 
 export default function LightTool() {
+  const { width } = useWindowDimensions();
+  const discSize = Math.min(width - 64, 420);
+  const discRadius = discSize / 2;
   const theme = useThemeStore((state) => state.effectiveTheme);
   const palette = useThemeStore((state) => state.colors);
   const motionEnabled = useMotionEnabled();
@@ -105,12 +104,6 @@ export default function LightTool() {
     outputRange: ['0deg', '360deg'],
   });
 
-  // Glow radius driven by progress (JS driver — used in SVG)
-  const glowR = animProgress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [DISC_R * 0.1, DISC_R * 0.72],
-  });
-
   // Background darkness driven by progress
   const bgOpacity = animProgress.interpolate({
     inputRange: [0, 1],
@@ -122,13 +115,13 @@ export default function LightTool() {
   return (
     <Screen style={[styles.screen, { backgroundColor: palette.background }]}>
       {/* ── Sun / glow disc ── */}
-      <View style={[styles.discWrap, { width: DISC_SIZE, height: DISC_SIZE }]}>
+      <View style={[styles.discWrap, { width: discSize, height: discSize }]}>
         {/* Ambient glow background */}
         <Animated.View
           style={[
             StyleSheet.absoluteFill,
             {
-              borderRadius: DISC_R,
+              borderRadius: discRadius,
               backgroundColor: zone.color,
               opacity: bgOpacity,
             },
@@ -138,10 +131,11 @@ export default function LightTool() {
         {/* Rotating rays */}
         <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ rotate: rotateDeg }] }]}>
           {RAY_ANGLES.map((angle, i) => {
-            const rayLength = DISC_R * (0.18 + (i % 2 === 0 ? 0.08 : 0)) * (0.3 + progress * 0.7);
+            const rayLength =
+              discRadius * (0.18 + (i % 2 === 0 ? 0.08 : 0)) * (0.3 + progress * 0.7);
             const rad = (angle * Math.PI) / 180;
-            const x = DISC_R + DISC_R * 0.82 * Math.cos(rad) - 1;
-            const y = DISC_R + DISC_R * 0.82 * Math.sin(rad) - rayLength / 2;
+            const x = discRadius + discRadius * 0.82 * Math.cos(rad) - 1;
+            const y = discRadius + discRadius * 0.82 * Math.sin(rad) - rayLength / 2;
             return (
               <Animated.View
                 key={angle}
@@ -167,7 +161,7 @@ export default function LightTool() {
         </Animated.View>
 
         {/* SVG glow core */}
-        <Svg width={DISC_SIZE} height={DISC_SIZE} style={StyleSheet.absoluteFill}>
+        <Svg width={discSize} height={discSize} style={StyleSheet.absoluteFill}>
           <Defs>
             <RadialGradient id="glow" cx="50%" cy="50%" r="50%">
               <Stop offset="0%" stopColor={zone.color} stopOpacity="1" />
@@ -183,18 +177,18 @@ export default function LightTool() {
 
           {/* Outer glow */}
           <Circle
-            cx={DISC_R}
-            cy={DISC_R}
-            r={DISC_R * 0.75}
+            cx={discRadius}
+            cy={discRadius}
+            r={discRadius * 0.75}
             fill="url(#glow)"
             opacity={0.12 + progress * 0.55}
           />
 
           {/* Inner hot core — shrinks/grows with lux */}
           <Circle
-            cx={DISC_R}
-            cy={DISC_R}
-            r={DISC_R * (0.08 + progress * 0.38)}
+            cx={discRadius}
+            cy={discRadius}
+            r={discRadius * (0.08 + progress * 0.38)}
             fill="url(#core)"
             opacity={0.4 + progress * 0.6}
           />
@@ -223,7 +217,7 @@ export default function LightTool() {
       </View>
 
       {/* ── Reference scale ── */}
-      <View style={[styles.scaleCard, { width: DISC_SIZE }]}>
+      <View style={[styles.scaleCard, { width: discSize }]}>
         <View style={[styles.scaleTrack, { backgroundColor: hexToRgba(palette.foreground, 0.14) }]}>
           <Animated.View
             style={[

@@ -65,7 +65,7 @@ export function TopMapControls({
                 accessibilityLabel="Close map search"
                 size="icon"
                 variant="ghost"
-                className="size-8"
+                className="size-11"
                 onPress={() => {
                   onChangeSearch('');
                   onCloseSearch();

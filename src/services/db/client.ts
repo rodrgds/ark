@@ -2,6 +2,7 @@ import * as SQLite from 'expo-sqlite';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { DATABASE_ENCRYPTION_STATE, DB_NAME } from '@/services/db/schema';
 import { migrateDbIfNeeded } from '@/services/db/migrations';
+import { SHOULD_USE_SYNCHRONOUS_SQLITE } from '@/services/db/sqlite-runtime';
 import {
   DatabaseEncryptionService,
   type DatabaseFileSystem,
@@ -132,6 +133,7 @@ function wrapDatabaseWithoutMutex(db: SQLiteDatabase): ArkSQLiteDatabase {
 }
 
 function wrapDatabase(db: SQLiteDatabase): ArkSQLiteDatabase {
+  if (!SHOULD_USE_SYNCHRONOUS_SQLITE) return wrapAsyncDatabase(db);
   return hasSyncQueryApi(db) ? wrapSyncDatabase(db) : wrapAsyncDatabase(db);
 }
 
@@ -160,11 +162,13 @@ export class DatabaseClient {
   static async getDb() {
     if (!dbPromise) {
       dbPromise = Promise.resolve().then(async () => {
-        const rawOpenDatabaseSync = (
-          SQLite as typeof SQLite & {
-            openDatabaseSync?: (databaseName: string) => SQLiteDatabase;
-          }
-        ).openDatabaseSync;
+        const rawOpenDatabaseSync = SHOULD_USE_SYNCHRONOUS_SQLITE
+          ? (
+              SQLite as typeof SQLite & {
+                openDatabaseSync?: (databaseName: string) => SQLiteDatabase;
+              }
+            ).openDatabaseSync
+          : undefined;
         const db =
           typeof rawOpenDatabaseSync === 'function'
             ? rawOpenDatabaseSync(DB_NAME)

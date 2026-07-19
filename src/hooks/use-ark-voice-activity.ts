@@ -58,27 +58,15 @@ export function useArkVoiceActivity() {
     }
 
     setError(VoiceRuntimeService.getVoiceActivityError());
-    load()
-      .then((moduleInstance) => {
-        if (!active) return;
-        moduleRef.current = moduleInstance;
-        setError(null);
-        setIsReady(true);
-        setDownloadProgress(1);
-      })
-      .catch((loadError) => {
-        if (!active) return;
-        setError(
-          loadError instanceof Error ? loadError : new Error('Unable to load voice activity.')
-        );
-      });
 
     return () => {
       active = false;
       unsubscribe();
       moduleRef.current = null;
     };
-  }, [load]);
+  }, []);
+
+  React.useEffect(() => VoiceRuntimeService.retainVoiceActivity(), []);
 
   const forward = React.useCallback(async (waveform: Float32Array) => {
     const moduleInstance = moduleRef.current as NativeVadModule | null;
@@ -93,6 +81,7 @@ export function useArkVoiceActivity() {
     error,
     downloadProgress,
     isReady,
+    prepare: load,
     retry: load,
     forward,
   };

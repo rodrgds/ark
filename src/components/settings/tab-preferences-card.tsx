@@ -235,7 +235,7 @@ function TabPreferenceRow({
           <View
             accessibilityLabel={`Drag ${tab.label} to reorder`}
             accessibilityRole="adjustable"
-            className="h-10 w-10 items-center justify-center rounded-md">
+            className="h-11 w-11 items-center justify-center rounded-md">
             <Icon as={GripVertical} className="text-muted-foreground size-5" />
           </View>
         </GestureDetector>

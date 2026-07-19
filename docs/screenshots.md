@@ -1,6 +1,8 @@
 # Screenshots
 
-The public README should not link placeholder screenshots. Commit real captures before a Reddit/open-source announcement.
+The public README must only link reviewed captures. Chat and Notes captures were removed after a
+privacy and answer-safety review; recapture them from a clean synthetic profile before restoring
+those slots.
 
 ## Required files
 
@@ -9,8 +11,8 @@ Place screenshots here:
 ```text
 docs/screenshots/library.png
 docs/screenshots/map.png
-docs/screenshots/chat.png
-docs/screenshots/notes.png
+docs/screenshots/chat.png       # pending recapture
+docs/screenshots/notes.png      # pending recapture
 ```
 
 ## Capture settings
@@ -21,13 +23,19 @@ docs/screenshots/notes.png
 - Prefer Android screenshots first because Android is the main beta testing target.
 - Crop only device chrome if needed; do not crop out important navigation context.
 - Keep dimensions consistent across all screenshots.
+- Review every visible name, health detail, coordinate, document title, and chat sentence as if the
+  image were already public.
+- Run Settings > Advanced > Offline answer safety check before capturing Chat. Do not publish a
+  response that fails source-mismatch or citation checks.
 
 ## Suggested sequence
 
 1. **Library:** downloadable packs, installed state, progress/download controls.
 2. **Map:** offline region/saved spot/routing state without exposing private coordinates.
-3. **Chat:** Ask Arky answer with citations/source cards, using harmless preparedness content.
-4. **Notes:** vault-gated secure notes list with non-private sample notes.
+3. **Chat:** Ask Arky answer with citations/source cards, using harmless water-storage or outage
+   readiness content that passed the offline answer safety check.
+4. **Notes:** passphrase-protected secure notes using obviously synthetic names and non-medical
+   sample content.
 
 ## README snippet once files exist
 

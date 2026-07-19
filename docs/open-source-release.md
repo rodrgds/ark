@@ -10,10 +10,10 @@ Use this checklist before sharing Ark publicly on Reddit, Hacker News, app direc
 - [x] Contributing guide.
 - [x] Security policy.
 - [x] Code of conduct.
-- [x] Core screenshots committed and linked from README.
+- [ ] Chat and Notes screenshots recaptured from reviewed synthetic data.
 - [x] Issue templates enabled.
-- [ ] First GitHub release/tag created.
-- [ ] Release APK attached or installation path documented.
+- [x] First GitHub release/tag created (`v1.0.0`).
+- [x] Release APK attached with checksums.
 
 ## Product positioning
 
@@ -32,12 +32,13 @@ Avoid claiming:
 
 ## Screenshots
 
-Core screenshots live under `docs/screenshots/` and are linked from the README:
+Reviewed screenshots live under `docs/screenshots/`. Library and Map remain published; Chat and
+Notes were removed pending a clean recapture:
 
 - `library.png`
 - `map.png`
-- `chat.png`
-- `notes.png`
+- `chat.png` (pending)
+- `notes.png` (pending)
 
 See `docs/screenshots.md` for exact capture notes.
 

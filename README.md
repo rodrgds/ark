@@ -44,8 +44,6 @@ Good references in the same orbit are offline navigation apps like OsmAnd/Organi
   <tr>
     <td><img src="docs/screenshots/library.png" alt="Ark library" width="170" /></td>
     <td><img src="docs/screenshots/map.png" alt="Ark offline map" width="170" /></td>
-    <td><img src="docs/screenshots/chat.png" alt="Ask Arky" width="170" /></td>
-    <td><img src="docs/screenshots/notes.png" alt="Ark notes" width="170" /></td>
   </tr>
 </table>
 

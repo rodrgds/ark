@@ -29,8 +29,6 @@ features:
 <div class="screenshot-grid">
   <img src="/screenshots/library.png" alt="Ark Library screen" />
   <img src="/screenshots/map.png" alt="Ark Map screen" />
-  <img src="/screenshots/chat.png" alt="Ask Arky chat screen" />
-  <img src="/screenshots/notes.png" alt="Ark Notes screen" />
 </div>
 
 ## Choose Your Path

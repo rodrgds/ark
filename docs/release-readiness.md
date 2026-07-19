@@ -44,7 +44,9 @@ This checklist tracks store-facing and open-source release risk for Ark's offlin
 - `LICENSE`, `CONTRIBUTING.md`, `SECURITY.md`, and `CODE_OF_CONDUCT.md` exist.
 - Issue and PR templates exist under `.github/`.
 - `package.json` has public project metadata and is marked `1.0.0`.
-- Core README screenshots exist under `docs/screenshots/`; refresh them after major UI changes and avoid private notes, coordinates, documents, or chats.
+- Reviewed Library and Map screenshots remain public. Chat and Notes captures are intentionally
+  absent until they are recaptured from synthetic data and pass the privacy/safety review in
+  `docs/screenshots.md`.
 - Public GitHub releases should include Android APK assets, `SHA256SUMS.txt`, and a short known-limitations section.
 
 ## F-Droid preparation

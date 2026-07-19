@@ -57,7 +57,9 @@
 - [ ] ~ **Full UI revamp** — Partially complete. Home, Chat, Map, Library, Notes, Settings, Tools, onboarding, content/document readers, color, branding, empty states, loading states, and destructive confirmations have been redesigned around the restrained Ark product UI. Still needs on-device visual QA across iOS/Android sizes and final pass after native MapLibre/ZIM/llama verification.
 - [x] **Update color scheme to final palette** — OLED, dark, light, and System theme preferences now use the restrained Ark palette with persisted accent swatches. The `System` accent now uses the `ark-system-colors` native bridge to resolve Android Material You colors when available, with Moss as the deterministic fallback. Still needs real Android 12+ device visual proof.
 - [x] **Set up logo and branding** — Added `ArkMark`/`ArkBrandLockup`, replaced key text-only headers, added an Ark SVG source mark, and regenerated app icon, adaptive icon, splash, and favicon PNG assets from `scripts/generate-brand-assets.mjs`.
-- [x] **Make OLED the recommended default theme** — OLED is already the default, and the theme picker now labels it as "OLED (Recommended - saves battery)".
+- [x] **Use device-aware theme defaults** — Fresh installs use System theme and System accent.
+      OLED remains an explicit low-light/battery option, and Battery Reduce Mode may select it when the
+      user enables that mode.
 
 - [x] **Redesign Home screen** — `app/(tabs)/index.tsx` now has compact Ark branding, one status card, 3 primary action cards, and an offline storage summary.
   - Keep: Ark branding header (smaller), quick status bar (online/offline dot + vault icon + weather one-liner)

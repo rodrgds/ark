@@ -5,9 +5,6 @@ import android.graphics.Color
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.ParcelFileDescriptor
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.text.PDFTextStripper
@@ -18,9 +15,25 @@ import java.io.File
 import kotlin.math.max
 import kotlin.math.min
 
+// SPDX-License-Identifier: MIT
+
 class ArkOcrModule : Module() {
+  private val engine: ImageOcrEngine by lazy {
+    val context = appContext.reactContext
+      ?: throw IllegalStateException("Android context is not available for OCR.")
+    createImageOcrEngine(context)
+  }
+
   override fun definition() = ModuleDefinition {
     Name("ArkOcr")
+
+    AsyncFunction("getCapabilities") {
+      mapOf(
+        "distribution" to engine.capabilities.distribution,
+        "imageOcr" to engine.capabilities.imageOcr,
+        "pdfOcr" to engine.capabilities.pdfOcr
+      )
+    }
 
     AsyncFunction("recognizeText") { uri: String, promise: Promise ->
       val context = appContext.reactContext
@@ -29,43 +42,7 @@ class ArkOcrModule : Module() {
           "Android context is not available for OCR.",
           null
         )
-
-      val imageUri = if (uri.startsWith("file://") || uri.startsWith("content://")) {
-        Uri.parse(uri)
-      } else {
-        Uri.fromFile(File(uri))
-      }
-
-      val image = try {
-        InputImage.fromFilePath(context, imageUri)
-      } catch (error: Exception) {
-        promise.reject("ERR_IMAGE_UNREADABLE", "Could not read image for OCR.", error)
-        return@AsyncFunction
-      }
-
-      val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-      recognizer.process(image)
-        .addOnSuccessListener { visionText ->
-          val blocks = visionText.textBlocks.map { block ->
-            mapOf(
-              "text" to block.text,
-              "confidence" to block.lines
-                .flatMap { line -> line.elements }
-                .mapNotNull { element -> element.confidence.takeIf { it >= 0f } }
-                .average()
-                .takeIf { !it.isNaN() }
-            )
-          }
-          promise.resolve(
-            mapOf(
-              "text" to visionText.text,
-              "blocks" to blocks
-            )
-          )
-        }
-        .addOnFailureListener { error ->
-          promise.reject("ERR_OCR_FAILED", "Text recognition failed.", error)
-        }
+      engine.recognizeFile(context, parseUri(uri), promise)
     }
 
     AsyncFunction("extractPdfText") { uri: String, maxPages: Int, promise: Promise ->
@@ -140,7 +117,6 @@ class ArkOcrModule : Module() {
         return@AsyncFunction
       }
 
-      val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
       val totalPages = renderer.pageCount
       val pageLimit = min(max(maxPages, 1), totalPages)
       val pages = mutableListOf<Map<String, Any?>>()
@@ -178,27 +154,42 @@ class ArkOcrModule : Module() {
         page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
         page.close()
 
-        recognizer.process(InputImage.fromBitmap(bitmap, 0))
-          .addOnSuccessListener { visionText ->
-            pages.add(
-              mapOf(
-                "pageNumber" to (index + 1),
-                "text" to visionText.text.trim(),
-                "extractionMethod" to "ocr",
-                "confidence" to null
+        engine.recognizeBitmap(
+          context,
+          bitmap,
+          object : Promise {
+            override fun resolve(value: Any?) {
+              val text = (value as? Map<*, *>)?.get("text") as? String ?: ""
+              pages.add(
+                mapOf(
+                  "pageNumber" to (index + 1),
+                  "text" to text.trim(),
+                  "extractionMethod" to "ocr",
+                  "confidence" to null
+                )
               )
-            )
-            bitmap.recycle()
-            processPage(index + 1)
+              bitmap.recycle()
+              processPage(index + 1)
+            }
+
+            override fun reject(code: String?, message: String?, cause: Throwable?) {
+              bitmap.recycle()
+              closeRenderer()
+              promise.reject(code ?: "ERR_PDF_OCR_FAILED", message ?: "PDF OCR failed.", cause)
+            }
           }
-          .addOnFailureListener { error ->
-            bitmap.recycle()
-            closeRenderer()
-            promise.reject("ERR_PDF_OCR_FAILED", "PDF OCR failed.", error)
-          }
+        )
       }
 
       processPage(0)
+    }
+  }
+
+  private fun parseUri(uri: String): Uri {
+    return if (uri.startsWith("file://") || uri.startsWith("content://")) {
+      Uri.parse(uri)
+    } else {
+      Uri.fromFile(File(uri))
     }
   }
 

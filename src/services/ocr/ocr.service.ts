@@ -1,4 +1,5 @@
 type ArkOcrNativeModule = {
+  getCapabilities?(): Promise<ArkOcrCapabilities>;
   recognizeText(uri: string): Promise<{
     text: string;
     blocks?: Array<{ text: string; confidence?: number | null }>;
@@ -29,6 +30,18 @@ type NativePdfPage = {
   confidence?: number | null;
 };
 
+export type ArkOcrCapabilities = {
+  distribution: 'standard' | 'fdroid';
+  imageOcr: boolean;
+  pdfOcr: boolean;
+};
+
+const DEFAULT_CAPABILITIES: ArkOcrCapabilities = {
+  distribution: 'standard',
+  imageOcr: true,
+  pdfOcr: true,
+};
+
 type OcrRecognitionResult =
   | { status: 'ready'; text: string }
   | { status: 'unavailable'; text: ''; error: string }
@@ -36,12 +49,39 @@ type OcrRecognitionResult =
 
 export class OcrService {
   private static nativeModuleOverride: ArkOcrNativeModule | null | undefined;
+  private static capabilitiesOverride: ArkOcrCapabilities | null | undefined;
+
+  static async getCapabilities(): Promise<ArkOcrCapabilities> {
+    if (this.capabilitiesOverride) return this.capabilitiesOverride;
+    const module = await this.requireNativeModule();
+    if (!module || typeof module.getCapabilities !== 'function') return DEFAULT_CAPABILITIES;
+    try {
+      const capabilities = await module.getCapabilities();
+      return {
+        distribution: capabilities.distribution === 'fdroid' ? 'fdroid' : 'standard',
+        imageOcr: !!capabilities.imageOcr,
+        pdfOcr: !!capabilities.pdfOcr,
+      };
+    } catch {
+      return DEFAULT_CAPABILITIES;
+    }
+  }
 
   static async isAvailable() {
-    return !!(await this.requireNativeModule());
+    const capabilities = await this.getCapabilities();
+    return capabilities.imageOcr;
   }
 
   static async recognizeImage(uri: string): Promise<OcrRecognitionResult> {
+    const capabilities = await this.getCapabilities();
+    if (!capabilities.imageOcr) {
+      return {
+        status: 'unavailable',
+        text: '',
+        error:
+          "Image text recognition is not available in this build. Ark's F-Droid build ships without Google ML Kit.",
+      };
+    }
     const module = await this.requireNativeModule();
     if (!module) {
       return {
@@ -95,6 +135,17 @@ export class OcrService {
   }
 
   static async recognizePdf(uri: string, input: { maxPages?: number; renderDpi?: number } = {}) {
+    const capabilities = await this.getCapabilities();
+    if (!capabilities.pdfOcr) {
+      return {
+        status: 'unavailable' as const,
+        error:
+          "Scanned PDF text recognition is not available in this build. Ark's F-Droid build ships without Google ML Kit.",
+        pageCount: 0,
+        pages: [],
+        truncated: false,
+      };
+    }
     const module = await this.requireNativeModule();
     if (!module) {
       return {
@@ -127,6 +178,10 @@ export class OcrService {
 
   static setNativeModuleForTests(module: ArkOcrNativeModule | null | undefined) {
     this.nativeModuleOverride = module;
+  }
+
+  static setCapabilitiesForTests(capabilities: ArkOcrCapabilities | null | undefined) {
+    this.capabilitiesOverride = capabilities;
   }
 
   private static async requireNativeModule() {

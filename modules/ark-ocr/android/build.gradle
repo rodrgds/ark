@@ -6,6 +6,15 @@ plugins {
 group = 'expo.modules.arkocr'
 version = '1.0.0'
 
+// Ark's `fdroid` distribution is a separate `assembleFdroidRelease` invocation
+// (see the fdroiddata recipe and `bun run android:build:fdroid`). The app
+// cannot pass product flavors down to library modules, and Expo's module
+// gradle plugin assumes a flavor-less `release` publishing variant, so this
+// module keys off the `arkDistribution` project property instead: the fdroid
+// recipe passes `-ParkDistribution=fdroid`, which excludes Google ML Kit from
+// the dependency graph and compiles the unsupported-OCR source set.
+def arkDistribution = rootProject.findProperty('arkDistribution') ?: 'standard'
+
 android {
   namespace "expo.modules.arkocr"
   defaultConfig {
@@ -15,10 +24,19 @@ android {
   lintOptions {
     abortOnError false
   }
+  sourceSets {
+    if (arkDistribution == 'fdroid') {
+      main.java.srcDirs += "src/fdroid/java"
+    } else {
+      main.java.srcDirs += "src/standard/java"
+    }
+  }
 }
 
 dependencies {
   implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.24"
-  implementation "com.google.mlkit:text-recognition:16.0.1"
   implementation "com.tom-roush:pdfbox-android:2.0.27.0"
+  if (arkDistribution != 'fdroid') {
+    implementation "com.google.mlkit:text-recognition:16.0.1"
+  }
 }

@@ -29,9 +29,9 @@ describe('ark-ocr native module packaging', () => {
     expect(config.apple.modules).toEqual(['ArkOcrModule']);
   });
 
-  test('bundles ML Kit text recognition for offline OCR', () => {
+  test('gates Google ML Kit behind the fdroid distribution so the F-Droid graph stays free', () => {
     const gradle = readFileSync(join(moduleRoot, 'android', 'build.gradle'), 'utf8');
-    const kotlin = readFileSync(
+    const mainKotlin = readFileSync(
       join(
         moduleRoot,
         'android',
@@ -45,13 +45,53 @@ describe('ark-ocr native module packaging', () => {
       ),
       'utf8'
     );
+    const standardKotlin = readFileSync(
+      join(
+        moduleRoot,
+        'android',
+        'src',
+        'standard',
+        'java',
+        'expo',
+        'modules',
+        'arkocr',
+        'MlKitImageOcrEngine.kt'
+      ),
+      'utf8'
+    );
+    const fdroidKotlin = readFileSync(
+      join(
+        moduleRoot,
+        'android',
+        'src',
+        'fdroid',
+        'java',
+        'expo',
+        'modules',
+        'arkocr',
+        'UnsupportedImageOcrEngine.kt'
+      ),
+      'utf8'
+    );
 
+    expect(gradle).toContain('arkDistribution');
+    expect(gradle).toContain("if (arkDistribution != 'fdroid')");
     expect(gradle).toContain('com.google.mlkit:text-recognition:16.0.1');
     expect(gradle).toContain('com.tom-roush:pdfbox-android:2.0.27.0');
-    expect(kotlin).toContain('TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)');
-    expect(kotlin).toContain('InputImage.fromFilePath');
-    expect(kotlin).toContain('AsyncFunction("extractPdfText")');
-    expect(kotlin).toContain('AsyncFunction("recognizePdf")');
+
+    expect(mainKotlin).not.toContain('TextRecognition');
+    expect(mainKotlin).not.toContain('InputImage');
+    expect(mainKotlin).toContain('AsyncFunction("extractPdfText")');
+    expect(mainKotlin).toContain('AsyncFunction("recognizePdf")');
+    expect(mainKotlin).toContain('AsyncFunction("getCapabilities")');
+
+    expect(standardKotlin).toContain(
+      'TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)'
+    );
+    expect(standardKotlin).toContain('InputImage.fromFilePath');
+
+    expect(fdroidKotlin).toContain('UnsupportedImageOcrEngine');
+    expect(fdroidKotlin).toContain('ERR_OCR_UNAVAILABLE');
   });
 
   test('bundles iOS Vision and PDFKit text extraction', () => {

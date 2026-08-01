@@ -18,10 +18,23 @@ export type ArkPdfTextResult = {
   truncated?: boolean;
 };
 
+export type ArkOcrCapabilities = {
+  distribution: 'standard' | 'fdroid';
+  imageOcr: boolean;
+  pdfOcr: boolean;
+};
+
 declare class ArkOcrModule extends NativeModule {
+  getCapabilities(): Promise<ArkOcrCapabilities>;
   recognizeText(uri: string): Promise<ArkOcrResult>;
   extractPdfText(uri: string, maxPages: number): Promise<ArkPdfTextResult>;
   recognizePdf(uri: string, maxPages: number, renderDpi: number): Promise<ArkPdfTextResult>;
 }
 
-export default requireNativeModule<ArkOcrModule>('ArkOcr');
+const ArkOcr = requireNativeModule<ArkOcrModule>('ArkOcr');
+
+export async function getOcrCapabilities(): Promise<ArkOcrCapabilities> {
+  return ArkOcr.getCapabilities();
+}
+
+export default ArkOcr;

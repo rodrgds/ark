@@ -8,6 +8,7 @@ import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
 import { confirmDestructive, showSheetAlert } from '@/components/ui/sheet-alert';
 import { Text } from '@/components/ui/text';
+import { getArkCapabilities, type ArkCapabilities } from '@/config/capabilities';
 import { useArkTextToSpeech } from '@/hooks/use-ark-text-to-speech';
 import { DocumentPagesRepository } from '@/services/db/repositories/document-pages.repo';
 import { ImportService } from '@/services/files/import.service';
@@ -172,7 +173,14 @@ export default function DocumentReaderScreen() {
     page && Number.isFinite(Number(page)) ? Math.max(1, Number(page)) : 1
   );
   const [actionsVisible, setActionsVisible] = React.useState(false);
+  const [capabilities, setCapabilities] = React.useState<ArkCapabilities | null>(null);
   const speechPreparing = readerSpeaking && speechPlayback.isPreparing && !speechPlayback.isPlaying;
+
+  React.useEffect(() => {
+    void getArkCapabilities()
+      .then(setCapabilities)
+      .catch(() => setCapabilities(null));
+  }, []);
 
   async function load() {
     if (!id) return;
@@ -399,7 +407,19 @@ export default function DocumentReaderScreen() {
           {document.ocrError ? (
             <Text className="text-destructive text-sm">{document.ocrError}</Text>
           ) : null}
-          {isImageDocument(document) || isPdfDocument(document) ? (
+          {(isImageDocument(document) || isPdfDocument(document)) &&
+          capabilities?.imageOcr === false ? (
+            <View className="gap-2">
+              <Button variant="outline" disabled>
+                <Icon as={RefreshCcw} className="size-4" />
+                <Text>OCR not available in this build</Text>
+              </Button>
+              <Text variant="muted">
+                Image and scanned-PDF text recognition need the standard Ark build. This F-Droid
+                build ships without Google ML Kit; PDF text-layer extraction still works.
+              </Text>
+            </View>
+          ) : isImageDocument(document) || isPdfDocument(document) ? (
             <Button
               variant="outline"
               disabled={busy || document.ocrStatus === 'processing'}
@@ -581,7 +601,7 @@ function ocrStatusCopy(document: ArkDocument) {
         ? 'Image text is ready for offline search and Ask Arky.'
         : 'No readable text was found in this image.';
     case 'unavailable':
-      return 'OCR is available on Android builds with image text recognition enabled.';
+      return 'Text recognition is not available in this build.';
     case 'failed':
       return 'OCR failed. You can retry from this screen.';
     default:

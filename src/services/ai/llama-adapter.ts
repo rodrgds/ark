@@ -1,5 +1,6 @@
 import { streamText, stepCountIs, type ModelMessage } from 'ai';
 import { SAFETY_COPY } from '@/constants/app';
+import { getArkCapabilities } from '@/config/capabilities';
 import { createArkAiSdkTools } from '@/services/ai/ai-sdk-tools';
 import { isEmbeddingModelPack } from '@/services/ai/embedding-models';
 import { normalizeReasoningOutput } from '@/services/ai/reasoning-normalizer';
@@ -172,7 +173,11 @@ export class LlamaAdapter {
 
 async function loadLlamaModule() {
   if (!llamaModulePromise) {
-    llamaModulePromise = import('@react-native-ai/llama').catch(() => null);
+    llamaModulePromise = (async () => {
+      const capabilities = await getArkCapabilities();
+      if (!capabilities.localLlm) return null;
+      return import('@react-native-ai/llama').catch(() => null);
+    })();
   }
   return llamaModulePromise;
 }

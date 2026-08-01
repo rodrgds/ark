@@ -31,9 +31,28 @@ const webRuntimeShims = {
   'react-native-audio-api': path.resolve(__dirname, 'src/shims/react-native-audio-api.web.ts'),
 };
 
+// The F-Droid flavor replaces the on-device AI runtimes with the same
+// unavailable-behavior shims used on web. `react-native.config.js` excludes the
+// native modules from autolinking, so these shims must cover every runtime
+// import (initExecutorch, hooks, voice services, dynamic llama import).
+const fdroidRuntimeShims = {
+  'react-native-executorch': path.resolve(__dirname, 'src/shims/react-native-executorch.web.ts'),
+  'react-native-executorch-expo-resource-fetcher': path.resolve(
+    __dirname,
+    'src/shims/react-native-executorch-resource-fetcher.web.ts'
+  ),
+  '@react-native-ai/llama': path.resolve(__dirname, 'src/shims/react-native-ai-llama.fdroid.ts'),
+};
+
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (platform === 'web' && webRuntimeShims[moduleName]) {
     return { filePath: webRuntimeShims[moduleName], type: 'sourceFile' };
+  }
+  if (
+    process.env.ARK_DISTRIBUTION === 'fdroid' &&
+    Object.prototype.hasOwnProperty.call(fdroidRuntimeShims, moduleName)
+  ) {
+    return { filePath: fdroidRuntimeShims[moduleName], type: 'sourceFile' };
   }
   return context.resolveRequest(context, moduleName, platform);
 };

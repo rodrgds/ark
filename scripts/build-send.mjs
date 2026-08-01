@@ -1,27 +1,39 @@
 #!/usr/bin/env node
 import { createHash } from 'node:crypto';
-import { createReadStream, existsSync } from 'node:fs';
+import { createReadStream, existsSync, statfsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 
 const CHAT_ID = '!Hf5OYEW7nA8jd9xaPncq:beeper.local';
 const APK_MIME = 'application/vnd.android.package-archive';
-const SEND_TIMEOUT_MS = 5 * 60 * 1000;
+// The fdroid universal APK is ~195 MB; the beeper upload needs more headroom
+// than the ~35 MB standard APK.
+const SEND_TIMEOUT_MS = 20 * 60 * 1000;
+const MIN_FREE_BUILD_BYTES = 8 * 1024 ** 3;
+const WARN_FREE_BUILD_BYTES = 20 * 1024 ** 3;
 const VARIANTS = {
   release: {
     buildScript: 'android:build:prod',
-    apkPath: resolve('android/app/build/outputs/apk/release/app-release.apk'),
+    apkPath: resolve(
+      'android/app/build/outputs/apk/standard/release/app-standard-universal-release.apk'
+    ),
     label: 'release',
   },
   dev: {
     buildScript: 'android:build:dev',
-    apkPath: resolve('android/app/build/outputs/apk/debug/app-debug.apk'),
+    apkPath: resolve('android/app/build/outputs/apk/standard/debug/app-standard-debug.apk'),
     label: 'dev',
+  },
+  fdroid: {
+    buildScript: 'android:build:fdroid',
+    apkPath: resolve('android/app/build/outputs/apk/fdroid/release/app-fdroid-release.apk'),
+    label: 'fdroid',
   },
 };
 
 function selectVariant() {
   const args = new Set(process.argv.slice(2));
+  if (args.has('--fdroid')) return VARIANTS.fdroid;
   if (args.has('--dev') || args.has('--debug')) return VARIANTS.dev;
   return VARIANTS.release;
 }
@@ -63,6 +75,24 @@ function beeperNeedsSetup(result) {
   return /unauth|not authenticated|not logged in|setup|login/i.test(output);
 }
 
+function checkBuildSpace() {
+  const stats = statfsSync(process.cwd());
+  const freeBytes = Number(stats.bavail) * Number(stats.bsize);
+  const freeGiB = (freeBytes / 1024 ** 3).toFixed(1);
+
+  if (freeBytes < MIN_FREE_BUILD_BYTES) {
+    throw new Error(
+      `Only ${freeGiB} GiB is free. Ark native builds can exhaust Android .cxx and Gradle storage; free at least 8 GiB before building.`
+    );
+  }
+
+  if (freeBytes < WARN_FREE_BUILD_BYTES) {
+    console.warn(
+      `Warning: only ${freeGiB} GiB is free. Run bun run agent:preflight:native and inspect disposable native caches if the build fails.`
+    );
+  }
+}
+
 function sendWithBeeper(apkPath, caption) {
   return run(
     'beeper',
@@ -79,9 +109,9 @@ function sendWithBeeper(apkPath, caption) {
       caption,
       '--wait',
       '--wait-timeout',
-      '120000',
+      '300000',
       '--timeout',
-      '5m',
+      '15m',
       '--json',
       '--yes',
     ],
@@ -91,6 +121,7 @@ function sendWithBeeper(apkPath, caption) {
 
 const variant = selectVariant();
 
+checkBuildSpace();
 console.log(`Building Ark Android ${variant.label} APK...`);
 assertSuccess(run('bun', ['run', variant.buildScript]), `Android ${variant.label} build`);
 

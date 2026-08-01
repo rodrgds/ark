@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 DIST_DIR="${ARK_ANDROID_RELEASE_DIR:-dist/android-release}"
-OUTPUT_DIR="android/app/build/outputs/apk/release"
+OUTPUT_DIR="android/app/build/outputs/apk/standard/release"
 VERSION_NAME="$(node -e "process.stdout.write(require('./app.json').expo.version)")"
 VERSION_CODE="$(node -e "process.stdout.write(String(require('./app.json').expo.android.versionCode))")"
 RELEASE_TAG="${ARK_RELEASE_TAG:-${GITHUB_REF_NAME:-v${VERSION_NAME}}}"

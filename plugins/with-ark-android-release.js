@@ -5,6 +5,7 @@ const pkg = require('../package.json');
 
 const SIGNING_TAG = 'ark-android-release-signing';
 const SPLITS_TAG = 'ark-android-release-apk-splits';
+const FLAVORS_TAG = 'ark-android-release-flavors';
 
 const SIGNING_HELPERS = `def arkReleaseStoreFile = System.getenv("ARK_ANDROID_KEYSTORE_PATH")
 def arkReleaseStorePassword = System.getenv("ARK_ANDROID_KEYSTORE_PASSWORD")
@@ -26,12 +27,31 @@ const RELEASE_SIGNING_CONFIG = `        release {
             }
         }`;
 
+// Ark ships two distribution flavors. `standard` is the GitHub/Play build with
+// every feature; `fdroid` is the F-Droid build. F-Droid builds run
+// `assembleFdroidRelease` (the fdroiddata recipe's `gradle: - fdroid`) and pass
+// `-ParkAbiSplits=false` so they emit a single universal APK. The split-gating
+// property defaults to splits enabled to preserve current GitHub release
+// behavior (`assembleStandardRelease`).
 const APK_SPLITS_CONFIG = `    splits {
         abi {
             reset()
-            enable true
+            enable project.findProperty('arkAbiSplits') != 'false'
             universalApk true
             include "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
+        }
+    }`;
+
+// The flavor boundary mirrors `modules/ark-ocr` so AGP selects the matching
+// library flavor: `standardImplementation` carries Google ML Kit, the `fdroid`
+// flavor compiles an unsupported-OCR stub with no non-free dependency.
+const FLAVORS_CONFIG = `    flavorDimensions += "distribution"
+    productFlavors {
+        standard {
+            dimension "distribution"
+        }
+        fdroid {
+            dimension "distribution"
         }
     }`;
 
@@ -66,6 +86,12 @@ function withArkAndroidRelease(config) {
       newSrc: APK_SPLITS_CONFIG,
       anchor: /android\s*\{/,
       offset: 1,
+    });
+    contents = mergeTagged(contents, {
+      tag: FLAVORS_TAG,
+      newSrc: FLAVORS_CONFIG,
+      anchor: /signingConfigs\s*\{/,
+      offset: 0,
     });
     contents = mergeTagged(contents, {
       tag: `${SIGNING_TAG}-config`,

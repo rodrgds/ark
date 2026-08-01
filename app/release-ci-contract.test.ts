@@ -17,6 +17,9 @@ describe('release CI contracts', () => {
     expect(pkg.scripts.check).toContain('bun run typecheck');
     expect(pkg.scripts.check).toContain('bun run lint');
     expect(pkg.scripts.check).toContain('bun run test');
+    expect(pkg.scripts.check).toContain('bun run check:repo');
+    expect(pkg.scripts['check:repo']).toBe('node scripts/check-repo-hygiene.mjs');
+    expect(existsSync(join(process.cwd(), 'scripts/check-repo-hygiene.mjs'))).toBe(true);
     expect(pkg.scripts.test).toBe('bun scripts/run-tests.mjs');
     expect(pkg.scripts.verify).toContain('bun run format:check');
     expect(pkg.scripts.verify).toContain('bun run check');
@@ -29,11 +32,28 @@ describe('release CI contracts', () => {
     expect(testRunner).toContain(
       "for (const test of mountedTests) run(['test', test, '--timeout', '12000'])"
     );
-    expect(pkg.scripts['android:build:dev']).toContain('assembleDebug');
-    expect(pkg.scripts['android:build:prod']).toContain('assembleRelease');
+    expect(pkg.scripts['android:build:dev']).toContain('assembleStandardDebug');
+    expect(pkg.scripts['android:build:prod']).toContain('assembleStandardRelease');
+    expect(pkg.scripts['android:build:fdroid']).toContain('assembleFdroidRelease');
+    expect(pkg.scripts['android:build:fdroid']).toContain('arkAbiSplits');
     expect(pkg.scripts['android:release:apks']).toBe('bash scripts/android-release-apks.sh');
     expect(pkg.scripts['ios:build:sim']).toBe('bash scripts/ios-simulator-build.sh');
+    expect(pkg.scripts['agent:preflight']).toBe('node scripts/agent-preflight.mjs');
+    expect(pkg.scripts['agent:preflight:native']).toContain('--native');
+    expect(pkg.scripts['agent:preflight:release']).toContain('--release');
     expect(pkg.scripts.web).toBe('node scripts/start-web.mjs');
+
+    const agentPreflight = readFileSync(join(process.cwd(), 'scripts/agent-preflight.mjs'), 'utf8');
+    expect(agentPreflight).toContain("run('git', ['status', '--short', '--branch'])");
+    expect(agentPreflight).toContain("run('adb', ['devices', '-l'])");
+    expect(agentPreflight).toContain('statfsSync(repoRoot)');
+    expect(agentPreflight).toContain(
+      'android/app/build/outputs/apk/standard/release/app-standard-universal-release.apk'
+    );
+
+    const buildSend = readFileSync(join(process.cwd(), 'scripts/build-send.mjs'), 'utf8');
+    expect(buildSend).toContain('MIN_FREE_BUILD_BYTES');
+    expect(buildSend).toContain('checkBuildSpace()');
 
     const webScript = readFileSync(join(process.cwd(), 'scripts/start-web.mjs'), 'utf8');
     const metroConfig = readFileSync(join(process.cwd(), 'metro.config.js'), 'utf8');
@@ -171,6 +191,9 @@ describe('release CI contracts', () => {
     expect(releasePlugin).toContain('universalApk true');
     expect(releasePlugin).toContain('"arm64-v8a"');
     expect(releasePlugin).toContain('ARK_ANDROID_KEYSTORE_PATH');
+    expect(releasePlugin).toContain('flavorDimensions += "distribution"');
+    expect(releasePlugin).toContain('fdroid {');
+    expect(releasePlugin).toContain("enable project.findProperty('arkAbiSplits')");
 
     const releaseScript = readFileSync(
       join(process.cwd(), 'scripts/android-release-apks.sh'),
@@ -180,6 +203,7 @@ describe('release CI contracts', () => {
     expect(releaseScript).toContain('expo export:embed');
     expect(releaseScript).toContain('react-native-worklets/\\.worklets/');
     expect(releaseScript).toContain('bun run android:build:prod');
+    expect(releaseScript).toContain('outputs/apk/standard/release');
     expect(releaseScript).toContain('APK_MANIFEST.txt');
     expect(releaseScript).toContain('SHA256SUMS.txt');
   });

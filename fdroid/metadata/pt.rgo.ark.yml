@@ -26,11 +26,11 @@ RepoType: git
 Repo: https://github.com/rodrgds/ark.git
 
 Builds:
-  - versionName: 1.1.0
-    versionCode: 2
+  - versionName: 1.2.0
+    versionCode: 3
     disable: Requires the tagged recipe to build on the F-Droid build server (fdroiddata
       GitLab pipeline); scanner and local builds are already clean.
-    commit: v1.1.0
+    commit: v1.2.0
     subdir: android
     sudo:
       - apt-get update

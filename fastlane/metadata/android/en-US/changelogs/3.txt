@@ -1,0 +1,1 @@
+First F-Droid release under the pt.rgo.ark package ID. Offline maps, guides, notes, local search, downloads, and field tools; the F-Droid edition ships without Google ML Kit or on-device AI runtimes.

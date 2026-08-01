@@ -1,4 +1,4 @@
-package app.ark.offline
+package pt.rgo.ark
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

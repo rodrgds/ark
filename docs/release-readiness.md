@@ -49,12 +49,12 @@ This checklist tracks store-facing and open-source release risk for Ark's offlin
 
 ## F-Droid preparation
 
-- Android package ID is `app.ark.offline`; Android `versionCode` is `1`.
+- Android package ID is `pt.rgo.ark`; Android `versionCode` is `3`.
 - The committed `android/` project has `standard`/`fdroid` distribution flavors; `android:build:fdroid`
   produces one universal APK with Google ML Kit and the on-device AI runtimes excluded from the
   dependency graph and JS bundle.
 - Fastlane metadata exists under `fastlane/metadata/android/en-US/`.
-- Draft fdroiddata metadata exists at `fdroid/metadata/app.ark.offline.yml` (lint-clean, scanner
+- Draft fdroiddata metadata exists at `fdroid/metadata/pt.rgo.ark.yml` (lint-clean, scanner
   findings triaged locally), intentionally disabled until the tagged RC builds on the F-Droid
   build server.
 - `bun run check:repo` rejects committed Gradle caches and untracked binaries.

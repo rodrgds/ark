@@ -1,4 +1,4 @@
-package app.ark.offline
+package pt.rgo.ark
 
 import android.app.Application
 import android.content.res.Configuration

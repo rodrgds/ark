@@ -1,0 +1,1 @@
+First F-Droid release. Offline maps, guides, notes, local search, downloads, and field tools now ship in a F-Droid edition without Google ML Kit or on-device AI runtimes; PDF text extraction and imported-document search still work.

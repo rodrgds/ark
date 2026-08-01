@@ -5,19 +5,28 @@
   ...
 }:
 let
-  # Nixpkgs' Bun build can require newer x86-64 CPU features than older NAS
-  # hosts provide. Use Bun's official baseline build and pin its contents.
-  rawBun = pkgs.stdenvNoCC.mkDerivation {
+  # Use official Bun prebuilt binaries. Linux builds need autoPatchelfHook;
+  # macOS builds ship as Mach-O and need no fixup.
+  rawBun = let
+    isDarwin = pkgs.stdenv.isDarwin;
+  in pkgs.stdenvNoCC.mkDerivation {
     pname = "bun";
     version = "1.3.3";
 
-    src = pkgs.fetchzip {
-      url = "https://github.com/oven-sh/bun/releases/download/bun-v1.3.3/bun-linux-x64-baseline.zip";
-      hash = "sha256-RY9FSb9iXm2+mmy2BIhhPbdFovsv0agz/eT0jfaspl0=";
-    };
+    src =
+      if isDarwin then
+        pkgs.fetchzip {
+          url = "https://github.com/oven-sh/bun/releases/download/bun-v1.3.3/bun-darwin-aarch64.zip";
+          hash = "sha256-4Ll3vpWNcqOKRDgD1aGAbC52X2dj7nphZ2K1nxGjcio=";
+        }
+      else
+        pkgs.fetchzip {
+          url = "https://github.com/oven-sh/bun/releases/download/bun-v1.3.3/bun-linux-x64-baseline.zip";
+          hash = "sha256-RY9FSb9iXm2+mmy2BIhhPbdFovsv0agz/eT0jfaspl0=";
+        };
 
-    nativeBuildInputs = [ pkgs.autoPatchelfHook ];
-    buildInputs = [ pkgs.stdenv.cc.cc.lib ];
+    nativeBuildInputs = lib.optionals (!isDarwin) [ pkgs.autoPatchelfHook pkgs.patchelf ];
+    buildInputs = lib.optionals (!isDarwin) [ pkgs.stdenv.cc.cc.lib ];
     dontUnpack = true;
 
     installPhase = ''

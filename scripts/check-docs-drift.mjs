@@ -99,7 +99,7 @@ for (const { name, expected, actual } of checks) {
   }
   const status = actual === expected ? 'OK' : 'DRIFT';
   if (actual !== expected) drift += 1;
-  console.log(`${status.padEnd(4)} ${name}: AGENTS.md says ${expected}, code has ${actual}`);
+  console.log(`${status.padEnd(4)} ${name}: expected ${expected}, code has ${actual}`);
 }
 
 const sqlitePlugin = appConfig.expo.plugins.find(
@@ -209,23 +209,6 @@ if (hasArkRoutingIosStub(arkRoutingIos)) {
   }
 }
 
-const factsInDoc = extractNumbersNear(agents, [
-  'onboarding',
-  'services/',
-  'stores',
-  'lib',
-  '29 base tables',
-  '4 FTS5',
-  'versioned to 2',
-]);
-
-if (factsInDoc.length) {
-  console.log('\nHints in AGENTS.md that may need updating:');
-  for (const hint of factsInDoc) {
-    console.log(`  - ${hint}`);
-  }
-}
-
 if (drift > 0) {
   console.log(`\n${drift} drift(s) detected. Run scripts/check-docs-drift to inspect.`);
   process.exit(1);
@@ -264,24 +247,6 @@ async function countMigrations(predicate) {
     }
   }
   return dedup.size;
-}
-
-function extractNumbersNear(text, needles) {
-  const hints = [];
-  const lines = text.split('\n');
-  for (const needle of needles) {
-    const normalizedNeedle = needle.toLowerCase();
-    for (const line of lines) {
-      if (line.toLowerCase().includes(normalizedNeedle)) {
-        const numbers = [...line.matchAll(/\b(\d+)\b/g)].map((m) => Number(m[1]));
-        if (numbers.length) {
-          hints.push(`${needle}: ${numbers.join(', ')}`);
-        }
-        break;
-      }
-    }
-  }
-  return hints;
 }
 
 function hasArkZimIosBridge({ podspec, swift, reader }) {

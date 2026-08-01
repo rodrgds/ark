@@ -44,18 +44,21 @@ This checklist tracks store-facing and open-source release risk for Ark's offlin
 - `LICENSE`, `CONTRIBUTING.md`, `SECURITY.md`, and `CODE_OF_CONDUCT.md` exist.
 - Issue and PR templates exist under `.github/`.
 - `package.json` has public project metadata and is marked `1.0.0`.
-- Reviewed Library and Map screenshots remain public. Chat and Notes captures are intentionally
-  absent until they are recaptured from synthetic data and pass the privacy/safety review in
-  `docs/screenshots.md`.
+- Core README screenshots exist under `docs/screenshots/`; refresh them after major UI changes and avoid private notes, coordinates, documents, or chats.
 - Public GitHub releases should include Android APK assets, `SHA256SUMS.txt`, and a short known-limitations section.
 
 ## F-Droid preparation
 
 - Android package ID is `app.ark.offline`; Android `versionCode` is `1`.
+- The committed `android/` project has `standard`/`fdroid` distribution flavors; `android:build:fdroid`
+  produces one universal APK with Google ML Kit and the on-device AI runtimes excluded from the
+  dependency graph and JS bundle.
 - Fastlane metadata exists under `fastlane/metadata/android/en-US/`.
-- Draft fdroiddata metadata exists at `fdroid/metadata/app.ark.offline.yml`, intentionally disabled
-  until the first tagged Android release candidate has a real `fdroidserver` scanner pass.
-- F-Droid details and likely scanner hot spots are tracked in `docs/release/fdroid.md`.
+- Draft fdroiddata metadata exists at `fdroid/metadata/app.ark.offline.yml` (lint-clean, scanner
+  findings triaged locally), intentionally disabled until the tagged RC builds on the F-Droid
+  build server.
+- `bun run check:repo` rejects committed Gradle caches and untracked binaries.
+- F-Droid details, the build recipe, scanner status, and flavor commands live in `docs/release/fdroid.md`.
 
 ## Store follow-ups before submission
 

@@ -2,6 +2,7 @@
   "name": "ark-routing",
   "version": "1.0.0",
   "main": "src/index.ts",
+  "license": "MIT",
   "scripts": {
     "build:valhalla:android": "node scripts/build-valhalla-android.mjs",
     "pack:graph": "node scripts/build-valhalla-routing-pack.mjs",

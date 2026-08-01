@@ -6,27 +6,120 @@ AuthorName: Rodrigo Dias
 SourceCode: https://github.com/rodrgds/ark
 IssueTracker: https://github.com/rodrgds/ark/issues
 Changelog: https://github.com/rodrgds/ark/releases
+
 AutoName: Ark
-Summary: Offline maps, knowledge, notes, and field tools.
+Summary: Offline maps, knowledge, notes, and field tools
 Description: |-
   Ark is an offline-first survival computer for mobile.
 
   It combines downloadable maps, emergency knowledge packs, secure notes and documents,
-  local source search, optional on-device AI, cached feeds and weather, recorded tracks,
-  and practical sensor tools.
+  local source search, cached feeds and weather, recorded tracks, and practical sensor
+  tools. On-device AI and image OCR require Google ML Kit / bundled model runtimes and
+  are intentionally not shipped in the F-Droid edition: the F-Droid build excludes Google
+  ML Kit and the local LLM/ExecuTorch runtimes, so image text recognition and local chat
+  are unavailable in this build. PDF text-layer extraction and imported document search
+  still work.
 
   Ark has no backend account system, no ads, no analytics, and no cloud sync.
 
 RepoType: git
 Repo: https://github.com/rodrgds/ark.git
+
 Builds:
   - versionName: 1.0.0
     versionCode: 1
+    disable: Requires a successful fdroidserver Linux build on the tagged release
+      candidate; this recipe was validated locally but not on the F-Droid build servers.
     commit: TODO_TAG_FOR_FIRST_FDROID_RC
-    disable: Requires a real fdroidserver scanner pass after the first tagged Android release candidate.
     subdir: android
-    gradle: yes
+    sudo:
+      - apt-get update
+      - apt-get install -y openjdk-17-jdk-headless nodejs npm
+      - update-java-alternatives -a
+      - npm install --global bun@1.3.3
+    output: app/build/outputs/apk/fdroid/release/app-fdroid-release.apk
+    prebuild:
+      - cd ..
+      - bash scripts/fdroid-prepare.sh
+    scanignore:
+      - modules/ark-ocr/android/build.gradle
+      - node_modules/ark-ocr/android/build.gradle
+      - node_modules/@shopify
+      - node_modules/react-native
+      - node_modules/react-native-skia-android
+      - node_modules/react-native-skia-apple-ios
+      - node_modules/react-native-skia-apple-tvos
+      - node_modules/react-native-skia-apple-macos
+      - node_modules/react-native-pdf
+      - node_modules/react-native-blob-util
+      - node_modules/react-native-keyboard-controller
+      - node_modules/react-native-svg
+      - node_modules/react-native-screens
+      - node_modules/react-native-webview
+      - node_modules/expo
+      - node_modules/@expo
+      - node_modules/expo-modules-core
+      - node_modules/expo-image
+      - node_modules/expo-asset
+      - node_modules/expo-font
+      - node_modules/expo-file-system
+      - node_modules/expo-sqlite
+      - node_modules/expo-location
+      - node_modules/expo-keep-awake
+      - node_modules/expo-sharing
+      - node_modules/expo-secure-store
+      - node_modules/expo-task-manager
+      - node_modules/expo-print
+      - node_modules/@maplibre
+      - node_modules/maplibre-react-native
+      - node_modules/valhalla-mobile
+      - node_modules/@kiwix
+      - node_modules/org.kiwix
+      - node_modules/@esbuild
+      - node_modules/fb-dotslash
+      - node_modules/ark-routing
+      - node_modules/ark-zim
+      - node_modules/ark-system-colors
+    scandelete:
+      - node_modules/llama.rn
+      - node_modules/react-native-executorch
+      - node_modules/@react-native-ai/llama
+      - node_modules/react-native-executorch-expo-resource-fetcher
+    build:
+      - export ARK_DISTRIBUTION=fdroid
+      - ./gradlew assembleFdroidRelease -ParkAbiSplits=false -ParkDistribution=fdroid
+
 MaintainerNotes: |-
-  Draft metadata only. Ark is an Expo/React Native app and must be prebuilt before the
-  fdroiddata build block can be finalized. Expected scanner hot spots are native Expo/RN
-  artifacts, llama.rn, ExecuTorch, MapLibre, Skia, valhalla-mobile, and Kiwix/ZIM artifacts.
+  Expo/React Native app. The committed android/ project carries standard/fdroid
+  distribution flavors. The recipe builds the fdroid variant with:
+  - `ARK_DISTRIBUTION=fdroid` (metro + react-native.config.js) so the local
+    LLM/ExecuTorch runtimes are shimmed in the JS bundle and excluded from
+    autolinking; their node_modules dirs are scandeleted because the fdroid
+    build does not use them.
+  - `-ParkDistribution=fdroid` so modules/ark-ocr drops Google ML Kit and
+    compiles the unsupported-OCR stub (PDFBox text extraction stays shared).
+  - `-ParkAbiSplits=false` for one universal APK.
+  - `scripts/fdroid-prepare.sh` installs the pinned Bun (1.3.3) from its npm
+    package and runs `bun install --frozen-lockfile`; Ark uses bun.lock because
+    npm cannot apply Ark's patchedDependencies (tentap-editor, uniwind).
+  - Reduced Gradle heap via ARK_GRADLE_XMX_MB / ARK_GRADLE_WORKERS env vars.
+
+  Scanner status (local fdroidserver 2.4.5 run, macOS install): ~438 findings,
+  all in node_modules prebuilt artifacts (Expo SDK local-maven-repo AAR/JAR,
+  react-native/Hermes, Skia, MapLibre, valhalla-mobile, kiwix, llama.rn,
+  ExecuTorch) plus the ML Kit coordinate string. The scanignore set above is
+  directory-scoped and covers the known cross-platform surface; the definitive
+  set must be reconciled against the F-Droid Linux build server output (unused
+  scanignore paths are errors there, and macOS-only artifacts like fsevents and
+  @esbuild/darwin are absent on Linux). Keep entries narrow; do not add a broad
+  `scanignore: node_modules`.
+
+  Open items before submission:
+  - Tag the exact RC and replace TODO_TAG_FOR_FIRST_FDROID_RC.
+  - Run the recipe on the F-Droid build server, fix scanner/build findings, and
+    remove `disable:`.
+  - Verify the resulting APK on a physical device (fresh install, maps, routing,
+    ZIM, PDF text extraction, notes, backups, background location).
+
+AutoUpdateMode: None
+UpdateCheckMode: None

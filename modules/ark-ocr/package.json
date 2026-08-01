@@ -9,7 +9,7 @@
     "ocr",
     "mlkit"
   ],
-  "license": "UNLICENSED",
+  "license": "MIT",
   "peerDependencies": {
     "expo": "*"
   },

@@ -67,7 +67,7 @@ Builds:
       - node_modules/llama.rn
     build:
       - export ARK_DISTRIBUTION=fdroid
-      - ./gradlew assembleFdroidRelease -ParkAbiSplits=false -ParkDistribution=fdroid
+      - gradle assembleFdroidRelease -ParkAbiSplits=false -ParkDistribution=fdroid
 
 MaintainerNotes: |-
   Expo/React Native app. The committed android/ project carries standard/fdroid

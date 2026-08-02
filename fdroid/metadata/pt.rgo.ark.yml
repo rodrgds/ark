@@ -8,7 +8,6 @@ IssueTracker: https://github.com/rodrgds/ark/issues
 Changelog: https://github.com/rodrgds/ark/releases
 
 AutoName: Ark
-Summary: Offline maps, knowledge, notes, and field tools
 Description: |-
   Ark is an offline-first survival computer for mobile.
 
@@ -28,8 +27,6 @@ Repo: https://github.com/rodrgds/ark.git
 Builds:
   - versionName: 1.2.0
     versionCode: 3
-    disable: Requires the tagged recipe to build on the F-Droid build server (fdroiddata
-      GitLab pipeline); scanner and local builds are already clean.
     commit: v1.2.0
     subdir: android
     sudo:
@@ -41,6 +38,9 @@ Builds:
     prebuild:
       - cd ..
       - bash scripts/fdroid-prepare.sh
+      - cd android && printf 'org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m
+        -Dfile.encoding=UTF-8\norg.gradle.parallel=false\norg.gradle.workers.max=2\n'
+        >> gradle.properties
     scanignore:
       - modules/ark-ocr/android/build.gradle
       - node_modules/ark-ocr/android/build.gradle
@@ -84,7 +84,9 @@ MaintainerNotes: |-
   - `scripts/fdroid-prepare.sh` installs the pinned Bun (1.3.3) from its npm
     package and runs `bun install --frozen-lockfile`; Ark uses bun.lock because
     npm cannot apply Ark's patchedDependencies (tentap-editor, uniwind).
-  - Reduced Gradle heap via ARK_GRADLE_XMX_MB / ARK_GRADLE_WORKERS env vars.
+  - The F-Droid build does not run expo prebuild, so it appends a reduced
+    Gradle heap (4096m, parallel off, 2 workers) to android/gradle.properties
+    in prebuild; the committed 12 GiB default is for local/CI prebuilds.
 
   Scanner status: a fdroidserver 2.4.5 scan on a Debian container with a real
   Linux `bun install --frozen-lockfile` of tag v1.1.0 reports 0 findings with

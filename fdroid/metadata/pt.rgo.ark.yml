@@ -38,7 +38,8 @@ Builds:
     prebuild:
       - cd ..
       - bash scripts/fdroid-prepare.sh
-      - cd android && printf 'org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m
+      - cd android && printf 'org.gradle.jvmargs=-Xmx4096m 
+        -XX:MaxMetaspaceSize=1024m 
         -Dfile.encoding=UTF-8\norg.gradle.parallel=false\norg.gradle.workers.max=2\n'
         >> gradle.properties
     scanignore:
@@ -67,7 +68,8 @@ Builds:
       - node_modules/llama.rn
     build:
       - export ARK_DISTRIBUTION=fdroid
-      - ./gradlew assembleFdroidRelease -ParkAbiSplits=false -ParkDistribution=fdroid
+      - ./gradlew assembleFdroidRelease -ParkAbiSplits=false 
+        -ParkDistribution=fdroid
 
 MaintainerNotes: |-
   Expo/React Native app. The committed android/ project carries standard/fdroid
@@ -108,3 +110,5 @@ MaintainerNotes: |-
 
 AutoUpdateMode: None
 UpdateCheckMode: None
+CurrentVersion: 1.2.0
+CurrentVersionCode: 3

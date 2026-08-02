@@ -27,7 +27,7 @@ Repo: https://github.com/rodrgds/ark.git
 Builds:
   - versionName: 1.2.0
     versionCode: 3
-    commit: v1.2.0
+    commit: v1.2.0-fdroid
     subdir: android
     sudo:
       - apt-get update
@@ -38,9 +38,6 @@ Builds:
     prebuild:
       - cd ..
       - bash scripts/fdroid-prepare.sh
-      - cd android && printf 'org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m
-        -Dfile.encoding=UTF-8\norg.gradle.parallel=false\norg.gradle.workers.max=2\n'
-        >> gradle.properties
     scanignore:
       - modules/ark-ocr/android/build.gradle
       - node_modules/ark-ocr/android/build.gradle

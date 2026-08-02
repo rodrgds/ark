@@ -22,13 +22,23 @@ bun --version
 bun install --frozen-lockfile
 
 # The F-Droid build server runs Java 21 (Debian trixie) and fdroidserver uses
-# its own gradle, so the committed wrapper is not used. React Native's
-# gradle-plugin hardcodes a Java 17 toolchain that the server cannot satisfy;
-# patch it to 21 (the fdroiddata RN template does the same). The app's own
-# modules keep the RN-requested Java 17 bytecode targets.
+# its own gradle, so the committed wrapper is not used. Some tools hardcode a
+# Java 17 toolchain/bytecode target that the server cannot satisfy, so patch
+# every 17 up to 21. This covers:
+#   - the RN gradle-plugin's own included builds (jvmToolchain 17 -> 21), which
+#     is what unblocks :gradle-plugin:*:compileKotlin;
+#   - JdkConfiguratorUtils (forces toolchain 17 -> 21 on the app and every
+#     library subproject);
+#   - each vendor module that sets an explicit JavaVersion.VERSION_17 and/or
+#     Kotlin jvmTarget 17 (worklets, reanimated, audio-api, RN core): aligning
+#     them to 21 avoids the Kotlin/JVM target-compatibility failure.
 sed -i '/jvmToolchain\|JavaVersion/s/17/21/' \
   node_modules/@react-native/gradle-plugin/*/build.gradle.kts \
   node_modules/@react-native/gradle-plugin/react-native-gradle-plugin/src/main/kotlin/com/facebook/react/utils/JdkConfiguratorUtils.kt
+
+find node_modules -path '*/android/build.gradle*' -exec sed -i \
+  -e '/VERSION_17/s/17/21/' \
+  -e '/fromTarget\|jvmTarget/s/17/21/' {} +
 
 # The F-Droid build does not run expo prebuild, so the committed
 # android/gradle.properties (a 12 GiB heap for local/CI prebuilds) must be

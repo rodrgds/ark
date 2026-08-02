@@ -31,7 +31,7 @@ Builds:
     subdir: android
     sudo:
       - apt-get update
-      - apt-get install -y openjdk-17-jdk-headless nodejs npm
+      - apt-get install -y openjdk-21-jdk-headless nodejs npm
       - update-java-alternatives -a
       - npm install --global bun@1.3.3
     output: app/build/outputs/apk/fdroid/release/app-fdroid-release.apk

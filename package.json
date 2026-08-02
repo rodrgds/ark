@@ -177,6 +177,8 @@
   "private": false,
   "patchedDependencies": {
     "@10play/tentap-editor@1.0.1": "patches/@10play%2Ftentap-editor@1.0.1.patch",
+    "metro@0.84.4": "patches/metro@0.84.4.patch",
+    "metro-runtime@0.84.4": "patches/metro-runtime@0.84.4.patch",
     "uniwind@1.6.3": "patches/uniwind@1.6.3.patch"
   }
 }

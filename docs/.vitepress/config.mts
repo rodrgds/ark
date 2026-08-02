@@ -20,6 +20,7 @@ export default defineConfig({
       { text: 'User Guide', link: '/user/getting-started' },
       { text: 'Developer Guide', link: '/developer/setup' },
       { text: 'Release', link: '/release/release-checklist' },
+      { text: 'Privacy Policy', link: '/privacy-policy' },
       { text: 'GitHub', link: 'https://github.com/rodrgds/ark' },
     ],
     sidebar: {

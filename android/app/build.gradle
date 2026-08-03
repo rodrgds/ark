@@ -104,6 +104,12 @@ android {
         }
     }
 // @generated end ark-android-release-apk-splits
+// @generated begin ark-android-release-deps-info - expo prebuild (DO NOT MODIFY) sync-b40e4275d02a95b92e7e2d5e8b32f6a9dfb2fca7
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+// @generated end ark-android-release-deps-info
     ndkVersion rootProject.ext.ndkVersion
 
     buildToolsVersion rootProject.ext.buildToolsVersion

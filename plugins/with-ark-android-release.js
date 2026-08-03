@@ -6,6 +6,7 @@ const pkg = require('../package.json');
 const SIGNING_TAG = 'ark-android-release-signing';
 const SPLITS_TAG = 'ark-android-release-apk-splits';
 const FLAVORS_TAG = 'ark-android-release-flavors';
+const DEPS_INFO_TAG = 'ark-android-release-deps-info';
 
 const SIGNING_HELPERS = `def arkReleaseStoreFile = System.getenv("ARK_ANDROID_KEYSTORE_PATH")
 def arkReleaseStorePassword = System.getenv("ARK_ANDROID_KEYSTORE_PASSWORD")
@@ -42,7 +43,15 @@ const APK_SPLITS_CONFIG = `    splits {
         }
     }`;
 
-// The flavor boundary mirrors `modules/ark-ocr` so AGP selects the matching
+// AGP adds a "Dependency metadata" block to the APK signing scheme. The
+// fdroidserver scanner flags any extra signing block as a non-reproducible
+// artifact, so Ark disables it for both APK and AAB packing.
+const DEPS_INFO_CONFIG = `    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }`;
+
+// The flavor boundary mirrors ark-ocr so AGP selects the matching
 // library flavor: `standardImplementation` carries Google ML Kit, the `fdroid`
 // flavor compiles an unsupported-OCR stub with no non-free dependency.
 const FLAVORS_CONFIG = `    flavorDimensions += "distribution"
@@ -86,6 +95,12 @@ function withArkAndroidRelease(config) {
       newSrc: APK_SPLITS_CONFIG,
       anchor: /android\s*\{/,
       offset: 1,
+    });
+    contents = mergeTagged(contents, {
+      tag: DEPS_INFO_TAG,
+      newSrc: DEPS_INFO_CONFIG,
+      anchor: /ndkVersion rootProject\.ext\.ndkVersion/,
+      offset: 0,
     });
     contents = mergeTagged(contents, {
       tag: FLAVORS_TAG,

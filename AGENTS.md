@@ -200,6 +200,35 @@ bun run verify
 - When Git publication is requested, recheck the final diff and worktree after formatting/build
   generation, commit by subsystem, push, and confirm upstream. Do not stage unrelated user work.
 
+## F-Droid Release
+
+- The F-Droid edition (`pt.rgo.ark`) must stay tracker-clean: the fdroidserver scanner fails on any
+  GMS/Firebase/`play-core` class, defined or referenced, and on AGP's "Dependency metadata" signing
+  block. The fdroid build runs from the committed `android/` — the recipe does NOT run `expo prebuild`.
+- GMS-free packaging is owned by the committed `android/` and its config plugins, not the recipe:
+  `plugins/with-ark-fdroid-autolink.js` injects an `ARK_DISTRIBUTION=fdroid`-gated
+  `expoAutolinking.exclude = ['expo-location','expo-notifications']` into `settings.gradle` (Expo
+  autolinking ignores `react-native.config.js` exclusions), and `plugins/with-ark-android-release.js`
+  sets `dependenciesInfo { includeInApk = false; includeInBundle = false }`. Run
+  `expo prebuild --no-clean` and commit the regenerated `android/` when these change; verify with a
+  dexdump scan (`com/google/(android/gms|firebase|android/play/core|tagmanager|analytics)` and
+  `com/android/billing` must be 0 defined and referenced) and an apksigner/raw-bytes check that
+  `Dependency metadata` is absent.
+- The fdroid JS surface is served by `metro.config.js` fdroid runtime shims:
+  `src/shims/expo-location.fdroid.ts` (AOSP `react-native-nitro-fused-location`) and
+  `src/shims/expo-notifications.fdroid.ts` (`react-native-notify-kit`). These cover the foreground
+  surface only; background location on fdroid is a no-op flag until the native fork is extended.
+- fdroid versions are tagged `vX.Y.Z-fdroid` on commits whose committed `android/` carries the
+  exclusions above. Plain tags (`v1.0.0`, `v1.1.0`, `v1.2.0`) predate them and FAIL the tracker
+  scan; fdroiddata metadata therefore uses `AutoUpdateMode: Version` +
+  `UpdateCheckMode: Tags v[0-9.]+-fdroid$` and pins each current build to a full commit SHA.
+- Submission lives in `~/dev/fdroiddata/metadata/pt.rgo.ark.yml` on the `pt.rgo.ark` branch; the
+  canonical draft mirrors it at `fdroid/metadata/pt.rgo.ark.yml`. A green fdroiddata GitLab pipeline
+  is required before/after metadata changes; retrigger with an empty commit push to `pt.rgo.ark`.
+- Do not commit unrelated user work into fdroid release commits: version bumps (e.g. `versionCode`/
+  `versionName` in `android/app/build.gradle`) must keep matching the submitted fdroiddata
+  `versionCode`/`CurrentVersionCode`, and F-Droid metadata is not advanced by local-only edits.
+
 ## Current Truthfulness Boundaries
 
 The main unresolved risk is physical-device proof, not basic code presence. Before production

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Ark",
     "slug": "ark",
-    "version": "1.2.0",
+    "version": "1.2.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "ark",
@@ -27,7 +27,7 @@
         "backgroundColor": "#000000"
       },
       "package": "pt.rgo.ark",
-      "versionCode": 3,
+      "versionCode": 4,
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
@@ -129,6 +129,7 @@
       "./plugins/with-ark-routing",
       "./plugins/with-ark-gradle-memory",
       "./plugins/with-ark-android-release",
+      "./plugins/with-ark-fdroid-autolink",
       [
         "expo-build-properties",
         {

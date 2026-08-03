@@ -29,6 +29,11 @@ extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
     ex.autolinkLibrariesFromCommand(expoAutolinking.rnConfigCommand)
   }
 }
+// @generated begin ark-fdroid-autolink-exclude - expo prebuild (DO NOT MODIFY) sync-d26c0e8e7bf59b17e9dc73da04b7b4bb38926ebf
+if (System.getenv('ARK_DISTRIBUTION') == 'fdroid') {
+  expoAutolinking.exclude = ['expo-location', 'expo-notifications']
+}
+// @generated end ark-fdroid-autolink-exclude
 expoAutolinking.useExpoModules()
 
 rootProject.name = 'Ark'

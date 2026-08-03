@@ -35,6 +35,9 @@ const webRuntimeShims = {
 // unavailable-behavior shims used on web. `react-native.config.js` excludes the
 // native modules from autolinking, so these shims must cover every runtime
 // import (initExecutorch, hooks, voice services, dynamic llama import).
+// F-Droid cannot ship Google Play Services or Firebase dependencies, so the
+// fdroid flavor removes the gms/firebase-bearing native modules (expo-location,
+// expo-notifications) and routes their JS imports to FOSS-backed shims.
 const fdroidRuntimeShims = {
   'react-native-executorch': path.resolve(__dirname, 'src/shims/react-native-executorch.web.ts'),
   'react-native-executorch-expo-resource-fetcher': path.resolve(
@@ -42,6 +45,8 @@ const fdroidRuntimeShims = {
     'src/shims/react-native-executorch-resource-fetcher.web.ts'
   ),
   '@react-native-ai/llama': path.resolve(__dirname, 'src/shims/react-native-ai-llama.fdroid.ts'),
+  'expo-location': path.resolve(__dirname, 'src/shims/expo-location.fdroid.ts'),
+  'expo-notifications': path.resolve(__dirname, 'src/shims/expo-notifications.fdroid.ts'),
 };
 
 config.resolver.resolveRequest = (context, moduleName, platform) => {

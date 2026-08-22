@@ -13,7 +13,8 @@ describe('release CI contracts', () => {
     expect(pkg.scripts.typecheck).toContain('bun run typecheck:tests');
     expect(pkg.scripts['typecheck:app']).toBe('tsc --noEmit');
     expect(pkg.scripts['typecheck:tests']).toContain('tsconfig.tests.json');
-    expect(pkg.scripts.lint).toContain('eslint .');
+    expect(pkg.scripts.lint).toBe('oxlint');
+    expect(pkg.scripts.format).toBe('oxfmt .');
     expect(pkg.scripts.check).toContain('bun run typecheck');
     expect(pkg.scripts.check).toContain('bun run lint');
     expect(pkg.scripts.check).toContain('bun run test');
@@ -81,15 +82,19 @@ describe('release CI contracts', () => {
     const devenvNix = readFileSync(join(process.cwd(), 'devenv.nix'), 'utf8');
 
     // The devenv-installed hook config must drive the same gates as the
-    // GitHub Actions release workflow: typecheck, lint, test, prettier.
-    for (const hook of ['typecheck', 'lint', 'test', 'prettier-check']) {
+    // GitHub Actions release workflow: typecheck, lint, format, and tests.
+    for (const hook of ['typecheck', 'lint', 'test', 'format-check']) {
       expect(devenvNix).toContain(`${hook} = {`);
       expect(devenvNix).toContain(`name = "${hook}-wrapper"`);
     }
-    expect(devenvNix).toContain('bunx prettier --check .');
+    expect(devenvNix).toContain('bun run format:check');
     expect(devenvNix).toContain('bunx tsc --noEmit');
-    expect(devenvNix).toContain('bunx eslint . --quiet');
+    expect(devenvNix).toContain('bun run lint');
     expect(devenvNix).toContain('bun run test');
+
+    const oxlintConfig = readFileSync(join(process.cwd(), '.oxlintrc.json'), 'utf8');
+    expect(oxlintConfig).toContain('anti-slop');
+    expect(existsSync(join(process.cwd(), 'tools/oxlint/anti-slop/index.ts'))).toBe(true);
 
     const gitignore = readFileSync(join(process.cwd(), '.gitignore'), 'utf8');
     expect(gitignore).toContain('.githooks/');

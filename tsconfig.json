@@ -9,5 +9,5 @@
     }
   },
   "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
-  "exclude": ["**/*.test.ts", "**/*.test.tsx", "**/*.rntl.ts", "**/*.rntl.tsx"]
+  "exclude": ["**/*.test.ts", "**/*.test.tsx", "**/*.rntl.ts", "**/*.rntl.tsx", "tools"]
 }

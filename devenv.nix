@@ -73,12 +73,12 @@ let
     ];
   };
 
-  prettier-check-wrapper = pkgs.writeShellApplication {
-    name = "prettier-check-wrapper";
+  format-check-wrapper = pkgs.writeShellApplication {
+    name = "format-check-wrapper";
     runtimeInputs = [ bunWrappers ];
     text = ''
       cd "${config.git.root}"
-      exec bunx prettier --check .
+      exec bun run format:check
     '';
   };
   typecheck-wrapper = pkgs.writeShellApplication {
@@ -94,7 +94,7 @@ let
     runtimeInputs = [ bunWrappers ];
     text = ''
       cd "${config.git.root}"
-      exec bunx eslint . --quiet
+      exec bun run lint
     '';
   };
   test-wrapper = pkgs.writeShellApplication {
@@ -201,9 +201,9 @@ in
   };
 
   git-hooks.hooks = {
-    prettier-check = {
+    format-check = {
       enable = true;
-      entry = "${lib.getExe prettier-check-wrapper}";
+      entry = "${lib.getExe format-check-wrapper}";
       files = ".";
       pass_filenames = false;
     };

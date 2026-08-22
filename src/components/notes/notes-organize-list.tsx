@@ -1,3 +1,4 @@
+import { getNoteTheme } from '@/constants/note-themes';
 import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';

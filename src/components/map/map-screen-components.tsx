@@ -655,7 +655,7 @@ export function MissingRegionPromptModal({
               ) : (
                 <Icon as={Download} className="size-4" />
               )}
-              <Text>{unsupported ? 'Planned' : 'Download Map'}</Text>
+              <Text>{unsupported ? 'Planned' : 'Download map'}</Text>
             </Button>
           )}
           {unsupportedReason ? (

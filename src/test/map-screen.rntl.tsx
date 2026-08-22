@@ -338,7 +338,7 @@ describe('MapScreen', () => {
     expect(view.getByText('Queued')).toBeOnTheScreen();
     expect(view.getByText('Navigation graph')).toBeOnTheScreen();
     expect(view.getByText('25%')).toBeOnTheScreen();
-    expect(view.queryByText('Download Map')).toBeNull();
+    expect(view.queryByText('Download map')).toBeNull();
   });
 
   test('mounts fallback map search, saved data, and offline map recovery controls', async () => {

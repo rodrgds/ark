@@ -31,7 +31,7 @@ export function BackupSection({
   return (
     <Card className="gap-3">
       <View className="gap-1">
-        <Text variant="large">Encrypted Backup</Text>
+        <Text variant="large">Encrypted backup</Text>
         <Text variant="muted">
           Exports notes, imported documents, saved spots, routes, feeds, checklist state, and
           selected settings. Models, maps, guide packs, indexes, caches, and download queues stay

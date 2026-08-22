@@ -33,12 +33,12 @@ export default function FinishScreen() {
         />
         <OnboardingFeature
           icon={Zap}
-          title="Offline Tools"
+          title="Offline tools"
           description="Use downloaded maps and guides without a signal."
         />
         <OnboardingFeature
           icon={Download}
-          title="Maps and Guides"
+          title="Maps and guides"
           description="Add more maps and guides anytime."
         />
       </View>

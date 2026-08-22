@@ -6,6 +6,8 @@ import { Text } from '@/components/ui/text';
 import { showSheetAlert } from '@/components/ui/sheet-alert';
 import { useArkTextToSpeech } from '@/hooks/use-ark-text-to-speech';
 import { getNativePdf } from '@/components/readers/native-pdf';
+import type { PdfRef } from 'react-native-pdf';
+import type { ElementType } from 'react';
 import { ContentPackService } from '@/services/content/content-pack.service';
 import { GuideReaderService, type ReaderContent } from '@/services/content/guide-reader.service';
 import { OcrService } from '@/services/ocr/ocr.service';
@@ -441,8 +443,8 @@ function isReaderNavigationAllowed(content: ReaderContent, url: string) {
 type ReaderContentViewProps = {
   content: ReaderContent | null;
   isPdf: boolean;
-  Pdf: any;
-  pdfRef: React.RefObject<any>;
+  Pdf: ElementType | null;
+  pdfRef: React.RefObject<PdfRef | null>;
   pdfSource: { uri: string };
   initialPage: number;
   webViewRef: React.RefObject<WebView | null>;
@@ -666,7 +668,7 @@ function useGuideReaderController() {
   const currentPageRef = React.useRef(1);
   const webTextSnapshotRef = React.useRef('');
   const webViewRef = React.useRef<WebView>(null);
-  const pdfRef = React.useRef<any>(null);
+  const pdfRef = React.useRef<PdfRef | null>(null);
 
   const pdfSource = React.useMemo(() => {
     return { uri: content?.uri || '' };
@@ -883,7 +885,7 @@ function useGuideReaderController() {
       type: 'webViewLoadErrorChanged',
       error:
         err && typeof err === 'object' && 'message' in err
-          ? String((err as any).message)
+          ? String((err as { message: unknown }).message)
           : String(err),
     });
   }

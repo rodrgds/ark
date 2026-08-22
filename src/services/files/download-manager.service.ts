@@ -832,7 +832,7 @@ export class DownloadManagerService {
               () => undefined
             );
           }
-        } catch (downloadError) {
+        } catch {
           failedImageUrls.add(imageUrl);
           await FileSystem.deleteAsync(destinationUri, { idempotent: true }).catch(() => undefined);
         } finally {

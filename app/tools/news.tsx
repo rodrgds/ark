@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
-import { confirmDestructive, showSheetAlert } from '@/components/ui/sheet-alert';
+import { confirmDestructive } from '@/components/ui/sheet-alert';
 import { Text } from '@/components/ui/text';
 import { BATTERY_POLL_INTERVALS_MS } from '@/constants/battery';
 import { useBatteryReduceMode } from '@/hooks/use-battery-reduce-mode';
@@ -214,7 +214,7 @@ export default function NewsScreen() {
                   size="sm"
                   variant={feed.enabled ? 'default' : 'outline'}
                   onPress={async () => {
-                    await RssService.setFeedEnabled(feed.id, !Boolean(feed.enabled));
+                    await RssService.setFeedEnabled(feed.id, !feed.enabled);
                     await load();
                   }}>
                   <Text>{feed.enabled ? 'On' : 'Off'}</Text>

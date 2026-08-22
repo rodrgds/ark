@@ -89,7 +89,7 @@ function isEmptyEditorPayload(body: string, html: string) {
   return !body.trim() && (!html.trim() || html.trim() === '<p></p>');
 }
 
-function getEditorCss(noteTheme: NoteThemeVariant, minHeight: number, bottomInset: number) {
+function getEditorCss(noteTheme: NoteThemeVariant, minHeight: number) {
   return `
     html, body {
       background: ${noteTheme.background};
@@ -262,7 +262,7 @@ export function RichNoteEditor({
     [noteTheme.background]
   );
   const editorCss = React.useMemo(
-    () => getEditorCss(noteTheme, minHeight, bottomInset),
+    () => getEditorCss(noteTheme, minHeight),
     [bottomInset, minHeight, noteTheme]
   );
   const bridgeExtensions = React.useMemo(

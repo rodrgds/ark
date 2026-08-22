@@ -35,7 +35,6 @@ const UI_ALT_PATTERNS: RegExp[] = [
   /^(icon|logo)$/i,
 ];
 
-const CHROME_CONTAINER_TAGS = ['header', 'nav', 'footer', 'aside', 'form'];
 const CHROME_ICON_MIN_SIZE = 64;
 
 function isIconUrl(value: string): boolean {

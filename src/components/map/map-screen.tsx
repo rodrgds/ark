@@ -212,7 +212,7 @@ export default function MapScreen() {
   const [zoom, setZoom] = React.useState<number>(WORLD_OVERVIEW_ZOOM);
   const mapZoomRef = React.useRef(WORLD_OVERVIEW_ZOOM);
   const [mapReady, setMapReady] = React.useState(false);
-  const [showEmergencyPinsOnly, setShowEmergencyPinsOnly] = React.useState(false);
+  const [showEmergencyPinsOnly] = React.useState(false);
   const [busy, setBusy] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [catalogMeta, setCatalogMeta] = React.useState(() => MapPresetsService.getCatalogMeta());
@@ -1198,7 +1198,6 @@ export default function MapScreen() {
         canMount={canMountMap}
         center={mapViewportCenter}
         fullscreen={fullscreen}
-        hasDownloadedRegion={hasDownloadedRegion}
         initialZoom={mapViewportZoom}
         isSearchActive={searchFocused || topMode === 'search'}
         mapBearing={mapBearing}

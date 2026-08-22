@@ -1,7 +1,6 @@
 import { Card } from '@/components/ui/card';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
-import { getNoteTheme } from '@/constants/note-themes';
 import type { EffectiveTheme, ThemeColors } from '@/constants/theme';
 import { getNotePreviewText } from '@/lib/note-text';
 import { useThemeStore } from '@/stores/theme-store';
@@ -37,7 +36,6 @@ export function NotesOrganizeList({
   return (
     <View className="gap-2">
       {notes.map((note, index) => {
-        const noteTheme = getNoteTheme(note.themeId, effectiveTheme, colors);
         const moving = movingNoteId === note.id;
         return (
           <DraggableOrganizeRow

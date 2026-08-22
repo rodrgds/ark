@@ -190,7 +190,7 @@ export class ZimHeaderParser {
     return header.mimeTypes.some((mime) => mime === 'text/html' || mime.startsWith('text/html;'));
   }
 
-  private static invalidResult(reason: string): ZimHeaderInfo {
+  private static invalidResult(_reason: string): ZimHeaderInfo {
     return {
       valid: false,
       majorVersion: 0,

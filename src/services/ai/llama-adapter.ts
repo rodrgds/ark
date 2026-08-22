@@ -84,7 +84,6 @@ export class LlamaAdapter {
     const abortController = new AbortController();
     activeAbortController = abortController;
     activeModel = runtime;
-    const model = runtime.model;
     const isGemma = isGemmaModel(runtime.pack);
     const modelInput = prepareInputForModel(input, runtime.pack);
     const useTools = !isGemma && !hasImageAttachments(input);

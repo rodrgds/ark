@@ -12,11 +12,6 @@ import { CartesianChart, Line } from 'victory-native';
 import * as React from 'react';
 import { View } from 'react-native';
 
-type ChartDatum = {
-  x: number;
-  y: number;
-};
-
 export function TrackMetricChart({
   title,
   subtitle,

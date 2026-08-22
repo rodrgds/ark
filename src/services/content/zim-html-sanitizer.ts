@@ -24,7 +24,7 @@ export function sanitizeArticleHtml(html: string): string {
   if (!html) return '';
   return html
     .replace(/<!doctype[\s\S]*?>/gi, '')
-    .replace(/<\!--[\s\S]*?-->/g, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
     .replace(STRIP_BLOCK_TAG, '')
     .replace(STRIP_VOID_TAG, '')
     .replace(STRIP_EVENT_HANDLER, '')

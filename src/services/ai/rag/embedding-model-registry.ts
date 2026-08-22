@@ -1,5 +1,4 @@
 import { getEmbeddingModelConfigById } from '@/services/ai/embedding-models';
-import type { EmbeddingModelConfig } from '@/services/ai/embedding-models';
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 type EmbeddingModelDb = {

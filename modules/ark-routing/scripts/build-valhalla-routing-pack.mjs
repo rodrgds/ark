@@ -33,7 +33,7 @@ if (extraConfig) {
   if (!existsSync(extraConfig)) fail(`Extra Valhalla config not found: ${extraConfig}`);
   const base = JSON.parse(readFile(config));
   const extra = JSON.parse(readFile(extraConfig));
-  const merged = { ...base, ...extra, mjolnir: { ...base.mjolnir, ...(extra.mjolnir ?? {}) } };
+  const merged = { ...base, ...extra, mjolnir: { ...base.mjolnir, ...extra.mjolnir } };
   writeFileSync(config, JSON.stringify(merged, null, 2));
 }
 

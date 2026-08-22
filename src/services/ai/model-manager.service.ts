@@ -2,7 +2,6 @@ import { ContentPackService } from '@/services/content/content-pack.service';
 import {
   DEFAULT_EMBEDDING_MODEL_ID,
   EMBEDDING_MODEL_OPTIONS,
-  EMBEDDING_MODEL_CONFIGS,
   getEmbeddingModelConfigById,
   isEmbeddingModelPack,
 } from '@/services/ai/embedding-models';

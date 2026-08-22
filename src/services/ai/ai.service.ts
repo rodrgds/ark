@@ -55,7 +55,7 @@ function throwIfCancelled(request: ActiveAiRequest) {
   if (request.cancelled) throw new AiRequestCancelledError();
 }
 
-export function isAiRequestCancelledError(error: unknown) {
+export function isAiRequestCancelledError<T>(error: T) {
   return error instanceof AiRequestCancelledError;
 }
 
@@ -115,17 +115,18 @@ export class AIService {
   ): Promise<AiMessage[]> {
     const db = await DatabaseClient.getDb();
     const params: Array<string | number> = [threadId];
+    const { before, limit } = options ?? {};
     const beforeClause =
-      typeof options.before === 'number'
+      before !== undefined && Number.isFinite(before)
         ? (() => {
-            params.push(options.before);
+            params.push(before);
             return 'AND created_at < ?';
           })()
         : '';
     const limitClause =
-      typeof options.limit === 'number'
+      limit !== undefined && Number.isFinite(limit)
         ? (() => {
-            params.push(options.limit);
+            params.push(limit);
             return 'LIMIT ?';
           })()
         : '';
@@ -205,11 +206,7 @@ export class AIService {
        WHERE id = ?`,
       [
         settings.selectedModelId ?? null,
-        typeof settings.chatModelDisabled === 'boolean'
-          ? settings.chatModelDisabled
-            ? 1
-            : 0
-          : null,
+        settings.chatModelDisabled !== undefined ? (settings.chatModelDisabled ? 1 : 0) : null,
         Date.now(),
         threadId,
       ]
@@ -242,7 +239,7 @@ export class AIService {
         request.threadId = threadId;
         activeRequests.set(threadId, request);
       }
-      if ('selectedModelId' in validated || typeof validated.chatModelDisabled === 'boolean') {
+      if ('selectedModelId' in validated || validated.chatModelDisabled !== undefined) {
         await this.updateThreadModelSettings(threadId, {
           selectedModelId: validated.selectedModelId ?? null,
           chatModelDisabled: validated.chatModelDisabled ?? null,
@@ -440,10 +437,7 @@ function sourceSearchResponse(citations: AiCitation[]): AiAdapterResponse {
   }
 
   const results = citations.map((citation, index) => {
-    const location = [
-      citation.sectionTitle,
-      typeof citation.page === 'number' ? `page ${citation.page}` : null,
-    ]
+    const location = [citation.sectionTitle, citation.page != null ? `page ${citation.page}` : null]
       .filter(Boolean)
       .join(', ');
     const snippet = citation.snippet.trim().replace(/\s+/g, ' ');

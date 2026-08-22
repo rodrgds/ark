@@ -2,6 +2,8 @@ import type { MapPreset } from '@/constants/map-presets';
 import type { MapRegion } from '@/types/maps';
 
 const BYTES_PER_MB = 1024 * 1024;
+// SAFETY: the bundled catalog ships with the app; only the routing size
+// fields are read here.
 const bundledCatalog = require('../../../assets/map-catalog.json') as {
   regions?: Array<Pick<MapPreset, 'id' | 'name' | 'routingSizeMb'>>;
 };

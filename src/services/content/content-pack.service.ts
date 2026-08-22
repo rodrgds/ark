@@ -73,9 +73,10 @@ export class ContentPackService {
 
   static async installPackWithCompanions(id: string) {
     await this.installPack(id);
-    for (const projectorId of [getVoiceProjectorId(id), getVisionProjectorId(id)].filter(
-      Boolean
-    ) as string[]) {
+    const companionIds = [getVoiceProjectorId(id), getVisionProjectorId(id)].filter(
+      (projectId): projectId is string => Boolean(projectId)
+    );
+    for (const projectorId of companionIds) {
       await this.installCompanionPack(projectorId);
     }
   }

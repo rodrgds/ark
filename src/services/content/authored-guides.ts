@@ -8,7 +8,7 @@ type AuthoredGuide = {
   format: 'html' | 'markdown';
 };
 
-export const AUTHORED_GUIDES: Record<string, AuthoredGuide> = {
+export const AUTHORED_GUIDES = {
   'household-readiness': {
     title: 'Household Readiness & Go-Bag',
     description:
@@ -604,4 +604,4 @@ Emergencies worsen sleep, pain, anxiety, addiction risk, conflict, and decision 
 A calm checklist is not overkill. It protects people when judgment is degraded.
 `,
   },
-};
+} satisfies Record<string, AuthoredGuide>;

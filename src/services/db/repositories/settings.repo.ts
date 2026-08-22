@@ -1,29 +1,35 @@
 import { DatabaseClient } from '@/services/db/client';
+import { isJsonString, isJsonObject, type Json } from '@/lib/decode';
 import type { LabelColorMap } from '@/lib/label-colors';
 import type { OnboardingState, VaultState } from '@/types/db';
 
 function parseLabelColorMap(value: string | null): LabelColorMap {
   if (!value) return {};
   try {
-    const parsed = JSON.parse(value) as Record<string, unknown>;
-    if (!parsed || typeof parsed !== 'object') return {};
-    return Object.fromEntries(
-      Object.entries(parsed).filter(([, color]) => typeof color === 'string' && color.trim())
-    ) as LabelColorMap;
+    // SAFETY: label color maps were written by this repository; entries that
+    // are not non-empty strings are dropped instead of trusted.
+    const parsed = JSON.parse(value) as Json;
+    if (!isJsonObject(parsed)) return {};
+    const entries = Object.entries(parsed).filter(
+      (entry): entry is [string, string] => isJsonString(entry[1]) && entry[1].trim().length > 0
+    );
+    return Object.fromEntries(entries);
   } catch {
     return {};
   }
 }
 
-function parseLabelList(value: string | null) {
-  if (!value) return [] as string[];
+function parseLabelList(value: string | null): string[] {
+  if (!value) return [];
   try {
-    const parsed = JSON.parse(value) as unknown;
+    // SAFETY: label lists were written by this repository; non-string
+    // entries are filtered out below.
+    const parsed = JSON.parse(value) as Json;
     if (!Array.isArray(parsed)) return [];
     return Array.from(
       new Set(
         parsed
-          .filter((item): item is string => typeof item === 'string')
+          .filter((item): item is string => isJsonString(item))
           .map((item) => item.trim())
           .filter(Boolean)
       )

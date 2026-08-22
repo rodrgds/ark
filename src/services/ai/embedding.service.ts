@@ -1,6 +1,7 @@
 import {
   DEFAULT_EMBEDDING_MODEL_ID,
   EMBEDDING_MODEL_CONFIGS,
+  getEmbeddingModelConfigById,
   EXECUTORCH_MPNET_EMBEDDING_MODEL_ID,
   type EmbeddingModelConfig,
 } from '@/services/ai/embedding-models';
@@ -46,6 +47,7 @@ export class EmbeddingService {
 
   static async prepareActiveModel(onDownloadProgress?: (progress: number) => void) {
     const config = await this.getActiveModelConfig();
+    if (!config) return null;
     return getEmbeddingModel(config, onDownloadProgress);
   }
 
@@ -85,7 +87,7 @@ async function execuTorchEmbedding(
   purpose: 'query' | 'document'
 ): Promise<EmbeddingResult | null> {
   const config = await EmbeddingService.getActiveModelConfig();
-  if (config.family !== 'executorch') return null;
+  if (!config || config.family !== 'executorch') return null;
   const model = await getEmbeddingModel(config);
   if (!model) return null;
   const prefix = purpose === 'query' ? config.queryPrefix : config.documentPrefix;
@@ -98,9 +100,11 @@ async function execuTorchEmbedding(
   };
 }
 
-function getConfig(modelId: string | null) {
+function getConfig(modelId: string | null): EmbeddingModelConfig | null {
   return (
-    EMBEDDING_MODEL_CONFIGS[modelId ?? ''] ?? EMBEDDING_MODEL_CONFIGS[DEFAULT_EMBEDDING_MODEL_ID]
+    getEmbeddingModelConfigById(modelId ?? '') ??
+    getEmbeddingModelConfigById(DEFAULT_EMBEDDING_MODEL_ID) ??
+    null
   );
 }
 

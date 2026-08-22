@@ -10,6 +10,8 @@ export class PressureTrendService {
     const snapshots = await SensorsRepository.listSnapshots('barometer', 200);
     const samples = snapshots
       .map((snapshot) => ({
+        // SAFETY: data_json was written by BarometerService.saveSnapshot and
+        // only carries the pressure field.
         pressure: (JSON.parse(snapshot.data_json) as { pressure?: number }).pressure ?? null,
         createdAt: snapshot.created_at,
       }))

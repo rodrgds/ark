@@ -14,9 +14,13 @@ export type AppStateAdapter = {
 };
 
 const defaultAppState: AppStateAdapter = {
-  addEventListener: (event, listener) =>
-    AppState.addEventListener(event as 'change', listener as never),
+  addEventListener: (event, listener) => {
+    // SAFETY: the adapter only ever subscribes to app state changes; the
+    // listener shape matches React Native's AppState event.
+    return AppState.addEventListener(event as 'change', listener as never);
+  },
   get currentState() {
+    // SAFETY: React Native only exposes these three AppState values.
     return AppState.currentState as 'active' | 'background' | 'inactive';
   },
 };

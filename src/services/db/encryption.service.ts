@@ -362,7 +362,7 @@ export class DatabaseEncryptionService {
     }
   }
 
-  static isKeyReadError(error: unknown): error is DatabaseKeyReadError {
+  static isKeyReadError<T>(error: T): error is T & DatabaseKeyReadError {
     return error instanceof DatabaseKeyReadError;
   }
 
@@ -490,17 +490,24 @@ export class DatabaseEncryptionService {
   private static async getUserVersion(db: SQLiteDatabase) {
     const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
     const version = row?.user_version;
-    if (typeof version === 'number' && Number.isInteger(version) && version >= 0) return version;
+    // SAFETY: PRAGMA user_version returns an integer column; SQLite drivers
+    // can hand it back as a number or a numeric string.
+    const versionNumber = version as number;
+    if (Number.isInteger(versionNumber) && versionNumber >= 0) return versionNumber;
     return 0;
   }
 
   private static async loadFileSystem(): Promise<DatabaseFileSystem> {
+    // SAFETY: the legacy expo-file-system module shape differs between
+    // builds; candidates cover each export layout and are probed below.
     const fileSystemModule = await import('expo-file-system/legacy');
+    // SAFETY: each candidate covers one observed legacy-module export layout;
+    // isDatabaseFileSystem probes the members before any is used.
     const candidates = [
       fileSystemModule,
-      (fileSystemModule as typeof fileSystemModule & { default?: unknown }).default,
+      (fileSystemModule as typeof fileSystemModule & { default?: object }).default,
       (
-        (fileSystemModule as typeof fileSystemModule & { default?: { default?: unknown } })
+        (fileSystemModule as typeof fileSystemModule & { default?: { default?: object } })
           .default ?? {}
       ).default,
     ];
@@ -511,17 +518,21 @@ export class DatabaseEncryptionService {
     return fileSystem;
   }
 
-  private static isDatabaseFileSystem(candidate: unknown): candidate is DatabaseFileSystem {
+  private static isDatabaseFileSystem<T>(candidate: T): candidate is T & DatabaseFileSystem {
+    if (!candidate || typeof candidate !== 'object') return false;
+    // SAFETY: only member presence is probed here; calls happen after this
+    // predicate narrows the candidate to DatabaseFileSystem.
+    const probe = candidate as Partial<DatabaseFileSystem>;
     return (
-      typeof candidate === 'object' &&
-      candidate !== null &&
-      typeof (candidate as DatabaseFileSystem).getInfoAsync === 'function' &&
-      typeof (candidate as DatabaseFileSystem).moveAsync === 'function' &&
-      typeof (candidate as DatabaseFileSystem).deleteAsync === 'function'
+      typeof probe.getInfoAsync === 'function' &&
+      typeof probe.moveAsync === 'function' &&
+      typeof probe.deleteAsync === 'function'
     );
   }
 
   private static databasePath(db: SQLiteDatabase) {
+    // SAFETY: expo-sqlite exposes databasePath on the raw handle even though
+    // the typed surface omits it.
     const path = (db as SQLiteDatabase & { databasePath?: string }).databasePath;
     if (!path || !this.isUsableDatabasePath(path)) {
       throw new PlaintextDatabaseMigrationError(

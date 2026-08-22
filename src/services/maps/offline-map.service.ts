@@ -1,3 +1,4 @@
+import type { ManifestJson } from '@/services/maps/map.service';
 import { MapsRepository } from '@/services/db/repositories/maps.repo';
 import { TracksRepository } from '@/services/db/repositories/tracks.repo';
 import { RagCleanupService } from '@/services/ai/rag-cleanup.service';
@@ -966,10 +967,7 @@ function mapRegionStatusLabel(status: MapRegion['status']) {
   return status;
 }
 
-function isPackForRegion(
-  candidate: { id: string; metadata?: Record<string, unknown> },
-  region: MapRegion
-) {
+function isPackForRegion(candidate: { id: string; metadata?: ManifestJson }, region: MapRegion) {
   const metadata = candidate.metadata ?? {};
   return (
     candidate.id === region.offlinePackId ||

@@ -88,7 +88,7 @@ function normalizeNotePatchBody(current: Note, patch: NotePatch): NotePatch {
   if (hasBodyField && !hasRichField) {
     return {
       ...patch,
-      body: typeof patch.body === 'string' ? patch.body : current.body,
+      body: patch.body ?? current.body,
     };
   }
 
@@ -105,7 +105,7 @@ function normalizeNotePatchBody(current: Note, patch: NotePatch): NotePatch {
 
   return {
     ...patch,
-    body: typeof patch.body === 'string' ? patch.body : current.body,
+    body: patch.body ?? current.body,
   };
 }
 

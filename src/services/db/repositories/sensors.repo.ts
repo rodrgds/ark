@@ -2,7 +2,7 @@ import { randomUUID } from 'expo-crypto';
 import { DatabaseClient } from '@/services/db/client';
 
 export class SensorsRepository {
-  static async saveSnapshot(type: string, data: unknown) {
+  static async saveSnapshot<T>(type: string, data: T) {
     const db = await DatabaseClient.getDb();
     await db.runAsync(
       'INSERT INTO sensor_snapshots (id, type, data_json, created_at) VALUES (?, ?, ?, ?)',

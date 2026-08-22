@@ -27,6 +27,10 @@ export function arkDownloadHeaders(options: { accept?: string; platform?: Header
 }
 
 function runtimePlatform(): HeaderPlatform {
-  if (typeof process === 'undefined') return null;
-  return process.env.EXPO_OS ?? process.env.EXPO_PLATFORM;
+  // The process global is absent in some runtimes; optional access treats
+  // that the same as missing env vars.
+  // SAFETY: only the Node-style process.env bag is read here, never assigned.
+  const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
+    ?.env;
+  return env?.EXPO_OS ?? env?.EXPO_PLATFORM ?? null;
 }

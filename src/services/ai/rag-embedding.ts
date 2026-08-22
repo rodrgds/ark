@@ -48,20 +48,22 @@ export function serializeEmbedding(vector: number[]) {
   return new Uint8Array(Float32Array.from(vector).buffer);
 }
 
-export function deserializeEmbedding(blob: unknown) {
+export function deserializeEmbedding(blob: Uint8Array | ArrayBuffer | DataView | null) {
   return deserializeEmbeddingWithDimensions(blob, RAG_HASH_EMBEDDING_DIMENSIONS);
 }
 
-export function deserializeEmbeddingWithDimensions(blob: unknown, dimensions: number) {
+export function deserializeEmbeddingWithDimensions(
+  blob: Uint8Array | ArrayBuffer | DataView | null,
+  dimensions: number
+) {
+  if (!blob) return null;
   const bytes =
     blob instanceof Uint8Array
       ? blob
       : blob instanceof ArrayBuffer
         ? new Uint8Array(blob)
-        : ArrayBuffer.isView(blob)
-          ? new Uint8Array(blob.buffer, blob.byteOffset, blob.byteLength)
-          : null;
-  if (!bytes || bytes.byteLength !== dimensions * 4) return null;
+        : new Uint8Array(blob.buffer, blob.byteOffset, blob.byteLength);
+  if (bytes.byteLength !== dimensions * 4) return null;
   const copy = new Uint8Array(bytes);
   return Array.from(new Float32Array(copy.buffer));
 }
@@ -94,7 +96,7 @@ function normalizeToken(token: string) {
 function expandDomainAliases(tokens: string[]) {
   const expanded = [...tokens];
   for (const token of tokens) {
-    const aliases = DOMAIN_ALIASES[token];
+    const aliases = DOMAIN_ALIASES.get(token);
     if (aliases) expanded.push(...aliases);
   }
   return expanded;
@@ -131,18 +133,20 @@ function hashToken(token: string) {
   return hash >>> 0;
 }
 
-const DOMAIN_ALIASES: Record<string, string[]> = {
-  bleed: ['hemorrhage', 'wound', 'pressure'],
-  hemorrhage: ['bleed', 'wound', 'pressure'],
-  potable: ['water', 'drink', 'safe'],
-  purify: ['filter', 'boil', 'water'],
-  dehydration: ['water', 'fluid', 'thirst'],
-  hypothermia: ['cold', 'exposure', 'warm'],
-  hyperthermia: ['heat', 'exposure', 'cool'],
-  fever: ['temperature', 'illness'],
-  fracture: ['bone', 'splint'],
-  burn: ['cool', 'wound'],
-  shelter: ['cover', 'warmth', 'weather'],
-  compass: ['bearing', 'navigation'],
-  route: ['navigation', 'path'],
-};
+const DOMAIN_ALIASES = new Map<string, string[]>(
+  Object.entries({
+    bleed: ['hemorrhage', 'wound', 'pressure'],
+    hemorrhage: ['bleed', 'wound', 'pressure'],
+    potable: ['water', 'drink', 'safe'],
+    purify: ['filter', 'boil', 'water'],
+    dehydration: ['water', 'fluid', 'thirst'],
+    hypothermia: ['cold', 'exposure', 'warm'],
+    hyperthermia: ['heat', 'exposure', 'cool'],
+    fever: ['temperature', 'illness'],
+    fracture: ['bone', 'splint'],
+    burn: ['cool', 'wound'],
+    shelter: ['cover', 'warmth', 'weather'],
+    compass: ['bearing', 'navigation'],
+    route: ['navigation', 'path'],
+  })
+);

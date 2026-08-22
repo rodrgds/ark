@@ -7,12 +7,7 @@ import { AUTHORED_GUIDES } from '@/services/content/authored-guides';
 import { utf8ByteLength } from '@/lib/format';
 
 async function sha256(value: string) {
-  const algorithm = Crypto.CryptoDigestAlgorithm.SHA256 ?? 'SHA-256';
-  if (typeof Crypto.digestStringAsync === 'function') {
-    return Crypto.digestStringAsync(algorithm, value);
-  }
-  const digest = await Crypto.digest(algorithm, new TextEncoder().encode(value));
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, value);
 }
 
 export class AuthoredGuideSeedService {

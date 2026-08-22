@@ -1,3 +1,4 @@
+import { isJsonString, type Json } from '@/lib/decode';
 import {
   ARK_TABS,
   DEFAULT_ENABLED_TABS,
@@ -21,14 +22,16 @@ export type TabPreferences = {
 function parseTabIds(value: string | null) {
   if (!value) return null;
   try {
-    const parsed = JSON.parse(value) as unknown;
+    // SAFETY: persisted tab preferences were written by this service; the
+    // filter keeps only entries that are known tab ids.
+    const parsed = JSON.parse(value) as Json[];
     if (!Array.isArray(parsed)) return null;
-    const seen = new Set<ArkTabId>();
+    const seen = new Set<string>();
     return parsed.filter((id): id is ArkTabId => {
-      if (typeof id !== 'string' || !tabIds.has(id) || seen.has(id as ArkTabId)) {
+      if (!isJsonString(id) || !tabIds.has(id) || seen.has(id)) {
         return false;
       }
-      seen.add(id as ArkTabId);
+      seen.add(id);
       return true;
     });
   } catch {

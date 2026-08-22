@@ -7,12 +7,20 @@ type MapLibreLogEvent = {
   message?: string;
 };
 
+// Style sources and layers are MapLibre style-JSON documents; their exact
+// specs are owned by MapLibre, so values stay structural JSON here.
+type JsonPrimitive = string | number | boolean | null | undefined;
+export type ManifestJson = { [key: string]: Json };
+type Json = JsonPrimitive | Json[] | ManifestJson;
+type StyleSource = ManifestJson;
+type StyleLayer = ManifestJson;
+
 type StyleSpecification = {
   version: 8;
   glyphs?: string;
   sprite?: string;
-  sources: Record<string, unknown>;
-  layers: Array<Record<string, unknown>>;
+  sources: { [name: string]: StyleSource };
+  layers: StyleLayer[];
 };
 
 type MapStyleColors = {
@@ -41,13 +49,14 @@ type OfflinePackStatusLike = {
 
 type OfflinePackLike = {
   id: string;
-  metadata?: Record<string, unknown>;
+  metadata?: ManifestJson;
   status: () => Promise<OfflinePackStatusLike>;
   pause: () => Promise<void>;
   resume: () => Promise<void>;
 };
 
-export type MapLibreModule = Record<string, unknown> & {
+// The known native module surface used by Ark.
+export type MapLibreModule = {
   LogManager?: {
     onLog: (handler: (event: MapLibreLogEvent) => boolean) => void;
   };
@@ -69,7 +78,7 @@ export type MapLibreModule = Record<string, unknown> & {
         bounds: [number, number, number, number];
         minZoom?: number;
         maxZoom?: number;
-        metadata?: Record<string, unknown>;
+        metadata?: ManifestJson;
       },
       progress: (pack: OfflinePackLike, status: OfflinePackStatusLike) => void,
       error: (pack: OfflinePackLike, error: { message: string }) => void
@@ -85,13 +94,13 @@ const OPENMAPTILES_SOURCE_URL = 'https://tiles.openfreemap.org/planet';
 const OPENMAPTILES_GLYPHS_URL = 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf';
 const STYLE_REACHABILITY_TIMEOUT_MS = 4500;
 
-const OPENFREEMAP_STYLE_URLS: Record<MapTheme, string> = {
+const OPENFREEMAP_STYLE_URLS = {
   oled: 'https://tiles.openfreemap.org/styles/dark',
   dark: 'https://tiles.openfreemap.org/styles/dark',
   light: DEFAULT_MAP_STYLE_URL,
-};
+} satisfies Record<MapTheme, string>;
 
-const MAP_THEME_COLORS: Record<MapTheme, MapStyleColors> = {
+const MAP_THEME_COLORS = {
   oled: {
     background: '#0d0d0d',
     land: '#0d0d0d',
@@ -131,7 +140,7 @@ const MAP_THEME_COLORS: Record<MapTheme, MapStyleColors> = {
     mutedText: '#4a5742',
     border: '#b0bda8',
   },
-};
+} satisfies Record<MapTheme, MapStyleColors>;
 
 let modulePromise: Promise<MapLibreModule | null> | null = null;
 let loggingConfigured = false;
@@ -164,7 +173,9 @@ export class MapService {
     if (!modulePromise) {
       modulePromise = import('@maplibre/maplibre-react-native')
         .then((maplibre) => {
-          const module = maplibre as unknown as MapLibreModule;
+          // SAFETY: the dynamic import returns the native module whose known
+          // members are declared on MapLibreModule.
+          const module = maplibre as MapLibreModule;
           this.configureLogging(module);
           return module;
         })

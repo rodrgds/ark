@@ -25,7 +25,7 @@ export const EXECUTORCH_MPNET_EMBEDDING_DIMENSIONS = 768;
 export const EXECUTORCH_MPNET_EMBEDDING_TITLE = 'ExecuTorch multi-qa MPNet source search';
 export const RAG_HASH_EMBEDDING_TITLE = 'Battery saver source search';
 
-export const EMBEDDING_MODEL_CONFIGS: Record<string, EmbeddingModelConfig> = {
+export const EMBEDDING_MODEL_CONFIGS = {
   [RAG_HASH_EMBEDDING_MODEL_ID]: {
     id: RAG_HASH_EMBEDDING_MODEL_ID,
     family: 'ark-hash',
@@ -60,7 +60,7 @@ export const EMBEDDING_MODEL_CONFIGS: Record<string, EmbeddingModelConfig> = {
     documentPrefix: '',
     normalize: true,
   },
-};
+} satisfies Record<string, EmbeddingModelConfig>;
 
 export const EXECUTORCH_EMBEDDING_MODEL_OPTIONS = [
   EMBEDDING_MODEL_CONFIGS[EXECUTORCH_TEXT_EMBEDDING_MODEL_ID],
@@ -76,9 +76,16 @@ export function isEmbeddingModelPack(pack: Pick<ContentPack, 'id' | 'title' | 'm
   return pack.modelRole === 'embedding';
 }
 
+const EMBEDDING_MODEL_CONFIGS_BY_ID = new Map<string, EmbeddingModelConfig>(
+  Object.entries(EMBEDDING_MODEL_CONFIGS)
+);
+
+/** Look up a known embedding config by pack or model id. */
+export function getEmbeddingModelConfigById(id: string): EmbeddingModelConfig | undefined {
+  return EMBEDDING_MODEL_CONFIGS_BY_ID.get(id);
+}
+
 export function getEmbeddingModelConfig(pack?: Pick<ContentPack, 'id' | 'title'> | null) {
-  if (!pack) return EMBEDDING_MODEL_CONFIGS[DEFAULT_EMBEDDING_MODEL_ID];
-  const known = EMBEDDING_MODEL_CONFIGS[pack.id];
-  if (known) return known;
-  return null;
+  if (!pack) return getEmbeddingModelConfigById(DEFAULT_EMBEDDING_MODEL_ID) ?? null;
+  return getEmbeddingModelConfigById(pack.id) ?? null;
 }

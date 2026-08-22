@@ -255,12 +255,14 @@ function isHtmlSnapshotUri(uri: string) {
 }
 
 function isUserCachedWebPage(packId: string | null | undefined) {
-  return typeof packId === 'string' && packId.startsWith('user-web-');
+  return Boolean(packId?.startsWith('user-web-'));
 }
 
 async function extractUserWebBody(rawHtml: string, sourceUrl: string) {
   const dom = parseHTML(rawHtml);
   return withDefuddleDomGlobals(dom, async () => {
+    // SAFETY: linkedom documents implement the DOM Document interface that
+    // Defuddle's parser targets.
     const result = await Defuddle(dom.document as Parameters<typeof Defuddle>[0], sourceUrl, {
       markdown: false,
       standardize: true,
@@ -349,7 +351,7 @@ export class DownloadManagerService {
       const priorPartial = priorDownloads.find(
         (download) =>
           (download.sourceUrl === input.sourceUrl || download.localUri === localUri) &&
-          typeof download.downloadedBytes === 'number'
+          Number.isFinite(download.downloadedBytes)
       );
       await FileSystemService.ensureSpaceForDownload(input.expectedSizeBytes, {
         alreadyOnDiskBytes: priorPartial?.downloadedBytes ?? null,
@@ -1031,7 +1033,7 @@ export class DownloadManagerService {
     if (packId === undefined) this.downloadPackIds.delete(id);
     else this.downloadPackIds.set(id, packId);
     const pausedTooLong =
-      typeof row.updatedAt === 'number' && Date.now() - row.updatedAt > RESUME_DATA_MAX_AGE_MS;
+      row.updatedAt != null && Date.now() - row.updatedAt > RESUME_DATA_MAX_AGE_MS;
     const clearResumeData =
       pausedTooLong || (row.kind === 'guide' && isHtmlSnapshotUri(row.localUri));
     const resumeProgress = clearResumeData ? 0 : row.progress;

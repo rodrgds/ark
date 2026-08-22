@@ -18,6 +18,8 @@ type BundledOfflinePlaceCatalog = {
   places: BundledOfflinePlace[];
 };
 
+// SAFETY: the bundled place index ships with the app and matches the
+// catalog type maintained alongside it.
 const bundledPlaces = require('../../../assets/offline-places.json') as BundledOfflinePlaceCatalog;
 const SEEDED_KEY = 'maps.offlinePlaces.seededVersion';
 

@@ -1,4 +1,5 @@
 import type { MapCatalog, MapPreset } from '@/constants/map-presets';
+import { isJsonString } from '@/lib/decode';
 import { SettingsRepository } from '@/services/db/repositories/settings.repo';
 
 type RawMapPreset = Partial<Omit<MapPreset, 'bounds' | 'bbox' | 'center' | 'tags'>> & {
@@ -19,30 +20,34 @@ type CatalogNormalizeContext = {
   verifiedSha256?: string;
 };
 
+// SAFETY: the bundled catalog ships with the app and is validated by
+// normalizeCatalog before any region reaches the map.
 const bundledCatalog = require('../../../assets/map-catalog.json') as RawMapCatalog;
 const CATALOG_TIMEOUT_MS = 5000;
 const CACHED_CATALOG_KEY = 'maps.catalog.cached';
-const COUNTRY_NAMES: Record<string, string> = {
-  AR: 'Argentina',
-  AU: 'Australia',
-  BR: 'Brazil',
-  CA: 'Canada',
-  DE: 'Germany',
-  ES: 'Spain',
-  FR: 'France',
-  GB: 'United Kingdom',
-  GR: 'Greece',
-  IE: 'Ireland',
-  IN: 'India',
-  IT: 'Italy',
-  JP: 'Japan',
-  MA: 'Morocco',
-  MX: 'Mexico',
-  NZ: 'New Zealand',
-  PT: 'Portugal',
-  TR: 'Turkey',
-  US: 'United States',
-};
+const COUNTRY_NAMES = new Map<string, string>(
+  Object.entries({
+    AR: 'Argentina',
+    AU: 'Australia',
+    BR: 'Brazil',
+    CA: 'Canada',
+    DE: 'Germany',
+    ES: 'Spain',
+    FR: 'France',
+    GB: 'United Kingdom',
+    GR: 'Greece',
+    IE: 'Ireland',
+    IN: 'India',
+    IT: 'Italy',
+    JP: 'Japan',
+    MA: 'Morocco',
+    MX: 'Mexico',
+    NZ: 'New Zealand',
+    PT: 'Portugal',
+    TR: 'Turkey',
+    US: 'United States',
+  })
+);
 
 export class MapCatalogRepository {
   static getBundledCatalog() {
@@ -62,6 +67,8 @@ export class MapCatalogRepository {
       const body = await response.text();
       const verifiedSha256 = await verifyCatalogIntegrity(body);
       if (verifiedSha256 === false) return cachedCatalog ?? this.getBundledCatalog();
+      // SAFETY: remote catalogs are untrusted by construction; normalizeCatalog
+      // and its validators below decode every field before use.
       const catalog = normalizeCatalog(JSON.parse(body) as RawMapCatalog, {
         sourceUrl: url,
         fetchedAt: new Date().toISOString(),
@@ -84,6 +91,8 @@ export class MapCatalogRepository {
     try {
       const value = await SettingsRepository.get(CACHED_CATALOG_KEY);
       if (!value) return null;
+      // SAFETY: cached catalogs were normalized before caching; the decode
+      // pass below still re-validates every field.
       const catalog = normalizeCatalog(JSON.parse(value) as RawMapCatalog);
       return isUsableCatalog(catalog) ? catalog : null;
     } catch {
@@ -96,8 +105,8 @@ function normalizeCatalog(
   catalog: RawMapCatalog | null | undefined,
   context: CatalogNormalizeContext = {}
 ): MapCatalog {
-  const source = catalog && typeof catalog === 'object' ? catalog : {};
-  const sourceUrl = typeof source.sourceUrl === 'string' ? source.sourceUrl : context.sourceUrl;
+  const source = catalog ?? {};
+  const sourceUrl = isJsonString(source.sourceUrl) ? source.sourceUrl : context.sourceUrl;
   const baseUrl = getCatalogBaseUrl(source, sourceUrl);
   const regions = Array.isArray(source.regions)
     ? source.regions.filter(isValidPreset).map((preset) => normalizePreset(preset, source, baseUrl))
@@ -105,10 +114,10 @@ function normalizeCatalog(
   return {
     version: Number.isFinite(source.version) ? source.version! : 1,
     schemaVersion: normalizePositiveInteger(source.schemaVersion),
-    updatedAt: typeof source.updatedAt === 'string' ? source.updatedAt : '',
+    updatedAt: isJsonString(source.updatedAt) ? source.updatedAt : '',
     generatedAt: normalizeDateString(source.generatedAt),
     expiresAt: normalizeDateString(source.expiresAt),
-    source: typeof source.source === 'string' ? source.source : 'unknown',
+    source: isJsonString(source.source) ? source.source : 'unknown',
     sourceUrl,
     fetchedAt: normalizeDateString(source.fetchedAt) ?? context.fetchedAt,
     verifiedSha256: normalizeSha256(source.verifiedSha256) ?? context.verifiedSha256,
@@ -118,8 +127,8 @@ function normalizeCatalog(
 
 function isValidPreset(preset: RawMapPreset) {
   return (
-    typeof preset?.id === 'string' &&
-    typeof preset.name === 'string' &&
+    isJsonString(preset?.id) &&
+    isJsonString(preset.name) &&
     getPresetBbox(preset) !== null &&
     Number.isFinite(preset.minZoom) &&
     Number.isFinite(preset.maxZoom) &&
@@ -204,7 +213,7 @@ function isFiniteBounds(bounds: RawMapPreset['bounds']) {
   );
 }
 
-function isFiniteBbox(bbox: unknown): bbox is MapPreset['bbox'] {
+function isFiniteBbox<T>(bbox: T): bbox is T & MapPreset['bbox'] {
   if (!Array.isArray(bbox) || bbox.length !== 4) return false;
   const [west, south, east, north] = bbox;
   return (
@@ -233,7 +242,7 @@ function bboxToBounds(bbox: MapPreset['bbox']): MapPreset['bounds'] {
   return { north, south, east, west };
 }
 
-function getPresetCenter(center: unknown, bbox: MapPreset['bbox']): MapPreset['center'] {
+function getPresetCenter<T>(center: T, bbox: MapPreset['bbox']): MapPreset['center'] {
   if (
     Array.isArray(center) &&
     center.length === 2 &&
@@ -277,8 +286,8 @@ function inferLevel(preset: {
   return 'region';
 }
 
-function parseEstimatedSizeMb(estimatedSize: unknown) {
-  if (typeof estimatedSize !== 'string') return undefined;
+function parseEstimatedSizeMb<T>(estimatedSize: T) {
+  if (!isJsonString(estimatedSize)) return undefined;
   const numbers = estimatedSize
     .match(/\d+(?:\.\d+)?/g)
     ?.map(Number)
@@ -287,63 +296,63 @@ function parseEstimatedSizeMb(estimatedSize: unknown) {
   return Math.max(...numbers);
 }
 
-function normalizePositiveNumber(value: unknown) {
+function normalizePositiveNumber<T>(value: T) {
   return Number.isFinite(value) && Number(value) > 0 ? Number(value) : undefined;
 }
 
-function normalizePositiveInteger(value: unknown) {
+function normalizePositiveInteger<T>(value: T) {
   const numberValue = Number(value);
   return Number.isInteger(numberValue) && numberValue > 0 ? numberValue : undefined;
 }
 
-function normalizeEstimatedSize(estimatedSize: unknown, estimatedSizeMb?: number) {
-  if (typeof estimatedSize === 'string' && estimatedSize.trim()) return estimatedSize.trim();
+function normalizeEstimatedSize<T>(estimatedSize: T, estimatedSizeMb?: number) {
+  if (isJsonString(estimatedSize) && estimatedSize.trim()) return estimatedSize.trim();
   return estimatedSizeMb ? `${Math.round(estimatedSizeMb)} MB` : 'Size unavailable';
 }
 
-function normalizeDescription(description: unknown, name: string) {
-  if (typeof description === 'string' && description.trim()) return description.trim();
+function normalizeDescription<T>(description: T, name: string) {
+  if (isJsonString(description) && description.trim()) return description.trim();
   return `Offline map region for ${name}.`;
 }
 
-function normalizeTags(tags: unknown, countryCode?: string) {
+function normalizeTags<T>(tags: T, countryCode?: string) {
   const normalized = Array.isArray(tags)
     ? tags
         .filter((tag): tag is string => typeof tag === 'string')
         .map((tag) => tag.trim())
         .filter(Boolean)
     : [];
-  const countryName = countryCode ? COUNTRY_NAMES[countryCode] : undefined;
+  const countryName = countryCode ? COUNTRY_NAMES.get(countryCode) : undefined;
   if (countryName && !normalized.includes(countryName)) normalized.push(countryName);
   return Array.from(new Set(normalized));
 }
 
-function normalizeCountryCode(countryCode: unknown) {
-  if (typeof countryCode !== 'string') return undefined;
+function normalizeCountryCode<T>(countryCode: T) {
+  if (!isJsonString(countryCode)) return undefined;
   const normalized = countryCode.trim().toUpperCase();
   return /^[A-Z]{2}$/.test(normalized) ? normalized : undefined;
 }
 
-function normalizeDateString(value: unknown) {
-  if (typeof value !== 'string') return undefined;
+function normalizeDateString<T>(value: T) {
+  if (!isJsonString(value)) return undefined;
   const trimmed = value.trim();
   return trimmed ? trimmed : undefined;
 }
 
-function normalizeSha256(value: unknown) {
-  if (typeof value !== 'string') return undefined;
+function normalizeSha256<T>(value: T) {
+  if (!isJsonString(value)) return undefined;
   const normalized = value.trim().toLowerCase();
   return /^[a-f0-9]{64}$/.test(normalized) ? normalized : undefined;
 }
 
 function getCatalogBaseUrl(source: RawMapCatalog, sourceUrl?: string) {
-  const rawBaseUrl = typeof source.baseUrl === 'string' ? source.baseUrl.trim() : '';
+  const rawBaseUrl = isJsonString(source.baseUrl) ? source.baseUrl.trim() : '';
   if (!rawBaseUrl) return sourceUrl;
   return normalizeUrl(rawBaseUrl, sourceUrl) ?? sourceUrl;
 }
 
-function normalizeUrl(value: unknown, baseUrl?: string) {
-  if (typeof value !== 'string' || !value.trim()) return undefined;
+function normalizeUrl<T>(value: T, baseUrl?: string) {
+  if (!isJsonString(value) || !value.trim()) return undefined;
   try {
     const url = new URL(value.trim(), baseUrl);
     return url.protocol === 'https:' || url.protocol === 'http:' ? url.toString() : undefined;
@@ -361,15 +370,12 @@ async function verifyCatalogIntegrity(body: string) {
 
 async function sha256Text(value: string) {
   const Crypto = await import('expo-crypto');
-  const algorithm = Crypto.CryptoDigestAlgorithm.SHA256 ?? 'SHA-256';
-  if (typeof Crypto.digestStringAsync === 'function') {
-    return Crypto.digestStringAsync(algorithm, value);
-  }
-  const digest = await Crypto.digest(algorithm, new TextEncoder().encode(value));
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, value);
 }
 
-function normalizeLevel(level: unknown): MapPreset['level'] | undefined {
+function normalizeLevel(
+  level: string | MapPreset['level'] | undefined
+): MapPreset['level'] | undefined {
   return level === 'world' || level === 'country' || level === 'region' || level === 'city'
     ? level
     : undefined;
@@ -387,7 +393,7 @@ function normalizePackFormat(
   ) {
     return format;
   }
-  const lowerPackUrl = typeof packUrl === 'string' ? packUrl.split('?')[0]?.toLowerCase() : '';
+  const lowerPackUrl = isJsonString(packUrl) ? packUrl.split('?')[0]?.toLowerCase() : '';
   if (lowerPackUrl?.endsWith('.pmtiles')) return 'pmtiles';
   if (lowerPackUrl?.endsWith('.mbtiles')) return 'mbtiles';
   return 'maplibre_offline_pack';

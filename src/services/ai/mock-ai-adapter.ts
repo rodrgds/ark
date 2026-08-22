@@ -10,7 +10,7 @@ export class MockAIAdapter {
     const sourceLines = input.citations.map((citation, index) => {
       const location = [
         citation.sectionTitle,
-        typeof citation.page === 'number' ? `page ${citation.page}` : null,
+        citation.page != null ? `page ${citation.page}` : null,
       ]
         .filter(Boolean)
         .join(', ');

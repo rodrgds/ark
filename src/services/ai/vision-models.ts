@@ -1,9 +1,11 @@
 import type { ContentPack, ContentPackManifest } from '@/types/content';
 
-export const VISION_MODEL_PROJECTORS: Record<string, string> = {
-  'model-gemma4-e2b-it-q4-k-m': 'model-gemma4-e2b-it-mmproj-f16',
-  'model-gemma4-e4b-it-q4-k-m': 'model-gemma4-e4b-it-mmproj-f16',
-};
+const VISION_MODEL_PROJECTORS = new Map<string, string>(
+  Object.entries({
+    'model-gemma4-e2b-it-q4-k-m': 'model-gemma4-e2b-it-mmproj-f16',
+    'model-gemma4-e4b-it-q4-k-m': 'model-gemma4-e4b-it-mmproj-f16',
+  })
+);
 
 type ModelLike = Pick<ContentPack | ContentPackManifest, 'id' | 'title' | 'modelRole'>;
 
@@ -13,7 +15,7 @@ export function isVisionProjectorPack(pack: Pick<ModelLike, 'modelRole'>) {
 
 export function getVisionProjectorId(modelId: string | null | undefined) {
   if (!modelId) return null;
-  return VISION_MODEL_PROJECTORS[modelId] ?? null;
+  return VISION_MODEL_PROJECTORS.get(modelId) ?? null;
 }
 
 export function isVisionCapableChatModel(model: ModelLike | null | undefined) {

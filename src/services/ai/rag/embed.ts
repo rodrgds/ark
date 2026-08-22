@@ -25,6 +25,7 @@ export async function rebuildEmbeddingsForActiveModel(options: RebuildOptions = 
   );
   if (chunks.length === 0) return;
   const targetModel = await EmbeddingService.getActiveModelConfig();
+  if (!targetModel) throw new Error('No source-search model is configured.');
   await db.withTransactionAsync((tx) => ensureEmbeddingModelRecord(tx, targetModel.id));
   const batchSize = Math.max(1, options.batchSize ?? DEFAULT_REBUILD_BATCH_SIZE);
   let embedded = 0;

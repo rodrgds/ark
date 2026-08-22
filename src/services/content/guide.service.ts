@@ -5,7 +5,7 @@ export type GuideSection = {
   htmlTargets?: string[];
 };
 
-const GUIDE_SECTIONS: Record<string, GuideSection[]> = {
+const GUIDE_SECTIONS = {
   'hesperian-first-aid': [
     {
       title: 'Calm and assess',
@@ -793,16 +793,19 @@ const GUIDE_SECTIONS: Record<string, GuideSection[]> = {
       htmlTargets: ['#mental-load'],
     },
   ],
-};
+} satisfies Record<string, GuideSection[]>;
 
 export class GuideService {
-  static getSections(packId: string) {
-    return GUIDE_SECTIONS[packId] ?? [];
+  static getSections(packId: string): GuideSection[] {
+    // SAFETY: GUIDE_SECTIONS keys are authored guide ids; unknown ids fall
+    // back to an empty section list.
+    const entries = Object.entries(GUIDE_SECTIONS) as Array<[string, GuideSection[]]>;
+    return new globalThis.Map(entries).get(packId) ?? [];
   }
 
   static getSectionForPage(packId: string, page: number) {
     const sections = this.getSections(packId)
-      .filter((section) => typeof section.page === 'number' && section.page <= page)
+      .filter((section) => section.page != null && section.page <= page)
       .sort((left, right) => (right.page ?? 0) - (left.page ?? 0));
     return sections[0] ?? null;
   }

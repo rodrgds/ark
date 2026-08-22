@@ -50,7 +50,7 @@ type SearchRow = {
   source_ref: string;
   kind: string;
   chunk_index: number;
-  embedding_blob: unknown;
+  embedding_blob: Uint8Array | ArrayBuffer | DataView | null;
   embedding_model_id: string | null;
 };
 
@@ -262,7 +262,12 @@ function dedupeCitations(citations: AiCitation[]) {
   });
 }
 
-async function rankRows<T extends { embedding_blob: unknown; embedding_model_id?: string | null }>(
+type RankedRow = {
+  embedding_blob: Uint8Array | ArrayBuffer | DataView | null;
+  embedding_model_id?: string | null;
+};
+
+async function rankRows<T extends RankedRow>(
   query: string,
   rows: T[],
   providedQueryEmbedding?: EmbeddingResult
@@ -372,7 +377,7 @@ async function readFocusedSourceRows(
   db: Awaited<ReturnType<typeof DatabaseClient.getDb>>,
   citation: AiCitation
 ) {
-  if (typeof citation.chunkIndex === 'number') {
+  if (citation.chunkIndex != null) {
     const start = Math.max(0, citation.chunkIndex - 1);
     const end = citation.chunkIndex + 2;
     const focusedRows = await db.getAllAsync<{ text: string }>(

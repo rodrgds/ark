@@ -4,6 +4,7 @@ import { withDefuddleDomGlobals } from '@/services/content/defuddle-runtime';
 import { RssRepository } from '@/services/db/repositories/rss.repo';
 import { parseHTML } from 'linkedom';
 import { Defuddle } from 'defuddle/node';
+import { isJsonObject, isJsonNumber, isJsonString, type Json } from '@/lib/decode';
 
 const DEFAULT_FEEDS = [
   {
@@ -54,9 +55,10 @@ export class RssService {
       recentItems: items,
       lastFetchedAt: lastFetchedAt || null,
       unreadCount,
-      unreadByFeed: Object.fromEntries(
-        unreadCountsByFeed.map((row) => [row.feed_id, row.count])
-      ) as Record<string, number>,
+      unreadByFeed: unreadCountsByFeed.reduce<{ [feedId: string]: number }>((byFeed, row) => {
+        byFeed[row.feed_id] = row.count;
+        return byFeed;
+      }, {}),
     };
   }
 
@@ -121,18 +123,23 @@ export class RssService {
   }
 }
 
-async function normalizeItems(feedId: string, parsed: unknown) {
-  const root = parsed as {
-    rss?: { channel?: { item?: unknown } };
-    feed?: { entry?: unknown };
-  };
-  const rssItems = toArray(root.rss?.channel?.item).map((item) => normalizeRssItem(feedId, item));
-  const atomItems = toArray(root.feed?.entry).map((item) => normalizeAtomItem(feedId, item));
+async function normalizeItems(feedId: string, parsed: Json) {
+  const root = isJsonObject(parsed) ? parsed : {};
+  const channel = member(root.rss, 'channel');
+  const rssItems = toArray(member(channel, 'item')).map((item) => normalizeRssItem(feedId, item));
+  const atomItems = toArray(member(root.feed, 'entry')).map((item) =>
+    normalizeAtomItem(feedId, item)
+  );
   return Promise.all([...rssItems, ...atomItems]);
 }
 
-async function normalizeRssItem(feedId: string, rawItem: unknown) {
-  const item = rawItem as Record<string, unknown>;
+function member(container: Json, key: string): Json {
+  if (!isJsonObject(container)) return null;
+  return container[key] ?? null;
+}
+
+async function normalizeRssItem(feedId: string, rawItem: Json) {
+  const item = isJsonObject(rawItem) ? rawItem : {};
   const title = extractText(item.title) || 'Untitled';
   const url = extractText(item.link) || extractText(item.guid) || null;
   const publishedAt = parseDate(extractText(item.pubDate) || extractText(item['dc:date']));
@@ -152,8 +159,8 @@ async function normalizeRssItem(feedId: string, rawItem: unknown) {
   };
 }
 
-async function normalizeAtomItem(feedId: string, rawItem: unknown) {
-  const item = rawItem as Record<string, unknown>;
+async function normalizeAtomItem(feedId: string, rawItem: Json) {
+  const item = isJsonObject(rawItem) ? rawItem : {};
   const title = extractText(item.title) || 'Untitled';
   const url = atomLink(item.link);
   const publishedAt = parseDate(extractText(item.updated) || extractText(item.published));
@@ -201,26 +208,28 @@ async function defuddleContent(html: string, url: string | null) {
   }
 }
 
-function toArray(value: unknown) {
+function toArray(value: Json): Json[] {
   if (!value) return [];
   return Array.isArray(value) ? value : [value];
 }
 
-function extractText(value: unknown): string {
+function extractText(value: Json): string {
   if (!value) return '';
-  if (typeof value === 'string' || typeof value === 'number') return String(value).trim();
+  if (isJsonString(value) || isJsonNumber(value)) return String(value).trim();
   if (Array.isArray(value)) return value.map(extractText).filter(Boolean).join(' ');
-  if (typeof value === 'object') {
-    const record = value as Record<string, unknown>;
-    return extractText(record['#text'] ?? record['@_href'] ?? record.href ?? record.name ?? '');
+  if (isJsonObject(value)) {
+    return extractText(value['#text'] ?? value['@_href'] ?? value.href ?? value.name ?? '');
   }
   return '';
 }
 
-function atomLink(value: unknown) {
-  const links = toArray(value) as Array<Record<string, unknown>>;
-  const alternate = links.find((link) => link['@_rel'] === 'alternate') ?? links[0];
-  return extractText(alternate?.['@_href'] ?? alternate?.href ?? alternate) || null;
+function atomLink(value: Json) {
+  const links = toArray(value);
+  const alternate = links.find((link) => isJsonObject(link) && link['@_rel'] === 'alternate');
+  const fallback = links[0] ?? '';
+  const chosen = alternate ?? fallback;
+  if (!chosen) return null;
+  return extractText(chosen) || null;
 }
 
 function parseDate(value: string) {
@@ -243,10 +252,5 @@ async function itemId(
   publishedAt: number | null
 ) {
   const value = `${feedId}:${url ?? title}:${publishedAt ?? ''}`;
-  const algorithm = Crypto.CryptoDigestAlgorithm.SHA256 ?? 'SHA-256';
-  if (typeof Crypto.digestStringAsync === 'function') {
-    return Crypto.digestStringAsync(algorithm, value);
-  }
-  const digest = await Crypto.digest(algorithm, new TextEncoder().encode(value));
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, value);
 }

@@ -130,12 +130,11 @@ export class GeocodingService {
     return this.getReverseGeocodeFallback(latitude, longitude);
   }
 
-  private static isAbortError(error: unknown) {
+  private static isAbortError<T>(error: T) {
+    if (error instanceof Error && error.name === 'AbortError') return true;
+    const domException = globalThis.DOMException;
     return (
-      (typeof DOMException !== 'undefined' &&
-        error instanceof DOMException &&
-        error.name === 'AbortError') ||
-      (error instanceof Error && error.name === 'AbortError')
+      domException !== undefined && error instanceof domException && error.name === 'AbortError'
     );
   }
 

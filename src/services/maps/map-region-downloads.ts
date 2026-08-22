@@ -33,11 +33,11 @@ type MapLibreModule = {
 } | null;
 
 const DEFAULT_MAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
-const OPENFREEMAP_STYLE_URLS: Record<MapTheme, string> = {
+const OPENFREEMAP_STYLE_URLS = {
   oled: 'https://tiles.openfreemap.org/styles/dark',
   dark: 'https://tiles.openfreemap.org/styles/dark',
   light: DEFAULT_MAP_STYLE_URL,
-};
+} satisfies Record<MapTheme, string>;
 
 export function presetToRegionDownloadInput(
   preset: MapPreset,
@@ -88,6 +88,14 @@ export async function ensurePresetRegionDownload(
   );
 }
 
+export type QueuedRegionResult = {
+  ok: boolean;
+  queued: boolean;
+  regionId: string;
+  reason?: string;
+  navigation?: { ok?: boolean; reason: string } | null;
+};
+
 export async function startPresetRegionDownload(
   preset: MapPreset,
   options: {
@@ -117,14 +125,14 @@ export async function startPresetRegionDownload(
 
   if (!hasNativeOfflineManager(maplibre)) {
     const navigation = await runNavigationDownload();
-    return {
+    const result: QueuedRegionResult = {
       ok: false,
       queued: true,
       regionId,
       reason:
         'Map download is queued. Install the latest Ark build with native map support to start downloading map tiles.',
-      ...(navigation ? { navigation } : {}),
     };
+    return navigation ? { ...result, navigation } : result;
   }
 
   const { OfflineMapService } = await import('@/services/maps/offline-map.service');
@@ -173,9 +181,9 @@ function hasNativeOfflineManager(maplibre: MapLibreModule | null) {
   const manager = maplibre?.OfflineManager;
   return Boolean(
     manager &&
-    typeof manager.getPacks === 'function' &&
-    typeof manager.createPack === 'function' &&
-    typeof manager.addListener === 'function'
+    manager.getPacks !== undefined &&
+    manager.createPack !== undefined &&
+    manager.addListener !== undefined
   );
 }
 

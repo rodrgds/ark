@@ -3,6 +3,7 @@ import {
   DEFAULT_EMBEDDING_MODEL_ID,
   EMBEDDING_MODEL_OPTIONS,
   EMBEDDING_MODEL_CONFIGS,
+  getEmbeddingModelConfigById,
   isEmbeddingModelPack,
 } from '@/services/ai/embedding-models';
 import { EmbeddingService, resetEmbeddingRuntimeContext } from '@/services/ai/embedding.service';
@@ -178,9 +179,9 @@ export class ModelManagerService {
           onRebuildProgress?: (progress: RagEmbeddingRebuildProgress) => void | Promise<void>;
         } = {}
   ) {
-    const callbacks = typeof options === 'function' ? { onDownloadProgress: options } : options;
+    const callbacks = options instanceof Function ? { onDownloadProgress: options } : options;
     const nextModelId = modelId ?? DEFAULT_EMBEDDING_MODEL_ID;
-    const nextModel = EMBEDDING_MODEL_CONFIGS[nextModelId];
+    const nextModel = getEmbeddingModelConfigById(nextModelId);
     if (!nextModel) {
       throw new Error('Choose a supported source-search model.');
     }
@@ -350,10 +351,11 @@ export class ModelManagerService {
     const domains = ['notes', 'guides', 'documents', 'rss', 'maps', 'zim'] as const;
     const totals = Object.fromEntries(totalRows.map((row) => [row.domain, row.total_count]));
     const activeEmbeddingModel = await this.getActiveEmbeddingModel();
+    const activeEmbeddingModelId = activeEmbeddingModel?.id ?? null;
     const reportModels = EMBEDDING_MODEL_OPTIONS.map((model) => ({
       id: model.id,
       title: `${model.title} (${model.dimension}d)`,
-      installed: model.id === RAG_HASH_EMBEDDING_MODEL_ID || model.id === activeEmbeddingModel.id,
+      installed: model.id === RAG_HASH_EMBEDDING_MODEL_ID || model.id === activeEmbeddingModelId,
     }));
 
     return reportModels.map((model) => {
@@ -375,7 +377,7 @@ export class ModelManagerService {
         ...model,
         active: reduceModeEnabled
           ? model.id === RAG_HASH_EMBEDDING_MODEL_ID
-          : model.id === activeEmbeddingModel.id,
+          : model.id === activeEmbeddingModelId,
         total,
         embedded,
         complete: total === 0 ? 1 : embedded / total,

@@ -115,6 +115,8 @@ export class WeatherCacheService {
       id: row.id,
       location: row.location_label ?? 'Unknown',
       provider: row.provider ?? 'unknown',
+      // SAFETY: forecast_json was written by this service on refresh and is
+      // normalized field-by-field before it reaches callers.
       forecast: normalizeForecast(JSON.parse(row.forecast_json) as Partial<CachedForecast>),
       fetchedAt: row.fetched_at,
       expiresAt: row.expires_at,
@@ -157,6 +159,8 @@ async function fetchOpenMeteo(latitude: number, longitude: number): Promise<Cach
   });
   const response = await fetch(`https://api.open-meteo.com/v1/forecast?${params.toString()}`);
   if (!response.ok) throw new Error(`Weather refresh failed (${response.status}).`);
+  // SAFETY: the Open-Meteo response shape is pinned by the query fields above;
+  // normalizeForecast re-checks every value before caching.
   const data = (await response.json()) as {
     current?: {
       temperature_2m?: number;
@@ -262,7 +266,9 @@ function buildSummary(
   return parts.join(', ');
 }
 
-function weatherCondition(code: number | null): { label: string; symbol: WeatherSymbol } {
+type WeatherCondition = { label: string; symbol: WeatherSymbol };
+
+function weatherCondition(code: number | null): WeatherCondition {
   if (code === null) return { label: 'Forecast cached', symbol: 'unknown' };
   if (code === 0) return { label: 'Clear', symbol: 'clear' };
   if ([1, 2].includes(code)) return { label: 'Partly cloudy', symbol: 'partly-cloudy' };

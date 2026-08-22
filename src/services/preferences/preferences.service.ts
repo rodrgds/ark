@@ -1,3 +1,4 @@
+import { isJsonObject, type Json } from '@/lib/decode';
 import { SettingsRepository } from '@/services/db/repositories/settings.repo';
 import { BATTERY_REDUCE_MODE_KEY } from '@/constants/battery';
 import {
@@ -203,11 +204,14 @@ export class PreferencesService {
     const value = await SettingsRepository.get(CHECKLIST_STATE_KEY);
     if (!value) return {};
     try {
-      const parsed = JSON.parse(value) as unknown;
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
-      return Object.fromEntries(
-        Object.entries(parsed).filter(([, checked]) => typeof checked === 'boolean')
-      ) as ReadinessChecklistState;
+      // SAFETY: checklist state was written by this repository; entries that
+      // are not booleans are dropped instead of trusted.
+      const parsed = JSON.parse(value) as Json;
+      if (!isJsonObject(parsed)) return {};
+      const entries = Object.entries(parsed).filter(
+        (entry): entry is [string, boolean] => typeof entry[1] === 'boolean'
+      );
+      return Object.fromEntries(entries);
     } catch {
       return {};
     }
@@ -219,6 +223,7 @@ export class PreferencesService {
 }
 
 function normalizeRecordingProfile(value: string | null): TrackRecordingProfile {
+  // SAFETY: the membership check below proves value is a profile id.
   return RECORDING_PROFILE_OPTIONS.some((option) => option.value === value)
     ? (value as TrackRecordingProfile)
     : DEFAULT_RECORDING_PROFILE;

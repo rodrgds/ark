@@ -1,3 +1,4 @@
+import { isJsonString } from '@/lib/decode';
 import type { ArkSystemAccentResult } from 'ark-system-colors';
 import {
   DEFAULT_SYSTEM_ACCENT_COLORS,
@@ -15,13 +16,21 @@ export type ResolvedSystemAccentColors = {
 const HEX_COLOR_RE = /^#[0-9A-F]{6}$/i;
 const THEME_KEYS: EffectiveTheme[] = ['oled', 'dark', 'light'];
 
-function isAccentColorsByTheme(value: unknown): value is AccentColorsByTheme {
+function isAccentColorsByTheme<T>(value: T): value is T & AccentColorsByTheme {
   if (!value || typeof value !== 'object') return false;
-  const candidate = value as Partial<AccentColorsByTheme>;
+  // SAFETY: only the color fields are probed; the predicate narrows to
+  // AccentColorsByTheme before any caller reads them.
+  const candidate = value as Partial<
+    Record<keyof AccentColorsByTheme, { primary?: string; primaryForeground?: string }>
+  >;
   return THEME_KEYS.every((theme) => {
     const entry = candidate[theme];
+    if (!entry) return false;
     return (
-      !!entry && HEX_COLOR_RE.test(entry.primary) && HEX_COLOR_RE.test(entry.primaryForeground)
+      isJsonString(entry.primary) &&
+      HEX_COLOR_RE.test(entry.primary) &&
+      isJsonString(entry.primaryForeground) &&
+      HEX_COLOR_RE.test(entry.primaryForeground)
     );
   });
 }

@@ -24,11 +24,11 @@ const DIRECT_ROUTE_REGION_ID = 'direct';
 const DOWNLOAD_STALL_TIMEOUT_MS = 30_000;
 const MAX_STALL_RESTARTS = 1;
 const ROUTE_ENDPOINT_TOLERANCE_METERS = 2_000;
-const PROFILE_SPEED_METERS_PER_SECOND: Record<RoutingProfile, number> = {
+const PROFILE_SPEED_METERS_PER_SECOND = {
   pedestrian: 1.35,
   bicycle: 4.5,
   car: 13.9,
-};
+} satisfies Record<RoutingProfile, number>;
 
 type NativeRoutingModule = typeof import('ark-routing').default;
 
@@ -588,7 +588,7 @@ function normalizeFilePath(uri: string) {
   return uri.startsWith('file://') ? uri.slice('file://'.length) : uri;
 }
 
-function isEngineUnavailableError(error: unknown) {
+function isEngineUnavailableError<T>(error: T) {
   if (!(error instanceof Error)) return false;
   return (
     error.message.includes('ArkRouting native Valhalla support') ||
@@ -597,7 +597,7 @@ function isEngineUnavailableError(error: unknown) {
   );
 }
 
-function routeFailureMessage(error: unknown) {
+function routeFailureMessage<T>(error: T) {
   const detail = error instanceof Error ? error.message.trim() : '';
   if (!detail)
     return 'Road routing could not calculate a route from the downloaded navigation data.';

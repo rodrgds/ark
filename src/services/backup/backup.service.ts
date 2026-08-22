@@ -8,6 +8,7 @@ import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { DatabaseClient } from '@/services/db/client';
 import { sqliteBoolean } from '@/services/db/sqlite-values';
 import { FileSystemService } from '@/services/files/filesystem.service';
+import { isJsonString, isJsonObject, type Json } from '@/lib/decode';
 import { logger as log } from '@/lib/logger';
 import { parseOrThrow, vaultPasswordSchema } from '@/lib/validation';
 import type {
@@ -1200,15 +1201,17 @@ async function decryptZip(envelope: ArkBackupEnvelope, passphrase: string) {
 }
 
 function parseEnvelope(value: string): ArkBackupEnvelope {
+  // SAFETY: the envelope comes from an untrusted archive; every field is
+  // validated below before any crypto or unzip work happens.
   const parsed = JSON.parse(value) as ArkBackupEnvelope;
   if (
     parsed.format !== 'ark-backup-envelope' ||
     parsed.version !== BACKUP_VERSION ||
     parsed.crypto?.algorithm !== 'AES-256-GCM' ||
     parsed.crypto?.kdf !== 'scrypt' ||
-    typeof parsed.crypto.salt !== 'string' ||
-    typeof parsed.crypto.nonce !== 'string' ||
-    typeof parsed.payload !== 'string'
+    !isJsonString(parsed.crypto.salt) ||
+    !isJsonString(parsed.crypto.nonce) ||
+    !isJsonString(parsed.payload)
   ) {
     throw new Error('This is not a supported Ark backup file.');
   }
@@ -1224,7 +1227,9 @@ function parseEnvelope(value: string): ArkBackupEnvelope {
 }
 
 function parseManifest(value: string): ArkBackupManifest {
-  const parsed = JSON.parse(value) as unknown;
+  // SAFETY: the manifest comes from the same untrusted archive; the collection
+  // validators below decode it fully before restore touches the database.
+  const parsed = JSON.parse(value) as Json;
   if (!isRecord(parsed) || parsed.format !== 'ark-backup') {
     throw new Error('Backup manifest format is not supported.');
   }
@@ -1233,7 +1238,8 @@ function parseManifest(value: string): ArkBackupManifest {
       `Backup manifest version ${parsed.version} is not supported. Re-export the backup from this app version.`
     );
   }
-  validateManifestShape(parsed);
+  validateManifestCollections(parsed);
+  // SAFETY: validateManifestCollections proved every required field above.
   return sanitizeManifestUris(parsed as ArkBackupManifest);
 }
 
@@ -1319,7 +1325,7 @@ function isCanonicalBase64(value: string, expectedBytes?: number) {
   }
 }
 
-function validateManifestShape(manifest: Record<string, unknown>) {
+function validateManifestCollections(manifest: ManifestJson) {
   const collectionKeys = [
     'settings',
     'notes',
@@ -1339,6 +1345,8 @@ function validateManifestShape(manifest: Record<string, unknown>) {
     if (!Array.isArray(manifest[key])) throw new Error(`Backup manifest ${key} is invalid.`);
     recordCount += manifest[key].length;
   }
+  // SAFETY: the loop above proved every collection key holds an array.
+  const collections = manifest as Record<string, Json[]>;
   if (recordCount > MAX_BACKUP_RECORDS) throw new Error('Backup contains too many records.');
 
   const idsByCollection = new Map<string, Set<string>>();
@@ -1356,8 +1364,8 @@ function validateManifestShape(manifest: Record<string, unknown>) {
     'trackMarkers',
   ] as const) {
     const ids = new Set<string>();
-    for (const item of manifest[key] as unknown[]) {
-      if (!isRecord(item) || typeof item.id !== 'string' || !SAFE_BACKUP_ID.test(item.id)) {
+    for (const item of collections[key]) {
+      if (!isRecord(item) || !isJsonString(item.id) || !SAFE_BACKUP_ID.test(item.id)) {
         throw new Error(`Backup manifest ${key} contains an invalid identifier.`);
       }
       if (ids.has(item.id))
@@ -1368,11 +1376,11 @@ function validateManifestShape(manifest: Record<string, unknown>) {
   }
 
   validateReferences(manifest, idsByCollection);
-  validatePayloadPaths(manifest.documents as unknown[], 'documents');
-  validatePayloadPaths(manifest.trackMarkers as unknown[], 'track-markers');
+  validatePayloadPaths(collections.documents, 'documents');
+  validatePayloadPaths(collections.trackMarkers, 'track-markers');
 }
 
-function validateReferences(manifest: Record<string, unknown>, ids: Map<string, Set<string>>) {
+function validateReferences(manifest: ManifestJson, ids: Map<string, Set<string>>) {
   const checks = [
     ['documentPages', 'documentId', 'documents'],
     ['chatMessages', 'threadId', 'chatThreads'],
@@ -1380,27 +1388,26 @@ function validateReferences(manifest: Record<string, unknown>, ids: Map<string, 
     ['trackMarkers', 'trackId', 'tracks'],
   ] as const;
   for (const [collection, foreignKey, parentCollection] of checks) {
-    for (const item of manifest[collection] as unknown[]) {
-      if (
-        !isRecord(item) ||
-        typeof item[foreignKey] !== 'string' ||
-        !ids.get(parentCollection)?.has(item[foreignKey] as string)
-      ) {
+    const items = Array.isArray(manifest[collection]) ? manifest[collection] : [];
+    for (const item of items) {
+      const foreignValue = isRecord(item) ? item[foreignKey] : undefined;
+      if (!isJsonString(foreignValue) || !ids.get(parentCollection)?.has(foreignValue)) {
         throw new Error(`Backup manifest ${collection} contains an invalid reference.`);
       }
     }
   }
 }
 
-function validatePayloadPaths(items: unknown[], root: 'documents' | 'track-markers') {
+function validatePayloadPaths(items: Json[], root: 'documents' | 'track-markers') {
   for (const item of items) {
     if (!isRecord(item)) throw new Error(`Backup manifest ${root} is invalid.`);
     const backupPath = item.backupPath;
     if (backupPath == null) continue;
     if (
-      typeof backupPath !== 'string' ||
+      !isJsonString(backupPath) ||
       !isSafeBackupPath(backupPath) ||
-      !backupPath.startsWith(`${root}/${item.id as string}/`)
+      !isJsonString(item.id) ||
+      !backupPath.startsWith(`${root}/${item.id}/`)
     ) {
       throw new Error(`Backup manifest ${root} contains an unsafe payload path.`);
     }
@@ -1418,8 +1425,10 @@ function sanitizeManifestUris(manifest: ArkBackupManifest): ArkBackupManifest {
   };
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
+type ManifestJson = { [key: string]: Json };
+
+function isRecord<T>(value: T): value is T & ManifestJson {
+  return isJsonObject(value);
 }
 
 function getRestoredDocumentOcrStatus(document: ArkBackupDocument): ArkDocument['ocrStatus'] {
@@ -1435,9 +1444,11 @@ function getRestoredDocumentOcrStatus(document: ArkBackupDocument): ArkDocument[
 function parseJsonArray(value: string | null) {
   if (!value) return [];
   try {
-    const parsed = JSON.parse(value) as unknown;
+    // SAFETY: rows written by this app on export; non-array or non-string
+    // entries are filtered out immediately below.
+    const parsed = JSON.parse(value) as Json;
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter((item): item is string => typeof item === 'string');
+    return parsed.filter((item): item is string => isJsonString(item));
   } catch {
     return [];
   }
@@ -1446,30 +1457,26 @@ function parseJsonArray(value: string | null) {
 function parseJsonCitations(value: string | null) {
   if (!value) return [];
   try {
-    const parsed = JSON.parse(value) as unknown;
+    // SAFETY: rows written by this app on export; each entry is re-checked
+    // field by field in the predicate below.
+    const parsed = JSON.parse(value) as Json;
     if (!Array.isArray(parsed)) return [];
     return parsed.filter((item): item is ArkBackupChatMessage['citations'][number] => {
-      return (
-        !!item &&
-        typeof item === 'object' &&
-        typeof (item as { sourceId?: unknown }).sourceId === 'string' &&
-        typeof (item as { title?: unknown }).title === 'string' &&
-        typeof (item as { snippet?: unknown }).snippet === 'string'
-      );
+      if (!isJsonObject(item)) return false;
+      return isJsonString(item.sourceId) && isJsonString(item.title) && isJsonString(item.snippet);
     });
   } catch {
     return [];
   }
 }
 
-function parseJsonObject(value: string | null): Record<string, unknown> | null {
+function parseJsonObject(value: string | null): ManifestJson | null {
   if (!value) return null;
   try {
-    const parsed = JSON.parse(value) as unknown;
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      return parsed as Record<string, unknown>;
-    }
-    return null;
+    // SAFETY: rows written by this app on export; a non-object payload is
+    // rejected by the isJsonObject check on the next line.
+    const parsed = JSON.parse(value) as Json;
+    return isJsonObject(parsed) ? parsed : null;
   } catch {
     return null;
   }
@@ -1500,6 +1507,8 @@ async function reindexFts(manifest: ArkBackupManifest) {
 
 function parseRoutePoints(value: string): SavedRoute['points'] {
   try {
+    // SAFETY: route points were written by this app on export and are
+    // re-validated by geometry consumers after import.
     const parsed = JSON.parse(value) as SavedRoute['points'];
     return Array.isArray(parsed) ? parsed : [];
   } catch {

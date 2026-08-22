@@ -54,7 +54,7 @@ export class OcrService {
   static async getCapabilities(): Promise<ArkOcrCapabilities> {
     if (this.capabilitiesOverride) return this.capabilitiesOverride;
     const module = await this.requireNativeModule();
-    if (!module || typeof module.getCapabilities !== 'function') return DEFAULT_CAPABILITIES;
+    if (!module || module.getCapabilities === undefined) return DEFAULT_CAPABILITIES;
     try {
       const capabilities = await module.getCapabilities();
       return {

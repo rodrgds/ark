@@ -1,7 +1,7 @@
 import { streamText, stepCountIs, type ModelMessage } from 'ai';
 import { SAFETY_COPY } from '@/constants/app';
 import { getArkCapabilities } from '@/config/capabilities';
-import { createArkAiSdkTools } from '@/services/ai/ai-sdk-tools';
+import { createArkAiSdkTools, type ArkToolOutput } from '@/services/ai/ai-sdk-tools';
 import { isEmbeddingModelPack } from '@/services/ai/embedding-models';
 import { normalizeReasoningOutput } from '@/services/ai/reasoning-normalizer';
 import { getVisionProjectorId, isVisionCapableChatModel } from '@/services/ai/vision-models';
@@ -204,13 +204,11 @@ async function getLanguageRuntime(
       const module = await loadLlamaModule();
       const model = selectedModel;
       if (!module || !model?.localUri) return null;
+      const projectorOptions = projector?.localUri
+        ? { projectorPath: projector.localUri, projectorUseGpu: true }
+        : {};
       const languageModel = module.llama.languageModel(model.localUri, {
-        ...(projector?.localUri
-          ? {
-              projectorPath: projector.localUri,
-              projectorUseGpu: true,
-            }
-          : {}),
+        ...projectorOptions,
         contextParams: {
           n_ctx: contextTokensForModel(model.sizeBytes ?? null, !!projector),
           n_gpu_layers: 0,
@@ -382,52 +380,51 @@ async function completeWithAiSdk({
     stepChannelReasoning = '';
   };
 
-  try {
-    const result = streamText({
-      model: runtime.model,
-      system: buildSystemPrompt(runtime.pack),
-      messages: buildMessages(input),
-      ...(useTools
-        ? {
-            tools: createArkAiSdkTools({
-              onRun: (run) => {
-                mergeCitations(combinedCitations, run.citations);
-              },
-            }),
-            toolChoice: 'auto' as const,
-            stopWhen: stepCountIs(3),
-          }
-        : {}),
-      maxOutputTokens,
-      ...generationSettingsForModel(runtime.pack),
-      abortSignal: abortController.signal,
-    });
-
-    for await (const part of result.fullStream) {
-      if (part.type === 'start-step') {
-        finishCurrentStep();
-      } else if (part.type === 'text-delta') {
-        stepRawText += getTextDelta(part);
-        const normalized = normalizeReasoningOutput(stepRawText);
-        stepVisibleText = normalized.content;
-        stepChannelReasoning = normalized.reasoning;
-        const streamingText = latestNonEmpty([...completedStepVisibleText, stepVisibleText]);
-        if (streamingText) tokenEmitter.emit(streamingText);
-      } else if (part.type === 'reasoning-delta') {
-        sdkReasoning += getTextDelta(part);
-        const nextReasoning = joinReasoning(sdkReasoning, stepChannelReasoning);
-        if (nextReasoning) reasoningEmitter.emit(nextReasoning);
-      } else if (part.type === 'tool-result') {
-        const output = part.output as unknown;
-        if (isArkToolOutput(output)) mergeCitations(combinedCitations, output.citations);
+  const toolOptions = useTools
+    ? {
+        tools: createArkAiSdkTools({
+          onRun: (run) => {
+            mergeCitations(combinedCitations, run.citations);
+          },
+        }),
+        toolChoice: 'auto' as const,
+        stopWhen: stepCountIs(3),
       }
+    : {};
+  const result = streamText({
+    model: runtime.model,
+    system: buildSystemPrompt(runtime.pack),
+    messages: buildMessages(input),
+    ...toolOptions,
+    maxOutputTokens,
+    ...generationSettingsForModel(runtime.pack),
+    abortSignal: abortController.signal,
+  });
+
+  for await (const part of result.fullStream) {
+    if (part.type === 'start-step') {
+      finishCurrentStep();
+    } else if (part.type === 'text-delta') {
+      stepRawText += getTextDelta(part);
+      const normalized = normalizeReasoningOutput(stepRawText);
+      stepVisibleText = normalized.content;
+      stepChannelReasoning = normalized.reasoning;
+      const streamingText = latestNonEmpty([...completedStepVisibleText, stepVisibleText]);
+      if (streamingText) tokenEmitter.emit(streamingText);
+    } else if (part.type === 'reasoning-delta') {
+      sdkReasoning += getTextDelta(part);
       const nextReasoning = joinReasoning(sdkReasoning, stepChannelReasoning);
-      if (part.type === 'text-delta' && nextReasoning) reasoningEmitter.emit(nextReasoning);
+      if (nextReasoning) reasoningEmitter.emit(nextReasoning);
+    } else if (part.type === 'tool-result') {
+      // SAFETY: tool outputs come from our own registered Ark tools; the
+      // predicate below still verifies the citations payload before use.
+      const output = part.output as unknown;
+      if (isArkToolOutput(output)) mergeCitations(combinedCitations, output.citations);
     }
-    finishCurrentStep();
-  } catch (error) {
-    throw error;
+    const nextReasoning = joinReasoning(sdkReasoning, stepChannelReasoning);
+    if (part.type === 'text-delta' && nextReasoning) reasoningEmitter.emit(nextReasoning);
   }
+  finishCurrentStep();
 
   return {
     content: recoverFinalText(completedStepRawText, completedStepVisibleText, sdkReasoning),
@@ -547,7 +544,7 @@ function formatCitations(citations: AiCitation[]) {
     .map((citation, index) => {
       const location = [
         citation.sectionTitle ? `section ${citation.sectionTitle}` : null,
-        typeof citation.page === 'number' ? `page ${citation.page}` : null,
+        Number.isFinite(citation.page) && citation.page !== null ? `page ${citation.page}` : null,
       ]
         .filter(Boolean)
         .join(', ');
@@ -625,12 +622,11 @@ function mergeCitations(target: AiCitation[], citations: AiCitation[]) {
   }
 }
 
-function isArkToolOutput(
-  value: unknown
-): value is { citations: AiCitation[]; summary: string; sources: unknown[] } {
+function isArkToolOutput<T>(value: T): value is T & ArkToolOutput {
   return (
     !!value &&
     typeof value === 'object' &&
+    // SAFETY: the probe only reads the citations member for the Array check.
     Array.isArray((value as { citations?: unknown }).citations)
   );
 }

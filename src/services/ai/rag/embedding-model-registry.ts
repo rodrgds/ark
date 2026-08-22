@@ -1,8 +1,9 @@
-import { EMBEDDING_MODEL_CONFIGS } from '@/services/ai/embedding-models';
-import type { SQLiteBindParams } from 'expo-sqlite';
+import { getEmbeddingModelConfigById } from '@/services/ai/embedding-models';
+import type { EmbeddingModelConfig } from '@/services/ai/embedding-models';
+import type { SQLiteDatabase } from 'expo-sqlite';
 
 type EmbeddingModelDb = {
-  runAsync: (sql: string, params: SQLiteBindParams) => Promise<unknown>;
+  runAsync: SQLiteDatabase['runAsync'];
 };
 
 export async function ensureEmbeddingModelRecord(
@@ -10,7 +11,7 @@ export async function ensureEmbeddingModelRecord(
   modelId: string,
   timestamp = Date.now()
 ) {
-  const model = EMBEDDING_MODEL_CONFIGS[modelId];
+  const model = getEmbeddingModelConfigById(modelId);
   if (!model) throw new Error(`Unknown embedding model: ${modelId}`);
   await db.runAsync(
     `INSERT INTO embedding_models

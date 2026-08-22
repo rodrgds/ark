@@ -13,7 +13,7 @@ const readCachedWeatherSchema = z.object({
   query: z.string().trim().max(300).optional(),
 });
 
-type ArkToolOutput = {
+export type ArkToolOutput = {
   summary: string;
   citations: AiCitation[];
   sources: Array<{

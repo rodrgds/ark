@@ -1,6 +1,9 @@
 import { DOMParser, parseHTML } from 'linkedom';
 
 type LinkedomDom = ReturnType<typeof parseHTML>;
+// The mutable global bag Defuddle expects. Slot values are whatever the
+// previous environment held - linkedom nodes and DOM constructors - so they
+// stay deliberately opaque here.
 type MutableGlobal = typeof globalThis & Record<string, unknown>;
 type MutableDocument = LinkedomDom['document'] & {
   implementation?: {
@@ -39,6 +42,8 @@ function createTurndownDocument() {
       return parsedDocument.defaultView;
     },
     createElement(tagName: string) {
+      // SAFETY: linkedom documents implement the DOM Document interface that
+      // Turndown targets.
       return (parsedDocument as unknown as Document).createElement(tagName);
     },
     createTextNode(data: string) {
@@ -74,6 +79,8 @@ function restoreGlobalValue(globalObject: MutableGlobal, key: string, value: unk
  * the previous runtime globals afterwards.
  */
 async function runWithDefuddleDomGlobals<T>(dom: LinkedomDom, callback: () => Promise<T> | T) {
+  // SAFETY: the shim only adds and restores the DOM globals Defuddle reads;
+  // the mutable view exists for the duration of this call.
   const globalObject = globalThis as MutableGlobal;
   const document = dom.document as MutableDocument;
   const previousDocument = globalObject.document;
@@ -100,6 +107,8 @@ async function runWithDefuddleDomGlobals<T>(dom: LinkedomDom, callback: () => Pr
     return await Promise.resolve(callback());
   } finally {
     if (previousImplementation === undefined) {
+      // SAFETY: previousImplementation was undefined, so the shim owns the
+      // optional property it added.
       delete (document as { implementation?: unknown }).implementation;
     } else {
       document.implementation = previousImplementation;

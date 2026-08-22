@@ -1,3 +1,4 @@
+import { isJsonString } from '@/lib/decode';
 import {
   FSMN_VAD,
   models,
@@ -106,7 +107,7 @@ async function loadWithTransientRetry<T>(factory: () => Promise<T>) {
   throw lastError;
 }
 
-function isTransientVoiceLoadError(error: unknown) {
+function isTransientVoiceLoadError<T>(error: T) {
   const message = getErrorMessage(error);
   return (
     /software caused connection abort/i.test(message) ||
@@ -119,13 +120,13 @@ function isTransientVoiceLoadError(error: unknown) {
   );
 }
 
-function toVoiceError(error: unknown, fallback: string) {
+function toVoiceError<T>(error: T, fallback: string) {
   return error instanceof Error ? error : new Error(getErrorMessage(error) || fallback);
 }
 
-function getErrorMessage(error: unknown) {
+function getErrorMessage<T>(error: T) {
   if (error instanceof Error) return error.message;
-  if (typeof error === 'string') return error;
+  if (isJsonString(error)) return error;
   return String(error ?? '');
 }
 

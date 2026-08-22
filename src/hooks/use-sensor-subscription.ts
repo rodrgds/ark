@@ -10,10 +10,12 @@ type SensorService<T> = {
   ): (() => void) | undefined;
 };
 
+export type SensorSubscription<T> = { available: boolean | null; value: T | null };
+
 export function useSensorSubscription<T>(
   service: SensorService<T>,
   storeSetter: (value: T | null) => void
-): { available: boolean | null; value: T | null } {
+): SensorSubscription<T> {
   const [available, setAvailable] = React.useState<boolean | null>(null);
   const [value, setValue] = React.useState<T | null>(null);
   const reduceModeEnabled = useBatteryReduceMode();

@@ -7,10 +7,14 @@ import { VoiceRuntimeService } from '@/services/ai/voice-runtime.service';
 import { TextToSpeechModule } from 'react-native-executorch';
 import * as React from 'react';
 
-type PlaybackSource = {
-  stop: (when?: number) => void;
-  onEnded?: () => void;
-};
+type AudioBufferSourceType = ReturnType<
+  ReturnType<typeof getSpeechPlaybackContext>['createBufferSource']
+>;
+
+type PlaybackSource = Pick<
+  AudioBufferSourceType,
+  'stop' | 'onEnded' | 'buffer' | 'connect' | 'start'
+>;
 
 export function useArkTextToSpeech() {
   const moduleRef = React.useRef<TextToSpeechModule | null>(null);
@@ -166,11 +170,7 @@ async function playWaveform(
   const buffer = context.createBuffer(1, waveform.length, sampleRate);
   buffer.getChannelData(0).set(waveform);
 
-  const source = context.createBufferSource() as PlaybackSource & {
-    buffer: typeof buffer | null;
-    connect: (destination: unknown) => void;
-    start: (when?: number) => void;
-  };
+  const source = context.createBufferSource();
   source.buffer = buffer;
   source.connect(context.destination);
   sourceRef.current = source;

@@ -67,6 +67,8 @@ export const chatMessageSchema = z.object({
 
 export const contentPackIdSchema = z.string().trim().min(1).max(160);
 
+// SAFETY: parseOrThrow is the boundary decoder; the schema owns the proof
+// and safeParse throws through parseOrThrow on failure.
 export function parseOrThrow<T>(schema: z.ZodType<T>, input: unknown): T {
   const result = schema.safeParse(input);
   if (result.success) return result.data;

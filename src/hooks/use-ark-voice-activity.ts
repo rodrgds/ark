@@ -69,6 +69,7 @@ export function useArkVoiceActivity() {
   React.useEffect(() => VoiceRuntimeService.retainVoiceActivity(), []);
 
   const forward = React.useCallback(async (waveform: Float32Array) => {
+    // SAFETY: the ref only ever holds the loaded native VAD module or null.
     const moduleInstance = moduleRef.current as NativeVadModule | null;
     if (!moduleInstance) throw new Error('Voice activity model is not ready.');
 

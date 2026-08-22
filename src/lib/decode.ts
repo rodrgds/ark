@@ -22,10 +22,10 @@ export function isJsonObject<T>(value: T): value is T & { [key: string]: Json } 
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/** True when `value` is an object carrying a non-empty string `message`, the useful part of a thrown value. */
+/** True when `value` is an object carrying a usable string `message`, the useful part of a thrown value. */
 export function isErrorLike<T>(value: T): value is T & { message: string } {
   if (!isJsonObject(value)) return false;
-  return 'message' in value && isJsonString(value.message);
+  return 'message' in value && isJsonString(value.message) && value.message.trim().length > 0;
 }
 
 /** Best readable message from a thrown value without assuming it is an Error. */

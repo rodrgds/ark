@@ -1,3 +1,4 @@
+import { isJsonObject, isJsonString, type Json } from '@/lib/decode';
 import type { Note } from '@/types/db';
 
 type NoteTextInput = {
@@ -54,7 +55,9 @@ function normalizePlainText(value: string | null | undefined) {
 function extractTiptapJsonText(contentJson: string | null | undefined) {
   if (!contentJson) return '';
   try {
-    const parsed = JSON.parse(contentJson) as unknown;
+    // SAFETY: contentJson was written by the note editor; malformed payloads
+    // simply yield no text because every field is checked before use.
+    const parsed = JSON.parse(contentJson) as Json;
     const parts: string[] = [];
     visitTiptapNode(parsed, parts);
     return parts.join('').replace(/[ \t]+\n/g, '\n');
@@ -63,17 +66,17 @@ function extractTiptapJsonText(contentJson: string | null | undefined) {
   }
 }
 
-function visitTiptapNode(node: unknown, parts: string[]) {
-  if (!node) return;
+function visitTiptapNode(node: Json, parts: string[]) {
+  if (node === null || node === undefined) return;
   if (Array.isArray(node)) {
     for (const child of node) visitTiptapNode(child, parts);
     return;
   }
-  if (typeof node !== 'object') return;
+  if (!isJsonObject(node)) return;
 
-  const record = node as Record<string, unknown>;
-  const type = typeof record.type === 'string' ? record.type : '';
-  if (type === 'text' && typeof record.text === 'string') {
+  const record = node;
+  const type = isJsonString(record.type) ? record.type : '';
+  if (type === 'text' && isJsonString(record.text)) {
     parts.push(record.text);
     return;
   }

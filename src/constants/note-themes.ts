@@ -60,7 +60,7 @@ const defaultTheme = {
   },
 } satisfies Record<EffectiveTheme, NoteThemeVariant>;
 
-export const NOTE_THEMES: Record<NoteThemeId, NoteThemeDefinition> = {
+export const NOTE_THEMES = {
   default: {
     id: 'default',
     label: 'Default',
@@ -366,12 +366,14 @@ export const NOTE_THEMES: Record<NoteThemeId, NoteThemeDefinition> = {
       },
     },
   },
-};
+} satisfies Record<NoteThemeId, NoteThemeDefinition>;
 
 export const NOTE_THEME_OPTIONS = NOTE_THEME_IDS.map((id) => NOTE_THEMES[id]);
 
 export function isNoteThemeId(value: string | null | undefined): value is NoteThemeId {
-  return NOTE_THEME_IDS.includes(value as NoteThemeId);
+  // SAFETY: NOTE_THEME_IDS lists every valid theme id, so a match proves the
+  // value is a NoteThemeId.
+  return (NOTE_THEME_IDS as readonly string[]).includes(value ?? '');
 }
 
 export function normalizeNoteThemeId(value: string | null | undefined): NoteThemeId {

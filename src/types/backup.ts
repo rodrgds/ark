@@ -1,3 +1,4 @@
+import type { Json } from '@/lib/decode';
 import type { NoteContentFormat } from '@/constants/note-content';
 import type { NoteThemeId } from '@/constants/note-themes';
 import type { AiCitation } from '@/types/ai';
@@ -70,7 +71,8 @@ export type ArkBackupChatMessage = {
   content: string;
   citations: AiCitation[];
   reasoning: string | null;
-  metadata: Record<string, unknown> | null;
+  /** Attachment/tool metadata written by this app; values are structural JSON. */
+  metadata: { [key: string]: Json } | null;
   deletedAt: number | null;
   createdAt: number;
 };

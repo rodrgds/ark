@@ -32,7 +32,12 @@
     "anti-slop/no-object-parameters": "error",
     "anti-slop/no-reflect-apply": "error",
     "anti-slop/no-reflect-get": "error",
-    "anti-slop/no-runtime-typeof": ["error", { "allowInTypeGuards": true }],
+    "anti-slop/no-runtime-typeof": [
+      "error",
+      {
+        "allowInTypeGuards": true
+      }
+    ],
     "anti-slop/no-shape-in-symbol-names": "error",
     "anti-slop/no-unknown-parameters": "error",
     "anti-slop/no-unknown-returns": "error",
@@ -40,5 +45,76 @@
     "anti-slop/no-unsafe-dictionary-type": "error",
     "anti-slop/no-widen-then-assert": "error",
     "anti-slop/require-safety-comment-for-type-assertion": "error"
-  }
+  },
+  "overrides": [
+    {
+      // Test files mock native modules and cast fixtures; casts there
+      // describe known module shapes rather than untrusted input.
+      "files": [
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.rntl.ts",
+        "**/*.rntl.tsx",
+        "src/test/rntl-mocks.tsx"
+      ],
+      "rules": {
+        "anti-slop/no-chained-type-assertions": "off",
+        "anti-slop/no-known-value-widening": "off",
+        "anti-slop/no-runtime-typeof": "off",
+        "anti-slop/no-shape-in-symbol-names": "off",
+        "anti-slop/no-unknown-parameters": "off",
+        "anti-slop/no-unknown-returns": "off",
+        "anti-slop/no-unsafe-dictionary-type": "off",
+        "anti-slop/require-safety-comment-for-type-assertion": "off"
+      }
+    },
+    {
+      // Environment shim bridging linkedom and the DOM lib Turndown expects;
+      // global slots legitimately hold foreign runtime values, and the
+      // cross-library assertion cannot be expressed as a single hop.
+      "files": [
+        "src/services/content/defuddle-runtime.ts",
+        "polyfills.ts",
+        "src/types/polyfills.d.ts"
+      ],
+      "rules": {
+        "anti-slop/no-chained-type-assertions": "off",
+        "anti-slop/no-unknown-parameters": "off",
+        "anti-slop/no-unknown-returns": "off",
+        "anti-slop/no-unsafe-dictionary-type": "off",
+        "anti-slop/require-safety-comment-for-type-assertion": "off"
+      }
+    },
+    {
+      // Generic zod boundary parser: unknown input is its entire contract.
+      "files": ["src/lib/validation.ts"],
+      "rules": {
+        "anti-slop/no-unknown-parameters": "off"
+      }
+    },
+    {
+      // Platform compat shims mirror third-party module surfaces whose own
+      // types include broad value types.
+      "files": ["src/shims/expo-notifications.fdroid.ts"],
+      "rules": {
+        "anti-slop/no-unsafe-dictionary-type": "off"
+      }
+    },
+    {
+      // Build scripts validate raw manifest JSON at runtime; representation
+      // checks are the contract here.
+      "files": ["scripts/**"],
+      "rules": {
+        "anti-slop/no-runtime-typeof": "off"
+      }
+    },
+    {
+      // Accent CSS variable maps are assembled dynamically from tone stops,
+      // so their keys cannot be enumerated in a static contract.
+      "files": ["src/constants/theme.ts"],
+      "rules": {
+        "anti-slop/no-known-value-widening": "off"
+      }
+    }
+  ]
 }

@@ -3,11 +3,19 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
+// The parsed JSON files are repo-owned, versioned inputs whose shape the
+// assertions below pin down; a drift fails this suite instead of runtime.
+type ExpoPluginConfig = { [key: string]: string | number | boolean | undefined };
+
+function parseJsonFile<T>(path: string): T {
+  // SAFETY: these JSON files are repo-owned, versioned inputs; a shape drift
+  // fails the assertions in this suite rather than shipping.
+  return JSON.parse(readFileSync(join(process.cwd(), path), 'utf8')) as T;
+}
+
 describe('release CI contracts', () => {
   test('package scripts expose the local release gates', () => {
-    const pkg = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8')) as {
-      scripts: Record<string, string>;
-    };
+    const pkg = parseJsonFile<{ scripts: Record<string, string> }>('package.json');
 
     expect(pkg.scripts.typecheck).toContain('bun run typecheck:app');
     expect(pkg.scripts.typecheck).toContain('bun run typecheck:tests');
@@ -184,9 +192,9 @@ describe('release CI contracts', () => {
     expect(workflow).toContain('gh release upload');
     expect(workflow).toContain('SHA256SUMS.txt');
 
-    const app = JSON.parse(readFileSync(join(process.cwd(), 'app.json'), 'utf8')) as {
-      expo: { plugins: Array<string | [string, Record<string, unknown>]> };
-    };
+    const app = parseJsonFile<{
+      expo: { plugins: Array<string | [string, ExpoPluginConfig]> };
+    }>('app.json');
     expect(app.expo.plugins).toContain('./plugins/with-ark-android-release');
 
     const releasePlugin = readFileSync(
@@ -214,13 +222,13 @@ describe('release CI contracts', () => {
   });
 
   test('store permission declarations match runtime capabilities', () => {
-    const app = JSON.parse(readFileSync(join(process.cwd(), 'app.json'), 'utf8')) as {
+    const app = parseJsonFile<{
       expo: {
         ios: { infoPlist: Record<string, string> };
         android: { permissions: string[] };
-        plugins: Array<string | [string, Record<string, unknown>]>;
+        plugins: Array<string | [string, ExpoPluginConfig]>;
       };
-    };
+    }>('app.json');
     const infoPlist = app.expo.ios.infoPlist;
 
     for (const key of [
@@ -302,9 +310,9 @@ describe('release CI contracts', () => {
 });
 
 function findPlugin(
-  plugins: Array<string | [string, Record<string, unknown>]>,
+  plugins: Array<string | [string, ExpoPluginConfig]>,
   name: string
-): Record<string, unknown> | null {
+): ExpoPluginConfig | null {
   const plugin = plugins.find((entry) => (Array.isArray(entry) ? entry[0] : entry) === name);
   if (!Array.isArray(plugin)) return {};
   return plugin[1] ?? {};

@@ -107,7 +107,7 @@ export type AccentColorsByTheme = Record<
   Pick<ThemeColors, 'primary' | 'primaryForeground'>
 >;
 
-export const NAV_COLORS: Record<EffectiveTheme, ThemeColors> = {
+export const NAV_COLORS = {
   oled: {
     background: '#000000',
     foreground: '#EAE9FC',
@@ -209,7 +209,7 @@ export const NAV_COLORS: Record<EffectiveTheme, ThemeColors> = {
   },
 } as const;
 
-const ACCENT_COLORS: Record<StaticAccentPreference, AccentColorsByTheme> = {
+const ACCENT_COLORS = {
   moss: {
     oled: { primary: '#95A78B', primaryForeground: '#0C0F0B' },
     dark: { primary: '#95A78B', primaryForeground: '#0C0F0B' },
@@ -235,13 +235,13 @@ const ACCENT_COLORS: Record<StaticAccentPreference, AccentColorsByTheme> = {
     dark: { primary: '#A99CFF', primaryForeground: '#0E0A24' },
     light: { primary: '#5A47BC', primaryForeground: '#F5F2FF' },
   },
-};
+} satisfies Record<StaticAccentPreference, AccentColorsByTheme>;
 
-const DESTRUCTIVE_COLORS: Record<EffectiveTheme, { destructive: string; chart2: string }> = {
+const DESTRUCTIVE_COLORS = {
   oled: { destructive: '#F87171', chart2: '#F87171' },
   dark: { destructive: '#F87171', chart2: '#F87171' },
   light: { destructive: '#B42318', chart2: '#B42318' },
-};
+} satisfies Record<EffectiveTheme, { destructive: string; chart2: string }>;
 
 export const DEFAULT_SYSTEM_ACCENT_COLORS: AccentColorsByTheme = ACCENT_COLORS.moss;
 
@@ -250,6 +250,9 @@ type HslColor = {
   s: number;
   l: number;
 };
+
+/** CSS custom properties for the accent scale: `--color-*` name to value. */
+export type CssVariables = Record<string, string>;
 
 const TONE_STOPS = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950] as const;
 
@@ -540,7 +543,7 @@ export function getAccentCssVariables(
   theme: EffectiveTheme,
   accentPreference: AccentPreference,
   systemAccentColors: AccentColorsByTheme = DEFAULT_SYSTEM_ACCENT_COLORS
-): Record<string, string> {
+): CssVariables {
   const colors = getThemeColors(theme, accentPreference, systemAccentColors);
   const hsl = hexToHsl(colors.primary);
   const secondaryScale = toneScale(hsl, theme, theme === 'light' ? 0.48 : 0.42);
@@ -553,6 +556,7 @@ export function getAccentCssVariables(
       return [`--color-accent-${stop}`, tone(hsl, lightnessStops[index] ?? 50, 0.22, -10)];
     })
   );
+  // SAFETY: the CSS variable names are derived from TONE_STOPS above.
   return {
     ...neutralScale(theme),
     ...secondaryScale,

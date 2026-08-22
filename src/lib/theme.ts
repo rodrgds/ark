@@ -39,7 +39,7 @@ export function getNavigationTheme(
   return buildNavigationTheme(theme, accentPreference, systemAccentColors);
 }
 
-export const NAV_THEME: Record<EffectiveTheme, NavigationTheme> = {
+export const NAV_THEME = {
   oled: {
     ...DarkTheme,
     colors: {
@@ -73,4 +73,4 @@ export const NAV_THEME: Record<EffectiveTheme, NavigationTheme> = {
       text: NAV_COLORS.light.foreground,
     },
   },
-};
+} satisfies Record<EffectiveTheme, NavigationTheme>;

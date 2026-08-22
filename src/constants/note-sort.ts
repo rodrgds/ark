@@ -15,7 +15,9 @@ export const NOTE_SORT_OPTIONS: Array<{
 ];
 
 export function isNoteSortMode(value: string | null | undefined): value is NoteSortMode {
-  return NOTE_SORT_MODES.includes(value as NoteSortMode);
+  // SAFETY: NOTE_SORT_MODES holds every valid sort mode, so a match proves
+  // the value is one of them.
+  return (NOTE_SORT_MODES as readonly string[]).includes(value ?? '');
 }
 
 export function normalizeNoteSortMode(value: string | null | undefined): NoteSortMode {

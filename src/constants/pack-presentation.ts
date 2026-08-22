@@ -33,7 +33,7 @@ import {
 
 type PackLike = Pick<ContentPackManifest, 'id' | 'category' | 'modelRole'>;
 
-const PACK_ICONS: Record<string, LucideIcon> = {
+const PACK_ICONS = {
   'us-army-survival-fm-21-76': TentTree,
   'food-preservation-usda': UtensilsCrossed,
   'wikipedia-simple-en-nopic': Library,
@@ -61,9 +61,9 @@ const PACK_ICONS: Record<string, LucideIcon> = {
   'personal-safety-conflict': ShieldAlert,
   'sanitation-principles': SoapDispenserDroplet,
   'health-continuity': Stethoscope,
-};
+} satisfies Record<string, LucideIcon>;
 
-const CATEGORY_ICONS: Partial<Record<ContentCategory, LucideIcon>> = {
+const CATEGORY_ICONS = {
   'AI Models': Bot,
   Comms: MessageSquareText,
   Disasters: TriangleAlert,
@@ -78,7 +78,7 @@ const CATEGORY_ICONS: Partial<Record<ContentCategory, LucideIcon>> = {
   Survival: TentTree,
   Water: SoapDispenserDroplet,
   Wiki: BookOpen,
-};
+} satisfies Partial<Record<ContentCategory, LucideIcon>>;
 
 const CATEGORY_ORDER: ContentCategory[] = [
   'Preparedness',
@@ -97,12 +97,22 @@ const CATEGORY_ORDER: ContentCategory[] = [
   'Personal Documents',
 ];
 
+// SAFETY: the literal tables above are keyed by pack id and category; the
+// casts only restore the widened entry-tuple shape for the Map constructor.
+const PACK_ICONS_BY_ID = new globalThis.Map<string, LucideIcon>(
+  Object.entries(PACK_ICONS) as Array<[string, LucideIcon]>
+);
+const CATEGORY_ICONS_MAP = new globalThis.Map<string, LucideIcon>(
+  // SAFETY: same curated category table as above.
+  Object.entries(CATEGORY_ICONS) as Array<[string, LucideIcon]>
+);
+
 export function getPackIcon(pack: PackLike): LucideIcon {
-  return PACK_ICONS[pack.id] ?? CATEGORY_ICONS[pack.category] ?? PackageOpen;
+  return PACK_ICONS_BY_ID.get(pack.id) ?? CATEGORY_ICONS_MAP.get(pack.category) ?? PackageOpen;
 }
 
 export function getCategoryIcon(category: ContentCategory): LucideIcon {
-  return CATEGORY_ICONS[category] ?? PackageOpen;
+  return CATEGORY_ICONS_MAP.get(category) ?? PackageOpen;
 }
 
 export function getPackModelRoleLabel(pack: Pick<ContentPackManifest, 'category' | 'modelRole'>) {

@@ -28,6 +28,7 @@ export const MAP_PIN_COLOR_OPTIONS = [
 ] as const;
 
 export function normalizeMapPinType(type?: string | null): MapPinType {
+  // SAFETY: the membership check proves type is one of the pin type ids.
   return MAP_PIN_TYPES.some((pin) => pin.type === type) ? (type as MapPinType) : 'custom';
 }
 

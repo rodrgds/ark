@@ -154,18 +154,17 @@ export const RECORDING_PROFILE_OPTIONS: Array<{
   },
 ];
 
-export const TRACK_RECORDING_PROFILES: Record<
-  TrackRecordingProfile,
-  {
-    distanceIntervalMeters: number;
-    timeIntervalMs: number;
-    deferredDistanceMeters: number;
-    deferredIntervalMs: number;
-    maxHorizontalAccuracyMeters: number;
-    maxGapMeters: number;
-    idleAfterSeconds: number;
-  }
-> = {
+export type TrackRecordingProfileTiming = {
+  distanceIntervalMeters: number;
+  timeIntervalMs: number;
+  deferredDistanceMeters: number;
+  deferredIntervalMs: number;
+  maxHorizontalAccuracyMeters: number;
+  maxGapMeters: number;
+  idleAfterSeconds: number;
+};
+
+export const TRACK_RECORDING_PROFILES = {
   normal: {
     distanceIntervalMeters: 10,
     timeIntervalMs: 5_000,
@@ -193,7 +192,7 @@ export const TRACK_RECORDING_PROFILES: Record<
     maxGapMeters: 150,
     idleAfterSeconds: 8 * 60,
   },
-};
+} satisfies Record<TrackRecordingProfile, TrackRecordingProfileTiming>;
 
 export const DEFAULT_TRACK_ACTIVITY: TrackActivityType = 'hike';
 export const DEFAULT_UNIT_SYSTEM: UnitSystem = 'metric';

@@ -35,7 +35,6 @@ export function AppearanceSection({
   preference,
   effectiveTheme,
   accentPreference,
-  colors: currentColors,
   systemAccentAvailable,
   systemAccentColors,
   setPreference,
@@ -62,7 +61,7 @@ export function AppearanceSection({
               size="sm"
               variant={preference === option.value ? 'default' : 'outline'}
               onPress={() => setPreference(option.value)}>
-              <Text>{option.label.replace(' (Recommended - saves battery)', '')}</Text>
+              <Text>{option.label}</Text>
             </Button>
           ))}
         </View>
@@ -100,12 +99,7 @@ export function AppearanceSection({
         <View className="flex-row flex-wrap gap-2">
           {ACCENT_OPTIONS.map((option) => {
             const selected = accentPreference === option.value;
-            const colors =
-              option.value === 'system'
-                ? selected
-                  ? currentColors
-                  : getThemeColors(effectiveTheme, option.value, systemAccentColors)
-                : getThemeColors(effectiveTheme, option.value, systemAccentColors);
+            const colors = getThemeColors(effectiveTheme, option.value, systemAccentColors);
             return (
               <Button
                 key={option.value}

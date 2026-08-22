@@ -28,11 +28,11 @@ type Drain = 'low' | 'medium' | 'high';
 function DrainBadge({ level }: { level: Drain }) {
   const theme = useThemeStore((state) => state.effectiveTheme);
   const palette = useThemeStore((state) => state.colors);
-  const colors: Record<Drain, { text: string; label: string }> = {
+  const colors = {
     low: { text: '#22c55e', label: 'Low' },
     medium: { text: '#f59e0b', label: 'Med' },
     high: { text: palette.destructive, label: 'High' },
-  };
+  } satisfies Record<Drain, { text: string; label: string }>;
   const c = colors[level];
   return (
     <View
@@ -51,6 +51,8 @@ function DrainBadge({ level }: { level: Drain }) {
   );
 }
 
+// SAFETY: every entry is a real registered tool route; Href just cannot
+// prove that from string literals alone.
 const TOOL_ROUTES = {
   coordinates: '/tools/coordinates' as Href,
   weather: '/tools/weather' as Href,
@@ -80,6 +82,7 @@ export default function ToolsScreen() {
     }, [reduceModeEnabled])
   );
 
+  // SAFETY: every href below is a real registered tool route.
   const tools = [
     {
       href: '/tools/compass' as Href,

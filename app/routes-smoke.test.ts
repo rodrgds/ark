@@ -167,7 +167,7 @@ describe('app route contracts', () => {
     expect(settings).toContain('BackupService.importFromPicker');
     expect(backupSection).toContain('Export .arkbackup');
     expect(backupSection).toContain('Import .arkbackup');
-    expect(backupSection).toContain('Encrypted Backup');
+    expect(backupSection).toContain('Encrypted backup');
     expect(settings).toContain("activeTab === 'advanced'");
     expect(backupService).toContain("'models'");
     expect(backupService).toContain("'offline maps'");

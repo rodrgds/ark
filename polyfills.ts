@@ -3,6 +3,8 @@ import { Platform } from 'react-native';
 import structuredClone from '@ungap/structured-clone';
 
 if (!('DOMException' in globalThis)) {
+  // SAFETY: Hermes lacks DOMException; Error carries the message/stack shape
+  // fetch and URL rely on, and this polyfill only fills the missing global.
   globalThis.DOMException = Error as unknown as typeof DOMException;
 }
 

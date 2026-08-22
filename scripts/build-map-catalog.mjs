@@ -35,9 +35,9 @@ const catalog = {
   generatedAt: now.toISOString(),
   updatedAt: formatDate(now),
   source: args.sourceName || raw.source || 'ark-generated-map-catalog',
-  ...(args.baseUrl ? { baseUrl: args.baseUrl } : {}),
   regions: sourceRegions.map(normalizeRegion),
 };
+if (args.baseUrl) catalog.baseUrl = args.baseUrl;
 
 const body = `${JSON.stringify(catalog, null, 2)}\n`;
 const sha256 = createHash('sha256').update(body).digest('hex');
@@ -113,7 +113,7 @@ function normalizeRegion(region) {
     checksumSha256Url: optionalString(region.checksumSha256Url),
     updatedAt: optionalString(region.updatedAt),
     tags: Array.isArray(region.tags)
-      ? Array.from(new Set(region.tags.filter((tag) => typeof tag === 'string' && tag.trim())))
+      ? Array.from(new Set(region.tags.filter((tag) => isNonEmptyString(tag) && tag.trim())))
       : undefined,
     description: optionalString(region.description),
   });
@@ -153,8 +153,12 @@ function normalizeLevel(level, bbox, minZoom) {
   return 'region';
 }
 
+function isNonEmptyString(value) {
+  return typeof value === 'string';
+}
+
 function normalizeCountryCode(value) {
-  if (typeof value !== 'string') return undefined;
+  if (!isNonEmptyString(value)) return undefined;
   const normalized = value.trim().toUpperCase();
   return /^[A-Z]{2}$/.test(normalized) ? normalized : undefined;
 }
@@ -170,13 +174,13 @@ function normalizePackFormat(format, packUrl) {
 }
 
 function normalizeSha256(value) {
-  if (typeof value !== 'string') return undefined;
+  if (!isNonEmptyString(value)) return undefined;
   const normalized = value.trim().toLowerCase();
   return /^[a-f0-9]{64}$/.test(normalized) ? normalized : undefined;
 }
 
 function optionalString(value) {
-  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+  return isNonEmptyString(value) && value.trim() ? value.trim() : undefined;
 }
 
 function positiveNumber(value) {

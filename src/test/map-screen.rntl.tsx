@@ -10,60 +10,56 @@ const { fireEvent, render, waitFor } = await import('@testing-library/react-nati
 
 const now = new Date('2026-07-01T12:00:00Z').getTime();
 const setChromeHidden = mock((_hidden: boolean) => undefined);
-const setNetworkConnected = mock((_maplibre: unknown, _connected: boolean) => undefined);
+const setNetworkConnected = mock(<T,>(_module: T, _connected: boolean) => undefined);
 const loadMapLibre = mock(async () => null);
 const listRegions = mock(async () => [queuedRegion]);
 const listMarkers = mock(async () => [portoMarker]);
 const listRoutes = mock(async () => [evacuationRoute]);
-const searchOffline = mock(
-  async (_query: string): Promise<OfflineMapSearchResult[]> => [
-    {
-      id: portoMarker.id,
-      kind: 'spot',
-      title: portoMarker.title,
-      subtitle: 'Emergency rally point',
-      latitude: portoMarker.latitude,
-      longitude: portoMarker.longitude,
-    },
-    {
-      id: evacuationRoute.id,
-      kind: 'route',
-      title: evacuationRoute.title,
-      subtitle: '2 saved points',
-    },
-    {
-      id: 'offline-place-porto',
-      kind: 'place',
-      title: 'Porto offline',
-      subtitle: 'Bundled place seed',
-      latitude: 41.1579,
-      longitude: -8.6291,
-      placeSource: 'offline',
-    },
-  ]
-);
-const geocodeSearch = mock(
-  async (_query: string): Promise<OfflineMapSearchResult[]> => [
-    {
-      id: 'place-porto-online',
-      kind: 'place',
-      title: 'Porto online',
-      subtitle: 'Portugal',
-      latitude: 41.1579,
-      longitude: -8.6291,
-      placeSource: 'online',
-    },
-    {
-      id: 'place-porto-cached',
-      kind: 'place',
-      title: 'Porto cached',
-      subtitle: 'Cached geocoder result',
-      latitude: 41.15,
-      longitude: -8.61,
-      placeSource: 'cached',
-    },
-  ]
-);
+const searchOffline = mock(async (_query: string): Promise<OfflineMapSearchResult[]> => [
+  {
+    id: portoMarker.id,
+    kind: 'spot',
+    title: portoMarker.title,
+    subtitle: 'Emergency rally point',
+    latitude: portoMarker.latitude,
+    longitude: portoMarker.longitude,
+  },
+  {
+    id: evacuationRoute.id,
+    kind: 'route',
+    title: evacuationRoute.title,
+    subtitle: '2 saved points',
+  },
+  {
+    id: 'offline-place-porto',
+    kind: 'place',
+    title: 'Porto offline',
+    subtitle: 'Bundled place seed',
+    latitude: 41.1579,
+    longitude: -8.6291,
+    placeSource: 'offline',
+  },
+]);
+const geocodeSearch = mock(async (_query: string): Promise<OfflineMapSearchResult[]> => [
+  {
+    id: 'place-porto-online',
+    kind: 'place',
+    title: 'Porto online',
+    subtitle: 'Portugal',
+    latitude: 41.1579,
+    longitude: -8.6291,
+    placeSource: 'online',
+  },
+  {
+    id: 'place-porto-cached',
+    kind: 'place',
+    title: 'Porto cached',
+    subtitle: 'Cached geocoder result',
+    latitude: 41.15,
+    longitude: -8.61,
+    placeSource: 'cached',
+  },
+]);
 const refreshCatalog = mock(async () => catalogMeta);
 let netInfoIsConnected: boolean | null = false;
 
@@ -197,10 +193,12 @@ mock.module('@swmansion/react-native-bottom-sheet', () => ({
   BottomSheetProvider: ({ children }: React.PropsWithChildren) => <>{children}</>,
 }));
 
+type SvgMockProps = { [key: string]: string | number | boolean | undefined };
+
 mock.module('react-native-svg', () => ({
-  default: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
+  default: ({ children, ...props }: React.PropsWithChildren<SvgMockProps>) =>
     React.createElement('Svg', props, children),
-  Path: (props: Record<string, unknown>) => React.createElement('Path', props),
+  Path: (props: SvgMockProps) => React.createElement('Path', props),
 }));
 
 mock.module('expo-image-picker', () => ({
@@ -237,7 +235,7 @@ mock.module('@/services/maps/map.service', () => ({
     getLocalStyle: () => ({ version: 8, sources: {}, layers: [] }),
     getOverviewStyle: () => ({ version: 8, sources: {}, layers: [] }),
     getThemedStyle: () => ({ version: 8, sources: {}, layers: [] }),
-    getRuntimeStatus: (_maplibre: unknown, checked: boolean) => ({
+    getRuntimeStatus: <T,>(_maplibre: T, checked: boolean) => ({
       available: false,
       checking: !checked,
       reason: checked

@@ -444,10 +444,10 @@ export default function DocumentReaderScreen() {
                 page={initialPage}
                 style={{ flex: 1, backgroundColor: colors.background }}
                 onPageChanged={(nextPage: number) => setCurrentPdfPage(nextPage)}
-                onError={(pdfError: unknown) => {
+                onError={(pdfError: { message?: string } | null) => {
                   setError(
-                    pdfError && typeof pdfError === 'object' && 'message' in pdfError
-                      ? String((pdfError as { message?: unknown }).message)
+                    pdfError !== null && 'message' in pdfError
+                      ? String(pdfError.message)
                       : 'Unable to render this PDF.'
                   );
                 }}

@@ -171,6 +171,7 @@ export default function NotesScreen() {
   }
 
   function openNote(note: Note) {
+    // SAFETY: typed routes do not model the editor route's params shape.
     router.push({
       pathname: '/notes/editor' as never,
       params: { id: note.id } as never,
@@ -483,6 +484,7 @@ export default function NotesScreen() {
                 onPress={() => {
                   if (selectedCount === 1 && singleSelectedNote) {
                     exitSelection();
+                    // SAFETY: typed routes do not model the labels route's params shape.
                     router.push({
                       pathname: '/notes/labels' as never,
                       params: { noteId: singleSelectedNote.id } as never,
@@ -560,7 +562,10 @@ export default function NotesScreen() {
               <Button
                 size="sm"
                 variant="secondary"
-                onPress={() => router.push('/notes/editor' as never)}>
+                onPress={() => {
+                  // SAFETY: typed routes lag the notes editor override route.
+                  router.push('/notes/editor' as never);
+                }}>
                 <Icon as={Plus} className="size-4" />
                 <Text>New</Text>
               </Button>

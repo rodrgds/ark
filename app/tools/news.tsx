@@ -296,7 +296,10 @@ export default function NewsScreen() {
                 <Button
                   className="flex-1"
                   variant="outline"
-                  onPress={() => router.push(`/tools/news/${item.id}` as never)}>
+                  onPress={() => {
+                    // SAFETY: typed route generation omits dynamic tool routes
+                    router.push(`/tools/news/${item.id}` as never);
+                  }}>
                   <Icon as={Newspaper} className="size-4" />
                   <Text>Read offline</Text>
                 </Button>

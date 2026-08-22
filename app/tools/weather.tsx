@@ -43,7 +43,7 @@ type WeatherPalette = ThemeColors;
 
 const FORECAST_DAYS = 14;
 
-const SYMBOL_ICONS: Record<WeatherSymbol, LucideIcon> = {
+const SYMBOL_ICONS = {
   clear: SunMedium,
   'partly-cloudy': CloudSun,
   cloudy: Cloud,
@@ -53,13 +53,12 @@ const SYMBOL_ICONS: Record<WeatherSymbol, LucideIcon> = {
   snow: CloudSnow,
   storm: Zap,
   unknown: Cloud,
-};
+} as const satisfies Record<WeatherSymbol, LucideIcon>;
 
 export default function WeatherTool() {
   const [weather, setWeather] = React.useState<CachedWeather>(null);
   const [busy, setBusy] = React.useState(false);
   const [message, setMessage] = React.useState<string | null>(null);
-  const theme = useThemeStore((state) => state.effectiveTheme);
   const reduceModeEnabled = useBatteryReduceMode();
   const palette = useThemeStore((state) => state.colors);
 
@@ -113,7 +112,7 @@ export default function WeatherTool() {
 
       {weather ? (
         <>
-          <CurrentConditionsCard weather={weather} palette={palette} />
+          <CurrentConditionsCard weather={weather} />
           <NearTermStrip hours={weather.forecast.hourly} ageHours={weather.ageHours} />
           <ForecastChart days={weather.forecast.daily.slice(0, FORECAST_DAYS)} palette={palette} />
           <DailyForecastList
@@ -136,13 +135,7 @@ export default function WeatherTool() {
   );
 }
 
-function CurrentConditionsCard({
-  weather,
-  palette,
-}: {
-  weather: NonNullable<CachedWeather>;
-  palette: WeatherPalette;
-}) {
+function CurrentConditionsCard({ weather }: { weather: NonNullable<CachedWeather> }) {
   const forecast = weather.forecast;
   const IconComponent = SYMBOL_ICONS[forecast.conditionSymbol];
   const confidence = adjustedConfidence(forecast.confidencePct, weather.ageHours);

@@ -136,6 +136,7 @@ export default function PedometerTool() {
               styles.progressFill,
               {
                 backgroundColor: success,
+                // SAFETY: the template literal always matches RN's ${number}% width pattern
                 width: `${(progress * 100).toFixed(1)}%` as `${number}%`,
               },
             ]}

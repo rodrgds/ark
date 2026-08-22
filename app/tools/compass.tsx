@@ -605,6 +605,7 @@ export default function CompassTool() {
               variant="outline"
               onPress={() => {
                 setPickerOpen(false);
+                // SAFETY: typed route generation omits tab-group prefixed paths
                 router.push('/(tabs)/map' as never);
               }}>
               <Icon as={MapPin} className="size-4" />

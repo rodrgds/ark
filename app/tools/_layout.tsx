@@ -1,7 +1,7 @@
 import { useThemeStore } from '@/stores/theme-store';
 import { Stack } from 'expo-router';
 
-const titles: Record<string, string> = {
+const titles = {
   compass: 'Compass',
   barometer: 'Barometer',
   level: 'Level',
@@ -14,7 +14,7 @@ const titles: Record<string, string> = {
   'news/[id]': 'News',
   checklist: 'Checklist',
   diagnostics: 'Diagnostics',
-};
+} as const;
 
 export default function ToolsLayout() {
   const colors = useThemeStore((state) => state.colors);

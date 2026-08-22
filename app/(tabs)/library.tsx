@@ -209,7 +209,10 @@ export default function LibraryScreen() {
               try {
                 const importedDocument = await ImportService.importDocument();
                 await load();
-                if (importedDocument) router.push('/library/Documents' as never);
+                if (importedDocument) {
+                  // SAFETY: typed routes lag the library Documents category route.
+                  router.push('/library/Documents' as never);
+                }
               } catch (importError) {
                 setError(
                   importError instanceof Error ? importError.message : 'Unable to import file.'
@@ -252,7 +255,10 @@ export default function LibraryScreen() {
                   accessibilityRole="button"
                   accessibilityLabel={`Open ${result.title}`}
                   className="border-border active:bg-muted/40 border-b py-4"
-                  onPress={() => router.push(result.href as never)}>
+                  onPress={() => {
+                    // SAFETY: search result hrefs are curated in this file.
+                    router.push(result.href as never);
+                  }}>
                   <View className="min-h-20 flex-row items-center gap-4">
                     <View className="bg-primary/12 size-10 items-center justify-center rounded-md">
                       <Icon as={result.icon} className="text-primary size-6" />
@@ -293,7 +299,10 @@ export default function LibraryScreen() {
               accessibilityRole="button"
               accessibilityLabel={`Open ${category.title} category`}
               className="border-border active:bg-muted/40 border-b py-4"
-              onPress={() => router.push(category.href as never)}>
+              onPress={() => {
+                // SAFETY: category hrefs are curated in this file.
+                router.push(category.href as never);
+              }}>
               <View className="min-h-20 flex-row items-center gap-4">
                 <View className="bg-primary/12 size-10 items-center justify-center rounded-md">
                   <Icon as={category.icon} className="text-primary size-6" />

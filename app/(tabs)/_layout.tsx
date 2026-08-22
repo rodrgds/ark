@@ -131,9 +131,11 @@ function TabsLayoutContent() {
                   src={
                     <NativeTabs.Trigger.VectorIcon
                       family={MaterialCommunityIcons}
+                      // SAFETY: tab icons come from the curated ARK_TABS table.
                       name={androidIconName as never}
                     />
                   }
+                  // SAFETY: sfSymbols come from the curated ARK_TABS table.
                   sf={tab.sfSymbol as never}
                 />
                 <NativeTabs.Trigger.Label>{tab.label}</NativeTabs.Trigger.Label>

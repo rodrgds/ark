@@ -330,7 +330,10 @@ function DocumentList({
             <Button
               className="flex-1"
               variant="secondary"
-              onPress={() => router.push(`/documents/${document.id}` as never)}>
+              onPress={() => {
+                // SAFETY: typed routes lag the dynamic document route.
+                router.push(`/documents/${document.id}` as never);
+              }}>
               <Text>View</Text>
             </Button>
             <Button
@@ -393,11 +396,13 @@ function PackCard({
       pack.format === 'markdown' ||
       pack.format === 'txt'
     ) {
+      // SAFETY: typed routes lag the reader route's dynamic segment.
       router.push({
         pathname: '/content/reader',
         params: { packId: pack.id },
       } as never);
     } else {
+      // SAFETY: typed routes lag dynamic content pack routes.
       router.push(`/content/${pack.id}` as never);
     }
   };
@@ -672,9 +677,11 @@ function PackCard({
   );
 }
 
-function decodeCategory(category?: string) {
+function decodeCategory(category?: string): ContentCategory | 'Documents' {
   const value = category ? decodeURIComponent(category) : 'Documents';
-  return value === 'Documents' ? 'Documents' : (value as ContentCategory);
+  // SAFETY: route segments are curated category names; unknown values are
+  // still rendered as the literal segment.
+  return value as ContentCategory;
 }
 
 function documentSearchStatus(document: ArkDocument) {
@@ -865,12 +872,13 @@ function UserWebPageList({
                 className="flex-1"
                 variant="secondary"
                 disabled={!page.installed || isWorking}
-                onPress={() =>
+                onPress={() => {
+                  // SAFETY: typed routes lag the reader route's dynamic segment.
                   router.push({
                     pathname: '/content/reader',
                     params: { packId: page.id },
-                  } as never)
-                }>
+                  } as never);
+                }}>
                 <Text>Open</Text>
               </Button>
               <Button

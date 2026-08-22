@@ -173,7 +173,7 @@ function NoteActionsSheet({
 
 export default function NoteEditorScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
-  const routeNoteId = typeof params.id === 'string' ? params.id : undefined;
+  const routeNoteId = (Array.isArray(params.id) ? params.id[0] : params.id) ?? undefined;
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
   const effectiveTheme = useThemeStore((state) => state.effectiveTheme);

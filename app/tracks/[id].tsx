@@ -145,9 +145,10 @@ export default function TrackDetailScreen() {
           <Button
             className="min-w-28 flex-1"
             variant="outline"
-            onPress={() =>
-              router.push({ pathname: '/(tabs)/map', params: { trackId: track.id } } as never)
-            }>
+            onPress={() => {
+              // SAFETY: typed routes do not model cross-group param routes.
+              router.push({ pathname: '/(tabs)/map', params: { trackId: track.id } } as never);
+            }}>
             <Icon as={Map} className="size-4" />
             <Text>Open in Map</Text>
           </Button>
@@ -168,7 +169,8 @@ export default function TrackDetailScreen() {
       </Card>
 
       <View className="flex-row flex-wrap gap-2">
-        {(['summary', 'map', 'charts', 'intervals', 'markers'] as DetailTab[]).map((item) => (
+        {// SAFETY: the tab ids mirror the switch arms in this file.
+        (['summary', 'map', 'charts', 'intervals', 'markers'] as DetailTab[]).map((item) => (
           <Button
             key={item}
             className="min-w-24 flex-1"
@@ -459,12 +461,13 @@ function MarkersTab({
           <Pressable
             key={marker.id}
             className="border-border flex-row items-center gap-3 border-b py-3 last:border-b-0"
-            onPress={() =>
+            onPress={() => {
+              // SAFETY: typed routes do not model cross-group param routes.
               router.push({
                 pathname: '/(tabs)/map',
                 params: { markerId: marker.mapMarkerId ?? '', trackId: marker.trackId },
-              } as never)
-            }>
+              } as never);
+            }}>
             {marker.photoUri ? (
               <Image source={{ uri: marker.photoUri }} className="bg-muted size-12 rounded-md" />
             ) : (

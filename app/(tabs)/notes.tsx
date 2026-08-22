@@ -328,7 +328,7 @@ export default function NotesScreen() {
       const { uri } = await NotePdfService.export(note);
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(uri, {
-          dialogTitle: `Print ${note.title || 'Untitled Note'}`,
+          dialogTitle: `Print ${note.title || 'Untitled note'}`,
           mimeType: 'application/pdf',
           UTI: 'com.adobe.pdf',
         });

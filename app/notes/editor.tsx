@@ -388,7 +388,7 @@ export default function NoteEditorScreen() {
     const now = Date.now();
     return {
       id: savedNoteId ?? 'draft-note',
-      title: title.trim() || 'Untitled Note',
+      title: title.trim() || 'Untitled note',
       body,
       contentHtml,
       contentJson,

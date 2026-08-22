@@ -156,7 +156,7 @@ export class NotePdfService {
   static async export(note: Note) {
     await FileSystemService.ensureAppDirectories();
 
-    const title = note.title.trim() || 'Untitled Note';
+    const title = note.title.trim() || 'Untitled note';
     const dateStr = new Date(note.updatedAt).toLocaleDateString(undefined, {
       dateStyle: 'long',
     });

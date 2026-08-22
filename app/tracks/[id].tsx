@@ -169,17 +169,19 @@ export default function TrackDetailScreen() {
       </Card>
 
       <View className="flex-row flex-wrap gap-2">
-        {// SAFETY: the tab ids mirror the switch arms in this file.
-        (['summary', 'map', 'charts', 'intervals', 'markers'] as DetailTab[]).map((item) => (
-          <Button
-            key={item}
-            className="min-w-24 flex-1"
-            size="sm"
-            variant={tab === item ? 'default' : 'outline'}
-            onPress={() => setTab(item)}>
-            <Text className="capitalize">{item}</Text>
-          </Button>
-        ))}
+        {
+          // SAFETY: the tab ids mirror the switch arms in this file.
+          (['summary', 'map', 'charts', 'intervals', 'markers'] as DetailTab[]).map((item) => (
+            <Button
+              key={item}
+              className="min-w-24 flex-1"
+              size="sm"
+              variant={tab === item ? 'default' : 'outline'}
+              onPress={() => setTab(item)}>
+              <Text className="capitalize">{item}</Text>
+            </Button>
+          ))
+        }
       </View>
 
       {tab === 'summary' ? (

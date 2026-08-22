@@ -46,8 +46,11 @@ type NotificationContent = {
   color?: string;
   sticky?: boolean;
   autoDismiss?: boolean;
-  data?: Record<string, unknown>;
+  data?: NotificationData;
 };
+
+// Notification payloads are user-supplied key/value data.
+export type NotificationData = { [key: string]: string | number | boolean | null };
 
 type ScheduleInput = {
   identifier?: string;
@@ -59,7 +62,7 @@ type NotificationResponse = {
   notification?: {
     request?: {
       identifier?: string;
-      content?: { data?: Record<string, unknown> };
+      content?: { data?: NotificationData };
     };
   };
 } | null;
@@ -119,6 +122,8 @@ export async function setNotificationChannelAsync(
       id: channelId,
       name: channel?.name ?? channelId,
       description: channel?.description,
+      // SAFETY: notifee channel importance uses the same numeric scale as
+      // the stored preference.
       importance: (channel?.importance as AndroidImportance) ?? AndroidImportance.DEFAULT,
       sound: channel?.sound === null ? 'silent' : 'default',
       vibration: !!channel?.enableVibrate,
@@ -131,7 +136,7 @@ export async function setNotificationChannelAsync(
 }
 
 export function setNotificationHandler(_handler: {
-  handleNotification?: () => Promise<unknown>;
+  handleNotification?: () => Promise<void>;
 }): void {
   return;
 }
@@ -145,7 +150,8 @@ export async function scheduleNotificationAsync(notification: ScheduleInput): Pr
       title: content?.title,
       subtitle: content?.subtitle,
       body: content?.body,
-      data: content?.data as { [key: string]: string | number | object } | undefined,
+      // SAFETY: Ark notification payloads only carry primitive values.
+      data: content?.data as { [key: string]: string | object | number } | undefined,
       android: {
         channelId: 'ark-downloads',
         autoCancel: content?.autoDismiss ?? true,
@@ -168,10 +174,8 @@ export async function cancelScheduledNotificationAsync(identifier: string): Prom
   await notifee.cancelNotification(identifier).catch(() => undefined);
 }
 
-function toResponse(
-  notification: { id?: string; data?: Record<string, unknown> } | null | undefined
-): {
-  notification: { request?: { identifier?: string; content?: { data?: Record<string, unknown> } } };
+function toResponse(notification: { id?: string; data?: NotificationData } | null | undefined): {
+  notification: { request?: { identifier?: string; content?: { data?: NotificationData } } };
 } | null {
   if (!notification) return null;
   return {
@@ -184,9 +188,11 @@ function toResponse(
   };
 }
 
+export type NotificationSubscription = { remove(): void };
+
 export function addNotificationResponseReceivedListener(
   listener: (response: NotificationResponse) => void
-): { remove(): void } {
+): NotificationSubscription {
   const unsubscribe = notifee.onForegroundEvent((event: any) => {
     if (event?.type === EventType.PRESS) {
       const response = toResponse({
@@ -205,7 +211,8 @@ export async function getLastNotificationResponseAsync(): Promise<NotificationRe
     if (!initial?.notification) return null;
     return toResponse({
       id: initial.notification.id,
-      data: initial.notification.data,
+      // SAFETY: Ark only reads primitive keys from notification payloads.
+      data: initial.notification.data as NotificationData | undefined,
     });
   } catch {
     return null;

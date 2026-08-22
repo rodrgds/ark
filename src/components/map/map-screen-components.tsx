@@ -146,7 +146,6 @@ export function MapCanvas({
   canMount,
   center,
   fullscreen,
-  hasDownloadedRegion,
   initialZoom,
   isSearchActive,
   mapBearing,
@@ -178,7 +177,6 @@ export function MapCanvas({
   canMount: boolean;
   center: LngLat;
   fullscreen: boolean;
-  hasDownloadedRegion: boolean;
   initialZoom: number;
   isSearchActive: boolean;
   mapBearing: number;

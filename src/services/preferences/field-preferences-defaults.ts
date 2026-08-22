@@ -60,6 +60,8 @@ export function inferUnitSystemFromLocales(locales: LocaleLike[]): UnitSystem {
 
 function readDeviceLocales(): LocaleLike[] {
   try {
+    // SAFETY: expo-localization ships getLocales on every supported target;
+    // absence only disables the locale-based defaults below.
     const localization = require('expo-localization') as {
       getLocales?: () => LocaleLike[];
     };

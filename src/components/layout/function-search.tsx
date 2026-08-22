@@ -64,6 +64,7 @@ const FUNCTION_ENTRIES: SearchEntry[] = [
     subtitle: 'Record routes, markers, photos, and GPX history',
     keywords: 'tracks recording route gps hike walk run speed elevation charts gpx',
     icon: Route,
+    // SAFETY: hrefs are curated tab and tool routes in this table.
     href: '/(tabs)/tracks' as Href,
     tabId: 'tracks',
   },
@@ -95,6 +96,7 @@ const FUNCTION_ENTRIES: SearchEntry[] = [
     subtitle: 'Cached feeds and unread alerts',
     keywords: 'news rss feeds alerts articles cache',
     icon: Newspaper,
+    // SAFETY: curated tool route from the table above.
     href: '/tools/news' as Href,
     tabId: 'tools',
   },
@@ -330,7 +332,7 @@ export function FunctionSearchButton() {
         <View className="gap-1">
           {results.map((entry) => (
             <Pressable
-              key={`${entry.title}-${typeof entry.href === 'string' ? entry.href : entry.href.pathname}`}
+              key={`${entry.title}-${String(entry.href)}`}
               accessibilityRole="button"
               onPress={() => openEntry(entry)}
               className="active:bg-accent flex-row items-center gap-3 rounded-md p-3">

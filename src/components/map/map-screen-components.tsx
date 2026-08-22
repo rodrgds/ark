@@ -235,6 +235,7 @@ export function MapCanvas({
         key={mapKey}
         androidView="texture"
         style={{ flex: 1, backgroundColor: mapBackgroundColor }}
+        // SAFETY: the themed style JSON matches MapLibre's style spec shape.
         mapStyle={mapStyle as never}
         logo={false}
         attribution={false}

@@ -228,7 +228,9 @@ function statusText(status: string) {
 }
 
 function formatOptionalBytes(bytes?: number | null) {
-  return typeof bytes === 'number' && bytes > 0 ? FileSystemService.formatBytes(bytes) : 'Unknown';
+  return bytes != null && Number.isFinite(bytes) && bytes > 0
+    ? FileSystemService.formatBytes(bytes)
+    : 'Unknown';
 }
 
 function DetailRow({ label, value }: { label: string; value: string }) {

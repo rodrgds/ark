@@ -256,9 +256,7 @@ export function ArkBottomSheet({
 }
 
 function resolveSnapPoint(point: string | number, height: number): Detent {
-  if (typeof point === 'number') return Math.max(0, point);
-
-  const percent = point.match(/^(\d+(?:\.\d+)?)%$/);
+  const percent = String(point).match(/^(\d+(?:\.\d+)?)%$/);
   if (percent) {
     return Math.round(height * (Number(percent[1]) / 100));
   }

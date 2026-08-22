@@ -1,5 +1,6 @@
 import type { MapLocationIssue } from '@/services/maps/map-location.service';
 import type { MapLibreModule } from '@/services/maps/map.service';
+import type { Json } from '@/lib/decode';
 import type {
   MapMarker,
   MapRegion,
@@ -92,7 +93,10 @@ export function getMarkerComponent(maplibre: MapLibreModule | null) {
 }
 
 function getMapLibreExport(maplibre: MapLibreModule | null, name: string) {
-  const maybeDefault = maplibre as (MapLibreModule & { default?: Record<string, unknown> }) | null;
+  // SAFETY: the native module exposes components either at the top level or
+  // under `default`, and this probe only reads the named component.
+  const maybeDefault = maplibre as (MapLibreModule & { default?: { [key: string]: Json } }) | null;
+  // SAFETY: the named export is a MapLibre React component when present.
   return (maplibre?.[name as keyof MapLibreModule] ?? maybeDefault?.default?.[name]) as
     | React.ComponentType<any>
     | undefined;
@@ -180,8 +184,10 @@ function mapPadding(value: number) {
 
 export function runCameraAction(camera: any, action: CameraAction) {
   if (!camera) return false;
+  // SAFETY: camera capability probes guard each call below; MapLibre cameras
+  // expose easeTo/flyTo/fitBounds only when the native view supports them.
   if (action.type === 'center') {
-    if (typeof camera.easeTo === 'function') {
+    if ('easeTo' in camera) {
       camera.easeTo({
         center: action.center,
         zoom: action.zoom,
@@ -189,7 +195,7 @@ export function runCameraAction(camera: any, action: CameraAction) {
       });
       return true;
     }
-    if (typeof camera.flyTo === 'function') {
+    if ('flyTo' in camera) {
       camera.flyTo({
         center: action.center,
         zoom: action.zoom,
@@ -200,7 +206,7 @@ export function runCameraAction(camera: any, action: CameraAction) {
     return false;
   }
 
-  if (typeof camera.fitBounds === 'function') {
+  if ('fitBounds' in camera) {
     camera.fitBounds(action.bounds, {
       padding: mapPadding(action.padding),
       duration: action.duration,
@@ -324,7 +330,7 @@ export function isFiniteLngLat(center: LngLat) {
   return Number.isFinite(center[0]) && Number.isFinite(center[1]);
 }
 
-export function normalizeMapEventBounds(bounds: unknown): MapViewBounds | null {
+export function normalizeMapEventBounds<T>(bounds: T): MapViewBounds | null {
   if (!Array.isArray(bounds) || bounds.length !== 4) return null;
   const [west, south, east, north] = bounds;
   if (

@@ -54,6 +54,8 @@ function loadKeyboardController() {
   }
 
   try {
+    // SAFETY: the optional keyboard-controller package may be absent in
+    // Expo Go; the require result is null-checked before every use.
     keyboardControllerModule =
       require('react-native-keyboard-controller') as KeyboardControllerModule;
   } catch {
@@ -96,6 +98,8 @@ export const ArkKeyboardAvoidingView = React.forwardRef<View, ArkKeyboardAvoidin
 
     return (
       <KeyboardAvoidingView
+        // SAFETY: the fallback KeyboardAvoidingView accepts the same ref the
+        // native controller view takes.
         ref={ref as any}
         behavior={fallbackBehavior}
         keyboardVerticalOffset={keyboardVerticalOffset ?? 0}
@@ -115,6 +119,8 @@ export const ArkKeyboardStickyView = React.forwardRef<View, ArkKeyboardStickyVie
     }
 
     const { offset: _offset, enabled: _enabled, ...viewProps } = props;
+    // SAFETY: sticky views only render when the controller is present, so the
+    // remaining props are plain View props in this fallback path.
     return <View ref={ref} {...(viewProps as ViewProps)} />;
   }
 );
@@ -130,6 +136,8 @@ export const ArkKeyboardAwareScrollView = React.forwardRef<
 
   if (KeyboardAwareScrollView) {
     return (
+      // SAFETY: the loaded component is the controller's own scroll view and
+      // accepts the same ref type this wrapper declares.
       <KeyboardAwareScrollView ref={ref as React.Ref<KeyboardAwareScrollViewRef>} {...props} />
     );
   }
@@ -150,6 +158,8 @@ export const ArkKeyboardAwareScrollView = React.forwardRef<
       keyboardVerticalOffset={Platform.OS === 'ios' ? (_bottomOffset ?? 0) : 0}
       style={{ flex: 1 }}>
       <ScrollView
+        // SAFETY: the fallback path renders a plain ScrollView, which accepts
+        // the same ref this wrapper declares.
         ref={ref as React.Ref<ScrollView>}
         automaticallyAdjustKeyboardInsets={
           automaticallyAdjustKeyboardInsets ?? Platform.OS === 'ios'

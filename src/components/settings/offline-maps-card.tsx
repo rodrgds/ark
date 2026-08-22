@@ -36,33 +36,38 @@ type MapCountryGroup = {
 const MAX_VISIBLE_COUNTRY_GROUPS = 48;
 const MAX_VISIBLE_PRESET_ROWS = 36;
 
-const COUNTRY_NAMES: Record<string, string> = {
-  AR: 'Argentina',
-  AU: 'Australia',
-  BR: 'Brazil',
-  CA: 'Canada',
-  DE: 'Germany',
-  ES: 'Spain',
-  FR: 'France',
-  GB: 'United Kingdom',
-  GR: 'Greece',
-  IE: 'Ireland',
-  IN: 'India',
-  IT: 'Italy',
-  JP: 'Japan',
-  MA: 'Morocco',
-  MX: 'Mexico',
-  NZ: 'New Zealand',
-  PT: 'Portugal',
-  TR: 'Turkey',
-  UK: 'United Kingdom',
-  US: 'United States',
-};
+const COUNTRY_NAMES = new Map<string, string>(
+  Object.entries({
+    AR: 'Argentina',
+    AU: 'Australia',
+    BR: 'Brazil',
+    CA: 'Canada',
+    DE: 'Germany',
+    ES: 'Spain',
+    FR: 'France',
+    GB: 'United Kingdom',
+    GR: 'Greece',
+    IE: 'Ireland',
+    IN: 'India',
+    IT: 'Italy',
+    JP: 'Japan',
+    MA: 'Morocco',
+    MX: 'Mexico',
+    NZ: 'New Zealand',
+    PT: 'Portugal',
+    TR: 'Turkey',
+    UK: 'United Kingdom',
+    US: 'United States',
+  })
+);
+const COUNTRY_NAME_VALUES = [...COUNTRY_NAMES.values()];
 
 function buildMapCountryGroups(presets: MapPreset[], regions: MapRegion[]): MapCountryGroup[] {
   const groups = new Map<string, MapCountryGroup>();
   const regionsByPresetKey = new Map<string, MapRegion[]>();
   for (const region of regions) {
+    // SAFETY: both keys are optional strings on MapRegion; the filter drops
+    // undefined entries before use.
     const keys = [region.manifestRegionId, region.name].filter(Boolean) as string[];
     for (const key of keys) {
       const bucket = regionsByPresetKey.get(key) ?? [];
@@ -135,10 +140,10 @@ function mapPresetMatches(preset: MapPreset, searchText: string, countryName: st
     .some((value) => value.toLowerCase().includes(searchText));
 }
 
-function countryNameForPreset(preset: MapPreset) {
-  if (preset.countryCode && COUNTRY_NAMES[preset.countryCode])
-    return COUNTRY_NAMES[preset.countryCode];
-  const tagCountry = preset.tags.find((tag) => Object.values(COUNTRY_NAMES).includes(tag));
+function countryNameForPreset(preset: MapPreset): string {
+  const byCode = preset.countryCode ? COUNTRY_NAMES.get(preset.countryCode) : undefined;
+  if (byCode) return byCode;
+  const tagCountry = preset.tags.find((tag) => COUNTRY_NAME_VALUES.includes(tag));
   if (tagCountry) return tagCountry;
   if (preset.tags.includes('Iberia')) return 'Iberia';
   return 'Other Regions';

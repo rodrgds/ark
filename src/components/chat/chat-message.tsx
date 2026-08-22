@@ -47,6 +47,7 @@ function openSource(href: string) {
       params: { url: href },
     });
   } else {
+    // SAFETY: citation hrefs are curated by the chat source list.
     router.push(href as never);
   }
 }
@@ -64,10 +65,10 @@ function citationMatchesContent(citation: AiCitation, content: string, index: nu
 export function CitationCard({ citation, index }: { citation: AiCitation; index: number }) {
   const locationParts: string[] = [];
   if (citation.sectionTitle) locationParts.push(citation.sectionTitle);
-  if (typeof citation.page === 'number') locationParts.push(`page ${citation.page}`);
+  if (citation.page != null) locationParts.push(`page ${citation.page}`);
   const location = locationParts.join(' - ');
   const actionLabel =
-    typeof citation.page === 'number'
+    citation.page != null
       ? `Open page ${citation.page}`
       : citation.sectionTitle
         ? 'Open chapter'

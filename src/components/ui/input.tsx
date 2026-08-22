@@ -11,8 +11,8 @@ export const Input = React.forwardRef<TextInput, TextInputProps>(function Input(
   const [focused, setFocused] = React.useState(false);
   const colors = useThemeStore((state) => state.colors);
   const placeholderColor = placeholderTextColor ?? colors.mutedForeground;
-  const controlledText = typeof value === 'string' ? value : undefined;
-  const defaultText = typeof defaultValue === 'string' ? defaultValue : undefined;
+  const controlledText = value ?? undefined;
+  const defaultText = defaultValue ?? undefined;
   const lastNativeTextRef = React.useRef(controlledText ?? defaultText ?? '');
   const lastPropTextRef = React.useRef(controlledText);
   const textProps =
@@ -37,7 +37,7 @@ export const Input = React.forwardRef<TextInput, TextInputProps>(function Input(
   const setInputRef = React.useCallback(
     (node: TextInput | null) => {
       inputRef.current = node;
-      if (typeof ref === 'function') {
+      if (ref instanceof Function) {
         ref(node);
       } else if (ref) {
         ref.current = node;

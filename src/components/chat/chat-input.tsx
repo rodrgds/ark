@@ -150,8 +150,7 @@ export function ChatInput({
       const duration = Math.min(Math.max(event?.duration ?? 220, 160), 280);
       const screenY = event?.endCoordinates?.screenY;
       const eventHeight = event?.endCoordinates?.height ?? 0;
-      const measuredOffset =
-        typeof screenY === 'number' ? Math.max(0, windowHeight - screenY) : eventHeight;
+      const measuredOffset = screenY != null ? Math.max(0, windowHeight - screenY) : eventHeight;
       const easing = Easing.bezier(0.2, 0.8, 0.2, 1);
 
       keyboardProgress.value = withTiming(visible ? 1 : 0, { duration, easing });

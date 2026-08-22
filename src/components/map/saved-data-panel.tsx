@@ -117,7 +117,7 @@ function MapBottomSheetPanel({
     sheetRef.current?.expand?.();
   }, []);
   const renderedChildren =
-    typeof children === 'function' ? children({ expand: expandPanel }) : children;
+    children instanceof Function ? children({ expand: expandPanel }) : children;
 
   return (
     <ArkBottomSheet

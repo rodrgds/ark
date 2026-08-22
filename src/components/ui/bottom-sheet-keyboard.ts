@@ -25,7 +25,7 @@ export function resolveKeyboardOffset(
 ): number {
   const screenY = event?.endCoordinates?.screenY;
   const eventHeight = event?.endCoordinates?.height ?? 0;
-  if (typeof screenY === 'number' && screenY > 0 && screenY <= windowHeight) {
+  if (screenY != null && screenY > 0 && screenY <= windowHeight) {
     return Math.max(0, windowHeight - screenY);
   }
   return eventHeight;

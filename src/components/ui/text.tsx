@@ -27,21 +27,24 @@ const textVariants = cva(cn('text-foreground text-base', Platform.select({ web: 
 type TextVariantProps = VariantProps<typeof textVariants>;
 type TextVariant = NonNullable<TextVariantProps['variant']>;
 
-const ROLE: Partial<Record<TextVariant, Role>> = {
-  h1: 'heading',
-  h2: 'heading',
-  h3: 'heading',
-  h4: 'heading',
-  blockquote: Platform.select({ web: 'blockquote' as Role }),
-  code: Platform.select({ web: 'code' as Role }),
-};
+// SAFETY: the blockquote and code roles are web-only RN accessibility roles,
+// which is why they are gated behind Platform.select like the original map.
+const ROLE = new Map<TextVariant, Role>([
+  ['h1', 'heading'],
+  ['h2', 'heading'],
+  ['h3', 'heading'],
+  ['h4', 'heading'],
+  ...(Platform.select({ web: [['blockquote', 'blockquote' as Role] as [TextVariant, Role]] }) ??
+    []),
+  ...(Platform.select({ web: [['code', 'code' as Role] as [TextVariant, Role]] }) ?? []),
+]);
 
-const ARIA_LEVEL: Partial<Record<TextVariant, string>> = {
-  h1: '1',
-  h2: '2',
-  h3: '3',
-  h4: '4',
-};
+const ARIA_LEVEL = new Map<TextVariant, string>([
+  ['h1', '1'],
+  ['h2', '2'],
+  ['h3', '3'],
+  ['h4', '4'],
+]);
 
 const TextClassContext = React.createContext<string | undefined>(undefined);
 
@@ -58,8 +61,8 @@ function Text({
   return (
     <Component
       className={cn(textVariants({ variant }), textClass, className)}
-      role={variant ? ROLE[variant] : undefined}
-      aria-level={variant ? ARIA_LEVEL[variant] : undefined}
+      role={variant ? ROLE.get(variant) : undefined}
+      aria-level={variant ? ARIA_LEVEL.get(variant) : undefined}
       {...props}
     />
   );

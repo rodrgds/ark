@@ -56,6 +56,8 @@ function plainTextToHtml(value: string) {
 function parseContentJson(contentJson: string | null) {
   if (!contentJson) return null;
   try {
+    // SAFETY: contentJson was written by this editor; any non-object
+    // payload is rejected by the caller's shape check.
     return JSON.parse(contentJson) as object;
   } catch {
     return null;
@@ -71,7 +73,7 @@ function getInitialContent({ body, contentHtml, contentJson, contentFormat }: Ri
   return plainTextToHtml(body);
 }
 
-function serializeContentJson(value: object) {
+function serializeContentJson<T>(value: T) {
   try {
     return JSON.stringify(value);
   } catch {

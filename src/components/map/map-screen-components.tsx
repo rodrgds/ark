@@ -44,7 +44,6 @@ import {
   formatMapRegionStorage,
   routingStatusLabel,
 } from '@/services/maps/map-storage';
-import { isPresetDownloaded } from '@/services/maps/map-region-utils';
 import { estimatedBundledRoutingPackBytesForRegion } from '@/services/maps/routing-storage';
 import { useThemeStore } from '@/stores/theme-store';
 import type {

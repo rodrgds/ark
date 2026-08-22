@@ -108,26 +108,6 @@ export function findParentRegion<T extends { id: string; parentId?: string }>(
   return regions.find((candidate) => candidate.id === region.parentId);
 }
 
-export function isPresetDownloaded(
-  preset: ManifestRegionLike,
-  downloadedRegions: Array<MapRegion | DownloadedRegionLike>
-) {
-  return downloadedRegions.some((region) => {
-    if (!isDownloaded(region)) return false;
-    const regionId = 'regionId' in region ? region.regionId : undefined;
-    const manifestRegionId = 'manifestRegionId' in region ? region.manifestRegionId : undefined;
-    if (
-      region.id === preset.id ||
-      regionId === preset.id ||
-      manifestRegionId === preset.id ||
-      region.name === preset.name
-    ) {
-      return true;
-    }
-    return regionsShareBounds(preset, region);
-  });
-}
-
 export const getBboxCenter = getBboxCenterFromTuple;
 
 function getRegionBbox(region: Pick<ManifestRegionLike, 'bbox'> | { bounds: MapBounds }) {
@@ -177,13 +157,6 @@ function downloadedRegionArea(region: DownloadedRegionLike) {
   const bbox = getDownloadedBbox(region);
   if (!bbox) return Number.POSITIVE_INFINITY;
   return getBboxArea(bbox);
-}
-
-function regionsShareBounds(region: ManifestRegionLike, downloadedRegion: DownloadedRegionLike) {
-  const bbox = getRegionBbox(region);
-  const downloadedBbox = getDownloadedBbox(downloadedRegion);
-  if (!bbox || !downloadedBbox) return false;
-  return bbox.every((value, index) => Math.abs(value - downloadedBbox[index]) < 0.000001);
 }
 
 function distanceToRegionCenter(region: ManifestRegionLike, coordinate: Coordinate) {

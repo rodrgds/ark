@@ -7,7 +7,6 @@ import {
   getRegionForCoordinate,
   getRegionsForBoundingBox,
   isCoordinateInsideRegion,
-  isPresetDownloaded,
   sortRegionsByDistanceFromCoordinate,
 } from '@/services/maps/map-region-utils';
 
@@ -84,19 +83,6 @@ describe('map region utilities', () => {
       'pt-porto',
     ]);
     expect(findParentRegion('pt-lisbon', [portugal, lisbon, porto])?.id).toBe('pt');
-  });
-
-  test('matches downloaded presets by manifest id before display name', () => {
-    expect(
-      isPresetDownloaded(lisbon, [
-        {
-          id: 'local-random-id',
-          manifestRegionId: 'pt-lisbon',
-          name: 'Renamed Lisbon pack',
-          status: 'downloaded',
-        },
-      ])
-    ).toBe(true);
   });
 });
 

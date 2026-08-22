@@ -1458,11 +1458,11 @@ export function SpotDialog({
         <View className="flex-row gap-2">
           <Button className="flex-1" variant="outline" onPress={() => onAttachPhoto('camera')}>
             <Icon as={Camera} className="size-4" />
-            <Text>Take</Text>
+            <Text>Camera</Text>
           </Button>
           <Button className="flex-1" variant="outline" onPress={() => onAttachPhoto('library')}>
             <Icon as={ImageIcon} className="size-4" />
-            <Text>Choose</Text>
+            <Text>Library</Text>
           </Button>
         </View>
       )}
@@ -1565,11 +1565,11 @@ export function EditSpotDialog({
         <View className="flex-row gap-2">
           <Button className="flex-1" variant="outline" onPress={() => onAttachPhoto('camera')}>
             <Icon as={Camera} className="size-4" />
-            <Text>Take</Text>
+            <Text>Camera</Text>
           </Button>
           <Button className="flex-1" variant="outline" onPress={() => onAttachPhoto('library')}>
             <Icon as={ImageIcon} className="size-4" />
-            <Text>Choose</Text>
+            <Text>Library</Text>
           </Button>
         </View>
       )}

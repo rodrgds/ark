@@ -19,47 +19,37 @@ export default function PedometerTool() {
   const baseRef = React.useRef(0);
   const stopRef = React.useRef<(() => void) | null>(null);
 
+  const startTracking = React.useCallback(async (): Promise<Status> => {
+    const granted = await PedometerService.requestPermission();
+    if (!granted) return 'denied';
+
+    const available = await PedometerService.isAvailable();
+    if (!available) return 'unavailable';
+
+    const { steps: base } = await PedometerService.getTodaySteps();
+    baseRef.current = base;
+    setBaseSteps(base);
+    setStoreSteps(base);
+
+    stopRef.current = PedometerService.start((sessionSteps: number) => {
+      setSession(sessionSteps);
+      setStoreSteps(baseRef.current + sessionSteps);
+    });
+    return 'ready';
+  }, [setStoreSteps]);
+
   React.useEffect(() => {
     let cancelled = false;
 
-    (async () => {
-      setStatus('requesting');
-
-      const granted = await PedometerService.requestPermission();
-      if (cancelled) return;
-      if (!granted) {
-        setStatus('denied');
-        return;
-      }
-
-      const available = await PedometerService.isAvailable();
-      if (cancelled) return;
-      if (!available) {
-        setStatus('unavailable');
-        return;
-      }
-
-      // iOS: get historical steps since midnight as baseline
-      // Android: getTodaySteps now works via getStepCountAsync with date range
-      const { steps: base } = await PedometerService.getTodaySteps();
-      if (cancelled) return;
-
-      baseRef.current = base;
-      setBaseSteps(base);
-      setStoreSteps(base);
-
-      stopRef.current = PedometerService.start((sessionSteps: number) => {
-        setSession(sessionSteps);
-        setStoreSteps(baseRef.current + sessionSteps);
-      });
-
+    setStatus('requesting');
+    void startTracking().then((result) => {
       if (cancelled) {
         stopRef.current?.();
         stopRef.current = null;
         return;
       }
-      setStatus('ready');
-    })();
+      setStatus(result);
+    });
 
     return () => {
       cancelled = true;
@@ -67,33 +57,14 @@ export default function PedometerTool() {
       stopRef.current = null;
       setStoreSteps(null);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [startTracking, setStoreSteps]);
 
-  const retryAfterDenied = React.useCallback(async () => {
+  const retryAfterDenied = React.useCallback(() => {
     setStatus('requesting');
     stopRef.current?.();
     stopRef.current = null;
-    const granted = await PedometerService.requestPermission();
-    if (!granted) {
-      setStatus('denied');
-      return;
-    }
-    const available = await PedometerService.isAvailable();
-    if (!available) {
-      setStatus('unavailable');
-      return;
-    }
-    const { steps: base } = await PedometerService.getTodaySteps();
-    baseRef.current = base;
-    setBaseSteps(base);
-    setStoreSteps(base);
-    stopRef.current = PedometerService.start((sessionSteps: number) => {
-      setSession(sessionSteps);
-      setStoreSteps(baseRef.current + sessionSteps);
-    });
-    setStatus('ready');
-  }, [setStoreSteps]);
+    void startTracking().then(setStatus);
+  }, [startTracking]);
 
   const total = baseSteps + session;
   const goal = 10_000;
@@ -107,7 +78,7 @@ export default function PedometerTool() {
     return (
       <Screen style={[styles.screen, { backgroundColor: palette.background }]}>
         <Card style={cardStyle}>
-          <Text style={[styles.permTitle, { color: palette.foreground }]}>Permission Denied</Text>
+          <Text style={[styles.permTitle, { color: palette.foreground }]}>Permission denied</Text>
           <Text style={[styles.permBody, { color: palette.mutedForeground }]}>
             {Platform.OS === 'android'
               ? 'Go to Settings → Apps → Ark → Permissions and enable Physical Activity.'
@@ -116,7 +87,7 @@ export default function PedometerTool() {
           <TouchableOpacity
             style={[styles.btn, { backgroundColor: palette.primary }]}
             onPress={retryAfterDenied}>
-            <Text style={[styles.btnText, { color: palette.primaryForeground }]}>Try Again</Text>
+            <Text style={[styles.btnText, { color: palette.primaryForeground }]}>Try again</Text>
           </TouchableOpacity>
         </Card>
       </Screen>
@@ -127,7 +98,7 @@ export default function PedometerTool() {
     return (
       <Screen style={[styles.screen, { backgroundColor: palette.background }]}>
         <Card style={cardStyle}>
-          <Text style={[styles.permTitle, { color: palette.foreground }]}>Not Available</Text>
+          <Text style={[styles.permTitle, { color: palette.foreground }]}>Not available</Text>
           <Text style={[styles.permBody, { color: palette.mutedForeground }]}>
             This device does not have a pedometer sensor.
           </Text>
@@ -165,7 +136,7 @@ export default function PedometerTool() {
               styles.progressFill,
               {
                 backgroundColor: success,
-                width: `${(progress * 100).toFixed(1)}%` as any,
+                width: `${(progress * 100).toFixed(1)}%` as `${number}%`,
               },
             ]}
           />
